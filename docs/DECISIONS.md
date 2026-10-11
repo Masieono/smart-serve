@@ -1,0 +1,336 @@
+# Smart-Serve — Architecture Decision Records
+
+Format: context → decision → alternatives considered → consequences. Numbered;
+never rewritten (superseded with a new ADR that references the old one).
+
+## ADR-001: Implementation language — Go
+
+**Context.** Hard requirement: minimal idle cost (RAM + CPU), tiny image, no
+language-runtime patching burden, in-process scheduler, embeddable frontend.
+
+**Decision.** Implement the server as a single Go binary; frontend embedded via
+`embed.FS`.
+
+**Alternatives.**
+- *Python/FastAPI* — fastest to develop, richest JSON tooling; but ~60–100 MB
+  idle RSS, larger image, and a language runtime to patch. Fails the
+  idle-frugality invariant in spirit.
+- *Node.js* — familiar ecosystem; ~40–60 MB idle RSS, larger image, same runtime
+  concerns.
+- *Rust* — comparable or better footprint than Go; slower development velocity
+  for this scope and a steeper contributor bar.
+
+**Consequences.** (+) single static binary, distroless image <20 MB, zero idle
+CPU, stdlib HTTP keeps the dependency list tiny. (−) slower initial development;
+interpreter/fixtures need Go test discipline. (±) contributors need Go
+familiarity.
+
+## ADR-002: SMART data source — shell out to smartctl
+
+**Context.** Need S.M.A.R.T. data for ATA, NVMe, and USB bridges; correctness
+across vendor quirks is the product's core.
+
+**Decision.** Execute `smartctl` (bundled in the image) with JSON output flags
+and parse its JSON. Never parse human text output.
+
+**Alternatives.**
+- *libatasmart / Go libraries (gosmart)* — links or wraps C libraries; NVMe
+  support weak-to-absent, USB bridge handling worse, maintenance riskier than
+  smartmontools.
+- *Raw NVMe/ATA ioctl implementation in Go* — enormous correctness surface;
+  re-implements 20 years of vendor quirk handling. Explicitly rejected.
+
+**Consequences.** (+) smartmontools' vendor-quirk maturity and USB `-d`
+transports for free; JSON output is stable and versioned. (−) subprocess per
+device per scan (acceptable: sequential, ~5 MB transient each); smartctl
+version drift managed by pinning in the image build.
+
+## ADR-003: Persistence — SQLite
+
+**Context.** Need durable storage (notes, snapshots, schedules, channels) with
+zero additional daemons.
+
+**Decision.** SQLite, WAL mode, one file at `/data/smartserve.db`; embedded
+migrations at startup.
+
+**Alternatives.**
+- *JSON file store* — simpler; but concurrent scan-writes vs UI-reads,
+  partial-write risk on crash, and unbounded history growth made it fragile.
+- *Postgres/MariaDB in a sidecar* — a second container with real idle RAM
+  cost; fails the self-containment goal outright.
+- *Embedded key/value (bbolt family)* — workable, but relational queries
+  (history ranges, notification dedupe) map poorly.
+
+**Consequences.** (+) one file, one process, relational queries, trivial
+backup. (−) single-writer serialization (fine at this write rate); driver choice
+(cgo `mattn/go-sqlite3` vs pure-Go `modernc.org/sqlite`) resolved at
+implementation time — pure-Go preferred for static distroless builds.
+
+## ADR-004: Scheduling — in-process, not host cron
+
+**Context.** Scheduled S.M.A.R.T. scans are a core feature. Host cron would
+break self-containment ("zero host setup").
+
+**Decision.** A single scheduler goroutine inside the app; schedules stored in
+SQLite; intervals and cron expressions both supported; next-run computed after
+each scan.
+
+**Alternatives.**
+- *Host cron + `docker exec`* — external moving parts, invisible to the UI,
+  violates self-containment.
+- *A cron container sidecar (ofelia etc.)* — a second container for zero
+  functional benefit.
+
+**Consequences.** (+) UI-managed schedules, no host setup, one container.
+(−) scheduler lives/dies with the app (a stopped container doesn't scan — which
+is correct); missed-run catch-up policy (run-once-on-startup if overdue?
+default: no, next fire only) decided at implementation and documented then.
+
+## ADR-005: Device identity — serial number
+
+**Context.** User notes must survive reboot, replug, and device-letter changes.
+
+**Decision.** Serial number is the primary identity (`devices.serial` unique).
+Fallback for drives with empty/duplicate serials: `__nomodel:<model>[-<n>]`
+disambiguation. Device path is informational only.
+
+**Alternatives.**
+- *WWN* — strong, but absent on some USB bridges; serial is near-universal.
+- *Model+capacity* — collides in homogeneous drive pools.
+- *Filesystem UUID* — wrong layer; partitions/filesystems move between drives.
+
+**Consequences.** (+) notes track physical drives across reboots/replug/letters.
+(−) WWN stored for cross-checking; duplicate-serial edge cases get the fallback
+with a UI warning.
+
+## ADR-006: Live updates — SSE, not WebSocket, not polling
+
+**Context.** The Scan button should give immediate live feedback per device.
+
+**Decision.** Server-Sent Events over a single `GET /api/events` connection;
+browser-native `EventSource` auto-reconnect with `Last-Event-ID`.
+
+**Alternatives.**
+- *WebSocket* — bidirectional capability we don't need; extra complexity
+  (upgrade handling, heartbeats, proxy pitfalls).
+- *Polling* — either wasteful (idle cost) or laggy.
+
+**Consequences.** (+) one-directional, reconnecting for free, trivial to
+implement on stdlib; small server-side ring buffer for missed-event replay.
+(−) reverse proxies must disable buffering (documented in DEPLOYMENT.md).
+
+## ADR-007: No hot-plug watcher — scans are the freshness mechanism
+
+**Context.** udev monitoring would catch plug/unplug instantly.
+
+**Decision.** No udev/inotify watcher. Device changes are observed only on
+on-demand or scheduled scans. This is a deliberate trade, surfaced honestly in
+the UI ("last scanned" timestamp on every screen).
+
+**Consequences.** (+) preserves the zero-idle-cost invariant — the core
+product promise. (−) hot-plug latency equals time-to-next-scan; mitigated by
+the Scan button being one click. Revisit only if user feedback demands it
+(would then be an opt-in feature, disabled by default).
+
+## ADR-008: Health-change notifications — transition-based, not state-based
+
+**Context.** A failing drive must alert without spamming every scheduled scan.
+
+**Decision.** `health_change` events fire only on verdict transitions;
+persistent bad states stay silent unless a different (worse or recovered)
+verdict appears. Squelch windows for repeating conditions (temperature) are
+configurable.
+
+**Consequences.** (+) signal, not noise. (−) a missed notification (e.g.
+channel down during a transition) is recoverable only via the notification
+log — the log records the `failed` delivery, surfaced in the Settings view.
+
+## ADR-009: Configuration strategy — env vars for bootstrap, UI/SQLite for everything else
+
+**Context.** The owner wants sensible defaults that are adjustable in the web UI,
+and explicitly does *not* want one environment variable per tunable threshold
+(verdict thresholds, temperature, retention, squelch windows, …). At the same time
+some settings must exist *before* the database does (listen address, DB path) and
+are naturally container-orchestration concerns.
+
+**Decision.** Two tiers:
+
+- **Env vars — bootstrap/operational only** (needed before/around the DB, or
+  orchestration-level): `SMARTSERVE_ADDR`, `SMARTSERVE_DB`, `TZ`,
+  `SMARTSERVE_MISSED_RUN_POLICY`, `SMARTSERVE_COMMAND_TIMEOUT`,
+  `SMARTSERVE_LOG_LEVEL`.
+- **Everything else — Settings UI, persisted in SQLite**: every interpretation
+  threshold, retention, squelch, theme, exclude lists, schedules, channels, notes.
+
+**Precedence:** an env var provides the *default* for a setting only while that
+setting is absent from the DB. Once the user changes it in the UI, the DB value
+wins and the env var is ignored (the UI shows the source). Purely operational vars
+(`ADDR`, `DB`) are env-only and never stored.
+
+**Alternatives.**
+- *All-env configuration* — env-var sprawl; every change requires a container
+  restart; poor discoverability. Rejected by the owner.
+- *All-UI configuration* — cannot bootstrap the listen port / DB path; a
+  bricked DB would leave no way in.
+
+**Consequences.** (+) short `docker run`, discoverable/live-editable settings,
+no restart to tune thresholds. (−) two places to look for config — mitigated by
+the UI displaying each setting's effective source and default.
+
+## ADR-010: Known Go implementation risks & mitigations
+
+**Context.** The owner is not a Go developer and is trusting the stack choice.
+The specific Go-related pitfalls this project must navigate are recorded here so
+they are designed for, not discovered.
+
+**Risks & mitigations.**
+
+| Risk | Mitigation |
+|---|---|
+| cgo SQLite driver (`mattn/go-sqlite3`) breaks static distroless builds and cross-compilation | Use the **pure-Go** `modernc.org/sqlite` driver; accept ~6–8 MB larger binary. Driver hidden behind a tiny `store` interface so it can be swapped. |
+| Zombie/hung `smartctl` subprocesses | Always `exec.CommandContext` with a timeout; drain stdout/stderr; always `Wait()`; one scan at a time behind a mutex. |
+| Goroutine leaks on long-lived SSE connections | Per-client channel + `context` cancellation on disconnect; bounded ring buffer for replay. |
+| Cross-arch builds (amd64/arm64 for NAS/Pi) | Pure-Go dependencies make `GOOS`/`GOARCH` cross-compiles trivial; multi-arch image via `docker buildx`. |
+| Large `smartctl --json` payload memory spikes | Stream-decode with `json.Decoder`; bounded buffers; process one device at a time. |
+| Time-zone correctness for cron schedules | Load the container `TZ`; evaluate cron in local time; display next-run in the user's zone. |
+| Graceful shutdown | Handle `SIGTERM`; stop scheduler; close SQLite cleanly (WAL checkpoint). |
+| Runtime footprint concerns | Go GC overhead is negligible at this scale; idle RSS ~10–15 MB measured, not assumed (acceptance test in `SCOPE.md`). |
+
+**Alternatives.** cgo SQLite (faster, but breaks static/multi-arch builds);
+linking libatasmart (rejected in ADR-002).
+
+**Consequences.** (+) reproducible, tiny, multi-arch image with no runtime
+dependencies. (−) pure-Go SQLite is somewhat slower than the C library — irrelevant
+at this write rate; slightly larger binary.
+
+## ADR-011: Drive knowledge base — layered, shipped with releases
+
+**Context.** The owner wants per-drive extras (rated TBW, known firmware advisories)
+but correctly flagged that sourcing and maintaining specs for "all or most drives"
+is ongoing upkeep that risks becoming a treadmill.
+
+**Decision.** A two-layer knowledge base, with no runtime polling:
+
+1. **Base layer** = smartmontools' upstream `drivedb.h`, which already ships inside
+   the `smartctl` binary in the image and is maintained upstream (model families,
+   known-issue flags, vendor attribute quirks) — zero effort for this project.
+2. **Curated layer** = a small, schema-versioned, bundled JSON table for the extras
+   (`drivedb.h` lacks rated TBW/workload, release year, firmware advisories).
+   Community-contributed via pull request, shipped with each image release.
+
+The KB is loaded from the binary at startup (no network, no timers). A drive absent
+from the KB degrades gracefully: full S.M.A.R.T. reporting continues; only the
+extras are missing. A future **opt-in** "refresh knowledge base" action (user-
+pressed, never automatic) may address freshness while preserving the idle invariant.
+
+**Alternatives.**
+- *Rely solely on `drivedb.h`* — no rated TBW / advisory data; incomplete feature.
+- *Runtime fetch from a hosted API* — breaks offline operation, adds a network
+  dependency and a privacy consideration, and risks idle cost.
+- *Require users to enter specs* — pushes the treadmill onto every user.
+
+**Consequences.** (+) offline-capable, no upkeep automation needed beyond release
+cadence, graceful degradation. (−) KB freshness is tied to release cadence — the
+opt-in manual refresh is the escape hatch if that proves too slow.
+
+## ADR-012: Licensing — MIT application, GPL-compliant image
+
+**Context.** Personal, non-commercial project to be published on GitHub for others to
+use. `smartctl` (smartmontools) is **GPLv2** and is bundled in the image.
+
+**Decision.** The application source is licensed **MIT**. The image bundles the GPLv2
+`smartctl` binary; GPL compliance for the *image* is satisfied by shipping
+smartmontools' license text and a pointer/offer to its corresponding source
+(upstream smartmontools). The app invokes `smartctl` as a **separate process**, not a
+linked library, so the app code is not a derivative work of it (mere aggregation).
+
+**Alternatives.** Apache-2.0 (also fine — adds an explicit patent grant and a NOTICE
+file; trivial to switch to before the first release). GPL for everything (unnecessary
+copyleft on our own code). No license (hostile to users).
+
+**Consequences.** (+) maximally easy for others to use, test, and fork — matching the
+owner's intent. (−) the image build must include smartmontools' notices — a one-line
+build step, not a burden.
+
+## ADR-013: Secrets — env / .env / *_FILE / DB, env wins
+
+**Context.** The owner asked whether secrets (ntfy tokens, webhook auth headers)
+should live in a `.env` file or in SQLite.
+
+**Decision.** Support all three sources, with precedence
+**environment > mounted secret file > database**:
+
+1. **Env vars** — including Docker Compose `env_file:` / `.env` (Compose injects them;
+   the app does *not* parse `.env` itself).
+2. **`*_FILE` variables** — e.g. `SMARTSERVE_NTFY_TOKEN_FILE=/run/secrets/…`
+   (Docker-secrets convention) for keeping secrets off the command line.
+3. **Database** — set via the UI for convenience (non-technical users, no restart).
+
+The UI displays each secret's source. Precedence follows `ADR-009` (env supplies the
+value; the DB value is used only when no env/file value exists).
+
+**Alternatives.** DB-only (secrets then travel in the `/data` volume and its
+backups). Env-only (restart to change; awkward for non-technical users).
+
+**Consequences.** (+) a secure path *and* a convenient path; (−) two mechanisms to
+document — mitigated by the UI surfacing the effective source.
+
+## ADR-014: Frontend & theming — no framework, token-based themes
+
+**Context.** A sleek, clean, navigable UI with a theme picker is a first-class
+requirement; prior iterative UI work drifted and regressed.
+
+**Decision.** Vanilla ES modules + a single CSS token sheet + component styles; no
+framework, no build step, no CDN. Theming is a token swap over CSS custom properties
+(`light` / `dark` / `auto` / `custom` accent). The server renders the theme attribute
+to avoid flash. `UI.md` is the binding contract for all UI work.
+
+**Alternatives.** React/Vue (build step, dependency churn, larger bundle); Tailwind
+(build step); a component library (opinionated look, bundle cost).
+
+**Consequences.** (+) fast, offline, tiny, and structurally resistant to UI drift;
+(−) more hand-written DOM code, offset by the small, well-specified component set.
+
+## ADR-015: Reverse proxy, base path, and CSRF
+
+**Context.** The owner runs an Nginx reverse proxy and asked how it affects the app.
+
+**Decision.** The app is **proxy-agnostic** — mapping a domain to `IP:port` requires
+**no application change**. Three details are handled so proxies work well:
+
+1. **SSE** must pass through unbuffered (`proxy_buffering off`, HTTP/1.1) —
+   documented in `DEPLOYMENT.md`.
+2. **Subpath hosting** is supported via `SMARTSERVE_BASE_PATH` (e.g. `/smartserve/`),
+   so assets, links, and redirects stay prefix-correct.
+3. **CSRF**: state-changing endpoints (POST/PUT/DELETE) require a same-origin check /
+   token, so a proxy that adds authentication is not bypassable via cross-site
+   requests from a browser on the LAN.
+
+**Alternatives.** Assume root-path hosting only (breaks subpath users). Ignore CSRF
+(risky once a proxy adds auth, since the browser carries that auth automatically).
+
+**Consequences.** (+) works behind any proxy, subpath included, without surprises;
+(−) a little extra plumbing for base path and CSRF tokens.
+
+## ADR-016: Authentication — delegated to a reverse proxy
+
+**Context.** The owner runs Nginx and does not envision the app needing user accounts
+or access control of its own.
+
+**Decision.** The app ships **no authentication and no user management**. Access
+control is delegated to the operator's reverse proxy. CSRF protection (`ADR-015`)
+remains, so a proxy that adds authentication cannot be bypassed by cross-site
+requests from a browser on the LAN.
+
+**Alternatives.** Built-in single-user basic auth (deferred — unnecessary surface
+area for the owner's use); multi-user accounts/roles (rejected — out of scope,
+`SCOPE.md` non-goals).
+
+**Consequences.** (+) lean; no credential storage, no user database, no session
+handling. (−) exposing the port directly without a proxy is unsafe — stated loudly in
+`DEPLOYMENT.md`.
+
+
+
+
+

@@ -1,0 +1,34 @@
+# --- Runtime data (never commit) ---
+# SQLite database + WAL/SHM siblings (DATA_MODEL.md)
+/data/
+*.db
+*.db-wal
+*.db-shm
+
+# --- Secrets (ADR-013) ---
+.env
+.env.*
+!.env.example
+*.token
+secrets/
+/run/secrets/
+
+# --- Go build output ---
+/smart-serve
+/bin/
+/dist/
+*.exe
+*.test
+*.out
+coverage.txt
+
+# --- Vendored deps (module cache is enough) ---
+vendor/
+
+# --- Editor / OS ---
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*~

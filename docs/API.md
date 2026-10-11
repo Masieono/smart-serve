@@ -1,0 +1,142 @@
+# Smart-Serve — Internal API Specification
+
+All endpoints JSON unless noted. Unauthenticated at MVP (see SECURITY notes in
+`DESIGN.md` §7). Paths are relative to `SMARTSERVE_BASE_PATH` (default `/`,
+`ADR-015`). State-changing requests (POST/PUT/DELETE) require a same-origin/CSRF
+check. Error envelope: `{ "error": "message" }` with an appropriate HTTP status.
+Timestamps are Unix milliseconds.
+
+## Scan & devices
+
+### `POST /api/scan` — trigger an on-demand scan
+
+Runs the scan pipeline; single-flight (joins an in-flight scan). Returns immediately;
+progress arrives over SSE. Response: `{ "scan_id": 123, "status": "started" }`
+(or `"joined"` if already running). SSE delivers `scan_complete` with the summary —
+the client does not poll.
+
+### `GET /api/devices` — list devices (last known state; never triggers I/O)
+
+```json
+{
+  "devices": [
+    {
+      "serial": "S5GXNX0R512345J",
+      "model": "Samsung SSD 870 EVO 1TB",
+      "device_path": "/dev/sda",
+      "transport": "sata",
+      "capacity_bytes": 1000204886016,
+      "health": "caution",
+      "health_rationale": "5 pending sectors",
+      "temperature_c": 41,
+      "smart_available": true,
+      "name": "boot",
+      "notes": null,
+      "hidden": false,
+      "mountpoints": ["/"],
+      "fstype": "ext4",
+      "last_scan": 1730000000000,
+      "is_missing": false
+    }
+  ],
+  "last_scan_ts": 1730000000000
+}
+```
+
+### `GET /api/devices/{serial}` — full device detail
+
+Everything above plus the normalized SMART payload for the last scan: ATA attribute
+array (`id, name, value, worst, threshold, raw_value, raw_interpreted, verdict`) or
+NVMe health block (`critical_warning, temperature, available_spare,
+percentage_used, data_units_written, power_on_hours, ...`), plus `power_on_hours`,
+`power_cycle_count`, and the `health_rationale`.
+
+## User metadata
+
+### `PUT /api/devices/{serial}/notes`
+
+```json
+{ "name": "boot", "notes": "bought 2024-03, under warranty until 2029", "tags": "critical,os", "hidden": false }
+```
+
+Creates the note row if absent (device may currently be unplugged). Response: the
+stored record. Unset fields are `null`, not omitted — full replace semantics.
+
+## Schedules
+
+- `GET /api/schedules` — list (includes `next_run`).
+- `POST /api/schedules` — create: `{ "kind": "interval", "every_seconds": 21600, "label": "every 6h" }`
+  or `{ "kind": "cron", "cron": "0 3 * * *", "label": "nightly" }`.
+- `PUT /api/schedules/{id}` — update fields / `enabled` toggle.
+- `DELETE /api/schedules/{id}` — remove.
+- `POST /api/schedules/{id}/run` — fire once now (goes through single-flight).
+
+## Notification channels
+
+- `GET /api/channels`
+- `POST /api/channels` — `{ "type": "ntfy", "label": "alerts", "config": { "server": "https://ntfy.sh", "topic": "my-smart-alerts" }, "events": ["health_change", "temperature_high", "device_disappeared"] }`
+  (webhook config: `{ "url": "...", "method": "POST", "headers": {...} }`)
+- `PUT /api/channels/{id}` — update.
+- `DELETE /api/channels/{id}`
+- `POST /api/channels/{id}/test` — send a test event immediately (bypasses
+  squelching).
+
+## Settings
+
+- `GET /api/settings` / `PUT /api/settings` — key/value map. The full default key
+  list (thresholds, retention, squelch, theme, excludes) is in `DATA_MODEL.md`;
+  every interpretation threshold is edited here, never via env vars (`ADR-009`).
+  The response includes each setting's effective value, its default, and its
+  source (`env` or `db`). Appearance keys: `theme`, `theme_base`, `theme_accent`,
+  `theme_surface_tint` (`UI.md` §5).
+
+## Diagnostics & operations
+
+- `GET /healthz` — `200 OK`, no I/O. Intended for the Docker `HEALTHCHECK` and
+  orchestrator liveness probes.
+- `GET /api/scans` — scan-history log (`FEATURES.md` A13): id, trigger
+  (`manual`/`schedule`), start/end, duration, per-device ok/fail counts, error.
+- `GET /api/devices/{serial}/raw` — raw `smartctl --json` (and the exact command
+  line used) for the last scan; the diagnostics escape hatch for USB bridges
+  (`FEATURES.md` A10).
+- `PUT /api/devices/{serial}/transport` — set a per-device `-d` transport override
+  (`{ "smart_d": "sat" }`), persisted in `device_transport_overrides`
+  (`FEATURES.md` A11).
+- `GET /api/devices/{serial}/report?format=txt|json|html` — CrystalDiskInfo-style
+  report export for warranty/RMA (`FEATURES.md` A8). Enabled formats come from the
+  `report_export_formats` setting; `?bundle=1` returns a zip of all enabled formats
+  (Phase 2).
+
+## Phase 2 endpoints (specified now to freeze direction)
+
+- `POST /api/devices/{serial}/selftest` — body `{ "kind": "short" | "long" }`;
+  defaults to the `selftest_default_kind` setting (`short`); requires
+  `selftest_enabled`. `GET …/selftest` returns the self-test log (`FEATURES.md` A19).
+- `POST /api/acknowledge` — `{ "event_key": "health_change:<serial>:caution" }`
+  mutes that event without changing the verdict (`FEATURES.md` B7).
+- `GET|POST|PUT|DELETE /api/maintenance-windows` — silence windows
+  (`FEATURES.md` B8).
+
+## Events (SSE)
+
+### `GET /api/events` — text/event-stream, long-lived
+
+Event types pushed to connected browsers:
+
+| Event | Payload |
+|---|---|
+| `scan_started` | `{ scan_id }` |
+| `scan_device` | `{ scan_id, device, phase: "start"\|"done", ok, error? }` |
+| `scan_complete` | `{ scan_id, devices_total, devices_ok, devices_failed, duration_ms }` |
+| `schedule_fired` | `{ scan_id, schedule_id }` |
+| `notification_sent` | `{ channel_label, event_type, status }` |
+
+SSE is the only push mechanism; no WebSocket (see ADR-006). Reconnect handling is
+native (browser `EventSource` auto-retry with `Last-Event-ID` cursor for missed
+`scan_complete`s; the server keeps a small ring buffer of recent events).
+
+## History (Phase 2 endpoint, specified now to freeze schema)
+
+- `GET /api/devices/{serial}/history?from=…&to=…` — snapshots in range, with
+  computed series (`temperature_c`, `wear_pct`, attr-5/197/198 raw values,
+  `power_on_hours`).
