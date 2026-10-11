@@ -34,14 +34,17 @@ Many vendors (Maxtor, Samsung, HGST, etc.) pack **three 16-bit counters** into t
 48-bit raw value; CrystalDiskInfo displays them as "0 0 5". Smart-Serve applies the
 same unpacking heuristic for count-type attributes:
 
-1. Let `raw` be the decimal raw value.
-2. Candidates: `raw`, `raw >> 16`, `raw >> 32`.
-3. Choose the smallest **non-zero** candidate that is < 65,536; if all are zero,
-   the count is 0.
+1. Let `raw` be the raw value.
+2. If `raw` ≤ 65,535, use it unchanged.
+3. Otherwise split `raw` into four 16-bit words (bits 0–15, 16–31, 32–47, 48–63).
+   If the **lowest word is zero** and a higher word is non-zero — the packed shape
+   — the count is the **lowest non-zero higher word**.
+4. Otherwise use `raw` unchanged.
 
-Rationale: the intended counter almost always lives in one word; nonsense packed
-values are astronomically large when misread. Attribute 9 (power-on hours) uses
-the same rule (a drive showing 3 billion hours is misread).
+The shape test matters: a genuine count such as 100,000 (whose low word is
+non-zero) is used as-is, while a packed value like `0x0000000000050000` (low word
+zero, next word 5) correctly yields 5. A naive "smallest word" rule would misread
+100,000 as 1.
 
 ## 4. Verdict algorithm (normative)
 
@@ -79,6 +82,10 @@ Rules:
   of verdict — verdict logic affects only the badge and notifications.
 - A device with `smart_available: false` shows verdict `unknown` with the capture
   error; it is never notified about except `device_appeared`.
+- **No data ⇒ Unknown, never Good.** If a device yields no `smart_status`, no ATA
+  attributes, and no NVMe health log, the verdict is `unknown` with smartctl's own
+  message as the rationale. Reporting a drive we could not read as healthy would be
+  a dangerous false positive.
 
 ## 5. Remaining-longevity estimation (Phase 2 — specified now)
 
@@ -169,15 +176,16 @@ can see exactly why the number is what it is.
 
 ### 8.1 Bands (kept consistent with the verdict)
 
-The score is clamped into the band matching the verdict, so the two never
-contradict each other:
+The verdict **caps** the score so the two never contradict each other. Penalties
+may push a Caution below its cap — a drive with many near-threshold faults is
+genuinely poor even while no single counter has crossed the Bad line.
 
-| Verdict | Score band | Grade label |
+| Verdict | Score cap | Grade label (from the score) |
 |---|---|---|
-| Good | 75–100 | Excellent (90–100) / Good (75–89) |
-| Caution | 40–74 | Fair |
-| Bad | 0–39 | Poor (25–39) / Critical (0–24) |
-| Unknown (`smart_available: false`) | — (no score shown) | — |
+| Good | 100 | Excellent (90–100) / Good (75–89) |
+| Caution | ≤ 74 | Fair (40–74), or lower when penalties are heavy |
+| Bad | ≤ 39 | Poor (25–39) / Critical (0–24) |
+| Unknown (no data read) | — (no score shown) | — |
 
 ### 8.2 Penalty model
 

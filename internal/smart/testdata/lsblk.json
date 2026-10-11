@@ -1,0 +1,74 @@
+{
+  "blockdevices": [
+    {
+      "name": "/dev/sda",
+      "kname": "/dev/sda",
+      "model": "BTO-1TB         ",
+      "serial": "",
+      "size": 1024209543168,
+      "type": "disk",
+      "tran": "sata",
+      "mountpoints": [""],
+      "fstype": "",
+      "rota": false,
+      "rm": false,
+      "wwn": ""
+    },
+    {
+      "name": "/dev/nvme0n1",
+      "kname": "/dev/nvme0n1",
+      "model": "SAMSUNG MZVLQ512HALU-00000              ",
+      "serial": "S4Y4NJ0R222807      ",
+      "size": 512110190592,
+      "type": "disk",
+      "tran": "nvme",
+      "mountpoints": ["/"],
+      "fstype": "ext4",
+      "rota": false,
+      "rm": false,
+      "wwn": "eui.002538b1212a1b2c"
+    },
+    {
+      "name": "/dev/sdb",
+      "kname": "/dev/sdb",
+      "model": "USB 3.0 Device",
+      "serial": "0123456789ABCDEF",
+      "size": 16000000000000,
+      "type": "disk",
+      "tran": "usb",
+      "mountpoints": ["/mnt/backup"],
+      "fstype": "ext4",
+      "rota": true,
+      "rm": true,
+      "wwn": null
+    },
+    {
+      "name": "/dev/sda1",
+      "kname": "/dev/sda1",
+      "model": null,
+      "serial": null,
+      "size": 512110190592,
+      "type": "part",
+      "tran": null,
+      "mountpoints": ["/boot"],
+      "fstype": "vfat",
+      "rota": false,
+      "rm": false,
+      "wwn": null
+    },
+    {
+      "name": "/dev/loop0",
+      "kname": "/dev/loop0",
+      "model": null,
+      "serial": null,
+      "size": 12345,
+      "type": "loop",
+      "tran": null,
+      "mountpoints": [],
+      "fstype": "squashfs",
+      "rota": false,
+      "rm": false,
+      "wwn": null
+    }
+  ]
+}

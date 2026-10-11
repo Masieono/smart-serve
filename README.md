@@ -74,6 +74,20 @@ C1–C24 all confirmed or resolved) and [`docs/DECISIONS.md`](docs/DECISIONS.md)
 `ghcr.io/masieono/smart-serve` (made public at v1). CI: GitHub Actions. Implementation
 proceeds in the `SCOPE.md` MVP order.
 
+## Implementation status
+
+Early scaffolding — the design is frozen and the core scan path is being built in
+the `docs/SCOPE.md` MVP order:
+
+- [x] Go module + domain model (`internal/model`)
+- [x] Interpretation engine: verdicts + 0–100 health score (`internal/interp`) — unit-tested
+- [x] smartctl/lsblk wrappers, JSON parsing, device discovery (`internal/smart`) — unit-tested
+- [x] Scan orchestration + `smart-serve scan` CLI (`internal/scan`, `cmd/smartserve`)
+- [x] Dockerfile, docker-compose (prod + dev), GitHub Actions CI
+- [ ] HTTP API + SSE
+- [ ] Web UI (per [`docs/UI.md`](docs/UI.md))
+- [ ] SQLite persistence, scheduler, notifications
+
 ## License
 
 The application source is licensed under the **MIT License** — see [`LICENSE`](LICENSE).

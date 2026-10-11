@@ -1,0 +1,18 @@
+{
+  "json_format_version": [1, 0],
+  "device": { "name": "/dev/sdd", "info_name": "/dev/sdd", "type": "ata", "protocol": "ATA" },
+  "model_name": "HGST HTS721010A9E630",
+  "serial_number": "JG40006X1234",
+  "firmware_version": "A3J0",
+  "rotation_rate": 7200,
+  "user_capacity": { "bytes": 1000204886016 },
+  "smart_status": { "passed": true },
+  "temperature": { "current": 38 },
+  "power_on_time": { "hours": 15234 },
+  "ata_smart_attributes": {
+    "table": [
+      { "id": 9, "name": "Power_On_Hours", "value": 80, "worst": 80, "thresh": 0, "raw": { "value": 998833152, "string": "998833152" } },
+      { "id": 197, "name": "Current_Pending_Sector", "value": 100, "worst": 99, "thresh": 0, "raw": { "value": 327680, "string": "327680" } }
+    ]
+  }
+}

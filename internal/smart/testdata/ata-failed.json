@@ -1,0 +1,18 @@
+{
+  "json_format_version": [1, 0],
+  "device": { "name": "/dev/sdc", "info_name": "/dev/sdc", "type": "ata", "protocol": "ATA" },
+  "model_name": "WDC WD10EZEX-08WN4A0",
+  "serial_number": "WD-WCC6Y1234567",
+  "firmware_version": "01.01A01",
+  "rotation_rate": 7200,
+  "user_capacity": { "bytes": 1000204886016 },
+  "smart_status": { "passed": false },
+  "temperature": { "current": 44 },
+  "power_on_time": { "hours": 41000 },
+  "ata_smart_attributes": {
+    "table": [
+      { "id": 5, "name": "Reallocated_Sector_Ct", "value": 1, "worst": 1, "thresh": 10, "raw": { "value": 4096, "string": "4096" } },
+      { "id": 197, "name": "Current_Pending_Sector", "value": 1, "worst": 1, "thresh": 0, "raw": { "value": 512, "string": "512" } }
+    ]
+  }
+}

@@ -1,0 +1,15 @@
+services:
+  smart-serve:
+    image: ghcr.io/masieono/smart-serve:latest
+    container_name: smart-serve
+    ports:
+      - "8080:8080"
+    volumes:
+      - smartserve-data:/data
+      - /dev:/dev:ro
+    environment:
+      TZ: "Etc/UTC"
+    restart: unless-stopped
+
+volumes:
+  smartserve-data:

@@ -1,0 +1,19 @@
+# Local development / preview stack (docs/DEPLOYMENT.md).
+#   docker compose -f docker-compose.dev.yml up --build
+services:
+  smart-serve:
+    build:
+      context: .
+    image: smart-serve:dev
+    container_name: smart-serve-dev
+    ports:
+      - "8080:8080"
+    volumes:
+      - smartserve-dev-data:/data
+      - /dev:/dev:ro
+    environment:
+      TZ: "Etc/UTC"
+      SMARTSERVE_LOG_LEVEL: "debug"
+
+volumes:
+  smartserve-dev-data:
