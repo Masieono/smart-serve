@@ -1,0 +1,6 @@
+{
+  "name": "smart-serve-web",
+  "private": true,
+  "type": "module",
+  "//": "Marks the embedded UI assets as ES modules so Node can run the tests in internal/webui/jstest directly against the source."
+}

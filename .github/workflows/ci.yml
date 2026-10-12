@@ -25,6 +25,11 @@ jobs:
         run: go vet ./...
       - name: Test
         run: go test ./...
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "lts/*"
+      - name: JavaScript tests
+        run: node --test internal/webui/jstest/
 
   image:
     needs: test

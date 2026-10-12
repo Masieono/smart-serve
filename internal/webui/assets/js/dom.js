@@ -23,7 +23,9 @@ export function el(tag, props = {}, children = []) {
 }
 
 export function append(node, children) {
-  for (const child of [].concat(children)) {
+  // Flatten nested arrays: views commonly pass arrays of nodes (e.g. a grid of
+  // cards, table rows, chip lists) and those must be appended, not stringified.
+  for (const child of children.flat(Infinity)) {
     if (child === null || child === undefined || child === false) continue;
     node.append(child instanceof Node ? child : document.createTextNode(String(child)));
   }

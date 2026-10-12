@@ -3,6 +3,7 @@ import { el, mount, fmtDateTime, fmtAgo } from '../dom.js';
 import { api } from '../api.js';
 import { emptyState, errorBox, openDialog, confirmDialog, toast } from '../components.js';
 import { icon } from '../icons.js';
+import { describeCron, cronFieldError, buildDailyCron, parseDailyCron, WEEKDAY_NAMES } from '../cron.js';
 
 export async function render(container, ctx) {
   mount(container, el('div', { class: 'skeleton', style: 'width:30%;height:24px' }));
@@ -14,13 +15,17 @@ export async function render(container, ctx) {
 }
 
 function describe(s) {
-  if (s.kind === 'interval') {
-    const secs = s.every_seconds || 0;
-    if (secs % 3600 === 0) return `every ${secs / 3600} h`;
-    if (secs % 60 === 0) return `every ${secs / 60} min`;
-    return `every ${secs} s`;
-  }
-  return `cron ${s.cron}`;
+  if (s.kind === 'interval') return `every ${humanInterval(s.every_seconds || 0)}`;
+  return describeCron(s.cron) || `cron ${s.cron}`;
+}
+
+/** Human phrasing for an interval, used in the list and the live preview. */
+function humanInterval(seconds) {
+  const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
+  if (seconds % 86400 === 0) return plural(seconds / 86400, 'day');
+  if (seconds % 3600 === 0) return plural(seconds / 3600, 'hour');
+  if (seconds % 60 === 0) return plural(seconds / 60, 'minute');
+  return plural(seconds, 'second');
 }
 
 function draw(container, ctx, data) {
@@ -99,49 +104,147 @@ function draw(container, ctx, data) {
 function editSchedule(ctx, existing) {
   openDialog(existing ? 'Edit schedule' : 'New schedule', (body, close) => {
     const label = el('input', { type: 'text', value: (existing && existing.label) || '', placeholder: 'e.g. nightly' });
-    const kind = el('select', {}, [
-      el('option', { value: 'interval', text: 'Interval' }),
-      el('option', { value: 'cron', text: 'Cron expression' }),
+
+    const mode = el('select', {}, [
+      el('option', { value: 'interval', text: 'Every few minutes / hours / days' }),
+      el('option', { value: 'daily', text: 'On chosen days, at a time' }),
+      el('option', { value: 'cron', text: 'Cron expression (advanced)' }),
     ]);
-    kind.value = (existing && existing.kind) || 'interval';
 
-    const defaultHours = existing && existing.kind === 'interval'
-      ? Math.round((existing.every_seconds || 21600) / 3600)
-      : 6;
-    const hours = el('input', { type: 'number', min: '1', value: String(defaultHours) });
-    const cron = el('input', { type: 'text', value: (existing && existing.cron) || '0 3 * * *', placeholder: '0 3 * * *' });
-    const enabled = el('input', { type: 'checkbox', checked: existing ? existing.enabled : true });
+    const everyValue = el('input', { type: 'number', min: '1', value: '6', style: 'max-width:120px' });
+    const everyUnit = el('select', {}, [
+      el('option', { value: '60', text: 'minutes' }),
+      el('option', { value: '3600', text: 'hours' }),
+      el('option', { value: '86400', text: 'days' }),
+    ]);
+    everyUnit.value = '3600';
 
-    const intervalRow = el('div', { class: 'field' }, [el('label', { text: 'Every (hours)' }), hours]);
+    const time = el('input', { type: 'time', value: '03:00', style: 'max-width:160px' });
+    const weekdayRows = WEEKDAY_NAMES.map((name, index) => {
+      const box = el('input', { type: 'checkbox' });
+      box.dataset.day = String(index);
+      return el('label', { class: 'field-row' }, [box, el('span', { text: name })]);
+    });
+
+    const cronInput = el('input', { type: 'text', value: '0 3 * * *', placeholder: '0 3 * * *' });
+    const preview = el('div', { class: 'muted', style: 'font-size:var(--text-xs)' });
+
+    const intervalRow = el('div', { class: 'field' }, [
+      el('label', { text: 'Run every' }),
+      el('div', { class: 'row' }, [everyValue, everyUnit]),
+    ]);
+
+    const dailyRow = el('div', { class: 'stack', style: 'gap:var(--space-3)' }, [
+      el('div', { class: 'field' }, [el('label', { text: 'At' }), time]),
+      el('div', { class: 'field' }, [
+        el('label', { text: 'On these days (none selected = every day)' }),
+        el('div', { class: 'row wrap', style: 'gap:var(--space-3)' }, weekdayRows),
+      ]),
+    ]);
+
     const cronRow = el('div', { class: 'field' }, [
-      el('label', { text: 'Cron (minute hour day month weekday)' }),
-      cron,
-      el('span', { class: 'muted', style: 'font-size:var(--text-xs)', text: 'Example: 0 3 * * * runs daily at 03:00.' }),
+      el('label', { text: 'Cron (minute hour day-of-month month day-of-week)' }),
+      cronInput,
     ]);
-    const sync = () => {
-      intervalRow.hidden = kind.value !== 'interval';
-      cronRow.hidden = kind.value !== 'cron';
-    };
-    kind.addEventListener('change', sync);
-    sync();
+
+    const selectedDays = () => weekdayRows
+      .filter((row) => row.querySelector('input').checked)
+      .map((row) => Number(row.querySelector('input').dataset.day));
+
+    function compute() {
+      if (mode.value === 'interval') {
+        const value = Math.max(1, Number(everyValue.value) || 1);
+        return { kind: 'interval', every_seconds: value * Number(everyUnit.value), cron: '' };
+      }
+      if (mode.value === 'daily') {
+        return { kind: 'cron', every_seconds: null, cron: buildDailyCron(time.value, selectedDays()) };
+      }
+      return { kind: 'cron', every_seconds: null, cron: cronInput.value.trim() };
+    }
+
+    function refresh() {
+      intervalRow.hidden = mode.value !== 'interval';
+      dailyRow.hidden = mode.value !== 'daily';
+      cronRow.hidden = mode.value !== 'cron';
+
+      const { kind, every_seconds: every, cron } = compute();
+      if (kind === 'interval') {
+        preview.className = 'muted';
+        preview.textContent = `Runs every ${humanInterval(every)}.`;
+        return;
+      }
+      const text = describeCron(cron);
+      if (text) {
+        preview.className = 'muted';
+        preview.textContent = `Runs ${text.charAt(0).toLowerCase()}${text.slice(1)}.`;
+      } else {
+        preview.className = 'error-box';
+        preview.textContent = 'Could not interpret that expression — check the five fields.';
+      }
+    }
+
+    // Prefill from an existing schedule, choosing the friendliest mode that fits.
+    if (existing) {
+      if (existing.kind === 'interval') {
+        mode.value = 'interval';
+        const secs = existing.every_seconds || 3600;
+        if (secs % 86400 === 0) {
+          everyValue.value = String(secs / 86400);
+          everyUnit.value = '86400';
+        } else if (secs % 3600 === 0) {
+          everyValue.value = String(secs / 3600);
+          everyUnit.value = '3600';
+        } else {
+          everyValue.value = String(Math.max(1, Math.round(secs / 60)));
+          everyUnit.value = '60';
+        }
+      } else {
+        const daily = parseDailyCron(existing.cron);
+        if (daily) {
+          mode.value = 'daily';
+          time.value = daily.time;
+          for (const row of weekdayRows) {
+            const box = row.querySelector('input');
+            if (daily.weekdays.includes(Number(box.dataset.day))) box.checked = true;
+          }
+        } else {
+          mode.value = 'cron';
+          cronInput.value = existing.cron || '';
+        }
+      }
+    }
+
+    for (const control of [mode, everyValue, everyUnit, time, cronInput]) {
+      control.addEventListener('input', refresh);
+      control.addEventListener('change', refresh);
+    }
+    for (const row of weekdayRows) row.querySelector('input').addEventListener('change', refresh);
+    refresh();
+
+    const enabled = el('input', { type: 'checkbox', checked: existing ? existing.enabled : true });
 
     body.append(
       el('div', { class: 'field' }, [el('label', { text: 'Label' }), label]),
-      el('div', { class: 'field' }, [el('label', { text: 'Type' }), kind]),
+      el('div', { class: 'field' }, [el('label', { text: 'Repeat' }), mode]),
       intervalRow,
+      dailyRow,
       cronRow,
+      preview,
       el('label', { class: 'field-row' }, [enabled, el('span', { text: 'Enabled' })]),
       el('div', { class: 'dialog-foot', style: 'border:0;padding:0' }, [
         el('button', { class: 'btn', type: 'button', text: 'Cancel', onclick: close }),
         el('button', { class: 'btn btn-primary', type: 'button', text: 'Save', onclick: async (event) => {
-          const payload = {
-            label: label.value.trim(),
-            kind: kind.value,
-            enabled: enabled.checked,
-            every_seconds: kind.value === 'interval' ? Number(hours.value) * 3600 : null,
-            cron: kind.value === 'cron' ? cron.value.trim() : '',
-          };
+          const { kind, every_seconds, cron } = compute();
+          if (kind === 'cron') {
+            const problem = cronFieldError(cron);
+            if (problem) {
+              toast(problem, 'error');
+              return;
+            }
+          }
+          const payload = { label: label.value.trim(), kind, enabled: enabled.checked, every_seconds, cron };
           if (existing) payload.id = existing.id;
+
           event.currentTarget.disabled = true;
           try {
             if (existing) await api.updateSchedule(payload);

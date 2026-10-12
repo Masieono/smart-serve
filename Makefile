@@ -1,7 +1,8 @@
 GO      ?= go
+NODE    ?= node
 BINARY  ?= smart-serve
 
-.PHONY: all build test vet fmt run clean docker
+.PHONY: all build test test-js vet fmt run clean docker
 
 all: fmt vet test build
 
@@ -10,6 +11,9 @@ build:
 
 test:
 	$(GO) test ./...
+
+test-js:
+	$(NODE) --test internal/webui/jstest/
 
 vet:
 	$(GO) vet ./...
