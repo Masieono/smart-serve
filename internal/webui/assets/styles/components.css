@@ -390,6 +390,17 @@ a:hover {
   border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
 }
 
+/* A drive that was seen earlier but is absent from the latest scan. It is kept
+   so its notes and history survive, but it must never look like a live drive. */
+.device-card-missing {
+  opacity: 0.62;
+  border-style: dashed;
+}
+
+.device-card-missing:hover {
+  opacity: 1;
+}
+
 .device-card-head {
   display: flex;
   align-items: flex-start;

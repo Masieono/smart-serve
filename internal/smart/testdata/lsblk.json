@@ -9,10 +9,22 @@
       "type": "disk",
       "tran": "sata",
       "mountpoints": [""],
-      "fstype": "",
+      "fstype": null,
       "rota": false,
       "rm": false,
-      "wwn": ""
+      "wwn": "",
+      "children": [
+        {
+          "name": "/dev/sda1",
+          "kname": "/dev/sda1",
+          "size": 1024209543168,
+          "type": "part",
+          "mountpoints": ["/mnt/data"],
+          "fstype": "ext4",
+          "rota": false,
+          "rm": false
+        }
+      ]
     },
     {
       "name": "/dev/nvme0n1",
@@ -22,11 +34,33 @@
       "size": 512110190592,
       "type": "disk",
       "tran": "nvme",
-      "mountpoints": ["/"],
-      "fstype": "ext4",
+      "mountpoints": [""],
+      "fstype": null,
       "rota": false,
       "rm": false,
-      "wwn": "eui.002538b1212a1b2c"
+      "wwn": "eui.002538b1212a1b2c",
+      "children": [
+        {
+          "name": "/dev/nvme0n1p1",
+          "kname": "/dev/nvme0n1p1",
+          "size": 536870912,
+          "type": "part",
+          "mountpoints": ["/boot/efi"],
+          "fstype": "vfat",
+          "rota": false,
+          "rm": false
+        },
+        {
+          "name": "/dev/nvme0n1p2",
+          "kname": "/dev/nvme0n1p2",
+          "size": 511573319680,
+          "type": "part",
+          "mountpoints": ["/"],
+          "fstype": "ext4",
+          "rota": false,
+          "rm": false
+        }
+      ]
     },
     {
       "name": "/dev/sdb",
@@ -36,25 +70,12 @@
       "size": 16000000000000,
       "type": "disk",
       "tran": "usb",
-      "mountpoints": ["/mnt/backup"],
-      "fstype": "ext4",
+      "mountpoints": [""],
+      "fstype": null,
       "rota": true,
       "rm": true,
-      "wwn": null
-    },
-    {
-      "name": "/dev/sda1",
-      "kname": "/dev/sda1",
-      "model": null,
-      "serial": null,
-      "size": 512110190592,
-      "type": "part",
-      "tran": null,
-      "mountpoints": ["/boot"],
-      "fstype": "vfat",
-      "rota": false,
-      "rm": false,
-      "wwn": null
+      "wwn": null,
+      "children": []
     },
     {
       "name": "/dev/loop0",

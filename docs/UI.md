@@ -101,7 +101,7 @@ theme picker without touching any component code.
 |---|---|
 | **Verdict badge** | Pill: icon + word + colour (`good`/`caution`/`bad`/`unknown`). Colour is never the only signal. |
 | **Health gauge** | Circular SVG ring, 0–100 + grade. Colour = band. Hover/tap → penalty breakdown popover (§8.4 of `SMART_INTERPRETATION.md`). |
-| **Device card** | Name (user), model, capacity, verdict badge, small gauge, temperature, transport icon (USB vs internal), mountpoint(s), "last scanned". Actions: open, scan-this, hide. |
+| **Device card** | Name (user), model, capacity, verdict badge, small gauge, temperature, transport icon (USB vs internal), mountpoint(s), "last scanned". Actions: open, scan-this, hide. A card whose drive is absent from the latest scan shows a *Not connected* badge and is dimmed. |
 | **Summary bar** | Counts by verdict + total; clicking filters the grid. |
 | **Attribute table** | Sortable, zebra rows; ID / name / value / worst / threshold / interpreted raw / status dot; per-attribute help tooltip ("what is this?"). |
 | **Sparkline** | Inline SVG trend for temp / sectors / wear (Phase 2). |
@@ -121,14 +121,31 @@ theme picker without touching any component code.
 - **Scanning:** Scan button shows progress; cards update live via SSE as each device
   completes (no polling — `ADR-006`).
 - **Populated:** cards sorted by severity (bad → caution → good), then by user name.
+- **Disconnected:** a drive absent from the latest scan keeps its record — its notes
+  and history must survive an unplug — but is flagged `is_missing`. Those cards are
+  hidden by default; a **Show N disconnected** toggle reveals them, dimmed and
+  carrying a *Not connected* badge instead of a verdict. They are excluded from the
+  summary-bar counts, so a vanished drive can never silently flatter the health
+  totals.
 
 ### 7.2 Device detail
 - **Header:** editable inline name, model, serial, firmware, capacity, drive age.
 - **Health block:** large gauge + verdict badge + plain-language rationale
   ("5 pending sectors").
-- **Key stats:** temperature, power-on hours, power cycles, interface speed,
-  transport.
-- **Attribute table** (§6) with a "show raw `smartctl` output" toggle.
+- **Identity card:** model, model family, serial, firmware, capacity, interface
+  speed, transport, rotation, WWN, device path.
+- **Usage and media card:** power-on hours, power cycles, temperature, total data
+  read / written, life remaining, mountpoints, filesystem, first seen, last scanned.
+  Throughput and power figures come from the API's derived `metrics` block
+  (`API.md`), so ATA and NVMe drives read identically.
+- **Mountpoints / Filesystem:** taken from the disk's *partitions* — a whole-disk
+  node is never mounted itself (`DATA_MODEL.md`). Filesystem shows every distinct
+  type found, e.g. `ext4, vfat`.
+- **Attribute table** (§6) — for NVMe, the full health log: critical warning,
+  spare, percentage used, data units read/written (count **and** humanised size),
+  host read/write commands, controller busy time, power cycles/hours, unsafe
+  shutdowns, media errors, error-log entries, warning/critical temperature time.
+  A "show raw `smartctl` output" toggle sits alongside it.
 - **Actions:** scan this device, export report (formats from settings), edit
   notes/tags, per-device transport override, hide.
 - **Notes editor:** free-form notes + tags; optimistic save with rollback.

@@ -98,6 +98,12 @@ export function fmtScore(score) {
   return score === null || score === undefined || score < 0 ? 'n/a' : `${score}`;
 }
 
+/** Thousands separators for raw counters. */
+export function fmtInt(value) {
+  if (value === null || value === undefined) return '—';
+  return Number(value).toLocaleString();
+}
+
 /** Grade label from the score (docs/SMART_INTERPRETATION.md §8.1). */
 export function scoreGrade(score) {
   if (score === null || score === undefined || score < 0) return 'n/a';

@@ -13,10 +13,16 @@ import (
 type rawRoot struct {
 	Device          rawDevice `json:"device"`
 	ModelName       string    `json:"model_name"`
+	ModelFamily     string    `json:"model_family"`
 	SerialNumber    string    `json:"serial_number"`
 	FirmwareVersion string    `json:"firmware_version"`
 	RotationRate    int       `json:"rotation_rate"`
-	UserCapacity    *struct {
+	InterfaceSpeed  *struct {
+		Max *struct {
+			String string `json:"string"`
+		} `json:"max"`
+	} `json:"interface_speed"`
+	UserCapacity *struct {
 		Bytes uint64 `json:"bytes"`
 	} `json:"user_capacity"`
 	SmartStatus *struct {
@@ -65,16 +71,22 @@ type rawAttribute struct {
 type rawNVMe struct {
 	CriticalWarning         int   `json:"critical_warning"`
 	Temperature             int   `json:"temperature"` // Kelvin
+	TemperatureSensors      []int `json:"temperature_sensors"`
 	AvailableSpare          int   `json:"available_spare"`
 	AvailableSpareThreshold int   `json:"available_spare_threshold"`
 	PercentageUsed          int   `json:"percentage_used"`
 	DataUnitsRead           int64 `json:"data_units_read"`
 	DataUnitsWritten        int64 `json:"data_units_written"`
+	HostReads               int64 `json:"host_reads"`
+	HostWrites              int64 `json:"host_writes"`
+	ControllerBusyTime      int64 `json:"controller_busy_time"`
 	PowerCycles             int64 `json:"power_cycles"`
 	PowerOnHours            int64 `json:"power_on_hours"`
 	UnsafeShutdowns         int64 `json:"unsafe_shutdowns"`
 	MediaErrors             int64 `json:"media_errors"`
 	NumErrLogEntries        int64 `json:"num_err_log_entries"`
+	WarningTempTime         int64 `json:"warning_temp_time"`
+	CriticalCompTime        int64 `json:"critical_comp_time"`
 }
 
 type rawWWN struct {
@@ -92,10 +104,14 @@ func ParseSMART(data []byte) (*model.SmartData, error) {
 
 	sd := &model.SmartData{
 		Model:        strings.TrimSpace(r.ModelName),
+		ModelFamily:  strings.TrimSpace(r.ModelFamily),
 		Serial:       strings.TrimSpace(r.SerialNumber),
 		Firmware:     strings.TrimSpace(r.FirmwareVersion),
 		RotationRate: r.RotationRate,
 		Bus:          busFromType(r.Device.Type),
+	}
+	if r.InterfaceSpeed != nil && r.InterfaceSpeed.Max != nil {
+		sd.InterfaceSpeed = strings.TrimSpace(r.InterfaceSpeed.Max.String)
 	}
 	if r.UserCapacity != nil {
 		sd.CapacityBytes = r.UserCapacity.Bytes
@@ -132,21 +148,37 @@ func ParseSMART(data []byte) (*model.SmartData, error) {
 	if r.NVMe != nil {
 		sd.NVMe = &model.NVMeHealth{
 			CriticalWarning:      r.NVMe.CriticalWarning,
+			TemperatureSensors:   r.NVMe.TemperatureSensors,
 			AvailableSpare:       r.NVMe.AvailableSpare,
 			AvailableSpareThresh: r.NVMe.AvailableSpareThreshold,
 			PercentageUsed:       r.NVMe.PercentageUsed,
 			DataUnitsRead:        r.NVMe.DataUnitsRead,
 			DataUnitsWritten:     r.NVMe.DataUnitsWritten,
+			HostReads:            r.NVMe.HostReads,
+			HostWrites:           r.NVMe.HostWrites,
+			ControllerBusyTime:   r.NVMe.ControllerBusyTime,
 			PowerCycles:          r.NVMe.PowerCycles,
 			PowerOnHours:         r.NVMe.PowerOnHours,
 			UnsafeShutdowns:      r.NVMe.UnsafeShutdowns,
 			MediaErrors:          r.NVMe.MediaErrors,
 			ErrorLogEntries:      r.NVMe.NumErrLogEntries,
+			WarningTempTime:      r.NVMe.WarningTempTime,
+			CriticalCompTime:     r.NVMe.CriticalCompTime,
 		}
 		// The NVMe log temperature is in Kelvin; use it only as a fallback.
 		if sd.TemperatureC == nil && r.NVMe.Temperature > 0 {
 			t := r.NVMe.Temperature - 273
 			sd.TemperatureC = &t
+		}
+		// NVMe drives often report hours/cycles only inside the health log, so
+		// fall back to it when the top-level fields are absent.
+		if sd.PowerOnHours == nil && r.NVMe.PowerOnHours > 0 {
+			h := r.NVMe.PowerOnHours
+			sd.PowerOnHours = &h
+		}
+		if sd.PowerCycles == nil && r.NVMe.PowerCycles > 0 {
+			c := r.NVMe.PowerCycles
+			sd.PowerCycles = &c
 		}
 	}
 	if r.WWN != nil {

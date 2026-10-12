@@ -128,6 +128,68 @@ func TestEvaluateNVMe(t *testing.T) {
 	}
 }
 
+// Metrics feed the device detail page: throughput, power cycles and so on.
+func TestDeriveMetricsNVMe(t *testing.T) {
+	sd := &model.SmartData{NVMe: &model.NVMeHealth{
+		PowerOnHours:     31603,
+		PowerCycles:      289,
+		DataUnitsRead:    2000000,
+		DataUnitsWritten: 1000000,
+	}}
+	m := DeriveMetrics(sd)
+
+	// One NVMe data unit is 1,000 sectors of 512 bytes.
+	if m.DataReadBytes == nil || *m.DataReadBytes != 2000000*512000 {
+		t.Errorf("data read = %v, want %d", m.DataReadBytes, 2000000*512000)
+	}
+	if m.DataWrittenBytes == nil || *m.DataWrittenBytes != 1000000*512000 {
+		t.Errorf("data written = %v, want %d", m.DataWrittenBytes, 1000000*512000)
+	}
+	if m.PowerOnHours == nil || *m.PowerOnHours != 31603 {
+		t.Errorf("power-on hours = %v, want 31603", m.PowerOnHours)
+	}
+	if m.PowerCycles == nil || *m.PowerCycles != 289 {
+		t.Errorf("power cycles = %v, want 289", m.PowerCycles)
+	}
+}
+
+func TestDeriveMetricsATA(t *testing.T) {
+	sd := &model.SmartData{Attributes: []model.Attribute{
+		{ID: 9, RawValue: 12345},
+		{ID: 12, RawValue: 42},
+		{ID: 241, RawValue: 1000000},
+		{ID: 242, RawValue: 2000000},
+		{ID: 231, Value: 94},
+	}}
+	m := DeriveMetrics(sd)
+
+	if m.PowerOnHours == nil || *m.PowerOnHours != 12345 {
+		t.Errorf("power-on hours = %v, want 12345 (attribute 9)", m.PowerOnHours)
+	}
+	if m.PowerCycles == nil || *m.PowerCycles != 42 {
+		t.Errorf("power cycles = %v, want 42 (attribute 12)", m.PowerCycles)
+	}
+	// ATA LBAs are 512-byte sectors.
+	if m.DataWrittenBytes == nil || *m.DataWrittenBytes != 1000000*512 {
+		t.Errorf("data written = %v, want %d", m.DataWrittenBytes, 1000000*512)
+	}
+	if m.DataReadBytes == nil || *m.DataReadBytes != 2000000*512 {
+		t.Errorf("data read = %v, want %d", m.DataReadBytes, 2000000*512)
+	}
+	if m.LifeLeftPct == nil || *m.LifeLeftPct != 94 {
+		t.Errorf("life left = %v, want 94 (attribute 231)", m.LifeLeftPct)
+	}
+}
+
+func TestDeriveMetricsHandlesMissingData(t *testing.T) {
+	if m := DeriveMetrics(nil); m.PowerOnHours != nil || m.DataReadBytes != nil {
+		t.Errorf("nil payload should yield empty metrics, got %+v", m)
+	}
+	if m := DeriveMetrics(&model.SmartData{}); m.PowerOnHours != nil || m.PowerCycles != nil {
+		t.Errorf("empty payload should yield empty metrics, got %+v", m)
+	}
+}
+
 func TestEffectiveCount(t *testing.T) {
 	tests := []struct {
 		raw  uint64

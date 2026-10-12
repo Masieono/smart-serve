@@ -14,9 +14,12 @@ import (
 type ScannedDevice struct {
 	Serial          string
 	Model           string
+	ModelFamily     string
+	Firmware        string
 	DevicePath      string
 	Transport       string
 	SmartBus        string
+	InterfaceSpeed  string
 	CapacityBytes   *uint64
 	Rotation        *int
 	WWN             string
@@ -39,6 +42,7 @@ type DeviceRecord struct {
 	Serial          string
 	Model           string
 	ModelFamily     string
+	Firmware        string
 	DevicePath      string
 	Transport       string
 	SmartBus        string
@@ -128,15 +132,19 @@ func (s *Store) SaveScan(ctx context.Context, trigger string, started, ended tim
 func upsertDevice(ctx context.Context, tx *sql.Tx, d ScannedDevice, lastScan any, started, ended time.Time) error {
 	available := boolInt(d.Error == "")
 	_, err := tx.ExecContext(ctx, `
-		INSERT INTO devices (serial, model, device_path, transport, smart_bus, capacity_bytes,
-			rotation, wwn, smart_available, smart_error, health, health_rationale, score,
-			temperature_c, first_seen, last_seen, last_scan, mountpoints, fstype, is_missing)
-		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,0)
+		INSERT INTO devices (serial, model, model_family, firmware, device_path, transport,
+			smart_bus, interface_speed, capacity_bytes, rotation, wwn, smart_available,
+			smart_error, health, health_rationale, score, temperature_c, first_seen, last_seen,
+			last_scan, mountpoints, fstype, is_missing)
+		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,0)
 		ON CONFLICT(serial) DO UPDATE SET
 			model=excluded.model,
+			model_family=excluded.model_family,
+			firmware=excluded.firmware,
 			device_path=excluded.device_path,
 			transport=excluded.transport,
 			smart_bus=excluded.smart_bus,
+			interface_speed=excluded.interface_speed,
 			capacity_bytes=excluded.capacity_bytes,
 			rotation=excluded.rotation,
 			wwn=excluded.wwn,
@@ -151,9 +159,10 @@ func upsertDevice(ctx context.Context, tx *sql.Tx, d ScannedDevice, lastScan any
 			mountpoints=excluded.mountpoints,
 			fstype=excluded.fstype,
 			is_missing=0`,
-		d.Serial, d.Model, d.DevicePath, d.Transport, d.SmartBus, nullUint(d.CapacityBytes),
-		nullInt(d.Rotation), d.WWN, available, d.Error, d.Health, d.HealthRationale, d.Score,
-		nullInt(d.TemperatureC), started.UnixMilli(), ended.UnixMilli(), lastScan,
+		d.Serial, d.Model, d.ModelFamily, d.Firmware, d.DevicePath, d.Transport, d.SmartBus,
+		d.InterfaceSpeed, nullUint(d.CapacityBytes), nullInt(d.Rotation), d.WWN, available,
+		d.Error, d.Health, d.HealthRationale, d.Score, nullInt(d.TemperatureC),
+		started.UnixMilli(), ended.UnixMilli(), lastScan,
 		encodeMountpoints(d.Mountpoints), d.Fstype)
 	if err != nil {
 		return fmt.Errorf("upsert device %s: %w", d.Serial, err)
@@ -180,7 +189,7 @@ func markMissing(ctx context.Context, tx *sql.Tx, seen []string) error {
 }
 
 const deviceSelect = `
-SELECT d.serial, d.model, d.model_family, d.device_path, d.transport, d.smart_bus,
+SELECT d.serial, d.model, d.model_family, d.firmware, d.device_path, d.transport, d.smart_bus,
        d.interface_speed, d.rotation, d.capacity_bytes, d.wwn, d.smart_available,
        d.smart_error, d.health, d.health_rationale, d.score, d.temperature_c,
        d.first_seen, d.last_seen, d.last_scan, d.is_missing,
@@ -233,7 +242,7 @@ func scanDevice(r rowScanner) (DeviceRecord, error) {
 		mountpoints                       string
 	)
 	err := r.Scan(
-		&rec.Serial, &rec.Model, &rec.ModelFamily, &rec.DevicePath, &rec.Transport,
+		&rec.Serial, &rec.Model, &rec.ModelFamily, &rec.Firmware, &rec.DevicePath, &rec.Transport,
 		&rec.SmartBus, &rec.InterfaceSpeed, &rotation, &capacity, &rec.WWN, &smartAvailable,
 		&rec.SmartError, &rec.Health, &rec.HealthRationale, &rec.Score, &temperature,
 		&firstSeen, &lastSeen, &lastScan, &isMissing,

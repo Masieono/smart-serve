@@ -84,21 +84,50 @@ func TestGetDeviceIncludesSnapshot(t *testing.T) {
 	}
 	var resp struct {
 		Device struct {
-			Serial string `json:"serial"`
+			Serial   string `json:"serial"`
+			Firmware string `json:"firmware"`
 		} `json:"device"`
 		Snapshot *struct {
 			Attributes map[string]any `json:"attributes"`
+			PowerOnHrs *int64         `json:"power_on_hours"`
 		} `json:"snapshot"`
+		Metrics *struct {
+			PowerOnHours     *int64  `json:"power_on_hours"`
+			PowerCycles      *int64  `json:"power_cycles"`
+			DataReadBytes    *uint64 `json:"data_read_bytes"`
+			DataWrittenBytes *uint64 `json:"data_written_bytes"`
+		} `json:"metrics"`
 	}
 	decodeBody(t, rec, &resp)
 	if resp.Device.Serial != "S1" {
 		t.Errorf("device = %+v", resp.Device)
+	}
+	if resp.Device.Firmware != "SVT02B6Q" {
+		t.Errorf("firmware = %q, want the value persisted from S.M.A.R.T.", resp.Device.Firmware)
 	}
 	if resp.Snapshot == nil {
 		t.Fatal("snapshot missing")
 	}
 	if _, ok := resp.Snapshot.Attributes["attributes"]; !ok {
 		t.Errorf("snapshot attributes = %+v", resp.Snapshot.Attributes)
+	}
+
+	// The detail page reads throughput and power figures from metrics, which are
+	// derived server-side so the UI need not understand ATA/NVMe layouts.
+	if resp.Metrics == nil {
+		t.Fatal("metrics missing")
+	}
+	if resp.Metrics.PowerOnHours == nil || *resp.Metrics.PowerOnHours != 1234 {
+		t.Errorf("power-on hours = %v, want 1234", resp.Metrics.PowerOnHours)
+	}
+	if resp.Metrics.PowerCycles == nil || *resp.Metrics.PowerCycles != 42 {
+		t.Errorf("power cycles = %v, want 42", resp.Metrics.PowerCycles)
+	}
+	if resp.Metrics.DataWrittenBytes == nil || *resp.Metrics.DataWrittenBytes != 1000000*512 {
+		t.Errorf("data written = %v, want %d", resp.Metrics.DataWrittenBytes, 1000000*512)
+	}
+	if resp.Metrics.DataReadBytes == nil || *resp.Metrics.DataReadBytes != 2000000*512 {
+		t.Errorf("data read = %v, want %d", resp.Metrics.DataReadBytes, 2000000*512)
 	}
 
 	// Unknown device is a clean 404.

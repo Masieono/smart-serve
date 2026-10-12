@@ -237,4 +237,34 @@ The trend-aware score (Phase 2) additionally penalises a *worsening* direction i
 the snapshot history (e.g. growing pending-sector count) even while the current
 verdict is still Good — an early-warning signal beyond CrystalDiskInfo.
 
+## 9. Derived metrics (display-only)
+
+Some figures the UI shows are not stored as columns: they live inside the raw
+attribute table (ATA) or the NVMe health log, and their units differ per family.
+`interp.DeriveMetrics` normalises them so the UI never has to know the layouts.
+
+| Metric | ATA source | NVMe source |
+|---|---|---|
+| Power-on hours | attribute 9 raw | `power_on_hours` |
+| Power cycles | attribute 12 raw | `power_cycles` |
+| Data read | attribute 242 × 512 B | `data_units_read` × 512,000 B |
+| Data written | attribute 241 × 512 B | `data_units_written` × 512,000 B |
+| Life remaining | attribute 231 `value` (percent left) | `100 − percentage_used` |
+
+Unit rules, both normative:
+
+- **ATA** LBA counters are 512-byte sectors, and the packed-word rule (§3) applies
+  before scaling.
+- **NVMe** reports volume in *data units* of 1,000 sectors × 512 bytes = 512,000
+  bytes (`model.NVMeDataUnitBytes`). A raw `data_units_written` counter is
+  meaningless without this conversion, so the UI must show both the count and the
+  humanised size.
+
+These metrics are **display-only**: they never influence the verdict or the score.
+A drive that reports none of them still gets a verdict, and its missing fields render
+as `—` rather than a misleading zero. Since a counter reading zero is
+indistinguishable from one that was never reported, a zero suppresses the field —
+the UI shows "not reported" and "none" the same way, which is the honest reading of
+a value that carries no information either way.
+
 

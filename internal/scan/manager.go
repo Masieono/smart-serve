@@ -189,6 +189,9 @@ func toStored(d Device) store.ScannedDevice {
 	size := d.Discovered.SizeBytes
 	if sd := d.Data; sd != nil {
 		out.SmartBus = string(sd.Bus)
+		out.ModelFamily = sd.ModelFamily
+		out.Firmware = sd.Firmware
+		out.InterfaceSpeed = sd.InterfaceSpeed
 		if sd.Model != "" {
 			out.Model = sd.Model
 		}

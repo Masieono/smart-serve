@@ -76,6 +76,30 @@ func TestParseSMARTNVMe(t *testing.T) {
 	}
 }
 
+// Some NVMe drives report hours and cycles only inside the health log, so the
+// parser must fall back to it (regression: the detail page showed "—").
+func TestParseSMARTNVMeFallsBackToHealthLog(t *testing.T) {
+	sd, err := ParseSMART(loadFixture(t, "nvme-log-only.json"))
+	if err != nil {
+		t.Fatalf("ParseSMART: %v", err)
+	}
+	if sd.PowerOnHours == nil || *sd.PowerOnHours != 31603 {
+		t.Errorf("power-on hours = %v, want 31603 from the NVMe health log", sd.PowerOnHours)
+	}
+	if sd.PowerCycles == nil || *sd.PowerCycles != 289 {
+		t.Errorf("power cycles = %v, want 289 from the NVMe health log", sd.PowerCycles)
+	}
+	if sd.NVMe == nil {
+		t.Fatal("NVMe health log missing")
+	}
+	if sd.NVMe.DataUnitsWritten != 2345678 || sd.NVMe.DataUnitsRead != 12345678 {
+		t.Errorf("data units = %d/%d", sd.NVMe.DataUnitsRead, sd.NVMe.DataUnitsWritten)
+	}
+	if sd.NVMe.UnsafeShutdowns != 76 || sd.NVMe.ErrorLogEntries != 1022 {
+		t.Errorf("extra NVMe fields not parsed: %+v", sd.NVMe)
+	}
+}
+
 func TestParseSMARTInvalid(t *testing.T) {
 	if _, err := ParseSMART([]byte("not json")); err == nil {
 		t.Fatal("expected an error for invalid JSON")

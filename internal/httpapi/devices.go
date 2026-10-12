@@ -2,9 +2,13 @@ package httpapi
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
+	"strings"
 	"time"
 
+	"github.com/masieono/smart-serve/internal/interp"
+	"github.com/masieono/smart-serve/internal/model"
 	"github.com/masieono/smart-serve/internal/store"
 )
 
@@ -13,6 +17,7 @@ type deviceJSON struct {
 	Serial          string   `json:"serial"`
 	Model           string   `json:"model"`
 	ModelFamily     string   `json:"model_family,omitempty"`
+	Firmware        string   `json:"firmware,omitempty"`
 	DevicePath      string   `json:"device_path"`
 	Transport       string   `json:"transport"`
 	SmartBus        string   `json:"smart_bus,omitempty"`
@@ -42,6 +47,7 @@ func toDeviceJSON(d store.DeviceRecord) deviceJSON {
 		Serial:          d.Serial,
 		Model:           d.Model,
 		ModelFamily:     d.ModelFamily,
+		Firmware:        d.Firmware,
 		DevicePath:      d.DevicePath,
 		Transport:       d.Transport,
 		SmartBus:        d.SmartBus,
@@ -120,12 +126,38 @@ func (s *Server) handleGetDevice(w http.ResponseWriter, r *http.Request) {
 	resp := map[string]any{"device": toDeviceJSON(*rec)}
 	if snap, err := s.store.LatestSnapshot(r.Context(), serial); err == nil && snap != nil {
 		resp["snapshot"] = map[string]any{
-			"ts":         rfc3339(snap.TS),
-			"scan_id":    snap.ScanID,
-			"attributes": rawOrNull(snap.Attributes),
+			"ts":             rfc3339(snap.TS),
+			"scan_id":        snap.ScanID,
+			"health":         snap.Health,
+			"score":          snap.Score,
+			"temperature_c":  snap.TemperatureC,
+			"power_on_hours": snap.PowerOnHours,
+			"wear_pct":       snap.WearPct,
+			"attributes":     rawOrNull(snap.Attributes),
 		}
+		resp["metrics"] = snapshotMetrics(snap)
 	}
 	writeJSON(w, http.StatusOK, resp)
+}
+
+// snapshotMetrics derives throughput, power cycles and the like from the stored
+// attributes blob, so the UI does not have to understand S.M.A.R.T. layouts.
+func snapshotMetrics(snap *store.Snapshot) interp.Metrics {
+	if snap == nil {
+		return interp.Metrics{}
+	}
+	var payload struct {
+		Attributes []model.Attribute `json:"attributes"`
+		NVMe       *model.NVMeHealth `json:"nvme"`
+	}
+	if strings.TrimSpace(snap.Attributes) != "" {
+		_ = json.Unmarshal([]byte(snap.Attributes), &payload)
+	}
+	return interp.DeriveMetrics(&model.SmartData{
+		Attributes:   payload.Attributes,
+		NVMe:         payload.NVMe,
+		PowerOnHours: snap.PowerOnHours,
+	})
 }
 
 func (s *Server) handleSetNotes(w http.ResponseWriter, r *http.Request) {

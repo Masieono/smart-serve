@@ -27,6 +27,9 @@ returns `{ "scan_id", "status", "devices_total" }` (status `completed` or `joine
       "model": "Samsung SSD 870 EVO 1TB",
       "device_path": "/dev/sda",
       "transport": "sata",
+      "model_family": null,
+      "firmware": "SVT02B6Q",
+      "interface_speed": "6.0 Gb/s",
       "capacity_bytes": 1000204886016,
       "health": "caution",
       "health_rationale": "5 pending sectors",
@@ -45,13 +48,47 @@ returns `{ "scan_id", "status", "devices_total" }` (status `completed` or `joine
 }
 ```
 
+`mountpoints` / `fstype` are aggregated from the disk **and its partitions**: on Linux a
+whole-disk node (`/dev/nvme0n1`) is never itself mounted, so a disk whose partitions are
+mounted at `/` and `/home` reports `["/", "/home"]`.
+
 ### `GET /api/devices/{serial}` — full device detail
 
 Everything above plus the normalized SMART payload for the last scan: ATA attribute
 array (`id, name, value, worst, threshold, raw_value, raw_interpreted, verdict`) or
-NVMe health block (`critical_warning, temperature, available_spare,
-percentage_used, data_units_written, power_on_hours, ...`), plus `power_on_hours`,
-`power_cycle_count`, and the `health_rationale`.
+NVMe health block (`critical_warning, temperature, available_spare, percentage_used,
+data_units_read, data_units_written, host_reads, host_writes, controller_busy_time,
+power_cycles, power_on_hours, unsafe_shutdowns, media_errors, num_err_log_entries,
+warning_temp_time, critical_comp_time`).
+
+```json
+{
+  "device": { "...": "as above" },
+  "snapshot": {
+    "ts": "2025-10-12T10:17:20Z",
+    "scan_id": 12,
+    "health": "good",
+    "score": 100,
+    "temperature_c": 33,
+    "power_on_hours": 31603,
+    "wear_pct": 4,
+    "attributes": { "attributes": [], "nvme": { "...": "..." } }
+  },
+  "metrics": {
+    "power_on_hours": 31603,
+    "power_cycles": 289,
+    "data_read_bytes": 6322176000000,
+    "data_written_bytes": 1200660480000,
+    "life_left_pct": 94,
+    "rotation_rate": 0
+  }
+}
+```
+
+`metrics` is derived server-side from the stored attributes so the UI never has to
+understand ATA/NVMe layouts (see SMART_INTERPRETATION.md §9). Fields are omitted when
+the drive does not report them; a drive with no S.M.A.R.T. data yields `{}`, and its
+verdict stays `unknown`.
 
 ## User metadata
 

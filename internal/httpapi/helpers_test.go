@@ -43,6 +43,10 @@ func sampleDevices() []scan.Device {
 		Attributes: []model.Attribute{
 			{ID: 5, Name: "Reallocated_Sector_Ct", Value: 100, Worst: 100, Threshold: 10, RawValue: 0},
 			{ID: 197, Name: "Current_Pending_Sector", Value: 100, Worst: 100, RawValue: 0},
+			{ID: 9, Name: "Power_On_Hours", Value: 100, Worst: 100, RawValue: 1234},
+			{ID: 12, Name: "Power_Cycle_Count", Value: 99, Worst: 99, RawValue: 42},
+			{ID: 241, Name: "Total_LBAs_Written", Value: 99, Worst: 99, RawValue: 1000000},
+			{ID: 242, Name: "Total_LBAs_Read", Value: 99, Worst: 99, RawValue: 2000000},
 		},
 	}
 	return []scan.Device{{

@@ -91,6 +91,7 @@ func (s *Server) handleReport(w http.ResponseWriter, r *http.Request) {
 				"scan_id":    snap.ScanID,
 				"attributes": rawOrNull(snap.Attributes),
 			}
+			body["metrics"] = snapshotMetrics(snap)
 		}
 		writeJSON(w, http.StatusOK, body)
 	default:

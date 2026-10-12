@@ -41,7 +41,7 @@ globalThis.document = {
   createTextNode: (text) => new StubText(text),
 };
 
-const { el, mount, fmtBytes, fmtHours, scoreGrade } = await import('../assets/js/dom.js');
+const { el, mount, fmtBytes, fmtHours, fmtInt, scoreGrade } = await import('../assets/js/dom.js');
 
 // Regression: an array of nodes used to be stringified into
 // "[object HTMLElement],[object HTMLElement]" instead of being appended.
@@ -80,4 +80,12 @@ test('formatters', () => {
   assert.equal(scoreGrade(74), 'Fair');
   assert.equal(scoreGrade(10), 'Critical');
   assert.equal(scoreGrade(-1), 'n/a');
+});
+
+test('fmtInt groups raw counters and blanks missing values', () => {
+  assert.equal(fmtInt(null), '—');
+  assert.equal(fmtInt(undefined), '—');
+  assert.equal(fmtInt(0), '0');
+  // Locale-aware grouping; compare against the platform's own rendering.
+  assert.equal(fmtInt(31603), (31603).toLocaleString());
 });

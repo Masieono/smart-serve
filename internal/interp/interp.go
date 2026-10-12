@@ -256,6 +256,85 @@ func finalize(verdict model.Verdict, why []string, pen []Penalty) Result {
 	}
 }
 
+// Metrics are derived figures the UI wants but that are not stored as their own
+// columns: media throughput, power cycles, and so on. They are computed from the
+// raw S.M.A.R.T. payload so both ATA and NVMe devices are covered.
+type Metrics struct {
+	PowerOnHours     *int64  `json:"power_on_hours,omitempty"`
+	PowerCycles      *int64  `json:"power_cycles,omitempty"`
+	DataReadBytes    *uint64 `json:"data_read_bytes,omitempty"`
+	DataWrittenBytes *uint64 `json:"data_written_bytes,omitempty"`
+	LifeLeftPct      *int    `json:"life_left_pct,omitempty"`
+	RotationRate     int     `json:"rotation_rate,omitempty"`
+}
+
+// DeriveMetrics extracts the extra figures from a normalized S.M.A.R.T. payload.
+func DeriveMetrics(sd *model.SmartData) Metrics {
+	if sd == nil {
+		return Metrics{}
+	}
+	m := Metrics{
+		PowerOnHours: sd.PowerOnHours,
+		PowerCycles:  sd.PowerCycles,
+		RotationRate: sd.RotationRate,
+	}
+
+	if n := sd.NVMe; n != nil {
+		if m.PowerOnHours == nil && n.PowerOnHours > 0 {
+			v := n.PowerOnHours
+			m.PowerOnHours = &v
+		}
+		if m.PowerCycles == nil && n.PowerCycles > 0 {
+			v := n.PowerCycles
+			m.PowerCycles = &v
+		}
+		// NVMe reports data volume in 1,000-sector units.
+		if n.DataUnitsRead > 0 {
+			v := uint64(n.DataUnitsRead) * model.NVMeDataUnitBytes
+			m.DataReadBytes = &v
+		}
+		if n.DataUnitsWritten > 0 {
+			v := uint64(n.DataUnitsWritten) * model.NVMeDataUnitBytes
+			m.DataWrittenBytes = &v
+		}
+		return m
+	}
+
+	// ATA: 9 power-on hours, 12 power cycles, 241/242 LBAs written/read (512-byte
+	// sectors), 231 SSD life left (value is the percentage remaining).
+	count := func(id int) (uint64, bool) {
+		if a := sd.AttributeByID(id); a != nil {
+			return effectiveCount(a.RawValue), true
+		}
+		return 0, false
+	}
+	if m.PowerOnHours == nil {
+		if v, ok := count(9); ok {
+			h := int64(v)
+			m.PowerOnHours = &h
+		}
+	}
+	if m.PowerCycles == nil {
+		if v, ok := count(12); ok {
+			c := int64(v)
+			m.PowerCycles = &c
+		}
+	}
+	if v, ok := count(242); ok && v > 0 {
+		b := v * 512
+		m.DataReadBytes = &b
+	}
+	if v, ok := count(241); ok && v > 0 {
+		b := v * 512
+		m.DataWrittenBytes = &b
+	}
+	if a := sd.AttributeByID(231); a != nil && a.Value > 0 {
+		left := a.Value
+		m.LifeLeftPct = &left
+	}
+	return m
+}
+
 // effectiveCount applies the packed-word rule (docs/SMART_INTERPRETATION.md 3):
 // some vendors pack several 16-bit counters into one raw value. We only unpack
 // when the value has the packed shape (lowest word zero, a higher word non-zero),

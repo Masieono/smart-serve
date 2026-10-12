@@ -1,0 +1,29 @@
+{
+  "json_format_version": [1, 0],
+  "device": { "name": "/dev/nvme0n1", "info_name": "/dev/nvme0n1", "type": "nvme", "protocol": "NVMe" },
+  "model_name": "Samsung SSD 960 EVO 500GB",
+  "serial_number": "S3EUNX0J603807D",
+  "firmware_version": "3B7QCXE7",
+  "user_capacity": { "bytes": 500107862016 },
+  "smart_status": { "passed": true },
+  "temperature": { "current": 33 },
+  "nvme_smart_health_information_log": {
+    "critical_warning": 0,
+    "temperature": 306,
+    "available_spare": 100,
+    "available_spare_threshold": 10,
+    "percentage_used": 4,
+    "data_units_read": 12345678,
+    "data_units_written": 2345678,
+    "host_reads": 123456,
+    "host_writes": 234567,
+    "controller_busy_time": 12,
+    "power_cycles": 289,
+    "power_on_hours": 31603,
+    "unsafe_shutdowns": 76,
+    "media_errors": 0,
+    "num_err_log_entries": 1022,
+    "warning_temp_time": 0,
+    "critical_comp_time": 0
+  }
+}

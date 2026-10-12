@@ -29,18 +29,19 @@ type lsblkOut struct {
 }
 
 type lsblkDev struct {
-	Name        string   `json:"name"`
-	KName       string   `json:"kname"`
-	Model       *string  `json:"model"`
-	Serial      *string  `json:"serial"`
-	Size        uint64   `json:"size"`
-	Type        string   `json:"type"`
-	Tran        *string  `json:"tran"`
-	Fstype      *string  `json:"fstype"`
-	Mountpoints []string `json:"mountpoints"`
-	Rota        bool     `json:"rota"`
-	Rm          bool     `json:"rm"`
-	WWN         *string  `json:"wwn"`
+	Name        string     `json:"name"`
+	KName       string     `json:"kname"`
+	Model       *string    `json:"model"`
+	Serial      *string    `json:"serial"`
+	Size        uint64     `json:"size"`
+	Type        string     `json:"type"`
+	Tran        *string    `json:"tran"`
+	Fstype      *string    `json:"fstype"`
+	Mountpoints []string   `json:"mountpoints"`
+	Rota        bool       `json:"rota"`
+	Rm          bool       `json:"rm"`
+	WWN         *string    `json:"wwn"`
+	Children    []lsblkDev `json:"children"`
 }
 
 type smartScanOut struct {
@@ -96,6 +97,11 @@ func parseLsblk(data []byte) ([]Discovered, error) {
 		if d.Type != "disk" {
 			continue
 		}
+		// A whole disk is never mounted itself — its partitions carry the
+		// mountpoints and filesystems — so gather them from the tree.
+		var mounts, fstypes []string
+		collectTree(d, &mounts, &fstypes)
+
 		out = append(out, Discovered{
 			Path:        d.Name,
 			KName:       d.KName,
@@ -103,8 +109,8 @@ func parseLsblk(data []byte) ([]Discovered, error) {
 			Serial:      deref(d.Serial),
 			SizeBytes:   d.Size,
 			Transport:   deref(d.Tran),
-			Fstype:      deref(d.Fstype),
-			Mountpoints: cleanMountpoints(d.Mountpoints),
+			Fstype:      strings.Join(cleanMountpoints(fstypes), ", "),
+			Mountpoints: cleanMountpoints(mounts),
 			Removable:   d.Rm,
 			Rotational:  d.Rota,
 			WWN:         deref(d.WWN),
@@ -113,15 +119,39 @@ func parseLsblk(data []byte) ([]Discovered, error) {
 	return out, nil
 }
 
-// cleanMountpoints drops the empty strings lsblk emits for unmounted devices.
+// collectTree walks a device and its children, gathering mountpoints and
+// filesystems (the disk's own values first, then its partitions').
+func collectTree(d lsblkDev, mounts, fstypes *[]string) {
+	*mounts = append(*mounts, d.Mountpoints...)
+	if d.Fstype != nil {
+		*fstypes = append(*fstypes, *d.Fstype)
+	}
+	for _, child := range d.Children {
+		collectTree(child, mounts, fstypes)
+	}
+}
+
+// cleanMountpoints trims, drops empties, and de-duplicates while preserving
+// order.
 func cleanMountpoints(in []string) []string {
 	out := make([]string, 0, len(in))
 	for _, m := range in {
-		if m = strings.TrimSpace(m); m != "" {
-			out = append(out, m)
+		m = strings.TrimSpace(m)
+		if m == "" || contains(out, m) {
+			continue
 		}
+		out = append(out, m)
 	}
 	return out
+}
+
+func contains(list []string, want string) bool {
+	for _, v := range list {
+		if v == want {
+			return true
+		}
+	}
+	return false
 }
 
 func deref(s *string) string {

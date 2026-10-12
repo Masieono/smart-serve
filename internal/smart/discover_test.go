@@ -11,6 +11,7 @@ func TestParseLsblkKeepsWholeDisksOnly(t *testing.T) {
 		t.Fatalf("got %d devices, want 3 (partitions and loops excluded)", len(devices))
 	}
 
+	// A whole disk has no mountpoint of its own; the partitions carry them.
 	sda := devices[0]
 	if sda.Path != "/dev/sda" || sda.Transport != "sata" {
 		t.Errorf("sda = %+v", sda)
@@ -18,21 +19,37 @@ func TestParseLsblkKeepsWholeDisksOnly(t *testing.T) {
 	if sda.Model != "BTO-1TB" {
 		t.Errorf("model = %q, want trimmed %q", sda.Model, "BTO-1TB")
 	}
-	if len(sda.Mountpoints) != 0 {
-		t.Errorf("mountpoints = %v, want empty (unmounted)", sda.Mountpoints)
+	if len(sda.Mountpoints) != 1 || sda.Mountpoints[0] != "/mnt/data" {
+		t.Errorf("sda mountpoints = %v, want [/mnt/data] from its partition", sda.Mountpoints)
+	}
+	if sda.Fstype != "ext4" {
+		t.Errorf("sda fstype = %q, want ext4 from its partition", sda.Fstype)
 	}
 
 	nvme := devices[1]
 	if nvme.Serial != "S4Y4NJ0R222807" {
 		t.Errorf("serial = %q, want trimmed", nvme.Serial)
 	}
-	if len(nvme.Mountpoints) != 1 || nvme.Mountpoints[0] != "/" {
-		t.Errorf("mountpoints = %v, want [/]", nvme.Mountpoints)
+	want := []string{"/boot/efi", "/"}
+	if len(nvme.Mountpoints) != len(want) {
+		t.Fatalf("nvme mountpoints = %v, want %v", nvme.Mountpoints, want)
+	}
+	for i := range want {
+		if nvme.Mountpoints[i] != want[i] {
+			t.Errorf("nvme mountpoints = %v, want %v", nvme.Mountpoints, want)
+		}
+	}
+	if nvme.Fstype != "vfat, ext4" {
+		t.Errorf("nvme fstype = %q, want %q", nvme.Fstype, "vfat, ext4")
 	}
 
+	// A disk with no partitions reports nothing rather than an empty string.
 	usb := devices[2]
 	if !usb.Removable || usb.Transport != "usb" || !usb.Rotational {
 		t.Errorf("usb device flags wrong: %+v", usb)
+	}
+	if len(usb.Mountpoints) != 0 || usb.Fstype != "" {
+		t.Errorf("usb mountpoints = %v, fstype = %q; want empty", usb.Mountpoints, usb.Fstype)
 	}
 }
 

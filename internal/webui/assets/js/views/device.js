@@ -1,7 +1,7 @@
 // Device detail (docs/UI.md §7.2).
-import { el, mount, clear, fmtBytes, fmtDateTime, fmtAgo, fmtTemp, fmtHours, fmtScore, scoreGrade } from '../dom.js';
+import { el, mount, clear, fmtBytes, fmtDateTime, fmtAgo, fmtTemp, fmtHours, fmtInt, fmtScore, scoreGrade } from '../dom.js';
 import { api } from '../api.js';
-import { verdictBadge, healthGauge, attributeTable, errorBox, openDialog, toast } from '../components.js';
+import { verdictBadge, healthGauge, attributeTable, errorBox, openDialog, toast, transportLabel } from '../components.js';
 import { icon } from '../icons.js';
 
 export async function render(container, ctx, serial) {
@@ -20,14 +20,34 @@ function draw(container, ctx, data) {
   const attrs = payload ? payload.attributes || [] : [];
   const nvme = payload ? payload.nvme : null;
 
-  const stats = el('div', { class: 'form-grid' }, [
+  const m = data.metrics || {};
+  const powerOnHours = m.power_on_hours !== undefined
+    ? m.power_on_hours
+    : (snapshot ? snapshot.power_on_hours : null);
+  const wearPct = snapshot ? snapshot.wear_pct : null;
+
+  const identity = el('div', { class: 'form-grid' }, [
+    stat('Model', d.model || '—'),
+    stat('Model family', d.model_family || '—'),
+    stat('Serial', d.serial),
+    stat('Firmware', d.firmware || '—'),
     stat('Capacity', fmtBytes(d.capacity_bytes)),
+    stat('Interface', d.interface_speed || '—'),
+    stat('Transport', transportLabel(d)),
+    stat('Rotation', d.rotation ? `${fmtInt(d.rotation)} rpm` : 'solid state'),
+    stat('WWN', d.wwn || '—'),
+    stat('Device path', d.device_path || '—'),
+  ]);
+
+  const usage = el('div', { class: 'form-grid' }, [
+    stat('Power-on hours', powerOnHours != null ? `${fmtHours(powerOnHours)} (${fmtInt(powerOnHours)} h)` : '—'),
+    stat('Power cycles', m.power_cycles != null ? fmtInt(m.power_cycles) : '—'),
     stat('Temperature', fmtTemp(d.temperature_c)),
-    stat('Power-on hours', snapshot && snapshot.power_on_hours !== undefined ? fmtHours(snapshot.power_on_hours) : '—'),
-    stat('Transport', `${d.transport || '—'}${d.smart_bus ? ` (${d.smart_bus})` : ''}`),
+    stat('Data read', m.data_read_bytes != null ? fmtBytes(m.data_read_bytes) : '—'),
+    stat('Data written', m.data_written_bytes != null ? fmtBytes(m.data_written_bytes) : '—'),
+    stat('Life remaining', lifeText(m.life_left_pct, wearPct)),
     stat('Mountpoints', d.mountpoints && d.mountpoints.length ? d.mountpoints.join(', ') : 'not mounted'),
     stat('Filesystem', d.fstype || '—'),
-    stat('Serial', d.serial),
     stat('First seen', fmtDateTime(d.first_seen)),
     stat('Last scanned', d.last_scan ? `${fmtAgo(d.last_scan)} (${fmtDateTime(d.last_scan)})` : 'never'),
   ]);
@@ -63,7 +83,15 @@ function draw(container, ctx, data) {
       ]),
     ]),
 
-    el('div', { class: 'card' }, [el('h2', { style: 'margin-bottom:var(--space-4)', text: 'Details' }), stats]),
+    el('div', { class: 'card' }, [
+      el('h2', { style: 'margin-bottom:var(--space-4)', text: 'Identity' }),
+      identity,
+    ]),
+
+    el('div', { class: 'card' }, [
+      el('h2', { style: 'margin-bottom:var(--space-4)', text: 'Usage and media' }),
+      usage,
+    ]),
 
     d.notes ? el('div', { class: 'card' }, [
       el('h2', { style: 'margin-bottom:var(--space-2)', text: 'Notes' }),
@@ -90,17 +118,34 @@ function stat(label, value) {
   ]);
 }
 
+/** "96% remaining (4% used)" — prefers the drive's own life figure. */
+function lifeText(lifeLeft, wearPct) {
+  if (lifeLeft != null) return `${lifeLeft}% remaining`;
+  if (wearPct != null) {
+    const used = Math.round(wearPct);
+    return `${100 - used}% remaining (${used}% used)`;
+  }
+  return '—';
+}
+
 function nvmeTable(n) {
   const rows = [
-    ['Critical warning', n.critical_warning],
+    ['Critical warning', String(n.critical_warning)],
     ['Available spare', `${n.available_spare}%`],
     ['Spare threshold', `${n.available_spare_threshold}%`],
     ['Percentage used', `${n.percentage_used}%`],
-    ['Power cycles', n.power_cycles],
-    ['Power-on hours', n.power_on_hours],
-    ['Unsafe shutdowns', n.unsafe_shutdowns],
-    ['Media errors', n.media_errors],
-    ['Error log entries', n.num_err_log_entries],
+    ['Data units read', dataUnits(n.data_units_read)],
+    ['Data units written', dataUnits(n.data_units_written)],
+    ['Host read commands', fmtInt(n.host_reads)],
+    ['Host write commands', fmtInt(n.host_writes)],
+    ['Controller busy time', `${fmtInt(n.controller_busy_time)} min`],
+    ['Power cycles', fmtInt(n.power_cycles)],
+    ['Power-on hours', fmtInt(n.power_on_hours)],
+    ['Unsafe shutdowns', fmtInt(n.unsafe_shutdowns)],
+    ['Media errors', fmtInt(n.media_errors)],
+    ['Error log entries', fmtInt(n.num_err_log_entries)],
+    ['Warning temp time', `${fmtInt(n.warning_temp_time)} min`],
+    ['Critical comp time', `${fmtInt(n.critical_comp_time)} min`],
   ];
   return el('div', { class: 'table-wrap' }, [
     el('table', { class: 'data' }, [
@@ -109,6 +154,13 @@ function nvmeTable(n) {
         el('tr', {}, [el('td', { text: k }), el('td', { class: 'num', text: String(v) })]))),
     ]),
   ]);
+}
+
+// NVMe reports volume in "data units" of 1,000 × 512-byte sectors, so the raw
+// counter means nothing on its own. Show the count and the humanised size.
+function dataUnits(count) {
+  if (count === null || count === undefined) return '—';
+  return `${fmtInt(count)} (${fmtBytes(Number(count) * 512000)})`;
 }
 
 async function toggleRaw(device, button) {

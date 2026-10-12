@@ -81,7 +81,7 @@ export function summaryBar(counts, active, onFilter) {
 }
 
 /** Friendly transport name; "usb"/"sata"/"nvme" alone are ambiguous. */
-function transportLabel(device) {
+export function transportLabel(device) {
   const t = (device.transport || '').toLowerCase();
   if (t === 'usb') return 'USB';
   if (t === 'nvme') return 'NVMe';
@@ -107,9 +107,10 @@ export function deviceCard(device, onOpen, onScan) {
   ];
 
   return el('article', {
-    class: 'card device-card',
+    class: `card device-card${device.is_missing ? ' device-card-missing' : ''}`,
     tabindex: '0',
     role: 'button',
+    title: device.is_missing ? 'This device was not present in the last scan' : '',
     onclick: () => onOpen(device.serial),
     onkeydown: (e) => {
       if (e.key === 'Enter' || e.key === ' ') {
@@ -126,7 +127,9 @@ export function deviceCard(device, onOpen, onScan) {
           text: `${device.model || '—'}${device.device_path ? ` · ${device.device_path}` : ''}`,
         }),
       ]),
-      verdictBadge(device.health),
+      device.is_missing
+        ? el('span', { class: 'badge badge-unknown' }, [icon('help'), 'Not connected'])
+        : verdictBadge(device.health),
     ]),
     el('div', { class: 'device-card-body' }, [
       healthGauge(device.score, 88),
