@@ -1,5 +1,11 @@
 # Smart-Serve — Notifications
 
+> **Status: implemented (MVP).** The scheduler lives in `internal/sched` and the
+> delivery pipeline in `internal/notify`: transition detection, ntfy and webhook
+> senders, squelching, the delivery log (`GET /api/notifications`), and
+> `POST /api/channels/{id}/test`. Phase 2 adapters (Gotify, Telegram, Discord,
+> SMTP) implement the same `Sender` interface and change nothing else.
+
 ## Event catalog
 
 All notification-worthy events are emitted **after** a scan completes (or fails).
@@ -99,6 +105,23 @@ Rule: for each `(channel, event_key)` pair, where `event_key` is:
 Squelched sends are recorded as `status: squelched` in `notification_log` for
 transparency. Test events (`POST /api/channels/{id}/test`) bypass squelching.
 
+**As implemented**, only `temperature_high` consults a time window. Everything
+else carries a zero window and is therefore never squelched, because for those
+events the dedupe is structural rather than temporal:
+
+- A `health_change` is only generated when the stored verdict actually differs
+  from the previous one (ADR-008), so a persistent bad state produces nothing to
+  squelch. Applying a window on top would be actively wrong: a drive that
+  recovers and degrades again is two real events, and the key — which encodes the
+  *new* verdict — would otherwise silence the second one.
+- `device_disappeared` / `device_appeared` fire on the transition itself, so
+  repeating them is impossible by construction.
+- `scan_failure` is meant to repeat: every failed scheduled scan is news, and a
+  scanner broken for a week must not go quiet after the first hour.
+
+The event key is still recorded for all of them — it is what makes the delivery
+log readable, and what an acknowledgement would key on in Phase 2.
+
 ## Suppression: acknowledgement & maintenance windows (Phase 2)
 
 Two additional suppression layers sit on top of squelching:
@@ -117,6 +140,44 @@ Two additional suppression layers sit on top of squelching:
   capped (default 30 s) so a hung channel can't stall the next scheduled scan.
 - All delivery outcomes land in `notification_log` for debugging and for a
   "recent notifications" view in Settings (Phase 2 UI surface).
+
+## Post-scan hand-off
+
+The notifier is a **post-scan hook**, not a second pipeline. `scan.Manager` runs
+it after the scan is committed, and hands it two device-state maps: the stored
+state from *before* the scan and the state *after* it, both keyed by serial.
+
+That pair is what makes transition detection fall out naturally. Because an absent
+drive is flagged `is_missing` rather than deleted (`DATA_MODEL.md`), a state that
+is `Missing` after the scan has just disappeared, and one that is present after
+being `Missing` has just reappeared — no separate bookkeeping, no extra table.
+
+Two deliberate quietenings:
+
+- **The first scan announces nothing.** With no prior state every drive is
+  technically "new", and reporting a fresh install as N discoveries is noise.
+- **A missing drive's temperature is ignored.** The stored value is the last one
+  ever seen; alerting on it would report history as if it were now.
+
+The hook is wrapped so a panic inside it is contained and published as a
+`notify_error` SSE event. A notification bug must never take down the scan
+pipeline.
+
+## Delivery outcomes
+
+| Status | Meaning |
+|---|---|
+| `sent` | the destination returned 2xx |
+| `failed` | it returned 4xx (permanent — a config problem, so no retry) or 5xx/network after two retries |
+| `squelched` | inside a squelch window; recorded so the log explains the silence |
+
+Retries use a 10 s request timeout with two retries and a 5 s backoff on 5xx or
+network errors. A 4xx is never retried — repeating a rejected request only burns
+the budget. The dispatcher's 30 s budget caps the worst case, so a dead endpoint
+cannot delay the next scheduled scan.
+
+The log write itself deliberately survives context cancellation: the budget
+expiring must not erase the evidence of what happened.
 
 ## Phase 2 adapters
 

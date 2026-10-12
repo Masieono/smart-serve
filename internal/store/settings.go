@@ -156,6 +156,31 @@ func (s *Store) DeleteSchedule(ctx context.Context, id int64) error {
 	return err
 }
 
+// SetScheduleNextRun records the next fire time without touching last_run. The
+// scheduler uses it to persist a freshly computed boundary.
+func (s *Store) SetScheduleNextRun(ctx context.Context, id int64, next time.Time) error {
+	_, err := s.db.ExecContext(ctx,
+		`UPDATE scan_schedules SET next_run = ? WHERE id = ?`, next.UnixMilli(), id)
+	return err
+}
+
+// MarkScheduleRun records a completed run and its next fire time.
+func (s *Store) MarkScheduleRun(ctx context.Context, id int64, lastRun, nextRun time.Time) error {
+	_, err := s.db.ExecContext(ctx,
+		`UPDATE scan_schedules SET last_run = ?, next_run = ? WHERE id = ?`,
+		lastRun.UnixMilli(), nextRun.UnixMilli(), id)
+	return err
+}
+
+// MakeScheduleDue brings a schedule's next run forward to now so the scheduler
+// picks it up on its next wake — the mechanism behind "run now".
+func (s *Store) MakeScheduleDue(ctx context.Context, id int64, now time.Time) error {
+	_, err := s.db.ExecContext(ctx,
+		`UPDATE scan_schedules SET next_run = ? WHERE id = ? AND enabled = 1`,
+		now.UnixMilli(), id)
+	return err
+}
+
 func scanSchedule(r rowScanner) (Schedule, error) {
 	var (
 		sched            Schedule

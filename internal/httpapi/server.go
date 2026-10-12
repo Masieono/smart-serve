@@ -4,6 +4,7 @@
 package httpapi
 
 import (
+	"context"
 	"encoding/json"
 	"log/slog"
 	"net/http"
@@ -11,9 +12,26 @@ import (
 	"strings"
 
 	"github.com/masieono/smart-serve/internal/events"
+	"github.com/masieono/smart-serve/internal/notify"
 	"github.com/masieono/smart-serve/internal/scan"
 	"github.com/masieono/smart-serve/internal/store"
 )
+
+// Scheduler is the in-process scan scheduler, when one is running. The API only
+// nudges it: a schedule edit takes effect immediately rather than at the next
+// sleep boundary, and "run now" goes through the same path as a timed fire.
+type Scheduler interface {
+	Wake()
+	RunNow(ctx context.Context, scheduleID int64) error
+}
+
+// Notifier delivers notifications. The API uses it to validate channel configs
+// on save and to send test events.
+type Notifier interface {
+	SendTest(ctx context.Context, ch store.Channel, ev notify.Event) (notify.Outcome, error)
+	ValidateConfig(typ string, cfg map[string]any) error
+	Types() []string
+}
 
 // Options configures the API handler.
 type Options struct {
@@ -23,16 +41,24 @@ type Options struct {
 	// UI, when set, serves the web interface at every path the API does not
 	// claim (including SPA deep links).
 	UI http.Handler
+	// Scheduler, when set, owns scheduled scans. Without it, "run now" falls
+	// back to firing a scan directly.
+	Scheduler Scheduler
+	// Notifier, when set, delivers notifications. Without it, channel configs are
+	// not validated and test sends report 501.
+	Notifier Notifier
 }
 
 // Server is the HTTP API.
 type Server struct {
-	store   *store.Store
-	scanner *scan.Manager
-	hub     *events.Hub
-	log     *slog.Logger
-	version string
-	handler http.Handler
+	store     *store.Store
+	scanner   *scan.Manager
+	hub       *events.Hub
+	log       *slog.Logger
+	version   string
+	scheduler Scheduler
+	notifier  Notifier
+	handler   http.Handler
 }
 
 // New builds the API handler.
@@ -41,7 +67,10 @@ func New(st *store.Store, sc *scan.Manager, hub *events.Hub, opts Options) *Serv
 	if logger == nil {
 		logger = slog.Default()
 	}
-	s := &Server{store: st, scanner: sc, hub: hub, log: logger, version: opts.Version}
+	s := &Server{
+		store: st, scanner: sc, hub: hub, log: logger, version: opts.Version,
+		scheduler: opts.Scheduler, notifier: opts.Notifier,
+	}
 
 	mux := http.NewServeMux()
 	s.routes(mux)
@@ -92,6 +121,8 @@ func (s *Server) routes(mux *http.ServeMux) {
 	mux.HandleFunc("PUT /api/channels/{id}", s.handleUpdateChannel)
 	mux.HandleFunc("DELETE /api/channels/{id}", s.handleDeleteChannel)
 	mux.HandleFunc("POST /api/channels/{id}/test", s.handleTestChannel)
+
+	mux.HandleFunc("GET /api/notifications", s.handleNotifications)
 
 	mux.HandleFunc("GET /api/events", s.handleEvents)
 }

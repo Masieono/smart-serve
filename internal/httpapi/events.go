@@ -9,15 +9,16 @@ import (
 	"time"
 
 	"github.com/masieono/smart-serve/internal/events"
+	"github.com/masieono/smart-serve/internal/scan"
 )
 
 // handleScan triggers a scan through the single-flight manager. By default it
 // returns immediately (202) and progress arrives over SSE; ?wait=1 blocks until
 // the scan finishes, which is convenient for scripts and tests.
 func (s *Server) handleScan(w http.ResponseWriter, r *http.Request) {
-	trigger := r.URL.Query().Get("trigger")
-	if trigger == "" {
-		trigger = "manual"
+	trigger := scan.Manual
+	if kind := r.URL.Query().Get("trigger"); kind != "" {
+		trigger = scan.Trigger{Kind: kind}
 	}
 
 	if r.URL.Query().Get("wait") == "1" {

@@ -59,6 +59,9 @@ The application is useful and shippable with only these:
 - Notes attached to the USB drive reattach to it after replug with a changed device
   letter.
 
+**Status:** all fourteen items above are implemented. The one MVP item not yet
+validated end-to-end is Docker device access on real hardware (`DEPLOYMENT.md`).
+
 ## Phase 2 — "insight"
 
 1. **History & trending** — snapshot timeline charts per device (temperature,

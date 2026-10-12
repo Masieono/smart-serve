@@ -17,6 +17,10 @@ Runs the scan pipeline; single-flight (joins an in-flight scan). Returns `202` w
 For scripts and tests, `POST /api/scan?wait=1` blocks until the scan finishes and
 returns `{ "scan_id", "status", "devices_total" }` (status `completed` or `joined`).
 
+The optional `trigger` query parameter is recorded in the scan history and decides
+whether a failure is notification-worthy: a failed *scheduled* scan alerts, a failed
+manual one does not (the operator who pressed the button already knows).
+
 ### `GET /api/devices` — list devices (last known state; never triggers I/O)
 
 ```json
@@ -103,22 +107,55 @@ stored record. Unset fields are `null`, not omitted — full replace semantics.
 
 ## Schedules
 
-- `GET /api/schedules` — list (includes `next_run`).
+- `GET /api/schedules` — list (includes `last_run` and `next_run`).
 - `POST /api/schedules` — create: `{ "kind": "interval", "every_seconds": 21600, "label": "every 6h" }`
-  or `{ "kind": "cron", "cron": "0 3 * * *", "label": "nightly" }`.
+  or `{ "kind": "cron", "cron": "0 3 * * *", "label": "nightly" }`. Cron is evaluated
+  in the container's local timezone.
 - `PUT /api/schedules/{id}` — update fields / `enabled` toggle.
 - `DELETE /api/schedules/{id}` — remove.
-- `POST /api/schedules/{id}/run` — fire once now (goes through single-flight).
+- `POST /api/schedules/{id}/run` — fire once now. The in-process scheduler owns
+  scan timing, so this brings the schedule's next run forward and wakes it rather
+  than scanning inline; the run is recorded by the same path as a timed fire, so
+  `last_run`/`next_run` stay honest. Returns `202 Accepted`.
+
+Every schedule change (create, update, delete, run-now) wakes the scheduler, so it
+takes effect immediately instead of at the next sleep boundary.
 
 ## Notification channels
 
 - `GET /api/channels`
 - `POST /api/channels` — `{ "type": "ntfy", "label": "alerts", "config": { "server": "https://ntfy.sh", "topic": "my-smart-alerts" }, "events": ["health_change", "temperature_high", "device_disappeared"] }`
-  (webhook config: `{ "url": "...", "method": "POST", "headers": {...} }`)
-- `PUT /api/channels/{id}` — update.
+  (webhook config: `{ "url": "...", "method": "POST", "headers": {...} }`).
+  An empty or absent `events` array means "every event". The config is validated
+  against the channel type's sender, so a missing topic or a malformed URL is a
+  `400` at the point of editing.
+- `PUT /api/channels/{id}` — update (same validation).
 - `DELETE /api/channels/{id}`
-- `POST /api/channels/{id}/test` — send a test event immediately (bypasses
-  squelching). Returns `501` until notification delivery lands (`SCOPE.md`).
+- `POST /api/channels/{id}/test` — send a test event immediately, bypassing
+  subscription filters and squelching (`NOTIFICATIONS.md`). Returns
+  `{ "status": "sent", "channel_id": 1 }`; a delivery failure returns `502` with
+  the destination's own error, which is the only way to tell a bad token from a
+  bad URL. Without notification support wired in, it returns `501`.
+
+### `GET /api/notifications` — delivery log
+
+```json
+{
+  "notifications": [
+    { "id": 3, "channel_id": 1, "event_type": "health_change",
+      "event_key": "health_change:S5GXNX0R512345J:caution",
+      "sent_at": "2025-10-12T03:00:04Z", "status": "sent", "detail": "" }
+  ],
+  "event_types": ["health_change", "temperature_high", "device_disappeared",
+                  "device_appeared", "scan_failure"],
+  "channel_types": ["ntfy", "webhook"]
+}
+```
+
+`status` is `sent`, `failed` or `squelched`. The log is the only record of an alert
+that fired while a channel was down, so it is the recovery path described in
+ADR-008. `event_types` and `channel_types` are served here so the UI's subscription
+checkboxes and type picker cannot drift from the server.
 
 ## Settings
 
@@ -165,11 +202,12 @@ Event types pushed to connected browsers:
 
 | Event | Payload |
 |---|---|
-| `scan_started` | `{ scan_id }` |
+| `scan_started` | `{ started_at }` |
 | `scan_device` | `{ scan_id, device, phase: "start"\|"done", ok, error? }` |
 | `scan_complete` | `{ scan_id, devices_total, devices_ok, devices_failed, duration_ms }` |
-| `schedule_fired` | `{ scan_id, schedule_id }` |
-| `notification_sent` | `{ channel_label, event_type, status }` |
+| `schedule_fired` | `{ schedule_id }` — a scheduled scan is about to start |
+| `schedule_ran` | `{ schedule_id, scan_id, ok, next_run }` — it finished and the schedule advanced |
+| `notify_error` | `{ error }` — the post-scan hook panicked; the scan itself is unaffected |
 
 SSE is the only push mechanism; no WebSocket (see ADR-006). Reconnect handling is
 native (browser `EventSource` auto-retry with `Last-Event-ID` cursor for missed

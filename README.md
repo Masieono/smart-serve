@@ -66,18 +66,21 @@ Then open `http://<host>:8080` and press **Scan**.
 
 ## Project status
 
-**Design frozen — ready for implementation.** The documents in `docs/` define the
-planning, scope, and design of the application. All decisions are recorded in
+**MVP complete.** The documents in `docs/` define the planning, scope, and design of
+the application. All decisions are recorded in
 [`docs/REQUIREMENTS.md`](docs/REQUIREMENTS.md) (decisions D1–D25; considerations
 C1–C24 all confirmed or resolved) and [`docs/DECISIONS.md`](docs/DECISIONS.md)
 (ADR-001–ADR-016). Repository: private under GitHub user **Masieono**, image
-`ghcr.io/masieono/smart-serve` (made public at v1). CI: GitHub Actions. Implementation
-proceeds in the `SCOPE.md` MVP order.
+`ghcr.io/masieono/smart-serve` (made public at v1). CI: GitHub Actions.
+
+Every `SCOPE.md` MVP item is built. The remaining work is Docker deployment
+validation on real hardware and the Phase 2 features (history/trending, longevity
+estimates, further notification adapters, SMART self-tests).
 
 ## Implementation status
 
-Early scaffolding — the design is frozen and the core scan path is being built in
-the `docs/SCOPE.md` MVP order:
+The core loop works end to end: discover, interpret, persist, display, schedule,
+alert.
 
 - [x] Go module + domain model (`internal/model`)
 - [x] Interpretation engine: verdicts + 0–100 health score (`internal/interp`) — unit-tested
@@ -87,8 +90,12 @@ the `docs/SCOPE.md` MVP order:
 - [x] HTTP API + SSE (`internal/httpapi`, `internal/events`) — unit-tested
 - [x] Web UI (`internal/webui`) — dashboard, device detail, schedules, notifications,
       settings; dark/light/auto + custom-accent themes
+- [x] Scheduler (`internal/sched`) — interval + cron, in-process, sleeps to the next
+      boundary rather than ticking — unit-tested
+- [x] Notifications (`internal/notify`) — ntfy + webhook, transition-based alerts,
+      squelching, delivery log, channel test — unit-tested
 - [x] Dockerfile, docker-compose (prod + dev), GitHub Actions CI
-- [ ] Scheduler + notifications
+- [ ] Docker device-access validation on real hardware (`docs/DEPLOYMENT.md`)
 
 ## License
 

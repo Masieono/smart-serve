@@ -3,6 +3,7 @@ package scan
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"strconv"
 	"strings"
 	"sync"
@@ -29,12 +30,50 @@ type Runner interface {
 	Run(ctx context.Context) ([]Device, error)
 }
 
+// Trigger describes what caused a scan. It is recorded in scan_history, and the
+// kind decides whether a failure is notification-worthy (a manual scan's failure
+// is already visible to whoever pressed the button).
+type Trigger struct {
+	Kind       string // manual | schedule | startup
+	ScheduleID int64  // set when Kind is "schedule"
+}
+
+// Manual is the trigger for an operator-pressed scan.
+var Manual = Trigger{Kind: "manual"}
+
+// PostScan is the hand-off from the scan pipeline to anything that reacts to a
+// finished scan. It exists so the scan package can invoke a notifier without
+// importing it (see cmd/smartserve for the wiring).
+type PostScan struct {
+	Trigger Trigger
+	ScanID  int64
+	Started time.Time
+	Ended   time.Time
+	OK      bool
+	Error   string
+
+	// Previous is the stored device state from *before* this scan and Current
+	// the state *after* it, both keyed by serial. A device absent from the scan
+	// appears in Current with Missing set rather than being deleted, which is
+	// what makes disappear/reappear detection possible.
+	Previous map[string]store.DeviceState
+	Current  map[string]store.DeviceState
+}
+
+// PostScanFunc reacts to a finished scan. It runs after the scan is committed,
+// so it cannot affect the result, and it must not block for long — the next
+// scheduled scan is waiting on the manager.
+type PostScanFunc func(ctx context.Context, rep PostScan)
+
 // Manager runs scans, serializes them (single-flight), persists the outcome, and
 // publishes progress to the SSE hub.
 type Manager struct {
 	runner Runner
 	store  *store.Store
 	hub    *events.Hub
+
+	// postScan, when set, is invoked after every scan (successful or not).
+	postScan PostScanFunc
 
 	mu      sync.Mutex
 	running bool
@@ -47,9 +86,13 @@ func NewManager(r Runner, st *store.Store, hub *events.Hub) *Manager {
 	return &Manager{runner: r, store: st, hub: hub}
 }
 
+// OnPostScan registers the hook invoked after each scan. It is called outside the
+// single-flight lock, so a slow hook delays only its own scan's completion.
+func (m *Manager) OnPostScan(fn PostScanFunc) { m.postScan = fn }
+
 // Scan runs a scan, or joins the one already in flight. The joined return value
 // reports whether the caller waited on an existing scan rather than starting one.
-func (m *Manager) Scan(ctx context.Context, trigger string) (res Result, joined bool, err error) {
+func (m *Manager) Scan(ctx context.Context, t Trigger) (res Result, joined bool, err error) {
 	m.mu.Lock()
 	if m.running {
 		done := m.done
@@ -69,7 +112,7 @@ func (m *Manager) Scan(ctx context.Context, trigger string) (res Result, joined 
 	done := m.done
 	m.mu.Unlock()
 
-	res, err = m.run(ctx, trigger)
+	res, err = m.run(ctx, t)
 
 	m.mu.Lock()
 	m.last = res
@@ -86,9 +129,18 @@ func (m *Manager) Last() Result {
 	return m.last
 }
 
-func (m *Manager) run(ctx context.Context, trigger string) (Result, error) {
+func (m *Manager) run(ctx context.Context, t Trigger) (Result, error) {
 	started := time.Now().UTC()
 	m.hub.Publish("scan_started", map[string]any{"started_at": started})
+
+	// Capture the pre-scan state before the upsert overwrites it. That is what
+	// lets the notifier see transitions rather than just current values.
+	var previous map[string]store.DeviceState
+	if m.postScan != nil {
+		if prev, perr := m.store.DeviceStates(ctx); perr == nil {
+			previous = prev
+		}
+	}
 
 	devices, err := m.runner.Run(ctx)
 	ended := time.Now().UTC()
@@ -96,7 +148,7 @@ func (m *Manager) run(ctx context.Context, trigger string) (Result, error) {
 
 	if err != nil {
 		res.Error = err.Error()
-		if id, serr := m.store.SaveFailedScan(ctx, trigger, started, ended, err.Error()); serr == nil {
+		if id, serr := m.store.SaveFailedScan(ctx, t.Kind, started, ended, err.Error()); serr == nil {
 			res.ScanID = id
 		}
 		m.hub.Publish("scan_complete", map[string]any{
@@ -104,6 +156,10 @@ func (m *Manager) run(ctx context.Context, trigger string) (Result, error) {
 			"ok":          false,
 			"error":       err.Error(),
 			"duration_ms": ended.Sub(started).Milliseconds(),
+		})
+		m.notify(ctx, PostScan{
+			Trigger: t, ScanID: res.ScanID, Started: started, Ended: ended,
+			OK: false, Error: err.Error(), Previous: previous,
 		})
 		return res, err
 	}
@@ -121,7 +177,7 @@ func (m *Manager) run(ctx context.Context, trigger string) (Result, error) {
 	for _, d := range devices {
 		stored = append(stored, toStored(d))
 	}
-	scanID, err := m.store.SaveScan(ctx, trigger, started, ended, stored)
+	scanID, err := m.store.SaveScan(ctx, t.Kind, started, ended, stored)
 	if err != nil {
 		res.Error = err.Error()
 		return res, err
@@ -144,8 +200,33 @@ func (m *Manager) run(ctx context.Context, trigger string) (Result, error) {
 		"duration_ms":    ended.Sub(started).Milliseconds(),
 	})
 
+	rep := PostScan{
+		Trigger: t, ScanID: scanID, Started: started, Ended: ended,
+		OK: true, Previous: previous,
+	}
+	if m.postScan != nil {
+		if current, cerr := m.store.DeviceStates(ctx); cerr == nil {
+			rep.Current = current
+		}
+	}
+	m.notify(ctx, rep)
+
 	m.prune(ctx)
 	return res, nil
+}
+
+// notify invokes the post-scan hook, if any. A panic inside the hook is contained
+// here: a notification bug must never take down the scan pipeline.
+func (m *Manager) notify(ctx context.Context, rep PostScan) {
+	if m.postScan == nil {
+		return
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			m.hub.Publish("notify_error", map[string]any{"error": fmt.Sprint(r)})
+		}
+	}()
+	m.postScan(ctx, rep)
 }
 
 // prune applies the retention windows from settings. A pruning failure must

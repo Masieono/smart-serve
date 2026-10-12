@@ -61,6 +61,7 @@ export const api = {
   updateChannel: (c) => request('PUT', `/api/channels/${c.id}`, c),
   deleteChannel: (id) => request('DELETE', `/api/channels/${id}`),
   testChannel: (id) => request('POST', `/api/channels/${id}/test`),
+  notifications: (limit = 25) => request('GET', `/api/notifications?limit=${limit}`),
 
   eventsUrl: () => appPath('/api/events'),
 };

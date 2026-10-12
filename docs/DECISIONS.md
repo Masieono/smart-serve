@@ -83,8 +83,26 @@ each scan.
 
 **Consequences.** (+) UI-managed schedules, no host setup, one container.
 (−) scheduler lives/dies with the app (a stopped container doesn't scan — which
-is correct); missed-run catch-up policy (run-once-on-startup if overdue?
-default: no, next fire only) decided at implementation and documented then.
+is correct).
+
+**Missed-run policy (decided at implementation).** Default `skip`: a schedule whose
+next run passed while the process was down is simply rescheduled, so a long outage
+produces one scan rather than a burst of catch-up scans. `SMARTSERVE_MISSED_RUN_POLICY=run_once`
+fires the overdue run once instead.
+
+The policy is applied **once, at start-up** (`reconcileStartup`), which is the only
+place it can be correct. Once the loop is running, a boundary in the past means one
+of two things — the timer just came due, or the operator pressed "run now" — and
+both must fire. Deciding the policy on every evaluation instead made a due boundary
+look like a missed run and pushed it into the future, so due-now schedules and
+"run now" silently never fired.
+
+**Idle cost.** The loop sleeps to the next boundary with a single `time.Timer` and
+an explicit wake channel, never a ticker (`FEATURES.md` §E). With nothing scheduled
+it blocks indefinitely; a schedule change nudges it so edits take effect at once
+rather than at the next boundary. Cron is evaluated in the container's local time
+using the standard library's own date arithmetic, so DST gaps and repeats are
+handled by `time.Date` rather than by hand-rolled arithmetic on instants.
 
 ## ADR-005: Device identity — serial number
 

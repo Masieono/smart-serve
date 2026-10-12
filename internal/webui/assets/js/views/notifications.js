@@ -1,15 +1,28 @@
 // Notification channels (docs/UI.md §7.4, docs/NOTIFICATIONS.md).
-import { el, mount } from '../dom.js';
+import { el, mount, fmtAgo, fmtDateTime } from '../dom.js';
 import { api } from '../api.js';
 import { emptyState, errorBox, openDialog, confirmDialog, toast } from '../components.js';
 import { icon } from '../icons.js';
 
+// Fallback for the event catalog; the API is the source of truth so a new event
+// type shows up in the subscription checkboxes without a UI change.
 const EVENT_TYPES = ['health_change', 'temperature_high', 'device_disappeared', 'device_appeared', 'scan_failure'];
+
+// Human labels for the subscription checkboxes; the event list itself comes from
+// the API so a new event type appears without a UI change.
+const EVENT_LABELS = {
+  health_change: 'A drive’s verdict changes',
+  temperature_high: 'A drive runs hotter than the threshold',
+  device_disappeared: 'A drive disappears',
+  device_appeared: 'A drive appears',
+  scan_failure: 'A scheduled scan fails',
+};
 
 export async function render(container, ctx) {
   mount(container, el('div', { class: 'skeleton', style: 'width:30%;height:24px' }));
   try {
-    draw(container, ctx, await api.channels());
+    const [channels, log] = await Promise.all([api.channels(), api.notifications(25)]);
+    draw(container, ctx, channels, log);
   } catch (err) {
     mount(container, errorBox(`Could not load channels: ${err.message}`));
   }
@@ -24,15 +37,16 @@ function parseEvents(raw) {
   }
 }
 
-function draw(container, ctx, data) {
+function draw(container, ctx, data, log) {
   const channels = data.channels || [];
+  const eventTypes = (log && log.event_types) || EVENT_TYPES;
   const head = el('div', { class: 'page-head' }, [
     el('div', {}, [
       el('h1', { text: 'Notifications' }),
       el('div', { class: 'sub', text: 'Alerts fire on health transitions — never on every scan.' }),
     ]),
     el('span', { class: 'spacer' }),
-    el('button', { class: 'btn btn-primary', type: 'button', onclick: () => editChannel(ctx, null) },
+    el('button', { class: 'btn btn-primary', type: 'button', onclick: () => editChannel(ctx, null, eventTypes) },
       [icon('plus'), 'New channel']),
   ]);
 
@@ -59,16 +73,24 @@ function draw(container, ctx, data) {
       el('div', { class: 'row' }, [
         el('span', { class: 'spacer' }),
         el('button', { class: 'btn btn-sm', type: 'button', title: 'Send a test event',
-          onclick: async () => {
+          onclick: async (event) => {
+            const button = event.currentTarget;
+            button.disabled = true;
+            button.textContent = 'Sending…';
             try {
               await api.testChannel(c.id);
               toast('Test event sent', 'good');
             } catch (err) {
-              toast(err.message, 'error');
+              // The API returns the destination's own error, which is the only
+              // way to tell a bad token from a bad URL.
+              toast(`Test failed: ${err.message}`, 'error');
+            } finally {
+              button.disabled = false;
+              button.textContent = 'Test';
             }
           } }, ['Test']),
         el('button', { class: 'btn btn-sm btn-ghost', type: 'button', title: 'Edit',
-          onclick: () => editChannel(ctx, c) }, [icon('settings')]),
+          onclick: () => editChannel(ctx, c, eventTypes) }, [icon('settings')]),
         el('button', { class: 'btn btn-sm btn-ghost', type: 'button', title: 'Delete',
           onclick: async () => {
             if (!(await confirmDialog('Delete channel', `Delete "${c.label || c.type}"?`, 'Delete'))) return;
@@ -82,10 +104,47 @@ function draw(container, ctx, data) {
           } }, [icon('trash')]),
       ]),
     ]);
-  })));
+  })), deliveryLog(log, channels));
 }
 
-function editChannel(ctx, existing) {
+// The delivery log is the only record of an alert that fired while a channel was
+// down, so it is not optional furniture (ADR-008).
+function deliveryLog(log, channels) {
+  const entries = (log && log.notifications) || [];
+  if (!entries.length) return null;
+
+  const labelFor = (id) => {
+    const match = channels.find((c) => c.id === id);
+    return match ? (match.label || match.type) : `channel ${id}`;
+  };
+
+  return el('div', { class: 'card', style: 'margin-top:var(--space-6)' }, [
+    el('h2', { style: 'margin-bottom:var(--space-3)', text: 'Recent deliveries' }),
+    el('div', { class: 'table-wrap' }, [
+      el('table', { class: 'data' }, [
+        el('thead', {}, [el('tr', {}, [
+          el('th', { text: 'When' }),
+          el('th', { text: 'Channel' }),
+          el('th', { text: 'Event' }),
+          el('th', { text: 'Status' }),
+          el('th', { text: 'Detail' }),
+        ])]),
+        el('tbody', {}, entries.map((e) => el('tr', {}, [
+          el('td', { text: fmtAgo(e.sent_at), title: fmtDateTime(e.sent_at) }),
+          el('td', { text: labelFor(e.channel_id) }),
+          el('td', { text: e.event_type }),
+          el('td', {}, [el('span', {
+            class: `badge badge-${e.status === 'sent' ? 'good' : e.status === 'squelched' ? 'unknown' : 'bad'}`,
+            text: e.status,
+          })]),
+          el('td', { class: 'muted', text: e.detail || '—' }),
+        ]))),
+      ]),
+    ]),
+  ]);
+}
+
+function editChannel(ctx, existing, eventTypes = EVENT_TYPES) {
   const saved = parseConfig(existing && existing.config);
 
   openDialog(existing ? 'Edit channel' : 'New channel', (body, close) => {
@@ -148,10 +207,10 @@ function editChannel(ctx, existing) {
     const enabled = el('input', { type: 'checkbox', checked: existing ? existing.enabled : true });
 
     const subscribed = new Set(parseEvents(existing && existing.events));
-    const eventRows = EVENT_TYPES.map((name) => {
+    const eventRows = eventTypes.map((name) => {
       const box = el('input', { type: 'checkbox', checked: subscribed.has(name) });
       box.dataset.event = name;
-      return el('label', { class: 'field-row' }, [box, el('span', { text: name })]);
+      return el('label', { class: 'field-row' }, [box, el('span', { text: EVENT_LABELS[name] || name })]);
     });
 
     function buildConfig() {

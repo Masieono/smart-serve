@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/masieono/smart-serve/internal/scan"
 	"github.com/masieono/smart-serve/internal/store"
 )
 
@@ -113,6 +114,7 @@ func (s *Server) handleCreateSchedule(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, "create schedule", err)
 		return
 	}
+	s.wakeScheduler()
 	writeJSON(w, http.StatusCreated, map[string]any{"schedule": toScheduleJSON(*sched)})
 }
 
@@ -156,6 +158,7 @@ func (s *Server) handleUpdateSchedule(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, "update schedule", err)
 		return
 	}
+	s.wakeScheduler()
 	sched, _ := s.store.GetSchedule(r.Context(), id)
 	writeJSON(w, http.StatusOK, map[string]any{"schedule": toScheduleJSON(*sched)})
 }
@@ -169,11 +172,21 @@ func (s *Server) handleDeleteSchedule(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, "delete schedule", err)
 		return
 	}
+	s.wakeScheduler()
 	writeJSON(w, http.StatusOK, map[string]any{"deleted": id})
 }
 
-// handleRunSchedule fires a scan now for a schedule, through the single-flight
-// manager, and returns immediately.
+// wakeScheduler nudges the in-process scheduler so a schedule change takes
+// effect immediately instead of at the next sleep boundary.
+func (s *Server) wakeScheduler() {
+	if s.scheduler != nil {
+		s.scheduler.Wake()
+	}
+}
+
+// handleRunSchedule fires a scan now for a schedule. With the in-process
+// scheduler running, "run now" brings the schedule's next run forward and wakes
+// the loop, so last-run/next-run are recorded exactly as for a timed fire.
 func (s *Server) handleRunSchedule(w http.ResponseWriter, r *http.Request) {
 	id, ok := pathID(w, r)
 	if !ok {
@@ -188,12 +201,23 @@ func (s *Server) handleRunSchedule(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "unknown schedule")
 		return
 	}
-	s.hub.Publish("schedule_fired", map[string]any{"schedule_id": id})
 
+	if s.scheduler != nil {
+		if err := s.scheduler.RunNow(r.Context(), id); err != nil {
+			s.fail(w, "run schedule", err)
+			return
+		}
+		// The scheduler publishes schedule_fired itself when it actually runs.
+		writeJSON(w, http.StatusAccepted, map[string]any{"status": "started", "schedule_id": id})
+		return
+	}
+
+	// Without a scheduler (tests, or the scan-only build) run it directly.
+	s.hub.Publish("schedule_fired", map[string]any{"schedule_id": id})
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 		defer cancel()
-		_, _, _ = s.scanner.Scan(ctx, "schedule")
+		_, _, _ = s.scanner.Scan(ctx, scan.Trigger{Kind: "schedule", ScheduleID: id})
 	}()
 
 	writeJSON(w, http.StatusAccepted, map[string]any{"status": "started", "schedule_id": id})

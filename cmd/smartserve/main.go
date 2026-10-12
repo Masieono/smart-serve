@@ -17,7 +17,9 @@ import (
 	"github.com/masieono/smart-serve/internal/events"
 	"github.com/masieono/smart-serve/internal/httpapi"
 	"github.com/masieono/smart-serve/internal/interp"
+	"github.com/masieono/smart-serve/internal/notify"
 	"github.com/masieono/smart-serve/internal/scan"
+	"github.com/masieono/smart-serve/internal/sched"
 	"github.com/masieono/smart-serve/internal/store"
 	"github.com/masieono/smart-serve/internal/webui"
 )
@@ -95,6 +97,24 @@ func runServe() error {
 	scanner := &scan.Scanner{Timeout: cfg.CommandTimeout, Thresholds: interp.DefaultThresholds()}
 	manager := scan.NewManager(scanner, st, hub)
 
+	// Notification delivery (docs/NOTIFICATIONS.md). Senders are stateless and
+	// registered by channel type, so adding a provider never touches the scan
+	// pipeline. The dispatcher is also handed to the API, which uses it to
+	// validate channel configs and to send test events.
+	registry := notify.NewRegistry()
+	registry.Register(notify.NewNtfy(nil))
+	registry.Register(notify.NewWebhook(nil))
+	dispatcher := notify.NewDispatcher(st, registry, notify.DispatcherOptions{Logger: logger})
+	manager.OnPostScan(notify.NewNotifier(st, dispatcher, cfg.Version, logger).OnScan)
+
+	// The scheduler owns scheduled scans (ADR-004). It sleeps to the next due
+	// schedule rather than ticking, so it costs nothing while idle.
+	scheduler := sched.New(st, manager, hub, sched.Options{
+		MissedRunPolicy: cfg.MissedRunPolicy,
+		Logger:          logger,
+	})
+	go scheduler.Run(ctx)
+
 	// The UI theme is read from settings on each shell request, so changing it in
 	// the UI is reflected on the next load without a restart (docs/UI.md §5).
 	ui, err := webui.New(func(ctx context.Context) webui.Theme {
@@ -114,10 +134,12 @@ func runServe() error {
 	}
 
 	api := httpapi.New(st, manager, hub, httpapi.Options{
-		BasePath: cfg.BasePath,
-		Version:  cfg.Version,
-		Logger:   logger,
-		UI:       ui,
+		BasePath:  cfg.BasePath,
+		Version:   cfg.Version,
+		Logger:    logger,
+		UI:        ui,
+		Scheduler: scheduler,
+		Notifier:  dispatcher,
 	})
 
 	srv := &http.Server{

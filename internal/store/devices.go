@@ -528,3 +528,52 @@ func (s *Store) Prune(ctx context.Context, retentionDays, logRetentionDays int) 
 	}
 	return snapshotsDeleted, logsDeleted, nil
 }
+
+// DeviceState is the slice of a device's state the notifier compares between
+// scans (docs/NOTIFICATIONS.md).
+type DeviceState struct {
+	Serial          string
+	Name            string // user-assigned name, when one is set
+	Model           string
+	Health          string
+	HealthRationale string
+	TemperatureC    *int
+	// Missing is true when the device was absent from the most recent scan.
+	Missing bool
+}
+
+// DeviceStates returns every known device keyed by serial, joined with its
+// user-assigned name.
+//
+// Call it twice around a scan to get a transition: before the scan for the
+// previous state, after for the new one. Because SaveScan flags absent devices
+// rather than deleting them, a state with Missing set is one that has just
+// disappeared, and one that is present after being Missing has reappeared.
+func (s *Store) DeviceStates(ctx context.Context) (map[string]DeviceState, error) {
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT d.serial, COALESCE(n.name, ''), d.model, d.health, d.health_rationale,
+		       d.temperature_c, d.is_missing
+		FROM devices d
+		LEFT JOIN device_notes n ON n.serial = d.serial`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	out := map[string]DeviceState{}
+	for rows.Next() {
+		var (
+			st        DeviceState
+			temp      sql.NullInt64
+			isMissing int64
+		)
+		if err := rows.Scan(&st.Serial, &st.Name, &st.Model, &st.Health,
+			&st.HealthRationale, &temp, &isMissing); err != nil {
+			return nil, err
+		}
+		st.TemperatureC = intPtr(temp)
+		st.Missing = isMissing != 0
+		out[st.Serial] = st
+	}
+	return out, rows.Err()
+}

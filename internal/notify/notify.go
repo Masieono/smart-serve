@@ -1,0 +1,422 @@
+// Package notify delivers scan events to configured channels
+// (docs/NOTIFICATIONS.md).
+//
+// Delivery is deliberately best-effort. A broken channel logs a failure and can
+// never fail the scan that produced the event, and the whole post-scan pass is
+// bounded by a budget so a hung endpoint cannot delay the next scheduled scan.
+package notify
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"log/slog"
+	"sort"
+	"strings"
+	"time"
+
+	"github.com/masieono/smart-serve/internal/store"
+)
+
+// Event types (docs/NOTIFICATIONS.md event catalog).
+const (
+	EventHealthChange      = "health_change"
+	EventTemperatureHigh   = "temperature_high"
+	EventDeviceDisappeared = "device_disappeared"
+	EventDeviceAppeared    = "device_appeared"
+	EventScanFailure       = "scan_failure"
+)
+
+// EventTypes lists every subscribable event, in catalog order.
+var EventTypes = []string{
+	EventHealthChange,
+	EventTemperatureHigh,
+	EventDeviceDisappeared,
+	EventDeviceAppeared,
+	EventScanFailure,
+}
+
+// Priority influences formatting (the ntfy priority header, a payload field) and
+// squelch defaults — never whether a subscribed channel receives the event.
+type Priority string
+
+// Priorities, lowest first.
+const (
+	PriorityLow    Priority = "low"
+	PriorityMedium Priority = "medium"
+	PriorityHigh   Priority = "high"
+)
+
+// Event is one notification-worthy occurrence.
+type Event struct {
+	Type         string   `json:"event"`
+	Priority     Priority `json:"priority"`
+	Serial       string   `json:"device_serial,omitempty"`
+	DeviceName   string   `json:"device_name,omitempty"`
+	DeviceModel  string   `json:"device_model,omitempty"`
+	OldHealth    string   `json:"old_health,omitempty"`
+	NewHealth    string   `json:"new_health,omitempty"`
+	Rationale    string   `json:"rationale,omitempty"`
+	TemperatureC *int     `json:"temperature_c,omitempty"`
+	ScheduleID   int64    `json:"schedule_id,omitempty"`
+	Error        string   `json:"error,omitempty"`
+	ScanTS       int64    `json:"scan_ts"`
+	Version      string   `json:"smartserve_version,omitempty"`
+
+	// key is the squelch identity and is deliberately not on the wire.
+	key string
+}
+
+// Key is the squelch key for the event (docs/NOTIFICATIONS.md).
+func (e Event) Key() string {
+	if e.key != "" {
+		return e.key
+	}
+	return e.Type
+}
+
+// Title is the one-line summary. It is used as the ntfy Title header, so it must
+// stay printable ASCII.
+func (e Event) Title() string {
+	switch e.Type {
+	case EventHealthChange:
+		return "Drive health changed: " + e.label()
+	case EventTemperatureHigh:
+		return "Drive running hot: " + e.label()
+	case EventDeviceDisappeared:
+		return "Drive disconnected: " + e.label()
+	case EventDeviceAppeared:
+		return "Drive detected: " + e.label()
+	case EventScanFailure:
+		return "Scheduled scan failed"
+	}
+	return "Smart-Serve: " + e.Type
+}
+
+// Body is the message text. The first line repeats the title so the message still
+// reads correctly in clients that do not render the Title header.
+func (e Event) Body() string {
+	lines := []string{e.emoji() + " " + e.Title()}
+
+	switch e.Type {
+	case EventHealthChange:
+		lines = append(lines, fmt.Sprintf("%s → %s", e.OldHealth, e.NewHealth))
+		if e.Rationale != "" {
+			lines = append(lines, e.Rationale)
+		}
+	case EventTemperatureHigh:
+		if e.TemperatureC != nil {
+			lines = append(lines, fmt.Sprintf("%d °C", *e.TemperatureC))
+		}
+		if e.Rationale != "" {
+			lines = append(lines, e.Rationale)
+		}
+	case EventScanFailure:
+		if e.Error != "" {
+			lines = append(lines, e.Error)
+		}
+	}
+
+	detail := make([]string, 0, 3)
+	if e.Serial != "" {
+		detail = append(detail, "Serial "+e.Serial)
+	}
+	if e.TemperatureC != nil && e.Type != EventTemperatureHigh {
+		detail = append(detail, fmt.Sprintf("temp %d°C", *e.TemperatureC))
+	}
+	if e.ScanTS > 0 {
+		detail = append(detail, "last scan "+time.UnixMilli(e.ScanTS).Format("15:04"))
+	}
+	if len(detail) > 0 {
+		lines = append(lines, strings.Join(detail, ", "))
+	}
+	return strings.Join(lines, "\n")
+}
+
+// label names the device as concisely as the available fields allow.
+func (e Event) label() string {
+	switch {
+	case e.DeviceName != "" && e.DeviceModel != "":
+		return fmt.Sprintf("%s (%s)", e.DeviceName, e.DeviceModel)
+	case e.DeviceName != "":
+		return e.DeviceName
+	case e.DeviceModel != "":
+		return e.DeviceModel
+	case e.Serial != "":
+		return e.Serial
+	}
+	return "device"
+}
+
+func (e Event) emoji() string {
+	switch e.Type {
+	case EventHealthChange:
+		switch e.NewHealth {
+		case "good":
+			return "✅"
+		case "bad":
+			return "🛑"
+		}
+		return "⚠️"
+	case EventTemperatureHigh:
+		return "🌡️"
+	case EventDeviceDisappeared, EventDeviceAppeared:
+		return "🔌"
+	case EventScanFailure:
+		return "🚨"
+	}
+	return "💾"
+}
+
+// Outcome is the result of one delivery attempt, recorded in notification_log.
+type Outcome string
+
+// Delivery outcomes.
+const (
+	OutcomeSent      Outcome = "sent"
+	OutcomeFailed    Outcome = "failed"
+	OutcomeSquelched Outcome = "squelched"
+)
+
+// Sender delivers one event to one destination of a particular channel type.
+// Implementations are stateless: the channel's stored config is passed in, so a
+// new channel type never touches the scan pipeline (docs/NOTIFICATIONS.md).
+type Sender interface {
+	// Type is the channel type this sender handles, e.g. "ntfy".
+	Type() string
+	// Send delivers the event. A non-nil error means delivery failed.
+	Send(ctx context.Context, cfg map[string]any, ev Event) error
+}
+
+// ConfigValidator is implemented by senders that can check their configuration
+// before it is saved, so a bad URL or a missing topic is reported immediately
+// rather than at 3 a.m.
+type ConfigValidator interface {
+	ValidateConfig(cfg map[string]any) error
+}
+
+// Registry maps channel types to senders.
+type Registry struct {
+	senders map[string]Sender
+}
+
+// NewRegistry returns an empty registry.
+func NewRegistry() *Registry {
+	return &Registry{senders: map[string]Sender{}}
+}
+
+// Register adds a sender, replacing any previous one of the same type.
+func (r *Registry) Register(s Sender) { r.senders[s.Type()] = s }
+
+// Get returns the sender for a channel type.
+func (r *Registry) Get(typ string) (Sender, bool) {
+	s, ok := r.senders[typ]
+	return s, ok
+}
+
+// Types lists the registered channel types, sorted.
+func (r *Registry) Types() []string {
+	out := make([]string, 0, len(r.senders))
+	for typ := range r.senders {
+		out = append(out, typ)
+	}
+	sort.Strings(out)
+	return out
+}
+
+// ValidateConfig checks a config against the sender for its type.
+func (r *Registry) ValidateConfig(typ string, cfg map[string]any) error {
+	s, ok := r.senders[typ]
+	if !ok {
+		return fmt.Errorf("unsupported channel type %q", typ)
+	}
+	v, ok := s.(ConfigValidator)
+	if !ok {
+		return nil
+	}
+	return v.ValidateConfig(cfg)
+}
+
+// Store is the persistence the dispatcher needs.
+type Store interface {
+	ListChannels(ctx context.Context) ([]store.Channel, error)
+	LogNotification(ctx context.Context, channelID int64, eventType, eventKey string, at time.Time, status, detail string) error
+	LastNotificationAt(ctx context.Context, channelID int64, eventKey string) (*time.Time, error)
+}
+
+// DispatcherOptions configures a Dispatcher.
+type DispatcherOptions struct {
+	Logger *slog.Logger
+	// Budget caps the whole post-scan pass (default 30s) so a hung endpoint
+	// cannot delay the next scheduled scan.
+	Budget time.Duration
+	// Squelch is how long a repeating condition stays quiet (default 1h).
+	Squelch time.Duration
+	// Now overrides the clock in tests.
+	Now func() time.Time
+}
+
+// Dispatcher fans events out to channels, applying subscription filters and
+// squelching, and records every outcome in notification_log.
+type Dispatcher struct {
+	store   Store
+	reg     *Registry
+	log     *slog.Logger
+	budget  time.Duration
+	squelch time.Duration
+	now     func() time.Time
+}
+
+// NewDispatcher builds a dispatcher over the given registry.
+func NewDispatcher(st Store, reg *Registry, opts DispatcherOptions) *Dispatcher {
+	d := &Dispatcher{
+		store:   st,
+		reg:     reg,
+		log:     opts.Logger,
+		budget:  opts.Budget,
+		squelch: opts.Squelch,
+		now:     opts.Now,
+	}
+	if d.log == nil {
+		d.log = slog.Default()
+	}
+	if d.budget <= 0 {
+		d.budget = 30 * time.Second
+	}
+	if d.squelch <= 0 {
+		d.squelch = time.Hour
+	}
+	if d.now == nil {
+		d.now = time.Now
+	}
+	return d
+}
+
+// Dispatch delivers every event to every subscribed, enabled channel. It never
+// returns an error: notifications must not be able to fail a scan.
+func (d *Dispatcher) Dispatch(ctx context.Context, events []Event) {
+	if len(events) == 0 {
+		return
+	}
+	channels, err := d.store.ListChannels(ctx)
+	if err != nil {
+		d.log.Error("could not list notification channels", "err", err)
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, d.budget)
+	defer cancel()
+
+	for _, ch := range channels {
+		if !ch.Enabled {
+			continue
+		}
+		sender, ok := d.reg.Get(ch.Type)
+		if !ok {
+			d.log.Warn("unknown notification channel type", "type", ch.Type, "channel", ch.ID)
+			continue
+		}
+		cfg := decodeConfig(ch.Config)
+		for _, ev := range events {
+			if !subscribed(ch.Events, ev.Type) {
+				continue
+			}
+			d.deliver(ctx, ch, sender, cfg, ev)
+		}
+	}
+}
+
+// SendTest delivers a synthetic event to one channel, bypassing subscription
+// filters and squelching (docs/NOTIFICATIONS.md). It reports the real outcome so
+// the UI can show *why* a channel is not working.
+func (d *Dispatcher) SendTest(ctx context.Context, ch store.Channel, ev Event) (Outcome, error) {
+	sender, ok := d.reg.Get(ch.Type)
+	if !ok {
+		return OutcomeFailed, fmt.Errorf("unsupported channel type %q", ch.Type)
+	}
+	ctx, cancel := context.WithTimeout(ctx, d.budget)
+	defer cancel()
+
+	if err := sender.Send(ctx, decodeConfig(ch.Config), ev); err != nil {
+		d.record(ctx, ch.ID, ev, OutcomeFailed, err.Error())
+		return OutcomeFailed, err
+	}
+	d.record(ctx, ch.ID, ev, OutcomeSent, "test event")
+	return OutcomeSent, nil
+}
+
+// ValidateConfig checks a channel's config without saving it.
+func (d *Dispatcher) ValidateConfig(typ string, cfg map[string]any) error {
+	return d.reg.ValidateConfig(typ, cfg)
+}
+
+// Types lists the channel types this dispatcher can deliver to.
+func (d *Dispatcher) Types() []string { return d.reg.Types() }
+
+func (d *Dispatcher) deliver(ctx context.Context, ch store.Channel, sender Sender, cfg map[string]any, ev Event) {
+	if window := d.squelchWindow(ev); window > 0 {
+		last, err := d.store.LastNotificationAt(ctx, ch.ID, ev.Key())
+		if err == nil && last != nil && d.now().Sub(*last) < window {
+			d.record(ctx, ch.ID, ev, OutcomeSquelched, "within "+window.String()+" squelch window")
+			return
+		}
+	}
+	if err := sender.Send(ctx, cfg, ev); err != nil {
+		d.log.Warn("notification delivery failed",
+			"channel", ch.ID, "type", ch.Type, "event", ev.Type, "err", err)
+		d.record(ctx, ch.ID, ev, OutcomeFailed, err.Error())
+		return
+	}
+	d.log.Info("notification sent", "channel", ch.ID, "type", ch.Type, "event", ev.Type)
+	d.record(ctx, ch.ID, ev, OutcomeSent, "")
+}
+
+// record writes a delivery outcome. The write deliberately survives context
+// cancellation: the budget expiring must not erase the evidence of what happened.
+func (d *Dispatcher) record(ctx context.Context, channelID int64, ev Event, outcome Outcome, detail string) {
+	writeCtx := context.WithoutCancel(ctx)
+	if err := d.store.LogNotification(writeCtx, channelID, ev.Type, ev.Key(), d.now(), string(outcome), detail); err != nil {
+		d.log.Warn("could not record notification", "channel", channelID, "err", err)
+	}
+}
+
+// squelchWindow returns how long a repeat of this event stays quiet. Zero means
+// never, which is the right answer for most of the catalog: health transitions
+// are deduped by the transition detection itself (ADR-008), appear/disappear are
+// one-shot by construction, and a broken scanner is allowed to be loud.
+func (d *Dispatcher) squelchWindow(ev Event) time.Duration {
+	if ev.Type == EventTemperatureHigh {
+		return d.squelch
+	}
+	return 0
+}
+
+// subscribed reports whether a channel wants an event type. An empty or absent
+// subscription list means "everything".
+func subscribed(eventsJSON, typ string) bool {
+	var list []string
+	if err := json.Unmarshal([]byte(eventsJSON), &list); err != nil {
+		return true
+	}
+	if len(list) == 0 {
+		return true
+	}
+	for _, t := range list {
+		if t == typ || t == "*" {
+			return true
+		}
+	}
+	return false
+}
+
+// decodeConfig turns a stored channel config into a map, tolerating garbage.
+func decodeConfig(raw string) map[string]any {
+	out := map[string]any{}
+	if strings.TrimSpace(raw) == "" {
+		return out
+	}
+	if err := json.Unmarshal([]byte(raw), &out); err != nil {
+		return map[string]any{}
+	}
+	return out
+}
