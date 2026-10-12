@@ -43,8 +43,15 @@ func TestOpenIsIdempotent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("first Open: %v", err)
 	}
+	var before int
+	if err := s1.db.QueryRow(`SELECT COUNT(*) FROM schema_version`).Scan(&before); err != nil {
+		t.Fatalf("count schema_version: %v", err)
+	}
 	if err := s1.Close(); err != nil {
 		t.Fatalf("close: %v", err)
+	}
+	if before == 0 {
+		t.Fatal("no migrations were applied on first open")
 	}
 
 	// Re-opening must not re-run migrations or fail.
@@ -54,12 +61,12 @@ func TestOpenIsIdempotent(t *testing.T) {
 	}
 	defer s2.Close()
 
-	var versions int
-	if err := s2.db.QueryRow(`SELECT COUNT(*) FROM schema_version`).Scan(&versions); err != nil {
+	var after int
+	if err := s2.db.QueryRow(`SELECT COUNT(*) FROM schema_version`).Scan(&after); err != nil {
 		t.Fatalf("count schema_version: %v", err)
 	}
-	if versions != 1 {
-		t.Errorf("schema_version rows = %d, want 1", versions)
+	if after != before {
+		t.Errorf("re-open re-ran migrations: %d -> %d", before, after)
 	}
 }
 
@@ -77,6 +84,7 @@ func TestSaveScanAndListDevices(t *testing.T) {
 		{
 			Serial: "S1", Model: "Samsung SSD 870 EVO", DevicePath: "/dev/sda",
 			Transport: "sata", SmartBus: "ata", CapacityBytes: &capacity,
+			Mountpoints: []string{"/", "/boot"}, Fstype: "ext4",
 			Health: "good", HealthRationale: "all checks passed", Score: 100,
 			TemperatureC: &temperature, PowerOnHours: &hours, AttributesJSON: `{"5":0}`,
 		},
@@ -119,6 +127,9 @@ func TestSaveScanAndListDevices(t *testing.T) {
 	}
 	if good.TemperatureC == nil || *good.TemperatureC != 41 {
 		t.Errorf("S1 temperature = %v", good.TemperatureC)
+	}
+	if len(good.Mountpoints) != 2 || good.Mountpoints[0] != "/" || good.Fstype != "ext4" {
+		t.Errorf("S1 mountpoints = %v, fstype = %q", good.Mountpoints, good.Fstype)
 	}
 	if good.LastScan == nil {
 		t.Error("S1 last_scan should be set after a successful read")

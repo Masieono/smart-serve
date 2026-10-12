@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -19,6 +20,8 @@ type ScannedDevice struct {
 	CapacityBytes   *uint64
 	Rotation        *int
 	WWN             string
+	Mountpoints     []string
+	Fstype          string
 	Health          string // good | caution | bad | unknown
 	HealthRationale string
 	Score           int
@@ -49,6 +52,8 @@ type DeviceRecord struct {
 	HealthRationale string
 	Score           int
 	TemperatureC    *int
+	Mountpoints     []string
+	Fstype          string
 	FirstSeen       time.Time
 	LastSeen        time.Time
 	LastScan        *time.Time
@@ -125,8 +130,8 @@ func upsertDevice(ctx context.Context, tx *sql.Tx, d ScannedDevice, lastScan any
 	_, err := tx.ExecContext(ctx, `
 		INSERT INTO devices (serial, model, device_path, transport, smart_bus, capacity_bytes,
 			rotation, wwn, smart_available, smart_error, health, health_rationale, score,
-			temperature_c, first_seen, last_seen, last_scan, is_missing)
-		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,0)
+			temperature_c, first_seen, last_seen, last_scan, mountpoints, fstype, is_missing)
+		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,0)
 		ON CONFLICT(serial) DO UPDATE SET
 			model=excluded.model,
 			device_path=excluded.device_path,
@@ -143,10 +148,13 @@ func upsertDevice(ctx context.Context, tx *sql.Tx, d ScannedDevice, lastScan any
 			temperature_c=excluded.temperature_c,
 			last_seen=excluded.last_seen,
 			last_scan=COALESCE(excluded.last_scan, devices.last_scan),
+			mountpoints=excluded.mountpoints,
+			fstype=excluded.fstype,
 			is_missing=0`,
 		d.Serial, d.Model, d.DevicePath, d.Transport, d.SmartBus, nullUint(d.CapacityBytes),
 		nullInt(d.Rotation), d.WWN, available, d.Error, d.Health, d.HealthRationale, d.Score,
-		nullInt(d.TemperatureC), started.UnixMilli(), ended.UnixMilli(), lastScan)
+		nullInt(d.TemperatureC), started.UnixMilli(), ended.UnixMilli(), lastScan,
+		encodeMountpoints(d.Mountpoints), d.Fstype)
 	if err != nil {
 		return fmt.Errorf("upsert device %s: %w", d.Serial, err)
 	}
@@ -176,6 +184,7 @@ SELECT d.serial, d.model, d.model_family, d.device_path, d.transport, d.smart_bu
        d.interface_speed, d.rotation, d.capacity_bytes, d.wwn, d.smart_available,
        d.smart_error, d.health, d.health_rationale, d.score, d.temperature_c,
        d.first_seen, d.last_seen, d.last_scan, d.is_missing,
+       d.mountpoints, d.fstype,
        COALESCE(n.name, ''), COALESCE(n.notes, ''), COALESCE(n.tags, ''), COALESCE(n.hidden, 0)
 FROM devices d
 LEFT JOIN device_notes n ON n.serial = d.serial`
@@ -221,17 +230,20 @@ func scanDevice(r rowScanner) (DeviceRecord, error) {
 		lastScan                          sql.NullInt64
 		firstSeen, lastSeen               int64
 		smartAvailable, isMissing, hidden int64
+		mountpoints                       string
 	)
 	err := r.Scan(
 		&rec.Serial, &rec.Model, &rec.ModelFamily, &rec.DevicePath, &rec.Transport,
 		&rec.SmartBus, &rec.InterfaceSpeed, &rotation, &capacity, &rec.WWN, &smartAvailable,
 		&rec.SmartError, &rec.Health, &rec.HealthRationale, &rec.Score, &temperature,
 		&firstSeen, &lastSeen, &lastScan, &isMissing,
+		&mountpoints, &rec.Fstype,
 		&rec.Name, &rec.Notes, &rec.Tags, &hidden,
 	)
 	if err != nil {
 		return rec, err
 	}
+	rec.Mountpoints = decodeMountpoints(mountpoints)
 	rec.Rotation = intPtr(rotation)
 	rec.CapacityBytes = uint64Ptr(capacity)
 	rec.TemperatureC = intPtr(temperature)
@@ -242,6 +254,29 @@ func scanDevice(r rowScanner) (DeviceRecord, error) {
 	rec.LastSeen = fromMS(lastSeen)
 	rec.LastScan = timePtr(lastScan)
 	return rec, nil
+}
+
+// encodeMountpoints stores the mount list as a JSON array.
+func encodeMountpoints(mp []string) string {
+	if len(mp) == 0 {
+		return "[]"
+	}
+	b, err := json.Marshal(mp)
+	if err != nil {
+		return "[]"
+	}
+	return string(b)
+}
+
+func decodeMountpoints(s string) []string {
+	if s == "" {
+		return nil
+	}
+	var out []string
+	if err := json.Unmarshal([]byte(s), &out); err != nil {
+		return nil
+	}
+	return out
 }
 
 // Notes is the user-entered metadata for a device.
@@ -372,6 +407,55 @@ type Snapshot struct {
 	TemperatureC *int
 	PowerOnHours *int64
 	WearPct      *float64
+	// Attributes is the normalized JSON blob. It is populated by LatestSnapshot
+	// only, to avoid loading heavy blobs for whole series.
+	Attributes string
+}
+
+// LatestSnapshot returns the most recent snapshot for a device, including the
+// normalized attributes blob, or nil when the device has no history.
+func (s *Store) LatestSnapshot(ctx context.Context, serial string) (*Snapshot, error) {
+	var (
+		snap        Snapshot
+		ts          int64
+		temperature sql.NullInt64
+		hours       sql.NullInt64
+		wear        sql.NullFloat64
+	)
+	err := s.db.QueryRowContext(ctx, `
+		SELECT id, serial, ts, scan_id, health, score, temperature_c, power_on_hours, wear_pct, attributes
+		FROM snapshots WHERE serial = ? ORDER BY ts DESC LIMIT 1`, serial).
+		Scan(&snap.ID, &snap.Serial, &ts, &snap.ScanID, &snap.Health, &snap.Score,
+			&temperature, &hours, &wear, &snap.Attributes)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	snap.TS = fromMS(ts)
+	snap.TemperatureC = intPtr(temperature)
+	if hours.Valid {
+		v := hours.Int64
+		snap.PowerOnHours = &v
+	}
+	if wear.Valid {
+		v := wear.Float64
+		snap.WearPct = &v
+	}
+	return &snap, nil
+}
+
+// SaveFailedScan records a scan that failed before any device could be read.
+func (s *Store) SaveFailedScan(ctx context.Context, trigger string, started, ended time.Time, errMsg string) (int64, error) {
+	res, err := s.db.ExecContext(ctx, `INSERT INTO scan_history
+		(started_at, ended_at, trigger, ok, error, devices_total, devices_ok, devices_failed)
+		VALUES (?, ?, ?, 0, ?, 0, 0, 0)`,
+		started.UnixMilli(), ended.UnixMilli(), trigger, errMsg)
+	if err != nil {
+		return 0, fmt.Errorf("insert failed scan: %w", err)
+	}
+	return res.LastInsertId()
 }
 
 // SnapshotSeries returns the recorded history for one device within a range.

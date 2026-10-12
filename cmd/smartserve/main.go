@@ -1,19 +1,24 @@
 // Command smartserve is the Smart-Serve entry point.
-//
-// At this stage it exposes a `scan` subcommand that discovers devices and prints
-// a JSON report. The HTTP server, scheduler, and notifications are added next
-// (see docs/SCOPE.md).
 package main
 
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"log/slog"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
+	"github.com/masieono/smart-serve/internal/config"
+	"github.com/masieono/smart-serve/internal/events"
+	"github.com/masieono/smart-serve/internal/httpapi"
+	"github.com/masieono/smart-serve/internal/interp"
 	"github.com/masieono/smart-serve/internal/scan"
+	"github.com/masieono/smart-serve/internal/store"
 )
 
 const version = "0.0.0-dev"
@@ -29,6 +34,11 @@ func main() {
 			fmt.Fprintln(os.Stderr, "error:", err)
 			os.Exit(1)
 		}
+	case "serve":
+		if err := runServe(); err != nil {
+			fmt.Fprintln(os.Stderr, "error:", err)
+			os.Exit(1)
+		}
 	case "version":
 		fmt.Println("smart-serve", version)
 	default:
@@ -41,6 +51,7 @@ func usage() {
 	fmt.Fprint(os.Stderr, `smart-serve — S.M.A.R.T. reporting for every device in lsblk
 
 Usage:
+  smart-serve serve    run the HTTP API (and, soon, the web UI)
   smart-serve scan     discover devices and print a S.M.A.R.T. report as JSON
   smart-serve version  print the version
 `)
@@ -57,4 +68,86 @@ func runScan() error {
 	enc := json.NewEncoder(os.Stdout)
 	enc.SetIndent("", "  ")
 	return enc.Encode(devices)
+}
+
+// runServe starts the HTTP API. Access control is delegated to a reverse proxy
+// (ADR-016); the server itself is unauthenticated by design.
+func runServe() error {
+	cfg := config.Load()
+	cfg.Version = version
+
+	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
+		Level: logLevel(cfg.LogLevel),
+	}))
+	slog.SetDefault(logger)
+
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	st, err := store.Open(ctx, cfg.DBPath)
+	if err != nil {
+		return err
+	}
+	defer st.Close()
+
+	hub := events.NewHub()
+	scanner := &scan.Scanner{Timeout: cfg.CommandTimeout, Thresholds: interp.DefaultThresholds()}
+	manager := scan.NewManager(scanner, st, hub)
+
+	api := httpapi.New(st, manager, hub, httpapi.Options{
+		BasePath: cfg.BasePath,
+		Version:  cfg.Version,
+		Logger:   logger,
+	})
+
+	srv := &http.Server{
+		Addr:              cfg.Addr,
+		Handler:           api,
+		ReadHeaderTimeout: 10 * time.Second,
+	}
+
+	serveErr := make(chan error, 1)
+	go func() {
+		logger.Info("smart-serve listening",
+			"addr", cfg.Addr,
+			"db", cfg.DBPath,
+			"base_path", firstNonEmpty(cfg.BasePath, "/"),
+			"version", cfg.Version)
+		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			serveErr <- err
+		}
+	}()
+
+	select {
+	case err := <-serveErr:
+		return err
+	case <-ctx.Done():
+		logger.Info("shutting down")
+	}
+
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	return srv.Shutdown(shutdownCtx)
+}
+
+func logLevel(name string) slog.Level {
+	switch name {
+	case "debug":
+		return slog.LevelDebug
+	case "warn":
+		return slog.LevelWarn
+	case "error":
+		return slog.LevelError
+	default:
+		return slog.LevelInfo
+	}
+}
+
+func firstNonEmpty(vals ...string) string {
+	for _, v := range vals {
+		if v != "" {
+			return v
+		}
+	}
+	return ""
 }

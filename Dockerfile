@@ -28,6 +28,4 @@ HEALTHCHECK --interval=60s --timeout=5s --start-period=10s --retries=3 \
   CMD ["/usr/local/bin/smart-serve", "version"]
 
 ENTRYPOINT ["/usr/local/bin/smart-serve"]
-# `scan` is the only command implemented so far; this becomes `serve` when the
-# HTTP server lands (docs/SCOPE.md MVP order).
-CMD ["scan"]
+CMD ["serve"]

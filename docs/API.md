@@ -10,10 +10,12 @@ Timestamps are Unix milliseconds.
 
 ### `POST /api/scan` — trigger an on-demand scan
 
-Runs the scan pipeline; single-flight (joins an in-flight scan). Returns immediately;
-progress arrives over SSE. Response: `{ "scan_id": 123, "status": "started" }`
-(or `"joined"` if already running). SSE delivers `scan_complete` with the summary —
-the client does not poll.
+Runs the scan pipeline; single-flight (joins an in-flight scan). Returns `202` with
+`{ "status": "started" }` (or `"joined"` when a scan is already running); the
+`scan_id` arrives with the SSE `scan_complete` event — the client does not poll.
+
+For scripts and tests, `POST /api/scan?wait=1` blocks until the scan finishes and
+returns `{ "scan_id", "status", "devices_total" }` (status `completed` or `joined`).
 
 ### `GET /api/devices` — list devices (last known state; never triggers I/O)
 
@@ -79,7 +81,7 @@ stored record. Unset fields are `null`, not omitted — full replace semantics.
 - `PUT /api/channels/{id}` — update.
 - `DELETE /api/channels/{id}`
 - `POST /api/channels/{id}/test` — send a test event immediately (bypasses
-  squelching).
+  squelching). Returns `501` until notification delivery lands (`SCOPE.md`).
 
 ## Settings
 
@@ -105,7 +107,8 @@ stored record. Unset fields are `null`, not omitted — full replace semantics.
 - `GET /api/devices/{serial}/report?format=txt|json|html` — CrystalDiskInfo-style
   report export for warranty/RMA (`FEATURES.md` A8). Enabled formats come from the
   `report_export_formats` setting; `?bundle=1` returns a zip of all enabled formats
-  (Phase 2).
+  (Phase 2). **Implemented so far:** `txt` (default) and `json`; `html` and
+  `?bundle=1` land with the Phase 2 export work.
 
 ## Phase 2 endpoints (specified now to freeze direction)
 
