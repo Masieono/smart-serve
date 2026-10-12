@@ -108,7 +108,7 @@ function editSchedule(ctx, existing) {
     const mode = el('select', {}, [
       el('option', { value: 'interval', text: 'Every few minutes / hours / days' }),
       el('option', { value: 'daily', text: 'On chosen days, at a time' }),
-      el('option', { value: 'cron', text: 'Cron expression (advanced)' }),
+      el('option', { value: 'cron', text: 'Cron expression' }),
     ]);
 
     const everyValue = el('input', { type: 'number', min: '1', value: '6', style: 'max-width:120px' });

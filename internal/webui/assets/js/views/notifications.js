@@ -86,15 +86,65 @@ function draw(container, ctx, data) {
 }
 
 function editChannel(ctx, existing) {
+  const saved = parseConfig(existing && existing.config);
+
   openDialog(existing ? 'Edit channel' : 'New channel', (body, close) => {
     const type = el('select', {}, [
-      el('option', { value: 'ntfy', text: 'ntfy' }),
-      el('option', { value: 'webhook', text: 'Webhook' }),
+      el('option', { value: 'ntfy', text: 'ntfy (push notifications)' }),
+      el('option', { value: 'webhook', text: 'Webhook (generic HTTP POST)' }),
     ]);
     type.value = (existing && existing.type) || 'ntfy';
 
-    const label = el('input', { type: 'text', value: (existing && existing.label) || '', placeholder: 'e.g. server alerts' });
-    const config = el('textarea', { value: pretty((existing && existing.config) || '') });
+    const label = el('input', {
+      type: 'text',
+      value: (existing && existing.label) || '',
+      placeholder: 'e.g. server alerts',
+    });
+
+    // ntfy: structured fields instead of raw JSON.
+    const ntfyServer = el('input', { type: 'text', value: saved.server || 'https://ntfy.sh' });
+    const ntfyTopic = el('input', { type: 'text', value: saved.topic || '', placeholder: 'my-smart-alerts' });
+    const ntfyToken = el('input', { type: 'password', value: saved.token || '', placeholder: 'leave blank for public topics' });
+
+    const ntfyGroup = el('div', { class: 'stack', style: 'gap:var(--space-3)' }, [
+      el('div', { class: 'field' }, [el('label', { text: 'Server' }), ntfyServer,
+        hint('ntfy.sh, or your own self-hosted server.')]),
+      el('div', { class: 'field' }, [el('label', { text: 'Topic' }), ntfyTopic,
+        hint('Subscribe to this topic in the ntfy app to receive the alerts.')]),
+      el('div', { class: 'field' }, [el('label', { text: 'Access token (optional)' }), ntfyToken,
+        hint('Can also come from the SMARTSERVE_NTFY_TOKEN environment variable (ADR-013).')]),
+    ]);
+
+    // webhook: URL + method + "Name: value" header lines.
+    const hookURL = el('input', { type: 'text', value: saved.url || '', placeholder: 'https://example.com/hook' });
+    const hookMethod = el('select', {}, [
+      el('option', { value: 'POST', text: 'POST' }),
+      el('option', { value: 'PUT', text: 'PUT' }),
+    ]);
+    hookMethod.value = saved.method || 'POST';
+    const hookHeaders = el('textarea', {
+      value: headersToText(saved.headers),
+      placeholder: 'Authorization: Bearer abc123',
+    });
+
+    const hookGroup = el('div', { class: 'stack', style: 'gap:var(--space-3)' }, [
+      el('div', { class: 'field' }, [el('label', { text: 'URL' }), hookURL,
+        hint('Smart-Serve sends a JSON body describing the event.')]),
+      el('div', { class: 'field' }, [el('label', { text: 'Method' }), hookMethod]),
+      el('div', { class: 'field' }, [
+        el('label', { text: 'Headers' }),
+        hookHeaders,
+        hint('One "Name: value" per line — for example an Authorization header.'),
+      ]),
+    ]);
+
+    const syncType = () => {
+      ntfyGroup.hidden = type.value !== 'ntfy';
+      hookGroup.hidden = type.value !== 'webhook';
+    };
+    type.addEventListener('change', syncType);
+    syncType();
+
     const enabled = el('input', { type: 'checkbox', checked: existing ? existing.enabled : true });
 
     const subscribed = new Set(parseEvents(existing && existing.events));
@@ -104,47 +154,54 @@ function editChannel(ctx, existing) {
       return el('label', { class: 'field-row' }, [box, el('span', { text: name })]);
     });
 
-    const syncPlaceholder = () => {
-      config.placeholder = type.value === 'ntfy'
-        ? '{"server":"https://ntfy.sh","topic":"my-smart-alerts"}'
-        : '{"url":"https://example.com/hook","method":"POST"}';
-    };
-    type.addEventListener('change', syncPlaceholder);
-    syncPlaceholder();
+    function buildConfig() {
+      if (type.value === 'ntfy') {
+        const config = {
+          server: ntfyServer.value.trim() || 'https://ntfy.sh',
+          topic: ntfyTopic.value.trim(),
+        };
+        if (ntfyToken.value.trim()) config.token = ntfyToken.value.trim();
+        return config;
+      }
+      return {
+        url: hookURL.value.trim(),
+        method: hookMethod.value,
+        headers: textToHeaders(hookHeaders.value),
+      };
+    }
+
+    function validate() {
+      if (type.value === 'ntfy' && !ntfyTopic.value.trim()) return 'Enter an ntfy topic.';
+      if (type.value === 'webhook' && !hookURL.value.trim()) return 'Enter the webhook URL.';
+      return null;
+    }
 
     body.append(
       el('div', { class: 'field' }, [el('label', { text: 'Type' }), type]),
       el('div', { class: 'field' }, [el('label', { text: 'Label' }), label]),
+      ntfyGroup,
+      hookGroup,
       el('div', { class: 'field' }, [
-        el('label', { text: 'Config (JSON)' }),
-        config,
-        el('span', { class: 'muted', style: 'font-size:var(--text-xs)',
-          text: 'Secrets set here can be overridden by environment variables (ADR-013).' }),
-      ]),
-      el('div', { class: 'field' }, [
-        el('label', { text: 'Events' }),
+        el('label', { text: 'Send me an alert when…' }),
         el('div', { class: 'stack', style: 'gap:var(--space-1)' }, eventRows),
       ]),
       el('label', { class: 'field-row' }, [enabled, el('span', { text: 'Enabled' })]),
+      hint('Save, then use Test on the channel card to verify delivery.'),
       el('div', { class: 'dialog-foot', style: 'border:0;padding:0' }, [
         el('button', { class: 'btn', type: 'button', text: 'Cancel', onclick: close }),
         el('button', { class: 'btn btn-primary', type: 'button', text: 'Save', onclick: async (event) => {
-          let parsed;
-          try {
-            parsed = config.value.trim() ? JSON.parse(config.value) : {};
-          } catch {
-            toast('Config must be valid JSON', 'error');
+          const problem = validate();
+          if (problem) {
+            toast(problem, 'error');
             return;
           }
-          const events = eventRows
-            .filter((row) => row.querySelector('input').checked)
-            .map((row) => row.querySelector('input').dataset.event);
-
           const payload = {
             type: type.value,
             label: label.value.trim(),
-            config: parsed,
-            events,
+            config: buildConfig(),
+            events: eventRows
+              .filter((row) => row.querySelector('input').checked)
+              .map((row) => row.querySelector('input').dataset.event),
             enabled: enabled.checked,
           };
           if (existing) payload.id = existing.id;
@@ -166,12 +223,33 @@ function editChannel(ctx, existing) {
   });
 }
 
-function pretty(raw) {
-  if (!raw || raw === '{}') return '';
+function hint(text) {
+  return el('span', { class: 'muted', style: 'font-size:var(--text-xs)', text });
+}
+
+function parseConfig(raw) {
   try {
-    return JSON.stringify(JSON.parse(raw), null, 2);
+    const parsed = JSON.parse(raw || '{}');
+    return parsed && typeof parsed === 'object' ? parsed : {};
   } catch {
-    return raw;
+    return {};
   }
+}
+
+function headersToText(headers) {
+  if (!headers || typeof headers !== 'object') return '';
+  return Object.entries(headers).map(([name, value]) => `${name}: ${value}`).join('\n');
+}
+
+function textToHeaders(text) {
+  const out = {};
+  for (const line of String(text || '').split('\n')) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    const index = trimmed.indexOf(':');
+    if (index <= 0) continue;
+    out[trimmed.slice(0, index).trim()] = trimmed.slice(index + 1).trim();
+  }
+  return out;
 }
 

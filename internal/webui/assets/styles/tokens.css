@@ -61,77 +61,99 @@
   --content-max: 1200px;
 }
 
-/* --- light palette ---------------------------------------------------------- */
+/* --- palettes --------------------------------------------------------------- */
+/* Raw palette values per theme. The semantic tokens below derive from these,
+   which is what lets the surface tints remix them (docs/UI.md §5). */
 
 :root,
 [data-theme="light"],
 [data-theme="custom"][data-theme-base="light"] {
   color-scheme: light;
-  --bg: #f6f8fa;
-  --surface: #ffffff;
-  --surface-2: #f0f3f6;
-  --text: #1f2328;
-  --muted: #59636e;
-  --border: #d8dee4;
-  --focus: #0969da;
-  --overlay: rgba(31, 35, 40, 0.45);
+  --palette-bg: #f6f8fa;
+  --palette-surface: #ffffff;
+  --palette-surface-2: #f0f3f6;
+  --palette-text: #1f2328;
+  --palette-muted: #59636e;
+  --palette-border: #d8dee4;
+  --palette-focus: #0969da;
+  --palette-overlay: rgba(31, 35, 40, 0.45);
 }
-
-/* --- dark palette (the default look) ---------------------------------------- */
 
 [data-theme="dark"],
 [data-theme="custom"][data-theme-base="dark"] {
   color-scheme: dark;
-  --bg: #0d1117;
-  --surface: #161b22;
-  --surface-2: #1c2430;
-  --text: #e6edf3;
-  --muted: #8b949e;
-  --border: #263041;
-  --focus: #58a6ff;
-  --overlay: rgba(1, 4, 9, 0.6);
+  --palette-bg: #0d1117;
+  --palette-surface: #161b22;
+  --palette-surface-2: #1c2430;
+  --palette-text: #e6edf3;
+  --palette-muted: #8b949e;
+  --palette-border: #263041;
+  --palette-focus: #58a6ff;
+  --palette-overlay: rgba(1, 4, 9, 0.6);
 }
-
-/* --- auto: follow the operating system -------------------------------------- */
 
 [data-theme="auto"] {
   color-scheme: light;
-  --bg: #f6f8fa;
-  --surface: #ffffff;
-  --surface-2: #f0f3f6;
-  --text: #1f2328;
-  --muted: #59636e;
-  --border: #d8dee4;
-  --focus: #0969da;
-  --overlay: rgba(31, 35, 40, 0.45);
+  --palette-bg: #f6f8fa;
+  --palette-surface: #ffffff;
+  --palette-surface-2: #f0f3f6;
+  --palette-text: #1f2328;
+  --palette-muted: #59636e;
+  --palette-border: #d8dee4;
+  --palette-focus: #0969da;
+  --palette-overlay: rgba(31, 35, 40, 0.45);
 }
 
 @media (prefers-color-scheme: dark) {
   [data-theme="auto"] {
     color-scheme: dark;
-    --bg: #0d1117;
-    --surface: #161b22;
-    --surface-2: #1c2430;
-    --text: #e6edf3;
-    --muted: #8b949e;
-    --border: #263041;
-    --focus: #58a6ff;
-    --overlay: rgba(1, 4, 9, 0.6);
+    --palette-bg: #0d1117;
+    --palette-surface: #161b22;
+    --palette-surface-2: #1c2430;
+    --palette-text: #e6edf3;
+    --palette-muted: #8b949e;
+    --palette-border: #263041;
+    --palette-focus: #58a6ff;
+    --palette-overlay: rgba(1, 4, 9, 0.6);
   }
 }
 
+/* --- semantic tokens -------------------------------------------------------- */
+
+:root {
+  --bg: var(--palette-bg);
+  --surface: var(--palette-surface);
+  --surface-2: var(--palette-surface-2);
+  --text: var(--palette-text);
+  --muted: var(--palette-muted);
+  --border: var(--palette-border);
+  --focus: var(--palette-focus);
+  --overlay: var(--palette-overlay);
+}
+
 /* --- optional surface tints ------------------------------------------------- */
+/* A tint remixes the whole palette, so every surface shifts together and the
+   change is actually visible. "neutral" is the untouched default. */
 
 [data-theme-tint="slate"] {
-  --surface-2: color-mix(in srgb, var(--surface) 88%, #64748b);
+  --tint: #64748b;
 }
 
 [data-theme-tint="warm"] {
-  --surface-2: color-mix(in srgb, var(--surface) 90%, #d97706);
+  --tint: #b45309;
 }
 
 [data-theme-tint="cool"] {
-  --surface-2: color-mix(in srgb, var(--surface) 90%, #0891b2);
+  --tint: #0e7490;
+}
+
+[data-theme-tint="slate"],
+[data-theme-tint="warm"],
+[data-theme-tint="cool"] {
+  --bg: color-mix(in srgb, var(--palette-bg) 86%, var(--tint));
+  --surface: color-mix(in srgb, var(--palette-surface) 88%, var(--tint));
+  --surface-2: color-mix(in srgb, var(--palette-surface-2) 80%, var(--tint));
+  --border: color-mix(in srgb, var(--palette-border) 78%, var(--tint));
 }
 
 @media (prefers-reduced-motion: reduce) {

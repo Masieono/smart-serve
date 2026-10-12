@@ -48,7 +48,7 @@ function draw(container, ctx, data) {
 
     el('div', { class: 'card stack' }, [
       el('div', { class: 'row' }, [
-        healthGauge(d.score, 96),
+        healthGauge(d.score, 112),
         el('div', { class: 'stack', style: 'gap:var(--space-2);flex:1;min-width:0' }, [
           el('div', { class: 'row' }, [
             verdictBadge(d.health),

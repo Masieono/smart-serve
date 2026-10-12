@@ -8,6 +8,12 @@
   box-sizing: border-box;
 }
 
+/* The `hidden` attribute must beat component display rules such as
+   `.field { display: flex }`, which would otherwise keep the element visible. */
+[hidden] {
+  display: none !important;
+}
+
 html,
 body {
   height: 100%;
@@ -91,7 +97,6 @@ a:hover {
   display: flex;
   align-items: center;
   gap: var(--space-4);
-  margin-bottom: var(--space-5);
 }
 
 .page-head .sub {
@@ -212,6 +217,9 @@ a:hover {
   padding: var(--space-5);
   max-width: var(--content-max);
   width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
 }
 
 /* Hidden on wide screens (where the sidebar is always visible); the media query
@@ -404,12 +412,54 @@ a:hover {
   white-space: nowrap;
 }
 
-.device-card-stats {
+.device-card-titles {
+  min-width: 0;
+  flex: 1;
+}
+
+.device-card-body {
   display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2) var(--space-4);
-  color: var(--muted);
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.device-card-foot {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 30px;
+}
+
+.device-card-rationale {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Label/value list used on device cards and detail panels. Text labels beat
+   bare icons: transport and capacity are otherwise ambiguous (docs/UI.md §6). */
+.kv {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: var(--space-1) var(--space-4);
   font-size: var(--text-xs);
+  min-width: 0;
+  flex: 1;
+}
+
+.kv-label {
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.kv-value {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .stat-label {
@@ -429,7 +479,6 @@ a:hover {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-3);
-  margin-bottom: var(--space-5);
 }
 
 .summary-item {

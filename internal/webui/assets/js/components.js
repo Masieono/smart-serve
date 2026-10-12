@@ -40,8 +40,16 @@ export function healthGauge(score, size = 76) {
   return el('div', { class: 'gauge', style: `width:${size}px;height:${size}px` }, [
     ring,
     el('div', { class: 'gauge-value' }, [
-      el('div', { class: 'gauge-number', text: fmtScore(score) }),
-      el('div', { class: 'gauge-grade', text: scoreGrade(score) }),
+      el('div', {
+        class: 'gauge-number',
+        style: `font-size:${Math.round(size * 0.26)}px`,
+        text: fmtScore(score),
+      }),
+      el('div', {
+        class: 'gauge-grade',
+        style: `font-size:${Math.round(size * 0.14)}px`,
+        text: scoreGrade(score),
+      }),
     ]),
   ]);
 }
@@ -72,12 +80,31 @@ export function summaryBar(counts, active, onFilter) {
   );
 }
 
+/** Friendly transport name; "usb"/"sata"/"nvme" alone are ambiguous. */
+function transportLabel(device) {
+  const t = (device.transport || '').toLowerCase();
+  if (t === 'usb') return 'USB';
+  if (t === 'nvme') return 'NVMe';
+  if (t === 'sata') return 'SATA';
+  if (t === 'sas') return 'SAS';
+  return t || 'unknown';
+}
+
 export function deviceCard(device, onOpen, onScan) {
   const title = device.name || device.model || device.device_path || device.serial;
-  const transportIcon = device.transport === 'usb' ? 'usb' : 'device';
   const mounted = device.mountpoints && device.mountpoints.length
     ? device.mountpoints.join(', ')
     : 'not mounted';
+
+  // Text labels rather than bare icons: drive type and capacity are otherwise
+  // ambiguous, and icon sizes vary enough to look inconsistent (docs/UI.md §6).
+  const rows = [
+    ['Transport', transportLabel(device)],
+    ['Capacity', fmtBytes(device.capacity_bytes)],
+    ['Temperature', fmtTemp(device.temperature_c)],
+    ['Mounted', mounted],
+    ['Last scan', fmtAgo(device.last_scan)],
+  ];
 
   return el('article', {
     class: 'card device-card',
@@ -92,27 +119,28 @@ export function deviceCard(device, onOpen, onScan) {
     },
   }, [
     el('div', { class: 'device-card-head' }, [
-      el('div', { class: 'stack', style: 'gap:2px;min-width:0;flex:1' }, [
+      el('div', { class: 'device-card-titles' }, [
         el('div', { class: 'device-card-title', text: title, title }),
-        el('div', { class: 'device-card-model', text: device.model || '—' }),
+        el('div', {
+          class: 'device-card-model',
+          text: `${device.model || '—'}${device.device_path ? ` · ${device.device_path}` : ''}`,
+        }),
       ]),
       verdictBadge(device.health),
     ]),
-    el('div', { class: 'row' }, [
-      healthGauge(device.score, 64),
-      el('div', { class: 'stack', style: 'gap:6px;flex:1;min-width:0' }, [
-        el('div', { class: 'device-card-stats' }, [
-          el('span', {}, [icon(transportIcon), ' ', device.transport || 'unknown']),
-          el('span', {}, [icon('device'), ' ', fmtBytes(device.capacity_bytes)]),
-          el('span', {}, [icon('alert'), ' ', fmtTemp(device.temperature_c)]),
-        ]),
-        el('div', { class: 'device-card-stats' }, [el('span', { text: mounted })]),
-        el('div', { class: 'muted', style: 'font-size:var(--text-xs)', text: `Scanned ${fmtAgo(device.last_scan)}` }),
-      ]),
+    el('div', { class: 'device-card-body' }, [
+      healthGauge(device.score, 88),
+      el('div', { class: 'kv' }, rows.flatMap(([label, value]) => [
+        el('span', { class: 'kv-label', text: label }),
+        el('span', { class: 'kv-value', text: value, title: value }),
+      ])),
     ]),
-    el('div', { class: 'row' }, [
-      el('span', { class: 'muted', style: 'font-size:var(--text-xs)', text: device.health_rationale || '' }),
-      el('span', { class: 'spacer' }),
+    el('div', { class: 'device-card-foot' }, [
+      el('span', {
+        class: 'muted device-card-rationale',
+        text: device.health_rationale || '',
+        title: device.health_rationale || '',
+      }),
       el('button', {
         class: 'btn btn-sm btn-ghost',
         type: 'button',
