@@ -37,7 +37,7 @@ history — is one file that can be backed up with `cp` while the app is stopped
 
 | Column | Type | Notes |
 |---|---|---|
-| `serial` | TEXT PK | FK → devices.serial |
+| `serial` | TEXT PK | logical reference to devices.serial (no FK, so notes can exist for a device that is currently unplugged) |
 | `name` | TEXT NULL | e.g. "boot", "backup pool" |
 | `notes` | TEXT NULL | free-form |
 | `tags` | TEXT NULL | comma-separated (Phase 2: table) |
@@ -51,8 +51,9 @@ history — is one file that can be backed up with `cp` while the app is stopped
 | `id` | INTEGER PK | |
 | `serial` | TEXT | indexed |
 | `ts` | INTEGER (unix ms) | indexed |
-| `scan_id` | INTEGER | groups all snapshots of one scan |
+| `scan_id` | INTEGER | references `scan_history.id` |
 | `health` | TEXT | |
+| `score` | INTEGER | 0–100 health score, or -1 |
 | `temperature_c` | INTEGER NULL | |
 | `power_on_hours` | INTEGER NULL | |
 | `attributes` | TEXT | normalized JSON blob: ATA attributes or NVMe SMART/health log |
@@ -128,16 +129,31 @@ operational ones — see `DEPLOYMENT.md`):
 | `selftest_default_kind` | `"short"` | `short` \| `long` (D10) |
 | `report_export_formats` | `["txt"]` | enabled export formats (D11) |
 
+### `scan_history` — one row per scan run (MVP: scan-history log, FEATURES A13)
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | INTEGER PK | referenced by `snapshots.scan_id` |
+| `started_at` / `ended_at` | INTEGER (unix ms) | |
+| `trigger` | TEXT | `manual` \| `schedule` |
+| `ok` | INTEGER | 0 when the scan failed outright |
+| `error` | TEXT | failure reason, if any |
+| `devices_total` / `devices_ok` / `devices_failed` | INTEGER | per-scan counts |
+
+### `device_transport_overrides` (MVP: per-device `-d` override, FEATURES A11)
+
+| Column | Type | Notes |
+|---|---|---|
+| `serial` | TEXT PK | |
+| `smart_d` | TEXT | e.g. `sat`, `usbjmicron`, `usbcypress` |
+| `updated_at` | INTEGER (unix ms) | |
+
 ### Future tables (Phase 2 — specified now to freeze schema direction)
 
 - `alert_acknowledgements` (`event_key`, `acked_at`, `acked_by`, `expires_at`) —
   mutes a known issue without changing the verdict.
 - `maintenance_windows` (`id`, `label`, `starts_at`, `ends_at`, `device_filter`) —
   suppresses notifications during known maintenance.
-- `scan_history` (`id`, `scan_id`, `started_at`, `ended_at`, `trigger`, `ok`,
-  `error`, `devices_total`, `devices_ok`, `devices_failed`) — the scan-history log.
-- `device_transport_overrides` (`serial`, `smart_d`, `updated_at`) — remembered
-  `-d` transport for stubborn USB bridges (auto-discovered, user-overridable).
 
 ## Retention & pruning
 
@@ -149,8 +165,8 @@ operational ones — see `DEPLOYMENT.md`):
 ## Migrations
 
 Embedded numbered migrations (`migrations/0001_init.sql`, …) applied at startup inside
-a transaction; a `schema_version` table tracks state. No runtime migration tooling —
-the app is the only writer.
+a transaction; a `schema_version` table (created automatically by the migrator)
+tracks state. No runtime migration tooling — the app is the only writer.
 
 ## Concurrency
 

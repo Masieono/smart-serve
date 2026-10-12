@@ -83,10 +83,11 @@ the `docs/SCOPE.md` MVP order:
 - [x] Interpretation engine: verdicts + 0–100 health score (`internal/interp`) — unit-tested
 - [x] smartctl/lsblk wrappers, JSON parsing, device discovery (`internal/smart`) — unit-tested
 - [x] Scan orchestration + `smart-serve scan` CLI (`internal/scan`, `cmd/smartserve`)
+- [x] SQLite persistence + migrations (`internal/store`) — unit-tested
 - [x] Dockerfile, docker-compose (prod + dev), GitHub Actions CI
 - [ ] HTTP API + SSE
 - [ ] Web UI (per [`docs/UI.md`](docs/UI.md))
-- [ ] SQLite persistence, scheduler, notifications
+- [ ] Scheduler + notifications
 
 ## License
 
