@@ -1,6 +1,7 @@
 package notify
 
 import (
+	"context"
 	"strings"
 	"testing"
 	"time"
@@ -282,5 +283,88 @@ func TestTestEventLooksLikeARealAlert(t *testing.T) {
 	}
 	if ev.Version != "1.2.3" || ev.Body() == "" {
 		t.Errorf("test event = %+v", ev)
+	}
+}
+
+func TestTemperatureAlertsDefaultToCelsius(t *testing.T) {
+	events := Collect(report(
+		states(state("S1", "good")),
+		states(state("S1", "good", withTemp(61))),
+	), CollectOptions{TemperatureThresholdC: 55})
+
+	if len(events) != 1 {
+		t.Fatalf("events = %+v, want exactly one", events)
+	}
+	if !strings.Contains(events[0].Body(), "61 °C") {
+		t.Errorf("Body = %q, want Celsius when no unit is configured", events[0].Body())
+	}
+}
+
+// An alert must be worded in the unit the UI is showing, or the same drive reads
+// as two different temperatures depending on where you look.
+func TestTemperatureAlertsFollowTheDisplayUnit(t *testing.T) {
+	events := Collect(report(
+		states(state("S1", "good")),
+		states(state("S1", "good", withTemp(61))),
+	), CollectOptions{TemperatureThresholdC: 55, TemperatureUnit: "f"})
+
+	if len(events) != 1 {
+		t.Fatalf("events = %+v, want exactly one", events)
+	}
+	ev := events[0]
+	if !strings.Contains(ev.Body(), "142 °F") { // 61 °C
+		t.Errorf("Body = %q, want the reading in Fahrenheit", ev.Body())
+	}
+	if !strings.Contains(ev.Rationale, "131 °F") { // 55 °C
+		t.Errorf("Rationale = %q, want the threshold in Fahrenheit too", ev.Rationale)
+	}
+	// The payload keeps canonical Celsius: a machine consumer must not have to
+	// guess which unit it is looking at.
+	if ev.TemperatureC == nil || *ev.TemperatureC != 61 {
+		t.Errorf("TemperatureC = %v, want the canonical 61", ev.TemperatureC)
+	}
+}
+
+// fakeSettings is an in-memory Settings source for the notifier.
+type fakeSettings map[string]string
+
+func (f fakeSettings) GetSettings(context.Context) (map[string]string, error) { return f, nil }
+
+func TestNotifierReadsTemperatureSettings(t *testing.T) {
+	st := newFakeStore(store.Channel{ID: 1, Type: "rec", Enabled: true, Events: "[]"})
+	sender := &recordingSender{typ: "rec"}
+	d := testDispatcher(st, sender, DispatcherOptions{Now: func() time.Time { return scanTime }})
+	n := NewNotifier(fakeSettings{"temperature_threshold_c": "55", "temperature_unit": "f"}, d, "test", discardLogger())
+
+	n.OnScan(context.Background(), report(
+		states(state("S1", "good")),
+		states(state("S1", "good", withTemp(61))),
+	))
+
+	if sender.count() != 1 {
+		t.Fatalf("deliveries = %d, want 1", sender.count())
+	}
+	if body := sender.sent[0].Body(); !strings.Contains(body, "142 °F") {
+		t.Errorf("Body = %q, want the configured Fahrenheit unit", body)
+	}
+}
+
+func TestNotifierHonoursAConfiguredThreshold(t *testing.T) {
+	st := newFakeStore(store.Channel{ID: 1, Type: "rec", Enabled: true, Events: "[]"})
+	sender := &recordingSender{typ: "rec"}
+	d := testDispatcher(st, sender, DispatcherOptions{Now: func() time.Time { return scanTime }})
+	// A threshold of 35 °C makes a 40 °C drive alert, where the 55 °C default would not.
+	n := NewNotifier(fakeSettings{"temperature_threshold_c": "35"}, d, "test", discardLogger())
+
+	n.OnScan(context.Background(), report(
+		states(state("S1", "good")),
+		states(state("S1", "good", withTemp(40))),
+	))
+
+	if sender.count() != 1 {
+		t.Fatalf("deliveries = %d, want 1 at the configured threshold", sender.count())
+	}
+	if sender.sent[0].Type != EventTemperatureHigh {
+		t.Errorf("event = %+v, want a temperature_high", sender.sent[0])
 	}
 }

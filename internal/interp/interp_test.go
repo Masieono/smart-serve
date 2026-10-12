@@ -190,6 +190,72 @@ func TestDeriveMetricsHandlesMissingData(t *testing.T) {
 	}
 }
 
+func TestFromSettingsUsesTheConfiguredThresholds(t *testing.T) {
+	got := FromSettings(map[string]string{
+		"temperature_threshold_c":     "40",
+		"reallocated_bad_threshold":   "3",
+		"pending_bad_threshold":       "2",
+		"uncorrectable_bad_threshold": "1",
+		"nvme_percentage_used_warn":   "70",
+		"warn_on_any_nonzero":         "false",
+	})
+	want := Thresholds{
+		TemperatureC: 40, ReallocatedBad: 3, PendingBad: 2,
+		UncorrectableBad: 1, WarnOnAnyNonZero: false, NVMePercentageUsedWarn: 70,
+	}
+	if got != want {
+		t.Errorf("FromSettings = %+v, want %+v", got, want)
+	}
+}
+
+func TestFromSettingsFallsBackToDefaults(t *testing.T) {
+	if got := FromSettings(nil); got != DefaultThresholds() {
+		t.Errorf("FromSettings(nil) = %+v, want the defaults", got)
+	}
+	// Garbage must never silently disable a threshold.
+	got := FromSettings(map[string]string{
+		"temperature_threshold_c": "not a number",
+		"pending_bad_threshold":   "-5",
+		"warn_on_any_nonzero":     "maybe",
+	})
+	if got != DefaultThresholds() {
+		t.Errorf("FromSettings(garbage) = %+v, want the defaults", got)
+	}
+}
+
+func TestFromSettingsAcceptsCommonBooleanSpellings(t *testing.T) {
+	for _, raw := range []string{"false", "0", "no", "off", "FALSE"} {
+		if FromSettings(map[string]string{"warn_on_any_nonzero": raw}).WarnOnAnyNonZero {
+			t.Errorf("warn_on_any_nonzero=%q should be false", raw)
+		}
+	}
+	for _, raw := range []string{"true", "1", "yes", "on"} {
+		if !FromSettings(map[string]string{"warn_on_any_nonzero": raw}).WarnOnAnyNonZero {
+			t.Errorf("warn_on_any_nonzero=%q should be true", raw)
+		}
+	}
+}
+
+// The point of the whole exercise: a threshold tuned in the UI must change the
+// verdict. Before this existed the scanner always used the shipped defaults, so
+// every threshold on the Settings page was decorative.
+func TestFromSettingsChangesTheVerdict(t *testing.T) {
+	data := &model.SmartData{
+		Bus: model.BusATA, Passed: boolPtr(true),
+		Attributes: []model.Attribute{
+			{ID: 197, Name: "Current_Pending_Sector", Value: 100, Worst: 100, RawValue: 3},
+		},
+	}
+
+	if got := Evaluate(data, DefaultThresholds()).Verdict; got != model.Caution {
+		t.Errorf("with the defaults, verdict = %v, want caution (3 is below 10)", got)
+	}
+	tuned := FromSettings(map[string]string{"pending_bad_threshold": "2"})
+	if got := Evaluate(data, tuned).Verdict; got != model.Bad {
+		t.Errorf("with pending_bad_threshold=2, verdict = %v, want bad", got)
+	}
+}
+
 func TestEffectiveCount(t *testing.T) {
 	tests := []struct {
 		raw  uint64

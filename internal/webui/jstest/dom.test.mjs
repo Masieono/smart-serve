@@ -1,47 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { installStubDom, StubNode } from './stub-dom.mjs';
 
-// Minimal DOM stub: just enough for the helpers under test.
-class StubNode {
-  constructor(tag) {
-    this.tagName = tag.toUpperCase();
-    this.childNodes = [];
-    this.attrs = {};
-  }
+installStubDom();
 
-  append(child) {
-    this.childNodes.push(child);
-  }
-
-  setAttribute(key, value) {
-    this.attrs[key] = value;
-  }
-
-  addEventListener() {}
-
-  get firstChild() {
-    return this.childNodes[0] ?? null;
-  }
-
-  removeChild(child) {
-    this.childNodes = this.childNodes.filter((n) => n !== child);
-  }
-}
-
-class StubText extends StubNode {
-  constructor(text) {
-    super('#text');
-    this.data = text;
-  }
-}
-
-globalThis.Node = StubNode;
-globalThis.document = {
-  createElement: (tag) => new StubNode(tag),
-  createTextNode: (text) => new StubText(text),
-};
-
-const { el, mount, fmtBytes, fmtHours, fmtInt, scoreGrade } = await import('../assets/js/dom.js');
+const {
+  el, mount, fmtBytes, fmtHours, fmtInt, scoreGrade,
+  fmtTemp, setTemperatureUnit, temperatureUnitName, convertTemp, toCelsius,
+} = await import('../assets/js/dom.js');
 
 // Regression: an array of nodes used to be stringified into
 // "[object HTMLElement],[object HTMLElement]" instead of being appended.
@@ -88,4 +54,43 @@ test('fmtInt groups raw counters and blanks missing values', () => {
   assert.equal(fmtInt(0), '0');
   // Locale-aware grouping; compare against the platform's own rendering.
   assert.equal(fmtInt(31603), (31603).toLocaleString());
+});
+
+// Celsius is canonical everywhere else — API, database, notification payloads — so
+// the unit must be a display-only concern that cannot leak into stored values.
+test('temperature display honours the configured unit', () => {
+  setTemperatureUnit('c');
+  assert.equal(temperatureUnitName(), 'C');
+  assert.equal(fmtTemp(33), '33 °C');
+  assert.equal(convertTemp(33), 33);
+
+  setTemperatureUnit('f');
+  assert.equal(temperatureUnitName(), 'F');
+  assert.equal(fmtTemp(33), '91 °F'); // 33 °C = 91.4 °F
+  assert.equal(convertTemp(0), 32);
+  assert.equal(convertTemp(100), 212);
+  assert.equal(toCelsius(32), 0);
+  assert.equal(toCelsius(212), 100);
+
+  setTemperatureUnit('c');
+});
+
+// A settings slider converts on every drag, so a value must survive a round trip
+// through the display unit unchanged or the number would creep as it is moved.
+test('temperature round-trips through Fahrenheit without drifting', () => {
+  for (const celsius of [30, 45, 55, 70, 90]) {
+    assert.equal(toCelsius(convertTemp(celsius, 'f'), 'f'), celsius);
+  }
+});
+
+test('an unrecognised temperature unit falls back to Celsius', () => {
+  setTemperatureUnit('kelvin');
+  assert.equal(temperatureUnitName(), 'C');
+  assert.equal(fmtTemp(20), '20 °C');
+  setTemperatureUnit('c');
+});
+
+test('fmtTemp blanks missing readings', () => {
+  assert.equal(fmtTemp(null), '—');
+  assert.equal(fmtTemp(undefined), '—');
 });

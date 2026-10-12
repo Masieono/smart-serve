@@ -10,6 +10,8 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -94,7 +96,28 @@ func runServe() error {
 	defer st.Close()
 
 	hub := events.NewHub()
-	scanner := &scan.Scanner{Timeout: cfg.CommandTimeout, Thresholds: interp.DefaultThresholds()}
+
+	// The tunables live in the database and are read per operation, so a change made
+	// in the UI applies to the very next scan rather than at the next restart
+	// (ADR-009). The values below are only the fallbacks.
+	settings := func(ctx context.Context) map[string]string {
+		values, err := st.GetSettings(ctx)
+		if err != nil {
+			return nil
+		}
+		return values
+	}
+
+	scanner := &scan.Scanner{
+		Timeout:    cfg.CommandTimeout,
+		Thresholds: interp.DefaultThresholds(),
+		TimeoutFunc: func(ctx context.Context) time.Duration {
+			return secondsSetting(settings(ctx), "command_timeout_seconds")
+		},
+		ThresholdsFunc: func(ctx context.Context) interp.Thresholds {
+			return interp.FromSettings(settings(ctx))
+		},
+	}
 	manager := scan.NewManager(scanner, st, hub)
 
 	// Notification delivery (docs/NOTIFICATIONS.md). Senders are stateless and
@@ -108,7 +131,8 @@ func runServe() error {
 	manager.OnPostScan(notify.NewNotifier(st, dispatcher, cfg.Version, logger).OnScan)
 
 	// The scheduler owns scheduled scans (ADR-004). It sleeps to the next due
-	// schedule rather than ticking, so it costs nothing while idle.
+	// schedule rather than ticking, so it costs nothing while idle. The timezone and
+	// missed-run policy are read from settings, with the environment as the seed.
 	scheduler := sched.New(st, manager, hub, sched.Options{
 		MissedRunPolicy: cfg.MissedRunPolicy,
 		Logger:          logger,
@@ -183,6 +207,16 @@ func logLevel(name string) slog.Level {
 	default:
 		return slog.LevelInfo
 	}
+}
+
+// secondsSetting reads a positive whole-seconds setting, returning 0 when it is
+// absent or unparseable so the caller keeps its own default.
+func secondsSetting(settings map[string]string, key string) time.Duration {
+	n, err := strconv.Atoi(strings.TrimSpace(settings[key]))
+	if err != nil || n <= 0 {
+		return 0
+	}
+	return time.Duration(n) * time.Second
 }
 
 func firstNonEmpty(vals ...string) string {

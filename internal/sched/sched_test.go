@@ -211,6 +211,88 @@ func TestStartupRunOnceKeepsTheOverdueBoundary(t *testing.T) {
 	}
 }
 
+// The timezone is a setting, so cron must be evaluated in it rather than in the
+// scheduler's own zone.
+func TestSchedulerUsesTheConfiguredTimezone(t *testing.T) {
+	st := newTestStore(t)
+	ctx := context.Background()
+	if _, err := st.CreateSchedule(ctx, store.Schedule{
+		Enabled: true, Kind: "cron", Cron: "0 3 * * *", Label: "nightly",
+	}); err != nil {
+		t.Fatalf("CreateSchedule: %v", err)
+	}
+	if err := st.SetSettings(ctx, map[string]string{"timezone": "America/New_York"}); err != nil {
+		t.Fatalf("SetSettings: %v", err)
+	}
+
+	// The scheduler's own zone is UTC, so landing on 03:00 New York is what proves
+	// the setting was read.
+	now := time.Date(2026, 10, 12, 1, 0, 0, 0, time.UTC)
+	s := New(st, newFakeRunner(), events.NewHub(), Options{
+		Location: time.UTC, Now: fixedClock(now), Logger: discardLogger(),
+	})
+
+	next, _, ok := s.nextDue(ctx)
+	if !ok {
+		t.Fatal("expected a due schedule")
+	}
+	// 03:00 on 2026-10-12 in New York is EDT (UTC-4).
+	want := time.Date(2026, 10, 12, 7, 0, 0, 0, time.UTC)
+	if !next.Equal(want) {
+		t.Errorf("next = %v, want %v (03:00 in the configured zone)", next, want)
+	}
+}
+
+// An unknown timezone must not break scheduling: it falls back to the container's.
+func TestSchedulerIgnoresAnUnknownTimezone(t *testing.T) {
+	st := newTestStore(t)
+	ctx := context.Background()
+	id := mustCreateInterval(t, st, 3600, true)
+	if err := st.SetSettings(ctx, map[string]string{"timezone": "Mars/Olympus_Mons"}); err != nil {
+		t.Fatalf("SetSettings: %v", err)
+	}
+
+	now := time.Date(2026, 10, 12, 12, 0, 0, 0, time.UTC)
+	s := New(st, newFakeRunner(), events.NewHub(), Options{
+		Location: time.UTC, Now: fixedClock(now), Logger: discardLogger(),
+	})
+
+	next, gotID, ok := s.nextDue(ctx)
+	if !ok || gotID != id {
+		t.Fatalf("nextDue = (%v, %d, %v), want the schedule %d", next, gotID, ok, id)
+	}
+	if !next.Equal(now.Add(time.Hour)) {
+		t.Errorf("next = %v, want one interval from now", next)
+	}
+}
+
+// The missed-run policy is a setting too, and must win over the environment seed.
+func TestSchedulerUsesTheConfiguredMissedRunPolicy(t *testing.T) {
+	st := newTestStore(t)
+	ctx := context.Background()
+	now := time.Date(2026, 10, 12, 12, 0, 0, 0, time.UTC)
+	overdue := now.Add(-3 * time.Hour)
+	id := mustCreateInterval(t, st, 3600, true)
+	if err := st.SetScheduleNextRun(ctx, id, overdue); err != nil {
+		t.Fatalf("SetScheduleNextRun: %v", err)
+	}
+	if err := st.SetSettings(ctx, map[string]string{"missed_run_policy": "run_once"}); err != nil {
+		t.Fatalf("SetSettings: %v", err)
+	}
+
+	// The environment seed says "skip", so honouring the setting is what leaves the
+	// overdue boundary in place to fire exactly once.
+	s := New(st, newFakeRunner(), events.NewHub(), Options{
+		Now: fixedClock(now), MissedRunPolicy: "skip", Logger: discardLogger(),
+	})
+	s.reconcileStartup(ctx)
+
+	next, _, ok := s.nextDue(ctx)
+	if !ok || !next.Equal(overdue) {
+		t.Errorf("next = %v, want the overdue time %v so it fires once", next, overdue)
+	}
+}
+
 // A boundary that arrives while the loop is watching must fire, not be mistaken
 // for a missed run. This is the same path "run now" takes.
 func TestBoundaryDueNowFiresRatherThanReschedules(t *testing.T) {

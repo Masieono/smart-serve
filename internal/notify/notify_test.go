@@ -30,6 +30,7 @@ type fakeStore struct {
 	channels []store.Channel
 	logged   []loggedEntry
 	last     map[string]time.Time
+	settings map[string]string
 }
 
 func newFakeStore(channels ...store.Channel) *fakeStore {
@@ -40,6 +41,15 @@ func (f *fakeStore) ListChannels(context.Context) ([]store.Channel, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return f.channels, nil
+}
+
+func (f *fakeStore) GetSettings(context.Context) (map[string]string, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.settings == nil {
+		return map[string]string{}, nil
+	}
+	return f.settings, nil
 }
 
 func (f *fakeStore) LogNotification(_ context.Context, channelID int64, eventType, eventKey string, at time.Time, status, detail string) error {
@@ -215,15 +225,55 @@ func TestRegistryTypesAreSorted(t *testing.T) {
 // A condition that persists is squelched for the window; a real transition is
 // not, because a drive that recovers and degrades again is two separate events.
 func TestSquelchWindowDependsOnTheEventType(t *testing.T) {
-	d := testDispatcher(newFakeStore(), nil, DispatcherOptions{Squelch: time.Hour})
-
-	if got := d.squelchWindow(Event{Type: EventTemperatureHigh}); got != time.Hour {
-		t.Errorf("temperature window = %v, want 1h", got)
+	window := time.Hour
+	if got := squelchWindow(Event{Type: EventTemperatureHigh}, window); got != window {
+		t.Errorf("temperature window = %v, want %v", got, window)
 	}
 	for _, typ := range []string{EventHealthChange, EventDeviceDisappeared, EventDeviceAppeared, EventScanFailure} {
-		if got := d.squelchWindow(Event{Type: typ}); got != 0 {
+		if got := squelchWindow(Event{Type: typ}, window); got != 0 {
 			t.Errorf("%s window = %v, want 0 (never squelched)", typ, got)
 		}
+	}
+}
+
+// The squelch window is a setting the user can tune, so it has to be read.
+func TestConfiguredSquelchHonoursTheSetting(t *testing.T) {
+	st := newFakeStore()
+	st.settings = map[string]string{"squelch_seconds": "120"}
+	d := testDispatcher(st, nil, DispatcherOptions{Squelch: time.Hour})
+
+	if got := d.configuredSquelch(context.Background()); got != 2*time.Minute {
+		t.Errorf("squelch = %v, want 2m from the setting", got)
+	}
+}
+
+func TestConfiguredSquelchFallsBackToTheDefault(t *testing.T) {
+	d := testDispatcher(newFakeStore(), nil, DispatcherOptions{Squelch: 45 * time.Minute})
+
+	if got := d.configuredSquelch(context.Background()); got != 45*time.Minute {
+		t.Errorf("squelch = %v, want the configured default", got)
+	}
+}
+
+// End to end: a 60 s setting must let a repeat through where the 1 h default would
+// have swallowed it.
+func TestDispatchSquelchesUsingTheConfiguredWindow(t *testing.T) {
+	now := time.Date(2026, 10, 12, 12, 0, 0, 0, time.UTC)
+	st := newFakeStore(store.Channel{ID: 1, Type: "rec", Enabled: true, Events: "[]"})
+	st.settings = map[string]string{"squelch_seconds": "60"}
+	sender := &recordingSender{typ: "rec"}
+	hot := Event{Type: EventTemperatureHigh, Serial: "S1"}
+
+	testDispatcher(st, sender, DispatcherOptions{
+		Now: func() time.Time { return now }, Squelch: time.Hour,
+	}).Dispatch(context.Background(), []Event{hot})
+
+	testDispatcher(st, sender, DispatcherOptions{
+		Now: func() time.Time { return now.Add(30 * time.Minute) }, Squelch: time.Hour,
+	}).Dispatch(context.Background(), []Event{hot})
+
+	if sender.count() != 2 {
+		t.Errorf("deliveries = %d, want 2 — the configured 60s window had elapsed", sender.count())
 	}
 }
 

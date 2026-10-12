@@ -40,6 +40,9 @@ func (s *Server) handlePutSettings(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, "put settings", err)
 		return
 	}
+	// A changed timezone or missed-run policy has to re-arm the scheduler, or it
+	// would keep using the old values until the process restarted.
+	s.wakeScheduler()
 	settings, err := s.store.GetSettings(r.Context())
 	if err != nil {
 		s.fail(w, "get settings", err)

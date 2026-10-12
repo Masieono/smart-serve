@@ -1,5 +1,5 @@
 // App shell: navigation, routing, SSE wiring, shortcuts (docs/UI.md §2, §8).
-import { el, mount, clear } from './dom.js';
+import { el, mount, clear, setTemperatureUnit as applyTemperatureUnit } from './dom.js';
 import { icon } from './icons.js';
 import { api, appPath } from './api.js';
 import { toast } from './components.js';
@@ -34,6 +34,8 @@ const ctx = {
   refresh() {
     route();
   },
+  // Display preferences the settings view can change without a reload.
+  setTemperatureUnit: applyTemperatureUnit,
   async scan() {
     if (scanning) return;
     scanning = true;
@@ -101,6 +103,8 @@ function renderSidebar(path) {
 }
 
 function buildShell() {
+  // The topbar exists for the mobile navigation toggle; on desktop the sidebar is
+  // always visible and the CSS hides the bar entirely, so it holds nothing else.
   const topbar = el('header', { class: 'topbar' }, [
     el('button', {
       class: 'btn btn-ghost btn-sm topbar-toggle',
@@ -110,9 +114,6 @@ function buildShell() {
         sidebar.dataset.open = sidebar.dataset.open === 'true' ? 'false' : 'true';
       },
     }, [icon('menu')]),
-    el('span', { class: 'spacer' }),
-    el('button', { class: 'btn btn-sm', type: 'button', onclick: () => ctx.scan() },
-      [icon('scan'), 'Scan']),
   ]);
 
   mount(root, el('div', { class: 'app' }, [
@@ -168,7 +169,23 @@ function bindShortcuts() {
 
 window.addEventListener('popstate', route);
 
-buildShell();
-route();
-connectEvents();
-bindShortcuts();
+// Display preferences are read before the first render, so temperatures never
+// flash as Celsius for someone who picked Fahrenheit.
+async function loadDisplayPreferences() {
+  try {
+    const data = await api.settings();
+    applyTemperatureUnit(data && data.settings && data.settings.temperature_unit);
+  } catch {
+    /* keep the defaults; the first view will report the real error */
+  }
+}
+
+async function boot() {
+  await loadDisplayPreferences();
+  buildShell();
+  await route();
+  connectEvents();
+  bindShortcuts();
+}
+
+boot();

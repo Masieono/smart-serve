@@ -213,9 +213,17 @@ a:hover {
   z-index: 5;
 }
 
+/* The topbar's only job is to hold the mobile navigation toggle. On desktop the
+   sidebar is always visible, so an otherwise-empty strip would just eat vertical
+   space above every page. */
+@media (min-width: 1024px) {
+  .topbar {
+    display: none;
+  }
+}
+
 .content {
   padding: var(--space-5);
-  max-width: var(--content-max);
   width: 100%;
   display: flex;
   flex-direction: column;
@@ -375,7 +383,11 @@ a:hover {
 
 .card-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  /* auto-fit rather than auto-fill: auto-fill reserves the empty tracks, so four
+     drives on a wide screen would occupy the first four of seven columns and leave
+     a third of the row blank. auto-fit collapses the unused tracks, so cards fill
+     the row and only wrap when they genuinely run out of room. */
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
   gap: var(--space-4);
 }
 
@@ -484,35 +496,111 @@ a:hover {
   font-size: var(--text-md);
 }
 
+/* --- settings rows ---------------------------------------------------------- */
+
+/* A list of settings, not a grid of labelled boxes. The label and its explanation
+   sit together on the left and the control is right-aligned, so every value lands
+   in one column and the whole page can be scanned and compared at a glance. */
+.setting-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-5);
+  padding: var(--space-3) 0;
+  border-top: 1px solid var(--border);
+}
+
+.setting-row:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.setting-row:last-child {
+  padding-bottom: 0;
+}
+
+.setting-text {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.setting-label {
+  font-weight: 600;
+}
+
+.setting-help {
+  color: var(--muted);
+  font-size: var(--text-xs);
+}
+
+.setting-control {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex: 0 0 auto;
+}
+
+.setting-control input[type="range"] {
+  width: 180px;
+  accent-color: var(--accent);
+}
+
+.setting-control input[type="number"] {
+  width: 88px;
+  text-align: right;
+}
+
+.setting-unit {
+  min-width: 3ch;
+  color: var(--muted);
+  font-size: var(--text-sm);
+}
+
 /* --- summary bar ------------------------------------------------------------ */
 
 .summary {
-  display: flex;
+  /* One bar with four clickable segments rather than four separate cards: these
+     counts are a filter control, and four bordered boxes spent an entire row on
+     four numbers. */
+  display: inline-flex;
+  align-items: stretch;
   flex-wrap: wrap;
-  gap: var(--space-3);
+  align-self: flex-start;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  overflow: hidden;
 }
 
 .summary-item {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: var(--space-2);
-  padding: var(--space-3) var(--space-4);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  background: var(--surface);
+  padding: var(--space-2) var(--space-4);
+  border: 0;
+  border-left: 1px solid var(--border);
+  background: none;
   cursor: pointer;
   font: inherit;
   color: inherit;
 }
 
+.summary-item:first-child {
+  border-left: 0;
+}
+
+.summary-item:hover {
+  background: var(--surface-2);
+}
+
 .summary-item[aria-pressed="true"] {
-  border-color: var(--accent);
   background: var(--accent-soft);
+  box-shadow: inset 0 -2px 0 var(--accent);
 }
 
 .summary-count {
-  font-size: var(--text-lg);
+  font-size: var(--text-md);
   font-weight: 700;
+  font-variant-numeric: tabular-nums;
 }
 
 /* --- health gauge ----------------------------------------------------------- */
@@ -840,8 +928,26 @@ dialog::backdrop {
     grid-template-columns: 1fr;
   }
 
+  .summary {
+    display: flex;
+    width: 100%;
+  }
+
   .summary-item {
-    flex: 1 1 calc(50% - var(--space-3));
+    flex: 1 1 0;
+    justify-content: center;
+    padding: var(--space-2);
+  }
+
+  .setting-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--space-2);
+  }
+
+  .setting-control input[type="range"] {
+    flex: 1 1 auto;
+    width: auto;
   }
 
   .toasts {

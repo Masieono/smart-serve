@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"math"
 	"math/bits"
+	"strconv"
 	"strings"
 
 	"github.com/masieono/smart-serve/internal/model"
@@ -32,6 +33,64 @@ func DefaultThresholds() Thresholds {
 		WarnOnAnyNonZero:       true,
 		NVMePercentageUsedWarn: 90,
 	}
+}
+
+// FromSettings builds the thresholds from the settings map, falling back to the
+// shipped default for anything absent or unparseable.
+//
+// This is what makes the Settings page real: without it the scanner would evaluate
+// every drive against the defaults and every threshold the user tuned would be
+// silently ignored (ADR-009 says thresholds live in the database and are edited in
+// the UI).
+func FromSettings(settings map[string]string) Thresholds {
+	t := DefaultThresholds()
+	if v, ok := settingInt(settings, "temperature_threshold_c"); ok {
+		t.TemperatureC = v
+	}
+	if v, ok := settingInt(settings, "reallocated_bad_threshold"); ok {
+		t.ReallocatedBad = v
+	}
+	if v, ok := settingInt(settings, "pending_bad_threshold"); ok {
+		t.PendingBad = v
+	}
+	if v, ok := settingInt(settings, "uncorrectable_bad_threshold"); ok {
+		t.UncorrectableBad = v
+	}
+	if v, ok := settingInt(settings, "nvme_percentage_used_warn"); ok {
+		t.NVMePercentageUsedWarn = v
+	}
+	if v, ok := settingBool(settings, "warn_on_any_nonzero"); ok {
+		t.WarnOnAnyNonZero = v
+	}
+	return t
+}
+
+// settingInt reads a positive integer setting.
+func settingInt(settings map[string]string, key string) (int, bool) {
+	raw, ok := settings[key]
+	if !ok {
+		return 0, false
+	}
+	n, err := strconv.Atoi(strings.TrimSpace(raw))
+	if err != nil || n <= 0 {
+		return 0, false
+	}
+	return n, true
+}
+
+// settingBool reads a boolean setting.
+func settingBool(settings map[string]string, key string) (bool, bool) {
+	raw, ok := settings[key]
+	if !ok {
+		return false, false
+	}
+	switch strings.ToLower(strings.TrimSpace(raw)) {
+	case "true", "1", "yes", "on":
+		return true, true
+	case "false", "0", "no", "off":
+		return false, true
+	}
+	return false, false
 }
 
 // Penalty is one line of the health-score breakdown.

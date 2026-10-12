@@ -90,12 +90,55 @@ export function fmtHours(hours) {
   return `${hours} h`;
 }
 
-export function fmtTemp(c) {
-  return c === null || c === undefined ? '—' : `${c} °C`;
-}
-
 export function fmtScore(score) {
   return score === null || score === undefined || score < 0 ? 'n/a' : `${score}`;
+}
+
+// --- temperature ---------------------------------------------------------------
+
+// Celsius is canonical everywhere else: the API, the database, snapshots and
+// notification payloads all carry °C, because that is what the drives report. The
+// unit is a display preference, and it is applied here and nowhere else.
+let currentUnit = 'c';
+
+/** Set the display unit ('c' or 'f'); anything else falls back to Celsius. */
+export function setTemperatureUnit(value) {
+  currentUnit = String(value ?? '').trim().toLowerCase() === 'f' ? 'f' : 'c';
+}
+
+/** The active unit as a lowercase code ('c' | 'f'). */
+export function temperatureUnit() {
+  return currentUnit;
+}
+
+/** The active unit as a single uppercase letter, for labels. */
+export function temperatureUnitName() {
+  return currentUnit === 'f' ? 'F' : 'C';
+}
+
+/**
+ * Convert a Celsius reading for display. The stored value is never changed.
+ *
+ * `targetUnit` is explicit because a settings form may be editing values captured
+ * under the *previous* unit while the new one has already been applied.
+ */
+export function convertTemp(celsius, targetUnit = currentUnit) {
+  if (celsius === null || celsius === undefined) return null;
+  const n = Number(celsius);
+  if (!Number.isFinite(n)) return null;
+  return targetUnit === 'f' ? Math.round((n * 9) / 5 + 32) : n;
+}
+
+/** A value entered in `fromUnit` back to canonical Celsius, for saving. */
+export function toCelsius(displayed, fromUnit = currentUnit) {
+  const n = Number(displayed);
+  if (!Number.isFinite(n)) return null;
+  return fromUnit === 'f' ? Math.round(((n - 32) * 5) / 9) : n;
+}
+
+export function fmtTemp(celsius) {
+  const value = convertTemp(celsius);
+  return value === null ? '—' : `${value} °${temperatureUnitName()}`;
 }
 
 /** Thousands separators for raw counters. */

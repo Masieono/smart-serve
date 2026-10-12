@@ -11,7 +11,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"math"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -63,8 +65,11 @@ type Event struct {
 	ScanTS       int64    `json:"scan_ts"`
 	Version      string   `json:"smartserve_version,omitempty"`
 
-	// key is the squelch identity and is deliberately not on the wire.
-	key string
+	// key and tempUnit are presentation details and are deliberately not on the
+	// wire: the payload always carries canonical Celsius, which is what a machine
+	// consumer wants. They only shape the human-readable output.
+	key      string
+	tempUnit string
 }
 
 // Key is the squelch key for the event (docs/NOTIFICATIONS.md).
@@ -106,7 +111,7 @@ func (e Event) Body() string {
 		}
 	case EventTemperatureHigh:
 		if e.TemperatureC != nil {
-			lines = append(lines, fmt.Sprintf("%d °C", *e.TemperatureC))
+			lines = append(lines, formatTemp(*e.TemperatureC, e.tempUnit))
 		}
 		if e.Rationale != "" {
 			lines = append(lines, e.Rationale)
@@ -122,7 +127,7 @@ func (e Event) Body() string {
 		detail = append(detail, "Serial "+e.Serial)
 	}
 	if e.TemperatureC != nil && e.Type != EventTemperatureHigh {
-		detail = append(detail, fmt.Sprintf("temp %d°C", *e.TemperatureC))
+		detail = append(detail, "temp "+formatTemp(*e.TemperatureC, e.tempUnit))
 	}
 	if e.ScanTS > 0 {
 		detail = append(detail, "last scan "+time.UnixMilli(e.ScanTS).Format("15:04"))
@@ -131,6 +136,16 @@ func (e Event) Body() string {
 		lines = append(lines, strings.Join(detail, ", "))
 	}
 	return strings.Join(lines, "\n")
+}
+
+// formatTemp renders a Celsius reading in the user's chosen display unit. The wire
+// payload always carries Celsius; this is for human-readable output only, so an
+// alert matches whatever unit the UI is showing.
+func formatTemp(celsius int, unit string) string {
+	if strings.EqualFold(strings.TrimSpace(unit), "f") {
+		return fmt.Sprintf("%d °F", int(math.Round(float64(celsius)*9/5+32)))
+	}
+	return fmt.Sprintf("%d °C", celsius)
 }
 
 // label names the device as concisely as the available fields allow.
@@ -242,6 +257,7 @@ type Store interface {
 	ListChannels(ctx context.Context) ([]store.Channel, error)
 	LogNotification(ctx context.Context, channelID int64, eventType, eventKey string, at time.Time, status, detail string) error
 	LastNotificationAt(ctx context.Context, channelID int64, eventKey string) (*time.Time, error)
+	GetSettings(ctx context.Context) (map[string]string, error)
 }
 
 // DispatcherOptions configures a Dispatcher.
@@ -307,6 +323,10 @@ func (d *Dispatcher) Dispatch(ctx context.Context, events []Event) {
 	ctx, cancel := context.WithTimeout(ctx, d.budget)
 	defer cancel()
 
+	// Resolved once per pass rather than per delivery, so the setting is read at
+	// most once however many events and channels there are.
+	squelch := d.configuredSquelch(ctx)
+
 	for _, ch := range channels {
 		if !ch.Enabled {
 			continue
@@ -321,9 +341,23 @@ func (d *Dispatcher) Dispatch(ctx context.Context, events []Event) {
 			if !subscribed(ch.Events, ev.Type) {
 				continue
 			}
-			d.deliver(ctx, ch, sender, cfg, ev)
+			d.deliver(ctx, ch, sender, cfg, ev, squelch)
 		}
 	}
+}
+
+// configuredSquelch resolves the squelch window for this pass from the
+// user-tunable setting, falling back to the configured default.
+func (d *Dispatcher) configuredSquelch(ctx context.Context) time.Duration {
+	settings, err := d.store.GetSettings(ctx)
+	if err != nil {
+		return d.squelch
+	}
+	seconds, perr := strconv.Atoi(strings.TrimSpace(settings["squelch_seconds"]))
+	if perr != nil || seconds <= 0 {
+		return d.squelch
+	}
+	return time.Duration(seconds) * time.Second
 }
 
 // SendTest delivers a synthetic event to one channel, bypassing subscription
@@ -353,8 +387,8 @@ func (d *Dispatcher) ValidateConfig(typ string, cfg map[string]any) error {
 // Types lists the channel types this dispatcher can deliver to.
 func (d *Dispatcher) Types() []string { return d.reg.Types() }
 
-func (d *Dispatcher) deliver(ctx context.Context, ch store.Channel, sender Sender, cfg map[string]any, ev Event) {
-	if window := d.squelchWindow(ev); window > 0 {
+func (d *Dispatcher) deliver(ctx context.Context, ch store.Channel, sender Sender, cfg map[string]any, ev Event, squelch time.Duration) {
+	if window := squelchWindow(ev, squelch); window > 0 {
 		last, err := d.store.LastNotificationAt(ctx, ch.ID, ev.Key())
 		if err == nil && last != nil && d.now().Sub(*last) < window {
 			d.record(ctx, ch.ID, ev, OutcomeSquelched, "within "+window.String()+" squelch window")
@@ -381,12 +415,12 @@ func (d *Dispatcher) record(ctx context.Context, channelID int64, ev Event, outc
 }
 
 // squelchWindow returns how long a repeat of this event stays quiet. Zero means
-// never, which is the right answer for most of the catalog: health transitions
-// are deduped by the transition detection itself (ADR-008), appear/disappear are
+// never, which is the right answer for most of the catalog: health transitions are
+// deduped by the transition detection itself (ADR-008), appear/disappear are
 // one-shot by construction, and a broken scanner is allowed to be loud.
-func (d *Dispatcher) squelchWindow(ev Event) time.Duration {
+func squelchWindow(ev Event, squelch time.Duration) time.Duration {
 	if ev.Type == EventTemperatureHigh {
-		return d.squelch
+		return squelch
 	}
 	return 0
 }

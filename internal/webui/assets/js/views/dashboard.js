@@ -46,6 +46,8 @@ function draw(container, ctx, data) {
     ]),
     el('span', { class: 'spacer' }),
     search,
+    // No scan button here: the sidebar carries the global one, and every card has
+    // its own rescan. A third copy in the header was pure duplication.
     missing.length
       ? el('button', {
           class: 'btn',
@@ -61,7 +63,6 @@ function draw(container, ctx, data) {
           showMissing ? `Hide ${missing.length} disconnected` : `Show ${missing.length} disconnected`,
         ])
       : null,
-    el('button', { class: 'btn', type: 'button', onclick: () => ctx.scan() }, [icon('scan'), 'Scan now']),
   ]);
 
   if (!all.length) {

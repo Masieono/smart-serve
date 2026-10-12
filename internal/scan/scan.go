@@ -21,10 +21,19 @@ type Device struct {
 	Error      string           `json:"error,omitempty"`
 }
 
-// Scanner runs scans with a fixed timeout and threshold set.
+// Scanner runs scans. The timeout and the interpretation thresholds are resolved
+// per scan when the corresponding Func is set, so a change made in the UI takes
+// effect on the next scan rather than at the next restart (ADR-009).
 type Scanner struct {
 	Timeout    time.Duration
 	Thresholds interp.Thresholds
+
+	// TimeoutFunc, when set, supplies the per-command timeout for each scan.
+	TimeoutFunc func(ctx context.Context) time.Duration
+	// ThresholdsFunc, when set, supplies the interpretation thresholds for each
+	// scan. Without it the shipped defaults would silently ignore the settings the
+	// user edits in the UI.
+	ThresholdsFunc func(ctx context.Context) interp.Thresholds
 }
 
 // New returns a Scanner with the shipped defaults.
@@ -38,18 +47,37 @@ func New() *Scanner {
 // Run performs one full scan. Devices are scanned sequentially, never in
 // parallel, to avoid I/O contention (D10).
 func (s *Scanner) Run(ctx context.Context) ([]Device, error) {
-	devices, err := smart.ListDevices(ctx, s.Timeout)
+	timeout, thresholds := s.resolve(ctx)
+
+	devices, err := smart.ListDevices(ctx, timeout)
 	if err != nil {
 		return nil, err
 	}
 	out := make([]Device, 0, len(devices))
 	for _, d := range devices {
-		out = append(out, s.scanOne(ctx, d))
+		out = append(out, s.scanOne(ctx, d, timeout, thresholds))
 	}
 	return out, nil
 }
 
-func (s *Scanner) scanOne(ctx context.Context, d smart.Discovered) Device {
+// resolve returns the timeout and thresholds to use for one scan, consulting the
+// per-scan Funcs when they are set. Keeping this separate from Run means the
+// resolution can be tested without shelling out to lsblk and smartctl.
+func (s *Scanner) resolve(ctx context.Context) (time.Duration, interp.Thresholds) {
+	timeout := s.Timeout
+	if s.TimeoutFunc != nil {
+		if v := s.TimeoutFunc(ctx); v > 0 {
+			timeout = v
+		}
+	}
+	thresholds := s.Thresholds
+	if s.ThresholdsFunc != nil {
+		thresholds = s.ThresholdsFunc(ctx)
+	}
+	return timeout, thresholds
+}
+
+func (s *Scanner) scanOne(ctx context.Context, d smart.Discovered, timeout time.Duration, thresholds interp.Thresholds) Device {
 	res := Device{Discovered: d}
 
 	args := []string{"-x", "--json"}
@@ -58,18 +86,18 @@ func (s *Scanner) scanOne(ctx context.Context, d smart.Discovered) Device {
 	}
 	args = append(args, d.Path)
 
-	cmdRes, err := smart.Run(ctx, s.Timeout, "smartctl", args...)
+	cmdRes, err := smart.Run(ctx, timeout, "smartctl", args...)
 	res.Raw = cmdRes.Stdout
 	if err != nil {
 		res.Error = err.Error()
-		res.Health = interp.Evaluate(nil, s.Thresholds)
+		res.Health = interp.Evaluate(nil, thresholds)
 		return res
 	}
 
 	sd, perr := smart.ParseSMART(cmdRes.Stdout)
 	if perr != nil {
 		res.Error = perr.Error()
-		res.Health = interp.Evaluate(nil, s.Thresholds)
+		res.Health = interp.Evaluate(nil, thresholds)
 		return res
 	}
 	if sd.Bus == "" {
@@ -85,7 +113,7 @@ func (s *Scanner) scanOne(ctx context.Context, d smart.Discovered) Device {
 		}
 	}
 	res.Data = sd
-	res.Health = interp.Evaluate(sd, s.Thresholds)
+	res.Health = interp.Evaluate(sd, thresholds)
 	return res
 }
 

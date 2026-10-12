@@ -20,7 +20,10 @@ const DefaultTemperatureThresholdC = 55
 // CollectOptions tunes event generation.
 type CollectOptions struct {
 	TemperatureThresholdC int
-	Version               string
+	// TemperatureUnit is the display unit for human-readable output ("c" or "f").
+	// The wire payload always carries Celsius, because that is what drives report.
+	TemperatureUnit string
+	Version         string
 }
 
 // Collect turns a finished scan into the events worth notifying about.
@@ -35,6 +38,7 @@ func Collect(rep scan.PostScan, opts CollectOptions) []Event {
 			Type: typ, Priority: pri,
 			Serial: st.Serial, DeviceName: st.Name, DeviceModel: st.Model,
 			TemperatureC: st.TemperatureC, ScanTS: ts, Version: opts.Version,
+			tempUnit: opts.TemperatureUnit,
 		}
 	}
 
@@ -86,8 +90,9 @@ func Collect(rep scan.PostScan, opts CollectOptions) []Event {
 		if opts.TemperatureThresholdC > 0 && cur.TemperatureC != nil &&
 			*cur.TemperatureC >= opts.TemperatureThresholdC {
 			ev := base(EventTemperatureHigh, PriorityMedium, cur)
-			ev.Rationale = fmt.Sprintf("%d °C is at or above the %d °C threshold",
-				*cur.TemperatureC, opts.TemperatureThresholdC)
+			ev.Rationale = fmt.Sprintf("%s is at or above the %s threshold",
+				formatTemp(*cur.TemperatureC, opts.TemperatureUnit),
+				formatTemp(opts.TemperatureThresholdC, opts.TemperatureUnit))
 			ev.key = EventTemperatureHigh + ":" + serial
 			events = append(events, ev)
 		}
@@ -129,8 +134,10 @@ func NewNotifier(st Settings, disp *Dispatcher, version string, log *slog.Logger
 // OnScan implements scan.PostScanFunc. It must never fail the scan, so every
 // problem here is logged rather than returned.
 func (n *Notifier) OnScan(ctx context.Context, rep scan.PostScan) {
+	threshold, unit := n.temperatureSettings(ctx)
 	events := Collect(rep, CollectOptions{
-		TemperatureThresholdC: n.temperatureThreshold(ctx),
+		TemperatureThresholdC: threshold,
+		TemperatureUnit:       unit,
 		Version:               n.version,
 	})
 	if len(events) == 0 {
@@ -140,18 +147,22 @@ func (n *Notifier) OnScan(ctx context.Context, rep scan.PostScan) {
 	n.disp.Dispatch(ctx, events)
 }
 
-// temperatureThreshold reads the user-tunable threshold, falling back to the
-// documented default whenever it is missing or unparseable.
-func (n *Notifier) temperatureThreshold(ctx context.Context) int {
+// temperatureSettings reads the user-tunable temperature settings, falling back to
+// the documented defaults whenever they are missing or unparseable. The unit only
+// affects how alerts are worded; the threshold itself is always Celsius.
+func (n *Notifier) temperatureSettings(ctx context.Context) (threshold int, unit string) {
+	threshold, unit = DefaultTemperatureThresholdC, "c"
 	settings, err := n.settings.GetSettings(ctx)
 	if err != nil {
-		return DefaultTemperatureThresholdC
+		return threshold, unit
 	}
-	parsed, perr := strconv.Atoi(strings.TrimSpace(settings["temperature_threshold_c"]))
-	if perr != nil || parsed <= 0 {
-		return DefaultTemperatureThresholdC
+	if parsed, perr := strconv.Atoi(strings.TrimSpace(settings["temperature_threshold_c"])); perr == nil && parsed > 0 {
+		threshold = parsed
 	}
-	return parsed
+	if strings.EqualFold(strings.TrimSpace(settings["temperature_unit"]), "f") {
+		unit = "f"
+	}
+	return threshold, unit
 }
 
 // TestEvent is the synthetic event behind "send test", so an operator can see

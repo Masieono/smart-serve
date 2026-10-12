@@ -58,7 +58,10 @@
 
   /* layout */
   --sidebar-w: 232px;
-  --content-max: 1200px;
+  /* Data views (the device grid, tables) use the full window width — a capped
+     column leaves most of a wide screen empty for no benefit. Long-form controls
+     that would look silly stretched are constrained individually. */
+  --form-max: 760px;
 }
 
 /* --- palettes --------------------------------------------------------------- */

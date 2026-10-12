@@ -105,29 +105,38 @@ history — is one file that can be backed up with `cp` while the app is stopped
 | `key` | TEXT PK | e.g. `temperature_threshold_c`, `retention_days` |
 | `value` | TEXT | JSON-encoded value |
 
-**Default settings keys** (all UI-editable per `ADR-009`; env vars only seed the
-operational ones — see `DEPLOYMENT.md`):
+**Default settings keys.** Every key below is editable in the UI (`ADR-009`);
+environment variables only *seed* the operational ones (`DEPLOYMENT.md`). "Read by"
+records where a value actually takes effect, because a setting that nothing reads is
+worse than no setting at all.
 
-| Key | Default | Meaning |
-|---|---|---|
-| `temperature_threshold_c` | `55` | caution above this temperature |
-| `reallocated_bad_threshold` | `10` | ID 5 raw ≥ this ⇒ Bad |
-| `pending_bad_threshold` | `10` | ID 197 raw ≥ this ⇒ Bad |
-| `uncorrectable_bad_threshold` | `10` | ID 198 raw ≥ this ⇒ Bad |
-| `warn_on_any_nonzero` | `true` | any of ID 5/197/198 > 0 ⇒ Caution |
-| `nvme_percentage_used_warn` | `90` | NVMe % used ≥ this ⇒ Caution |
-| `retention_days` | `180` | snapshot retention window |
-| `notification_log_retention_days` | `30` | notification-log retention |
-| `squelch_seconds` | `3600` | re-alert window for persistent conditions |
-| `command_timeout_seconds` | `15` | per-`smartctl`/`lsblk` timeout |
-| `missed_run_policy` | `"skip"` | `skip` \| `run_once` (seeded by env var) |
-| `scan_exclude_devices` | `[]` | device paths/serials to skip |
-| `theme` | `"auto"` | `auto` \| `light` \| `dark` \| `custom` (`UI.md` §5) |
-| `theme_base` | `"dark"` | base for `custom`: `light` \| `dark` |
-| `theme_accent` | `"#3b82f6"` | accent colour for `custom` themes |
-| `theme_surface_tint` | `"neutral"` | `neutral` \| `slate` \| `warm` \| `cool` |
-| `timezone` | `""` | schedule time zone; empty = container `TZ` (C6) |
-| `health_score_enabled` | `true` | show the 0–100 score/grade (D13) |
+| Key | Default | Meaning | Read by |
+|---|---|---|---|
+| `temperature_threshold_c` | `55` | caution above this temperature | `interp` (verdict), `notify` (alert) |
+| `reallocated_bad_threshold` | `10` | ID 5 raw ≥ this ⇒ Bad | `interp` |
+| `pending_bad_threshold` | `10` | ID 197 raw ≥ this ⇒ Bad | `interp` |
+| `uncorrectable_bad_threshold` | `10` | ID 198 raw ≥ this ⇒ Bad | `interp` |
+| `warn_on_any_nonzero` | `true` | any of ID 5/197/198 > 0 ⇒ Caution | `interp` |
+| `nvme_percentage_used_warn` | `90` | NVMe % used ≥ this ⇒ Caution | `interp` |
+| `retention_days` | `180` | snapshot retention window | `scan` (pruning) |
+| `notification_log_retention_days` | `30` | notification-log retention | `scan` (pruning) |
+| `squelch_seconds` | `3600` | re-alert window for persistent conditions | `notify` |
+| `command_timeout_seconds` | `15` | per-`smartctl`/`lsblk` timeout | `scan` (env-seeded) |
+| `missed_run_policy` | `"skip"` | `skip` \| `run_once` | `sched` (env-seeded) |
+| `timezone` | `""` | schedule time zone; empty = container `TZ` (C6) | `sched` |
+| `temperature_unit` | `"c"` | `c` \| `f` — display only; stored values stay Celsius | `webui`, `notify` |
+| `theme` | `"auto"` | `auto` \| `light` \| `dark` \| `custom` (`UI.md` §5) | `webui` |
+| `theme_base` | `"dark"` | base for `custom`: `light` \| `dark` | `webui` |
+| `theme_accent` | `"#3b82f6"` | accent colour for `custom` themes | `webui` |
+| `theme_surface_tint` | `"neutral"` | `neutral` \| `slate` \| `warm` \| `cool` | `webui` |
+| `scan_exclude_devices` | `[]` | device paths/serials to skip | **Phase 2 — not implemented** |
+| `health_score_enabled` | `true` | show the 0–100 score/grade (D13) | **Phase 2 — not implemented** |
+
+Thresholds are read **per scan** (`interp.FromSettings`) rather than captured at
+start-up, so a value changed in the UI applies to the very next scan. The same
+applies to the squelch window, the command timeout, the schedule timezone and the
+missed-run policy. A threshold whose only reader is a `DefaultThresholds()` call at
+boot is a control that lies, which is exactly what this table exists to prevent.
 | `selftest_enabled` | `false` | allow self-test triggering — opt-in, hardware-affecting (D10) |
 | `selftest_default_kind` | `"short"` | `short` \| `long` (D10) |
 | `report_export_formats` | `["txt"]` | enabled export formats (D11) |

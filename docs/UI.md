@@ -49,10 +49,19 @@ views are bookmarkable and the browser back button works.
 ## 3. Layout & responsive behaviour
 
 - Mobile-first CSS with three breakpoints (640 / 1024 / 1440px).
-- Device cards in a responsive grid: `repeat(auto-fill, minmax(320px, 1fr))`.
+- Device cards in a responsive grid: `repeat(auto-fit, minmax(min(100%, 320px), 1fr))`.
+  `auto-fit` rather than `auto-fill`, because `auto-fill` reserves the empty tracks:
+  four drives on a wide screen would occupy the first four of seven columns and leave
+  a third of the row blank. `auto-fit` collapses the unused tracks, so cards fill the
+  row and only wrap when they run out of room.
+- **No maximum content width.** Data views (the device grid, tables, the delivery log)
+  use the full window. A capped column wastes most of a wide screen for no benefit.
+  Controls that would look absurd stretched are constrained individually
+  (`--form-max`), not by capping every page.
+- The topbar holds only the mobile navigation toggle; on desktop the sidebar is always
+  visible, so the bar is hidden rather than left as an empty strip.
 - The attribute table is horizontally scrollable on narrow screens rather than
   collapsing into unreadable stacked cells.
-- Max content width ~1200px on very large displays; content centred.
 - Touch targets ≥44px on mobile.
 
 ## 4. Design tokens
@@ -115,11 +124,13 @@ theme picker without touching any component code.
 ## 7. Screen specifications
 
 ### 7.1 Dashboard
-- Summary bar (verdict counts) → device grid → global Scan button (top-right, sticky).
+- Summary bar (verdict counts) → device grid.
+- **Scan actions:** exactly two — the sidebar's global **Scan now**, and a rescan on
+  every card. There is deliberately no header copy of the global action.
 - **Empty:** onboarding message + prominent Scan button.
 - **Loading:** skeleton cards.
-- **Scanning:** Scan button shows progress; cards update live via SSE as each device
-  completes (no polling — `ADR-006`).
+- **Scanning:** the sidebar button reflects progress; cards update live via SSE as
+  each device completes (no polling — `ADR-006`).
 - **Populated:** cards sorted by severity (bad → caution → good), then by user name.
 - **Disconnected:** a drive absent from the latest scan keeps its record — its notes
   and history must survive an unplug — but is flagged `is_missing`. Those cards are
@@ -163,10 +174,22 @@ theme picker without touching any component code.
 - Recent-deliveries log (sent / failed / squelched).
 
 ### 7.5 Settings
-- Grouped sections: **Thresholds** (with defaults shown), **Scan options**
-  (timeout, excludes, missed-run policy), **Appearance** (theme picker),
-  **About** (version, image arch, smartctl version, knowledge-base status).
-- Every field displays effective value + source (§6).
+- Grouped sections: **Health thresholds**, **Alerts and retention**, **Appearance**,
+  **About**.
+- Numeric settings are a **list of rows**, not a grid of labelled boxes: the label and
+  its explanation sit together on the left and the control is right-aligned, so every
+  value lands in one column and the page can be scanned and compared at a glance. Each
+  numeric row pairs a **slider** with a number box — drag to explore, type for
+  precision — and the two stay in sync.
+- **Temperature unit** (°C / °F) is a display preference. Celsius is canonical in the
+  API, the database, snapshots and notification payloads, because that is what drives
+  report; only rendering converts. The temperature *threshold* is stored in Celsius
+  too, so its slider is labelled, bounded and converted in the chosen unit — otherwise
+  the same threshold would read as two different temperatures in two places.
+  Switching the unit re-renders the row, carrying unsaved values across in Celsius so
+  nothing typed is silently reinterpreted.
+- Alert text follows the same unit, so a notification and the UI never disagree.
+- **About** shows the version and notes that the app never writes to a drive.
 
 ## 8. Interaction & feedback
 

@@ -233,21 +233,32 @@ export function openDialog(title, render) {
   return { dialog, close };
 }
 
-/** Confirm dialog; resolves true when confirmed. */
+/** Confirm dialog; resolves true when confirmed, false on cancel or dismissal. */
 export function confirmDialog(title, message, confirmLabel = 'Confirm') {
   return new Promise((resolve) => {
     let settled = false;
-    openDialog(title, (body, close) => {
+    const settle = (value) => {
+      if (settled) return;
+      settled = true;
+      resolve(value);
+    };
+
+    const { dialog } = openDialog(title, (body, close) => {
       body.append(el('p', { text: message }));
       body.append(el('div', { class: 'dialog-foot', style: 'border:0;padding:0' }, [
         el('button', { class: 'btn', type: 'button', text: 'Cancel',
-          onclick: () => { settled = true; resolve(false); close(); } }),
+          onclick: () => { settle(false); close(); } }),
         el('button', { class: 'btn btn-danger', type: 'button', text: confirmLabel,
-          onclick: () => { settled = true; resolve(true); close(); } }),
+          onclick: () => { settle(true); close(); } }),
       ]));
     });
-    // Resolve false if dismissed with Escape.
-    setTimeout(() => { if (!settled) resolve(false); }, 0);
+
+    // Escape, or any other dismissal, closes the dialog without a button press.
+    // Listening for `close` is the only reliable signal. Settling on a timer
+    // instead resolves the promise before the user has even seen the dialog, so
+    // every caller's `if (!(await confirmDialog(...))) return` bails out and the
+    // confirmed action silently never happens.
+    dialog.addEventListener('close', () => settle(false));
   });
 }
 
