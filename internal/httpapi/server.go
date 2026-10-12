@@ -20,6 +20,9 @@ type Options struct {
 	BasePath string // subpath hosting, e.g. "/smartserve" (ADR-015)
 	Version  string
 	Logger   *slog.Logger
+	// UI, when set, serves the web interface at every path the API does not
+	// claim (including SPA deep links).
+	UI http.Handler
 }
 
 // Server is the HTTP API.
@@ -42,6 +45,10 @@ func New(st *store.Store, sc *scan.Manager, hub *events.Hub, opts Options) *Serv
 
 	mux := http.NewServeMux()
 	s.routes(mux)
+	if opts.UI != nil {
+		// Registered last: the API patterns above are more specific and win.
+		mux.Handle("/", opts.UI)
+	}
 
 	var h http.Handler = mux
 	h = sameOriginMiddleware(h)

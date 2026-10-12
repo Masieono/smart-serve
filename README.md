@@ -85,8 +85,9 @@ the `docs/SCOPE.md` MVP order:
 - [x] Scan orchestration + `smart-serve scan` CLI (`internal/scan`, `cmd/smartserve`)
 - [x] SQLite persistence + migrations (`internal/store`) — unit-tested
 - [x] HTTP API + SSE (`internal/httpapi`, `internal/events`) — unit-tested
+- [x] Web UI (`internal/webui`) — dashboard, device detail, schedules, notifications,
+      settings; dark/light/auto + custom-accent themes
 - [x] Dockerfile, docker-compose (prod + dev), GitHub Actions CI
-- [ ] Web UI (per [`docs/UI.md`](docs/UI.md))
 - [ ] Scheduler + notifications
 
 ## License

@@ -4,6 +4,10 @@ This document exists because a clean, sleek, easily-navigable interface is a
 **first-class requirement**, not a finish line. It is intentionally prescriptive so
 that implementation cannot drift into a generic default look.
 
+> **Implementation status:** the interface is implemented under `internal/webui`
+> (embedded assets + server-rendered theme). The component inventory (§6), screen
+> specs (§7) and acceptance criteria (§11) below are the contract it was built to.
+
 ## 1. Design principles
 
 1. **Glanceable first.** A drive's overall health must be readable in under two

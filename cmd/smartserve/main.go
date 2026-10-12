@@ -19,6 +19,7 @@ import (
 	"github.com/masieono/smart-serve/internal/interp"
 	"github.com/masieono/smart-serve/internal/scan"
 	"github.com/masieono/smart-serve/internal/store"
+	"github.com/masieono/smart-serve/internal/webui"
 )
 
 const version = "0.0.0-dev"
@@ -94,10 +95,29 @@ func runServe() error {
 	scanner := &scan.Scanner{Timeout: cfg.CommandTimeout, Thresholds: interp.DefaultThresholds()}
 	manager := scan.NewManager(scanner, st, hub)
 
+	// The UI theme is read from settings on each shell request, so changing it in
+	// the UI is reflected on the next load without a restart (docs/UI.md §5).
+	ui, err := webui.New(func(ctx context.Context) webui.Theme {
+		settings, serr := st.GetSettings(ctx)
+		if serr != nil {
+			return webui.DefaultTheme
+		}
+		return webui.Theme{
+			Name:   settings["theme"],
+			Base:   settings["theme_base"],
+			Accent: settings["theme_accent"],
+			Tint:   settings["theme_surface_tint"],
+		}
+	}, webui.Options{BasePath: cfg.BasePath, Version: cfg.Version})
+	if err != nil {
+		return err
+	}
+
 	api := httpapi.New(st, manager, hub, httpapi.Options{
 		BasePath: cfg.BasePath,
 		Version:  cfg.Version,
 		Logger:   logger,
+		UI:       ui,
 	})
 
 	srv := &http.Server{

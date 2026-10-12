@@ -1,0 +1,66 @@
+// API client (docs/API.md). Every path is relative to the app base path, so
+// subpath hosting works (ADR-015).
+const basePath = new URL('.', document.baseURI).pathname.replace(/\/$/, '');
+
+export function appPath(path) {
+  return basePath + path;
+}
+
+async function request(method, path, body) {
+  const init = { method };
+  if (body !== undefined) {
+    init.headers = { 'Content-Type': 'application/json' };
+    init.body = JSON.stringify(body);
+  }
+  const res = await fetch(appPath(path), init);
+  const text = await res.text();
+  let data = null;
+  if (text) {
+    try {
+      data = JSON.parse(text);
+    } catch {
+      data = null;
+    }
+  }
+  if (!res.ok) {
+    throw new Error((data && data.error) || `${res.status} ${res.statusText}`);
+  }
+  return data;
+}
+
+export const api = {
+  devices: () => request('GET', '/api/devices'),
+  device: (serial) => request('GET', `/api/devices/${encodeURIComponent(serial)}`),
+  history: (serial) => request('GET', `/api/devices/${encodeURIComponent(serial)}/history`),
+  setNotes: (serial, notes) => request('PUT', `/api/devices/${encodeURIComponent(serial)}/notes`, notes),
+  setTransport: (serial, smartD) =>
+    request('PUT', `/api/devices/${encodeURIComponent(serial)}/transport`, { smart_d: smartD }),
+  reportUrl: (serial, format = 'txt') =>
+    appPath(`/api/devices/${encodeURIComponent(serial)}/report?format=${format}`),
+
+  async raw(serial) {
+    const res = await fetch(appPath(`/api/devices/${encodeURIComponent(serial)}/raw`));
+    if (!res.ok) throw new Error(`raw output unavailable (${res.status})`);
+    return res.text();
+  },
+
+  scan: (wait = false) => request('POST', `/api/scan${wait ? '?wait=1' : ''}`),
+  scans: () => request('GET', '/api/scans'),
+
+  settings: () => request('GET', '/api/settings'),
+  putSettings: (kv) => request('PUT', '/api/settings', kv),
+
+  schedules: () => request('GET', '/api/schedules'),
+  createSchedule: (s) => request('POST', '/api/schedules', s),
+  updateSchedule: (s) => request('PUT', `/api/schedules/${s.id}`, s),
+  deleteSchedule: (id) => request('DELETE', `/api/schedules/${id}`),
+  runSchedule: (id) => request('POST', `/api/schedules/${id}/run`),
+
+  channels: () => request('GET', '/api/channels'),
+  createChannel: (c) => request('POST', '/api/channels', c),
+  updateChannel: (c) => request('PUT', `/api/channels/${c.id}`, c),
+  deleteChannel: (id) => request('DELETE', `/api/channels/${id}`),
+  testChannel: (id) => request('POST', `/api/channels/${id}/test`),
+
+  eventsUrl: () => appPath('/api/events'),
+};
