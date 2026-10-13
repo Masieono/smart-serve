@@ -412,6 +412,26 @@ a:hover {
   gap: var(--space-4);
 }
 
+/* The two-column page layout, used by the settings page and the device detail page.
+
+   One grid for the whole page, never one per row: two separate grids each size their
+   own columns, and their gutters drift apart as soon as their contents differ.
+
+   Cards are stretched, deliberately — not `align-items: start`. A grid row is as tall
+   as its tallest card either way, so a short card that stops early leaves the gap
+   *beneath* it looking wider than the gap *beside* it. Stretching moves that slack
+   inside the card, where it reads as padding. */
+.panel-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 460px), 1fr));
+  gap: var(--space-4);
+}
+
+/* A panel that spans the grid: prose about the subject rather than a column of facts. */
+.panel-wide {
+  grid-column: 1 / -1;
+}
+
 .device-card {
   display: flex;
   flex-direction: column;
@@ -524,8 +544,9 @@ a:hover {
 .spark-plot {
   position: relative;
   margin-top: var(--space-2);
-  /* Room below the line for the readout, so revealing it cannot shift the layout. */
-  padding-bottom: calc(var(--text-xs) + var(--space-4));
+  /* Room below the line for the three-line readout, so revealing it cannot shift the
+     layout: three lines at the readout's own line-height, plus its vertical padding. */
+  padding-bottom: calc(var(--text-xs) * 1.35 * 3 + var(--space-2));
   cursor: crosshair;
 }
 
@@ -549,15 +570,28 @@ a:hover {
 .spark-readout {
   position: absolute;
   bottom: 0;
-  padding: 2px var(--space-2);
+  display: flex;
+  flex-direction: column;
+  padding: var(--space-1) var(--space-2);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   background: var(--surface-2);
   color: var(--text);
   font-size: var(--text-xs);
+  line-height: 1.35;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
   pointer-events: none;
+}
+
+/* The reading leads; the timestamp is supporting detail. */
+.spark-readout-value {
+  font-weight: 600;
+}
+
+.spark-readout-date,
+.spark-readout-time {
+  color: var(--muted);
 }
 
 /* Anchored at the ends rather than centred, so the readout never runs off the card. */
@@ -751,15 +785,8 @@ a:hover {
 /* A list of settings, not a grid of labelled boxes. The label and its explanation
    sit together on the left and the control is right-aligned, so every value lands
    in one column and the whole page can be scanned and compared at a glance.
-   Two of these cards sit side by side (`.settings-grid`), which is what keeps the
-   gap between a label and its control from stretching across a whole wide screen. */
-.settings-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(460px, 1fr));
-  gap: var(--space-4);
-  align-items: start;
-}
-
+   Side by side (`.panel-grid`), which is what keeps the gap between a label and its
+   control from stretching across a whole wide screen. */
 .setting-row {
   display: flex;
   align-items: center;

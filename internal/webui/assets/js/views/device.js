@@ -116,7 +116,7 @@ function draw(container, ctx, data, history) {
       d.smart_available ? null : noSmartNotice(ctx, d),
     ]),
 
-    el('div', { class: 'settings-grid' }, [
+    el('div', { class: 'panel-grid' }, [
       el('div', { class: 'card stack' }, [
         el('h2', { text: 'Identity' }),
         identity,
@@ -126,14 +126,14 @@ function draw(container, ctx, data, history) {
         el('h2', { text: 'Usage and media' }),
         usage,
       ]),
-    ]),
 
-    d.notes ? el('div', { class: 'card stack' }, [
-      el('h2', { text: 'Notes' }),
-      el('p', { text: d.notes }),
-    ]) : null,
+      // Prose about the drive rather than a column of facts, so it spans the grid
+      // instead of taking a cell.
+      d.notes ? el('div', { class: 'card stack panel-wide' }, [
+        el('h2', { text: 'Notes' }),
+        el('p', { text: d.notes }),
+      ]) : null,
 
-    el('div', { class: 'settings-grid' }, [
       trendCard(series, (next) => {
         trendRange = next;
         render(container, ctx, d.serial);

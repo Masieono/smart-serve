@@ -68,6 +68,20 @@ export function fmtDateTime(iso) {
   return Number.isNaN(d.getTime()) ? '—' : d.toLocaleString();
 }
 
+/* Date and time apart, for places that stack them — a single line wide enough to hold
+   a full timestamp runs most of the way across a card. */
+export function fmtDate(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? '—' : d.toLocaleDateString();
+}
+
+export function fmtTime(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? '—' : d.toLocaleTimeString();
+}
+
 export function fmtAgo(iso) {
   if (!iso) return 'never';
   const secs = Math.round((Date.now() - new Date(iso).getTime()) / 1000);

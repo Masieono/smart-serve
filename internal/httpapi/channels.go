@@ -201,6 +201,39 @@ func (s *Server) validateChannelConfig(typ string, raw json.RawMessage) string {
 // handleNotifications returns the delivery log plus the event and channel types
 // the UI needs to render subscription checkboxes. The log is how an operator
 // confirms an alert was really sent (ADR-008).
+// handleTestChannelConfig sends a test through a channel described in the request body
+// rather than a stored one.
+//
+// The editor uses this so that Test proves what is on screen — including edits that have
+// not been saved — and so that a failed test can be corrected and retried without the
+// dialog closing and having to be reopened.
+func (s *Server) handleTestChannelConfig(w http.ResponseWriter, r *http.Request) {
+	var body channelBody
+	if !decodeJSON(w, r, &body) {
+		return
+	}
+	if body.Type == "" {
+		writeError(w, http.StatusBadRequest, "type is required")
+		return
+	}
+	if msg := s.validateChannelConfig(body.Type, body.Config); msg != "" {
+		writeError(w, http.StatusBadRequest, msg)
+		return
+	}
+	if s.notifier == nil {
+		writeError(w, http.StatusNotImplemented, "notification delivery is not configured")
+		return
+	}
+	// id 0: an unsaved draft. SendTest still delivers it, but records nothing.
+	outcome, err := s.notifier.SendTest(r.Context(), body.toStore(0), notify.TestEvent(s.version))
+	if err != nil {
+		// 502: the settings are well-formed, the destination is not.
+		writeError(w, http.StatusBadGateway, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"status": string(outcome)})
+}
+
 func (s *Server) handleNotifications(w http.ResponseWriter, r *http.Request) {
 	limit := 50
 	if v := r.URL.Query().Get("limit"); v != "" {

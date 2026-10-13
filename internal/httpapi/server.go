@@ -123,6 +123,8 @@ func (s *Server) routes(mux *http.ServeMux) {
 	mux.HandleFunc("PUT /api/channels/{id}", s.handleUpdateChannel)
 	mux.HandleFunc("DELETE /api/channels/{id}", s.handleDeleteChannel)
 	mux.HandleFunc("POST /api/channels/{id}/test", s.handleTestChannel)
+	// The body-described variant, used by the editor so Test can prove unsaved edits.
+	mux.HandleFunc("POST /api/channels/test", s.handleTestChannelConfig)
 
 	mux.HandleFunc("GET /api/notifications", s.handleNotifications)
 

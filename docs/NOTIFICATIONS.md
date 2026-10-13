@@ -186,7 +186,10 @@ Rule: for each `(channel, event_key)` pair, where `event_key` is:
   repeat; a broken scanner must be loud).
 
 Squelched sends are recorded as `status: squelched` in `notification_log` for
-transparency. Test events (`POST /api/channels/{id}/test`) bypass squelching.
+transparency. Test events bypass squelching — both `POST /api/channels/{id}/test` and
+the body-described `POST /api/channels/test` the editor uses to test unsaved settings.
+The latter writes no log row at all: a draft has no id, so there is no stored channel to
+attribute a delivery to, and testing a draft must not persist anything.
 
 **As implemented**, only `temperature_high` consults a time window. Everything
 else carries a zero window and is therefore never squelched, because for those
@@ -259,8 +262,9 @@ A window is either **one-off** or **recurring**:
   settings value silence every alert on the host, which is the worse failure. A
   window whose end is not after its start, or a recurring window with no days, is
   dropped the same way.
-- `POST /api/channels/{id}/test` ignores windows: an operator pressing Test is asking
-  "does this channel work right now?".
+- **Both** test endpoints ignore windows — `POST /api/channels/{id}/test` and the
+  body-described `POST /api/channels/test`: an operator pressing Test is asking "does
+  this channel work right now?".
 - The UI labels a recurring window by its schedule rather than "active", because the
   browser's clock is not necessarily the server's.
 

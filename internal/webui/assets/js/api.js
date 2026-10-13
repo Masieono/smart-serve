@@ -66,6 +66,9 @@ export const api = {
   updateChannel: (c) => request('PUT', `/api/channels/${c.id}`, c),
   deleteChannel: (id) => request('DELETE', `/api/channels/${id}`),
   testChannel: (id) => request('POST', `/api/channels/${id}/test`),
+  // Sends a test through a channel described in the body, so the editor can verify
+  // what is on screen without saving it first.
+  testChannelConfig: (c) => request('POST', '/api/channels/test', c),
   notifications: (limit = 25) => request('GET', `/api/notifications?limit=${limit}`),
 
   eventsUrl: () => appPath('/api/events'),

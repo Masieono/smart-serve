@@ -1,5 +1,5 @@
 // Shared UI components (docs/UI.md §6).
-import { el, svg, fmtBytes, fmtTemp, fmtScore, fmtAgo, fmtDateTime, scoreGrade, scoreBand, verdictClass } from './dom.js';
+import { el, svg, fmtBytes, fmtTemp, fmtScore, fmtAgo, fmtDate, fmtTime, scoreGrade, scoreBand, verdictClass } from './dom.js';
 import { icon } from './icons.js';
 
 const VERDICT_LABEL = { good: 'Good', caution: 'Caution', bad: 'Bad', unknown: 'Unknown' };
@@ -89,7 +89,13 @@ export function sparkline(points, opts = {}) {
   const stroke = band ? `spark-${band}` : 'spark';
 
   const marker = el('div', { class: 'spark-marker', hidden: true });
-  const readout = el('div', { class: 'spark-readout', hidden: true });
+  // Three short lines rather than one long one: a single line wide enough to hold a
+  // full timestamp runs most of the way across the card.
+  const readoutValue = el('div', { class: 'spark-readout-value' });
+  const readoutDate = el('div', { class: 'spark-readout-date' });
+  const readoutTime = el('div', { class: 'spark-readout-time' });
+  const readout = el('div', { class: 'spark-readout', hidden: true },
+    [readoutValue, readoutDate, readoutTime]);
   const plot = el('div', { class: 'spark-plot', tabindex: '0', role: 'img',
     'aria-label': `${usable.length} readings, ${format(usable[0].value)} to ${format(usable[usable.length - 1].value)}` }, [
     svg(
@@ -111,7 +117,9 @@ export function sparkline(points, opts = {}) {
     readout.style.left = `${percent}%`;
     // Anchored at the ends rather than centred, so the readout never runs off the card.
     readout.dataset.edge = index === 0 ? 'start' : index === usable.length - 1 ? 'end' : 'mid';
-    readout.textContent = `${format(point.value)} · ${fmtDateTime(point.ts)}`;
+    readoutValue.textContent = format(point.value);
+    readoutDate.textContent = fmtDate(point.ts);
+    readoutTime.textContent = fmtTime(point.ts);
   };
 
   const hide = () => {

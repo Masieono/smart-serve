@@ -378,6 +378,10 @@ func (d *Dispatcher) newPass(ctx context.Context) pass {
 // SendTest delivers a synthetic event to one channel, bypassing subscription
 // filters and squelching (docs/NOTIFICATIONS.md). It reports the real outcome so
 // the UI can show *why* a channel is not working.
+//
+// A channel with no id is an unsaved draft straight from the editor. It is still sent,
+// but not recorded: there is no stored channel to attribute a delivery-log row to, and
+// testing a draft must not write anything — that is the point of testing it.
 func (d *Dispatcher) SendTest(ctx context.Context, ch store.Channel, ev Event) (Outcome, error) {
 	sender, ok := d.reg.Get(ch.Type)
 	if !ok {
@@ -387,10 +391,14 @@ func (d *Dispatcher) SendTest(ctx context.Context, ch store.Channel, ev Event) (
 	defer cancel()
 
 	if err := sender.Send(ctx, decodeConfig(ch.Config), ev); err != nil {
-		d.record(ctx, ch.ID, ev, OutcomeFailed, err.Error())
+		if ch.ID != 0 {
+			d.record(ctx, ch.ID, ev, OutcomeFailed, err.Error())
+		}
 		return OutcomeFailed, err
 	}
-	d.record(ctx, ch.ID, ev, OutcomeSent, "test event")
+	if ch.ID != 0 {
+		d.record(ctx, ch.ID, ev, OutcomeSent, "test event")
+	}
 	return OutcomeSent, nil
 }
 

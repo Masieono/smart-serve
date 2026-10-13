@@ -239,7 +239,7 @@ function draw(container, ctx, data, { carried = {}, unit: unitOverride } = {}) {
     // One grid for all three cards: auto-fit decides how many columns fit, so a wide
     // screen gets three side by side and a narrow one stacks them. That is what keeps
     // the gap between a label and its control from stretching across the page.
-    el('div', { class: 'settings-grid' }, [
+    el('div', { class: 'panel-grid' }, [
       el('div', { class: 'card stack' }, [
         el('h2', { text: 'Health thresholds' }),
         el('div', {}, [

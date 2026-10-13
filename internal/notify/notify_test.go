@@ -339,3 +339,45 @@ func TestDecodeConfigToleratesGarbage(t *testing.T) {
 		t.Errorf("decodeConfig = %v", cfg)
 	}
 }
+
+// A draft from the editor has no id, so there is no stored channel to attribute a
+// delivery-log row to. It is still delivered — that is what Test is for — but nothing
+// is written.
+func TestSendTestDoesNotLogAnUnsavedDraft(t *testing.T) {
+	st := newFakeStore()
+	sender := &recordingSender{typ: "rec"}
+	d := testDispatcher(st, sender, DispatcherOptions{})
+
+	outcome, err := d.SendTest(context.Background(),
+		store.Channel{ID: 0, Type: "rec", Enabled: true}, Event{Type: EventHealthChange, Serial: "S1"})
+	if err != nil {
+		t.Fatalf("SendTest: %v", err)
+	}
+	if outcome != OutcomeSent {
+		t.Errorf("outcome = %q, want sent", outcome)
+	}
+	if sender.count() != 1 {
+		t.Errorf("deliveries = %d, want 1 — an unsaved draft is still sent", sender.count())
+	}
+	if len(st.logged) != 0 {
+		t.Errorf("log rows = %+v, want none for an unsaved draft", st.logged)
+	}
+}
+
+// A stored channel's test is still recorded, so the delivery log keeps showing it.
+func TestSendTestLogsASavedChannel(t *testing.T) {
+	st := newFakeStore()
+	sender := &recordingSender{typ: "rec"}
+	d := testDispatcher(st, sender, DispatcherOptions{})
+
+	if _, err := d.SendTest(context.Background(),
+		store.Channel{ID: 7, Type: "rec", Enabled: true}, Event{Type: EventHealthChange, Serial: "S1"}); err != nil {
+		t.Fatalf("SendTest: %v", err)
+	}
+	if len(st.logged) != 1 {
+		t.Fatalf("log rows = %+v, want one", st.logged)
+	}
+	if st.logged[0].channelID != 7 {
+		t.Errorf("logged channel = %d, want 7", st.logged[0].channelID)
+	}
+}

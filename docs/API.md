@@ -143,6 +143,13 @@ takes effect immediately instead of at the next sleep boundary.
   `{ "status": "sent", "channel_id": 1 }`; a delivery failure returns `502` with
   the destination's own error, which is the only way to tell a bad token from a
   bad URL. Without notification support wired in, it returns `501`.
+- `POST /api/channels/test` — the same, for a channel described in the body rather than
+  a stored one (`{ "type": ..., "config": ... }`, same shape and validation as
+  `POST /api/channels`). The editor uses it so **Test** proves what is on screen,
+  including edits that have not been saved, and so a failed test can be corrected and
+  retried without the dialog closing. Returns `{ "status": "sent" }`; nothing is
+  persisted, and because the draft has no id it is not written to the delivery log
+  either.
 
 ### `GET /api/notifications` — delivery log
 

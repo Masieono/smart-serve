@@ -680,8 +680,8 @@ function editChannel(ctx, existing, eventTypes = EVENT_TYPES, serverTypes = null
         el('div', { class: 'stack', style: 'gap:var(--space-1)' }, eventRows),
       ]),
       el('label', { class: 'field-row' }, [enabled, el('span', { text: 'Enabled' })]),
-      hint('“Save & test” stores the channel and sends one event through it, which is the ' +
-        'quickest way to tell a bad token from a bad URL.'),
+      hint('“Test” sends one event through these settings without saving them, so a bad ' +
+        'token or URL can be corrected and retried. Nothing is stored until you press Save.'),
     );
 
     function payloadFromForm() {
@@ -696,20 +696,17 @@ function editChannel(ctx, existing, eventTypes = EVENT_TYPES, serverTypes = null
       };
     }
 
-    // Stored by "Save & test" so a second press updates the channel it just created
-    // instead of creating another one.
-    let stored = existing || null;
-
     async function store() {
       const payload = payloadFromForm();
-      if (stored) payload.id = stored.id;
-      const res = stored ? await api.updateChannel(payload) : await api.createChannel(payload);
-      stored = (res && res.channel) || res || payload;
-      return stored;
+      if (existing) payload.id = existing.id;
+      return existing ? api.updateChannel(payload) : api.createChannel(payload);
     }
 
     foot.append(
-      el('button', { class: 'btn', type: 'button', text: 'Save & test', title: 'Save, then send one test event',
+      // Tests the form as it stands, saved or not, and never closes the dialog: the
+      // whole point is to fix a misconfiguration and try again in place.
+      el('button', { class: 'btn', type: 'button', text: 'Test',
+        title: 'Send one test event through these settings, without saving them',
         onclick: async (event) => {
           const problem = validate();
           if (problem) {
@@ -718,10 +715,8 @@ function editChannel(ctx, existing, eventTypes = EVENT_TYPES, serverTypes = null
           }
           event.currentTarget.disabled = true;
           try {
-            const saved = await store();
-            await api.testChannel(saved.id);
+            await api.testChannelConfig(payloadFromForm());
             toast('Test event sent', 'good');
-            ctx.refresh();
           } catch (err) {
             // The API returns the destination's own error, which is the only way to
             // tell a bad token from a bad URL.

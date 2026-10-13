@@ -131,10 +131,10 @@ picker offers exactly `ThemeNames`.
 | **Device card** | Name (user), model, capacity, verdict badge, small gauge, temperature, transport icon (USB vs internal), mountpoint(s), "last scanned". Actions: open, scan-this, hide. A card whose drive is absent from the latest scan shows a *Not connected* badge and is dimmed; a drive that cannot report S.M.A.R.T. shows a *No S.M.A.R.T.* badge and no gauge. |
 | **Devices header** | One card holding the page title, the clickable verdict counts and the search box. The counts are a filter for the grid below, so they sit beside the thing they filter instead of in a row of their own. |
 | **Attribute table** | Sortable, zebra rows; ID / name / value / worst / threshold / interpreted raw / status dot; per-attribute help tooltip ("what is this?"). |
-| **Sparkline / trend card** | Inline SVG per metric (health score, temperature, power-on hours, wear) with the current value and the change across the window, plus a 7 / 30 / 90 day / all range selector. Hovering (or arrowing, when focused) shows a marker and a readout of the value and timestamp for that reading. A row with fewer than two readings is dropped — one point is not a trend. |
+| **Sparkline / trend card** | Inline SVG per metric (health score, temperature, power-on hours, wear) with the current value and the change across the window, plus a 7 / 30 / 90 day / all range selector. Hovering (or arrowing, when focused) shows a marker and a three-line readout — value, date, time — for that reading. A row with fewer than two readings is dropped — one point is not a trend. |
 | **Notice** | A neutral panel for an explanation that is not a fault — currently "this drive does not report S.M.A.R.T.", with the transport-override control. Deliberately not an error box: the drive is not failing. |
 | **Export dialog** | One row per format (plain text / web page / spreadsheet / JSON) with what each is for, rather than a single button that silently picks one. |
-| **Settings grid** | One auto-fitting grid: three cards side by side where there is room, stacked where there is not. Each row keeps its label and explanation on the left and its control on the right, so every value lands in one column; the columns halve the dead space between them without making the controls cramped. |
+| **Panel grid** (`.panel-grid`) | The two-column page layout, shared by the settings page and the device detail page. One grid per page, never one per row: two separate grids size their columns independently and their gutters drift apart. Cards are stretched to their row rather than `align-items: start`, so the gap beneath a short card matches the gap beside it. `.panel-wide` spans both columns, for prose like the notes card. |
 | **Scan button** | Primary action. States: idle · scanning (spinner + "3/5 devices") · done (toast). |
 | **Toasts** | Scan complete, saved, notification sent; auto-dismiss, stacked. |
 | **Dialogs / sheets** | Schedule editor, channel editor, maintenance window, transport override, export, confirmations. Full-screen sheets on mobile. |
@@ -169,11 +169,16 @@ picker offers exactly `ThemeNames`.
 - **Header:** editable inline name, model, serial, firmware, capacity, drive age.
 - **Health block:** large gauge + verdict badge + plain-language rationale
   ("5 pending sectors").
-- **Two columns.** The page is a pair of two-up grids: **Identity** beside **Usage and
-  media**, then the trend card beside the attribute table. Each card holds its own
-  heading and content in a `.card.stack`, so the internal spacing comes from the
-  container's gap and never from a per-heading margin — the thing that made two
-  otherwise identical cards look unevenly spaced.
+- **Two columns**, from a single `.panel-grid`: **Identity** beside **Usage and media**,
+  then the trend card beside the attribute table, with the notes card spanning both.
+  One grid for the whole page, not one per row — two separate grids each size their own
+  columns and their gutters drift apart as soon as their contents differ.
+- **Even gutters.** Cards are stretched to their row, deliberately *not* `align-items:
+  start`. A grid row is as tall as its tallest card either way, so a short card that
+  stops early leaves the gap *beneath* it looking wider than the gap *beside* it;
+  stretching moves that slack inside the card, where it reads as padding.
+- Each card holds its own heading and content in a `.card.stack`, so the internal
+  spacing comes from the container's gap and never from a per-heading margin.
 - **Identity card:** model, model family, serial, firmware, capacity, interface
   speed, transport, rotation, removable, WWN, device path.
 - **Usage and media card:** power-on hours, power cycles, temperature, total data
@@ -192,11 +197,12 @@ picker offers exactly `ThemeNames`.
   panel offers the one thing that sometimes fixes it: a per-device `smartctl -d`
   transport override with **Apply & rescan**, for a real SSD or HDD sitting behind a
   USB bridge. The override is shown as currently set, not merely offered.
-- **Trend hover readout:** hovering a sparkline shows a vertical marker at the
-  nearest reading plus a readout of its value and timestamp; the ends are anchored
-  rather than centred so the readout cannot run off the card. Arrow keys step
-  through the readings and `Esc`/blur dismisses it, so the figures are reachable
-  without a mouse.
+- **Trend hover readout:** hovering a sparkline shows a vertical marker at the nearest
+  reading plus a readout of its value, date and time — stacked on three lines rather
+  than run together, because one line wide enough to hold a full timestamp spans most of
+  the card. The ends are anchored rather than centred so the readout cannot run off the
+  card. Arrow keys step through the readings and `Esc`/blur dismisses it, so the figures
+  are reachable without a mouse.
 - **Attribute table** (§6) — for NVMe, the full health log: critical warning,
   spare, percentage used, data units read/written (count **and** humanised size),
   host read/write commands, controller busy time, power cycles/hours, unsafe
@@ -216,10 +222,12 @@ picker offers exactly `ThemeNames`.
 - Channel list with type icon, label, enabled toggle, "send test".
 - Channel editor: type-specific fields (ntfy server/topic/token; webhook URL/method/
   headers); event-subscription checkboxes.
-- **Save & test** in the editor footer stores the channel and sends one event through it
-  in a single step — the quickest way to tell a bad token from a bad URL, and it works on
-  a channel that has not been saved yet. It remembers the id it created, so a second
-  press updates that channel instead of creating another.
+- **Test** in the editor footer sends one event through the settings *as they stand on
+  screen*, saved or not, via `POST /api/channels/test` (`API.md`). It deliberately does
+  not save and does not close the dialog: the point is to fix a misconfigured token or
+  URL and press Test again, in place. Testing a draft writes nothing — including no
+  delivery-log row, since there is no stored channel to attribute one to — so **Save**
+  remains the only thing that persists anything.
 - Recent-deliveries log (sent / failed / squelched).
 - **Even spacing.** The channel grid, the deliveries log and the maintenance-window card
   are siblings in the page column and are spaced by that column's gap alone. No card
@@ -230,10 +238,11 @@ picker offers exactly `ThemeNames`.
 
 ### 7.5 Settings
 - Grouped sections: **Health thresholds**, **Alerts and retention**, **Appearance**.
-- **Three columns** at wide widths. All three cards live in one auto-fitting grid, so a
-  wide screen shows them side by side and a narrow one stacks them, with no breakpoint
-  to keep in sync. The narrow column is also what keeps a label and its control from
-  drifting to opposite ends of the page.
+- **Three columns** at wide widths, from the shared `.panel-grid` (§6): a wide screen
+  shows the three cards side by side and a narrow one stacks them, with no breakpoint to
+  keep in sync. Each row keeps its label and explanation on the left and its control on
+  the right, so every value lands in one column; the columns halve the dead space between
+  them without making the controls cramped.
 - Numeric settings are a **list of rows**, not a grid of labelled boxes: the label and
   its explanation sit together on the left and the control is right-aligned, so every
   value lands in one column and the page can be scanned and compared at a glance. Each
@@ -247,11 +256,11 @@ picker offers exactly `ThemeNames`.
   Switching the unit re-renders the row, carrying unsaved values across in Celsius so
   nothing typed is silently reinterpreted.
 - Alert text follows the same unit, so a notification and the UI never disagree.
-- There is deliberately **no About card**. The version and the "never writes to a drive"
-  note sit in the sidebar footer, under **Scan now**, beside "Data reflects the last
-  scan." — the place a reader already looks to check how current the numbers are. On
-  their own in a card on the settings page they read as an afterthought, and they are
-  not settings.
+- There is deliberately **no About card**. The version, the freshness note and the
+  "never writes to a drive" note sit in the sidebar footer under **Scan now**, one per
+  line: version first, then the two tidbits. That is where a reader already looks to
+  check how current the numbers are, and on their own in a card on the settings page
+  they read as an afterthought — and they are not settings.
 
 ## 8. Interaction & feedback
 

@@ -105,6 +105,54 @@ func TestTestChannelReportsADeliveryFailure(t *testing.T) {
 	}
 }
 
+// The editor's Test button proves what is on screen without saving it, so a
+// misconfigured channel can be corrected and retried instead of being stored first.
+func TestTestChannelConfigSendsWithoutSaving(t *testing.T) {
+	notifier := &fakeNotifier{outcome: notify.OutcomeSent, types: []string{"ntfy"}}
+	srv, st, _, _ := newTestServer(t, Options{Notifier: notifier})
+
+	rec := do(t, srv, http.MethodPost, "/api/channels/test",
+		`{"type":"ntfy","label":"draft","config":{"topic":"draft-topic"}}`, nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", rec.Code, rec.Body.String())
+	}
+
+	if len(notifier.sent) != 1 {
+		t.Fatalf("deliveries = %d, want 1", len(notifier.sent))
+	}
+	sent := notifier.sent[0]
+	// id 0 marks it an unsaved draft, which is also what keeps it out of the log.
+	if sent.ID != 0 {
+		t.Errorf("channel id = %d, want 0 for an unsaved draft", sent.ID)
+	}
+	if !strings.Contains(sent.Config, "draft-topic") {
+		t.Errorf("config = %s, want the topic that was posted", sent.Config)
+	}
+
+	channels, err := st.ListChannels(context.Background())
+	if err != nil {
+		t.Fatalf("ListChannels: %v", err)
+	}
+	if len(channels) != 0 {
+		t.Errorf("channels = %d, want 0 — Test must not save", len(channels))
+	}
+}
+
+// A malformed draft is rejected before anything is sent, so the user sees the problem
+// as a validation error rather than as a delivery failure.
+func TestTestChannelConfigRejectsAnInvalidConfig(t *testing.T) {
+	notifier := &fakeNotifier{outcome: notify.OutcomeSent, types: []string{"ntfy"}}
+	srv, _, _, _ := newTestServer(t, Options{Notifier: notifier})
+
+	rec := do(t, srv, http.MethodPost, "/api/channels/test", `{"type":"ntfy","config":{}}`, nil)
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("status = %d, want 400, body = %s", rec.Code, rec.Body.String())
+	}
+	if len(notifier.sent) != 0 {
+		t.Errorf("deliveries = %v, want none", notifier.sent)
+	}
+}
+
 // Without a notifier wired in there is nothing to test with, and saying so beats
 // pretending the send worked.
 func TestTestChannelWithoutANotifierIsNotImplemented(t *testing.T) {
