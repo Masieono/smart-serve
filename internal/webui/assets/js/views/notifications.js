@@ -433,8 +433,10 @@ function deliveryLog(log, channels) {
     return match ? (match.label || match.type) : `channel ${id}`;
   };
 
-  return el('div', { class: 'card', style: 'margin-top:var(--space-6)' }, [
-    el('h2', { style: 'margin-bottom:var(--space-3)', text: 'Recent deliveries' }),
+  // No inline margin: the page's own gap spaces this card from its neighbours, and a
+  // margin on top of that gap is what made the cards look unevenly spaced.
+  return el('div', { class: 'card stack' }, [
+    el('h2', { text: 'Recent deliveries' }),
     el('div', { class: 'table-wrap' }, [
       el('table', { class: 'data' }, [
         el('thead', {}, [el('tr', {}, [
@@ -678,10 +680,57 @@ function editChannel(ctx, existing, eventTypes = EVENT_TYPES, serverTypes = null
         el('div', { class: 'stack', style: 'gap:var(--space-1)' }, eventRows),
       ]),
       el('label', { class: 'field-row' }, [enabled, el('span', { text: 'Enabled' })]),
-      hint('Save, then use Test on the channel card to verify delivery.'),
+      hint('“Save & test” stores the channel and sends one event through it, which is the ' +
+        'quickest way to tell a bad token from a bad URL.'),
     );
 
+    function payloadFromForm() {
+      return {
+        type: type.value,
+        label: label.value.trim(),
+        config: buildConfig(),
+        events: eventRows
+          .filter((row) => row.querySelector('input').checked)
+          .map((row) => row.querySelector('input').dataset.event),
+        enabled: enabled.checked,
+      };
+    }
+
+    // Stored by "Save & test" so a second press updates the channel it just created
+    // instead of creating another one.
+    let stored = existing || null;
+
+    async function store() {
+      const payload = payloadFromForm();
+      if (stored) payload.id = stored.id;
+      const res = stored ? await api.updateChannel(payload) : await api.createChannel(payload);
+      stored = (res && res.channel) || res || payload;
+      return stored;
+    }
+
     foot.append(
+      el('button', { class: 'btn', type: 'button', text: 'Save & test', title: 'Save, then send one test event',
+        onclick: async (event) => {
+          const problem = validate();
+          if (problem) {
+            toast(problem, 'error');
+            return;
+          }
+          event.currentTarget.disabled = true;
+          try {
+            const saved = await store();
+            await api.testChannel(saved.id);
+            toast('Test event sent', 'good');
+            ctx.refresh();
+          } catch (err) {
+            // The API returns the destination's own error, which is the only way to
+            // tell a bad token from a bad URL.
+            toast(`Test failed: ${err.message}`, 'error');
+          } finally {
+            event.currentTarget.disabled = false;
+          }
+        } }),
+      el('span', { class: 'spacer' }),
       el('button', { class: 'btn', type: 'button', text: 'Cancel', onclick: close }),
       el('button', { class: 'btn btn-primary', type: 'button', text: 'Save', onclick: async (event) => {
         const problem = validate();
@@ -689,21 +738,9 @@ function editChannel(ctx, existing, eventTypes = EVENT_TYPES, serverTypes = null
           toast(problem, 'error');
           return;
         }
-        const payload = {
-          type: type.value,
-          label: label.value.trim(),
-          config: buildConfig(),
-          events: eventRows
-            .filter((row) => row.querySelector('input').checked)
-            .map((row) => row.querySelector('input').dataset.event),
-          enabled: enabled.checked,
-        };
-        if (existing) payload.id = existing.id;
-
         event.currentTarget.disabled = true;
         try {
-          if (existing) await api.updateChannel(payload);
-          else await api.createChannel(payload);
+          await store();
           toast('Channel saved', 'good');
           close();
           ctx.refresh();

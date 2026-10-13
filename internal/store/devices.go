@@ -12,16 +12,19 @@ import (
 
 // ScannedDevice is one device's result from a scan, ready to persist.
 type ScannedDevice struct {
-	Serial          string
-	Model           string
-	ModelFamily     string
-	Firmware        string
-	DevicePath      string
-	Transport       string
-	SmartBus        string
-	InterfaceSpeed  string
-	CapacityBytes   *uint64
-	Rotation        *int
+	Serial         string
+	Model          string
+	ModelFamily    string
+	Firmware       string
+	DevicePath     string
+	Transport      string
+	SmartBus       string
+	InterfaceSpeed string
+	CapacityBytes  *uint64
+	Rotation       *int
+	// Removable is nil when lsblk did not say, which is different from "no".
+	Removable       *bool
+	FsVersion       string
 	WWN             string
 	Mountpoints     []string
 	Fstype          string
@@ -39,29 +42,35 @@ type ScannedDevice struct {
 // DeviceRecord is the persisted current state of one drive, joined with its
 // user metadata.
 type DeviceRecord struct {
-	Serial          string
-	Model           string
-	ModelFamily     string
-	Firmware        string
-	DevicePath      string
-	Transport       string
-	SmartBus        string
-	InterfaceSpeed  string
-	Rotation        *int
-	CapacityBytes   *uint64
-	WWN             string
-	SmartAvailable  bool
-	SmartError      string
-	Health          string
-	HealthRationale string
-	Score           int
-	TemperatureC    *int
-	Mountpoints     []string
-	Fstype          string
-	FirstSeen       time.Time
-	LastSeen        time.Time
-	LastScan        *time.Time
-	IsMissing       bool
+	Serial         string
+	Model          string
+	ModelFamily    string
+	Firmware       string
+	DevicePath     string
+	Transport      string
+	SmartBus       string
+	InterfaceSpeed string
+	Rotation       *int
+	CapacityBytes  *uint64
+	WWN            string
+	// Removable and FsVersion come from lsblk, and are often the only description
+	// available for a drive that reports no S.M.A.R.T.
+	Removable *bool
+	FsVersion string
+	// TransportOverride is the remembered `smartctl -d` for a stubborn USB bridge.
+	TransportOverride string
+	SmartAvailable    bool
+	SmartError        string
+	Health            string
+	HealthRationale   string
+	Score             int
+	TemperatureC      *int
+	Mountpoints       []string
+	Fstype            string
+	FirstSeen         time.Time
+	LastSeen          time.Time
+	LastScan          *time.Time
+	IsMissing         bool
 
 	// User metadata (device_notes).
 	Name   string
@@ -185,8 +194,8 @@ func upsertDevice(ctx context.Context, tx *sql.Tx, d ScannedDevice, lastScan any
 		INSERT INTO devices (serial, model, model_family, firmware, device_path, transport,
 			smart_bus, interface_speed, capacity_bytes, rotation, wwn, smart_available,
 			smart_error, health, health_rationale, score, temperature_c, first_seen, last_seen,
-			last_scan, mountpoints, fstype, is_missing)
-		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,0)
+			last_scan, mountpoints, fstype, removable, fs_version, is_missing)
+		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,0)
 		ON CONFLICT(serial) DO UPDATE SET
 			model=excluded.model,
 			model_family=excluded.model_family,
@@ -208,12 +217,14 @@ func upsertDevice(ctx context.Context, tx *sql.Tx, d ScannedDevice, lastScan any
 			last_scan=COALESCE(excluded.last_scan, devices.last_scan),
 			mountpoints=excluded.mountpoints,
 			fstype=excluded.fstype,
+			removable=excluded.removable,
+			fs_version=excluded.fs_version,
 			is_missing=0`,
 		d.Serial, d.Model, d.ModelFamily, d.Firmware, d.DevicePath, d.Transport, d.SmartBus,
 		d.InterfaceSpeed, nullUint(d.CapacityBytes), nullInt(d.Rotation), d.WWN, available,
 		d.Error, d.Health, d.HealthRationale, d.Score, nullInt(d.TemperatureC),
 		started.UnixMilli(), ended.UnixMilli(), lastScan,
-		encodeMountpoints(d.Mountpoints), d.Fstype)
+		encodeMountpoints(d.Mountpoints), d.Fstype, nullBool(d.Removable), d.FsVersion)
 	if err != nil {
 		return fmt.Errorf("upsert device %s: %w", d.Serial, err)
 	}
@@ -243,10 +254,12 @@ SELECT d.serial, d.model, d.model_family, d.firmware, d.device_path, d.transport
        d.interface_speed, d.rotation, d.capacity_bytes, d.wwn, d.smart_available,
        d.smart_error, d.health, d.health_rationale, d.score, d.temperature_c,
        d.first_seen, d.last_seen, d.last_scan, d.is_missing,
-       d.mountpoints, d.fstype,
+       d.mountpoints, d.fstype, d.removable, d.fs_version,
+       COALESCE(t.smart_d, ''),
        COALESCE(n.name, ''), COALESCE(n.notes, ''), COALESCE(n.tags, ''), COALESCE(n.hidden, 0)
 FROM devices d
-LEFT JOIN device_notes n ON n.serial = d.serial`
+LEFT JOIN device_notes n ON n.serial = d.serial
+LEFT JOIN device_transport_overrides t ON t.serial = d.serial`
 
 // ListDevices returns every known device, worst health first.
 func (s *Store) ListDevices(ctx context.Context) ([]DeviceRecord, error) {
@@ -286,6 +299,7 @@ func scanDevice(r rowScanner) (DeviceRecord, error) {
 	var (
 		rec                               DeviceRecord
 		rotation, capacity, temperature   sql.NullInt64
+		removable                         sql.NullInt64
 		lastScan                          sql.NullInt64
 		firstSeen, lastSeen               int64
 		smartAvailable, isMissing, hidden int64
@@ -296,7 +310,8 @@ func scanDevice(r rowScanner) (DeviceRecord, error) {
 		&rec.SmartBus, &rec.InterfaceSpeed, &rotation, &capacity, &rec.WWN, &smartAvailable,
 		&rec.SmartError, &rec.Health, &rec.HealthRationale, &rec.Score, &temperature,
 		&firstSeen, &lastSeen, &lastScan, &isMissing,
-		&mountpoints, &rec.Fstype,
+		&mountpoints, &rec.Fstype, &removable, &rec.FsVersion,
+		&rec.TransportOverride,
 		&rec.Name, &rec.Notes, &rec.Tags, &hidden,
 	)
 	if err != nil {
@@ -306,6 +321,7 @@ func scanDevice(r rowScanner) (DeviceRecord, error) {
 	rec.Rotation = intPtr(rotation)
 	rec.CapacityBytes = uint64Ptr(capacity)
 	rec.TemperatureC = intPtr(temperature)
+	rec.Removable = boolPtr(removable)
 	rec.SmartAvailable = smartAvailable != 0
 	rec.IsMissing = isMissing != 0
 	rec.Hidden = hidden != 0
@@ -336,6 +352,24 @@ func decodeMountpoints(s string) []string {
 		return nil
 	}
 	return out
+}
+
+// nullBool stores a tri-state flag, where nil (nobody said) is SQL NULL rather than
+// a false that would read as a definite "no".
+func nullBool(b *bool) any {
+	if b == nil {
+		return nil
+	}
+	return boolInt(*b)
+}
+
+// boolPtr reads a tri-state flag back, where SQL NULL means "not reported".
+func boolPtr(v sql.NullInt64) *bool {
+	if !v.Valid {
+		return nil
+	}
+	b := v.Int64 != 0
+	return &b
 }
 
 // Notes is the user-entered metadata for a device.

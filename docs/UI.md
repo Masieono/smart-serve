@@ -127,13 +127,14 @@ picker offers exactly `ThemeNames`.
 | Component | Notes |
 |---|---|
 | **Verdict badge** | Pill: icon + word + colour (`good`/`caution`/`bad`/`unknown`). Colour is never the only signal. |
-| **Health gauge** | Circular SVG ring, 0–100 + grade. Colour = band. Hover/tap → penalty breakdown popover (§8.4 of `SMART_INTERPRETATION.md`). |
-| **Device card** | Name (user), model, capacity, verdict badge, small gauge, temperature, transport icon (USB vs internal), mountpoint(s), "last scanned". Actions: open, scan-this, hide. A card whose drive is absent from the latest scan shows a *Not connected* badge and is dimmed. |
+| **Health gauge** | Circular SVG ring, 0–100 + grade. Colour = band. Sized from the `size` argument, never from CSS — a bare `svg` rule would override its width/height attributes. |
+| **Device card** | Name (user), model, capacity, verdict badge, small gauge, temperature, transport icon (USB vs internal), mountpoint(s), "last scanned". Actions: open, scan-this, hide. A card whose drive is absent from the latest scan shows a *Not connected* badge and is dimmed; a drive that cannot report S.M.A.R.T. shows a *No S.M.A.R.T.* badge and no gauge. |
 | **Devices header** | One card holding the page title, the clickable verdict counts and the search box. The counts are a filter for the grid below, so they sit beside the thing they filter instead of in a row of their own. |
 | **Attribute table** | Sortable, zebra rows; ID / name / value / worst / threshold / interpreted raw / status dot; per-attribute help tooltip ("what is this?"). |
-| **Sparkline / trend card** | Inline SVG per metric (health score, temperature, power-on hours, wear) with the current value and the change across the window, plus a 7 / 30 / 90 day / all range selector. A row with fewer than two readings is dropped — one point is not a trend. |
+| **Sparkline / trend card** | Inline SVG per metric (health score, temperature, power-on hours, wear) with the current value and the change across the window, plus a 7 / 30 / 90 day / all range selector. Hovering (or arrowing, when focused) shows a marker and a readout of the value and timestamp for that reading. A row with fewer than two readings is dropped — one point is not a trend. |
+| **Notice** | A neutral panel for an explanation that is not a fault — currently "this drive does not report S.M.A.R.T.", with the transport-override control. Deliberately not an error box: the drive is not failing. |
 | **Export dialog** | One row per format (plain text / web page / spreadsheet / JSON) with what each is for, rather than a single button that silently picks one. |
-| **Settings grid** | The settings cards sit two-up where there is room. Each row keeps its label and explanation on the left and its control on the right, so every value lands in one column; two columns halve the dead space between them without making the controls cramped. |
+| **Settings grid** | One auto-fitting grid: three cards side by side where there is room, stacked where there is not. Each row keeps its label and explanation on the left and its control on the right, so every value lands in one column; the columns halve the dead space between them without making the controls cramped. |
 | **Scan button** | Primary action. States: idle · scanning (spinner + "3/5 devices") · done (toast). |
 | **Toasts** | Scan complete, saved, notification sent; auto-dismiss, stacked. |
 | **Dialogs / sheets** | Schedule editor, channel editor, maintenance window, transport override, export, confirmations. Full-screen sheets on mobile. |
@@ -158,20 +159,44 @@ picker offers exactly `ThemeNames`.
   carrying a *Not connected* badge instead of a verdict. They are excluded from the
   summary-bar counts, so a vanished drive can never silently flatter the health
   totals.
+- **No S.M.A.R.T.:** a drive that is present but cannot report S.M.A.R.T. at all
+  carries a *No S.M.A.R.T.* badge, not *Unknown* — "unknown" would read as "we have
+  not worked it out yet", when the truth is that most USB flash drives and card
+  readers simply do not implement it. Its health ring is omitted rather than drawn
+  permanently empty, since there is no score to draw.
 
 ### 7.2 Device detail
 - **Header:** editable inline name, model, serial, firmware, capacity, drive age.
 - **Health block:** large gauge + verdict badge + plain-language rationale
   ("5 pending sectors").
+- **Two columns.** The page is a pair of two-up grids: **Identity** beside **Usage and
+  media**, then the trend card beside the attribute table. Each card holds its own
+  heading and content in a `.card.stack`, so the internal spacing comes from the
+  container's gap and never from a per-heading margin — the thing that made two
+  otherwise identical cards look unevenly spaced.
 - **Identity card:** model, model family, serial, firmware, capacity, interface
-  speed, transport, rotation, WWN, device path.
+  speed, transport, rotation, removable, WWN, device path.
 - **Usage and media card:** power-on hours, power cycles, temperature, total data
   read / written, life remaining, mountpoints, filesystem, first seen, last scanned.
   Throughput and power figures come from the API's derived `metrics` block
   (`API.md`), so ATA and NVMe drives read identically.
 - **Mountpoints / Filesystem:** taken from the disk's *partitions* — a whole-disk
   node is never mounted itself (`DATA_MODEL.md`). Filesystem shows every distinct
-  type found, e.g. `ext4, vfat`.
+  type found, e.g. `ext4, vfat`, followed by the filesystem version when lsblk
+  reports one (`exfat 1.0`).
+- **Drives with no S.M.A.R.T.:** instead of a raw smartctl error the page shows a
+  **notice** — a neutral panel, not an error box — saying the drive does not report
+  S.M.A.R.T., why (most USB flash drives and card readers do not implement it, and
+  some bridges do not pass it through), and that the identity, capacity and
+  filesystem shown come from the operating system rather than the drive. The same
+  panel offers the one thing that sometimes fixes it: a per-device `smartctl -d`
+  transport override with **Apply & rescan**, for a real SSD or HDD sitting behind a
+  USB bridge. The override is shown as currently set, not merely offered.
+- **Trend hover readout:** hovering a sparkline shows a vertical marker at the
+  nearest reading plus a readout of its value and timestamp; the ends are anchored
+  rather than centred so the readout cannot run off the card. Arrow keys step
+  through the readings and `Esc`/blur dismisses it, so the figures are reachable
+  without a mouse.
 - **Attribute table** (§6) — for NVMe, the full health log: critical warning,
   spare, percentage used, data units read/written (count **and** humanised size),
   host read/write commands, controller busy time, power cycles/hours, unsafe
@@ -191,11 +216,24 @@ picker offers exactly `ThemeNames`.
 - Channel list with type icon, label, enabled toggle, "send test".
 - Channel editor: type-specific fields (ntfy server/topic/token; webhook URL/method/
   headers); event-subscription checkboxes.
+- **Save & test** in the editor footer stores the channel and sends one event through it
+  in a single step — the quickest way to tell a bad token from a bad URL, and it works on
+  a channel that has not been saved yet. It remembers the id it created, so a second
+  press updates that channel instead of creating another.
 - Recent-deliveries log (sent / failed / squelched).
+- **Even spacing.** The channel grid, the deliveries log and the maintenance-window card
+  are siblings in the page column and are spaced by that column's gap alone. No card
+  carries a vertical margin of its own, and paragraphs carry none either (`p` is reset
+  in the stylesheet) — a browser-default paragraph margin on top of the flex gap is
+  exactly what made cards containing a `<p>` look differently spaced from those that
+  did not.
 
 ### 7.5 Settings
-- Grouped sections: **Health thresholds**, **Alerts and retention**, **Appearance**,
-  **About**.
+- Grouped sections: **Health thresholds**, **Alerts and retention**, **Appearance**.
+- **Three columns** at wide widths. All three cards live in one auto-fitting grid, so a
+  wide screen shows them side by side and a narrow one stacks them, with no breakpoint
+  to keep in sync. The narrow column is also what keeps a label and its control from
+  drifting to opposite ends of the page.
 - Numeric settings are a **list of rows**, not a grid of labelled boxes: the label and
   its explanation sit together on the left and the control is right-aligned, so every
   value lands in one column and the page can be scanned and compared at a glance. Each
@@ -209,7 +247,11 @@ picker offers exactly `ThemeNames`.
   Switching the unit re-renders the row, carrying unsaved values across in Celsius so
   nothing typed is silently reinterpreted.
 - Alert text follows the same unit, so a notification and the UI never disagree.
-- **About** shows the version and notes that the app never writes to a drive.
+- There is deliberately **no About card**. The version and the "never writes to a drive"
+  note sit in the sidebar footer, under **Scan now**, beside "Data reflects the last
+  scan." — the place a reader already looks to check how current the numbers are. On
+  their own in a card on the settings page they read as an afterthought, and they are
+  not settings.
 
 ## 8. Interaction & feedback
 

@@ -44,6 +44,9 @@ manual one does not (the operator who pressed the button already knows).
       "hidden": false,
       "mountpoints": ["/"],
       "fstype": "ext4",
+      "fs_version": "1.0",
+      "removable": false,
+      "smart_d": "sat",
       "last_scan": 1730000000000,
       "is_missing": false
     }
@@ -55,6 +58,11 @@ manual one does not (the operator who pressed the button already knows).
 `mountpoints` / `fstype` are aggregated from the disk **and its partitions**: on Linux a
 whole-disk node (`/dev/nvme0n1`) is never itself mounted, so a disk whose partitions are
 mounted at `/` and `/home` reports `["/", "/home"]`.
+
+`fs_version`, `removable` and `smart_d` describe drives that report no S.M.A.R.T. at all
+(`FEATURES.md` A22). `removable` is omitted when lsblk did not say, so a client can tell
+"fixed media" from "unknown"; `smart_d` is the remembered per-device `smartctl -d`
+override, omitted when none is set.
 
 ### `GET /api/devices/{serial}` — full device detail
 

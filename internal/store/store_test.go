@@ -70,6 +70,70 @@ func TestOpenIsIdempotent(t *testing.T) {
 	}
 }
 
+// The upgrade path for a database created before a migration existed: the ALTERs have
+// to re-apply cleanly and leave existing rows intact.
+func TestMigrationsApplyToAnExistingDatabase(t *testing.T) {
+	ctx := context.Background()
+	path := filepath.Join(t.TempDir(), "upgrade.db")
+
+	s, err := Open(ctx, path)
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	if _, err := s.SaveScan(ctx, "manual", time.Now(), time.Now(), []ScannedDevice{
+		{Serial: "OLD", Model: "scanned before 0004", Health: "good", Score: 100},
+	}); err != nil {
+		t.Fatalf("SaveScan: %v", err)
+	}
+
+	// Rewind to the pre-0004 shape: the columns gone, the version forgotten.
+	for _, stmt := range []string{
+		`ALTER TABLE devices DROP COLUMN removable`,
+		`ALTER TABLE devices DROP COLUMN fs_version`,
+		`DELETE FROM schema_version WHERE version = 4`,
+	} {
+		if _, err := s.db.ExecContext(ctx, stmt); err != nil {
+			t.Fatalf("%s: %v", stmt, err)
+		}
+	}
+	s.Close()
+
+	upgraded, err := Open(ctx, path)
+	if err != nil {
+		t.Fatalf("reopen: %v", err)
+	}
+	t.Cleanup(func() { upgraded.Close() })
+
+	// The re-applied migration must not have cost us the existing row.
+	rec, err := upgraded.GetDevice(ctx, "OLD")
+	if err != nil {
+		t.Fatalf("GetDevice after upgrade: %v", err)
+	}
+	if rec.Model != "scanned before 0004" || rec.Score != 100 {
+		t.Errorf("existing row lost: %+v", rec)
+	}
+	// A row written before the columns existed reads as "not reported", never as a
+	// definite "no" — that is the whole reason removable is nullable.
+	if rec.Removable != nil || rec.FsVersion != "" {
+		t.Errorf("pre-0004 row should read as not reported: removable=%v fsver=%q",
+			rec.Removable, rec.FsVersion)
+	}
+
+	yes := true
+	if _, err := upgraded.SaveScan(ctx, "manual", time.Now(), time.Now(), []ScannedDevice{
+		{Serial: "NEW", Model: "after 0004", Removable: &yes, FsVersion: "1.0", Health: "good", Score: 100},
+	}); err != nil {
+		t.Fatalf("SaveScan after upgrade: %v", err)
+	}
+	rec, err = upgraded.GetDevice(ctx, "NEW")
+	if err != nil {
+		t.Fatalf("GetDevice: %v", err)
+	}
+	if rec.Removable == nil || !*rec.Removable || rec.FsVersion != "1.0" {
+		t.Errorf("post-upgrade write did not land: %+v", rec)
+	}
+}
+
 func TestSaveScanAndListDevices(t *testing.T) {
 	ctx := context.Background()
 	s := newTestStore(t)

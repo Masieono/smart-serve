@@ -23,7 +23,7 @@ avoid idle cost.
 | A8 | Copy / export S.M.A.R.T. report | MVP | 💤 | **done** — plain text, self-contained web page, `field,value` spreadsheet, or JSON, chosen from an Export dialog |
 | A9 | Health summary bar (n good / n caution / n bad) | MVP | 💤 | **done** — folded into the Devices header as a compact clickable list beside the title and search box |
 | A10 | Raw `smartctl` output viewer (diagnostics toggle) | MVP | 💤 | vital for USB bridge quirks |
-| A11 | Per-device transport override (`-d sat`, …) | MVP | 💤 | manual fix for stubborn bridges |
+| A11 | Per-device transport override (`-d sat`, …) | MVP | 💤 | **done** — offered on the device page for any drive whose S.M.A.R.T. cannot be read, and shown as currently set |
 | A12 | Attribute help tooltips ("what is Reallocated Sectors?") | MVP | 💤 | educational, CDI-like |
 | A13 | Scan history log (durations, per-device errors) | MVP | 💤 | |
 | A14 | Degradation trend detection ("worsening" early-warning badge) | P2 | 💤 | `SMART_INTERPRETATION.md` §5 |
@@ -34,6 +34,32 @@ avoid idle cost.
 | A19 | SMART self-test (manual short/long + scheduled) + self-test log | P2 | ⚠ | **eventually — opt-in only, see below** |
 | A20 | SMART error log display | P2 | 🔌 | ATA error log / NVMe error log |
 | A21 | Drive knowledge base (rated TBW, known firmware advisories) | P3 | 💤 | bundled static table; opt-in in-app refresh |
+| A22 | Usable support for drives with no S.M.A.R.T. (USB flash drives, card readers) | P2 | 💤 | **done** — see below |
+
+### A22 — Drives with no S.M.A.R.T.
+
+Most USB flash drives and card readers do not implement S.M.A.R.T. at all, and some USB
+bridges do not pass it through. `smartctl` fails on them, which used to mean the app
+showed a raw error and nothing else. It cannot invent health data, so it does the two
+things that are actually available:
+
+- **Say so plainly.** The device page shows a neutral **notice**, not an error box: the
+  drive does not report S.M.A.R.T., here is why, and the identity, capacity, filesystem
+  and mountpoints shown come from the operating system rather than the drive. The
+  dashboard card carries a *No S.M.A.R.T.* badge instead of *Unknown*, which would read
+  as "not worked out yet", and no health ring is drawn because there is no score to draw.
+- **Report the facts lsblk has.** `removable`, `fs_version` and lsblk's `REV` (used as
+  the firmware revision when smartctl cannot supply one) are stored alongside the rest.
+  For a flash drive these are most of what can be said about it, and they cost nothing —
+  `lsblk` already ran.
+
+The notice also carries the per-device `-d` **transport override** (`A11`), because a
+real SSD or HDD inside a USB enclosure usually *does* have S.M.A.R.T. and just needs the
+right bridge protocol.
+
+Deliberately **not** done: filesystem-usage graphs, write/read benchmarks, or a synthetic
+health score for a drive that reports nothing. Those would be inventing data the drive
+never provided, which is exactly the failure mode this app exists to avoid.
 
 ### A19 — SMART self-test: how it should behave when it lands
 

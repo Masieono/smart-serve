@@ -28,9 +28,13 @@ const PATHS = {
 /** Build an icon element. Decorative by default (aria-hidden). */
 export function icon(name, extraClass = '') {
   const body = PATHS[name] || PATHS.help;
+  // Always carries a base class: the stylesheet sizes icons through `.icon` rather
+  // than a bare `svg` selector, which would override the width/height *attributes*
+  // of the gauge and the sparkline.
+  const classes = extraClass ? `icon ${extraClass}` : 'icon';
   const node = svg(
     `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" ` +
-      `stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="${extraClass}">${body}</svg>`,
+      `stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="${classes}">${body}</svg>`,
   );
   return node;
 }

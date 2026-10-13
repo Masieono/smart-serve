@@ -74,7 +74,16 @@ export class StubNode {
 
   dispatch(type, event = {}) {
     for (const handler of [...(this.listeners.get(type) || [])]) {
-      handler({ type, target: this, currentTarget: this, ...event });
+      // preventDefault/stopPropagation are part of the contract handlers rely on, so
+      // the stub provides them rather than letting a real handler throw.
+      handler({
+        type,
+        target: this,
+        currentTarget: this,
+        preventDefault() {},
+        stopPropagation() {},
+        ...event,
+      });
     }
   }
 

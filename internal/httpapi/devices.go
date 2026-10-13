@@ -32,14 +32,21 @@ type deviceJSON struct {
 	SmartError      string   `json:"smart_error,omitempty"`
 	Mountpoints     []string `json:"mountpoints"`
 	Fstype          string   `json:"fstype,omitempty"`
-	Name            string   `json:"name"`
-	Notes           string   `json:"notes"`
-	Tags            string   `json:"tags"`
-	Hidden          bool     `json:"hidden"`
-	FirstSeen       string   `json:"first_seen"`
-	LastSeen        string   `json:"last_seen"`
-	LastScan        *string  `json:"last_scan"`
-	IsMissing       bool     `json:"is_missing"`
+	// Removable and FsVersion come from lsblk. For a drive that reports no S.M.A.R.T.
+	// they are often the only description there is.
+	Removable *bool  `json:"removable,omitempty"`
+	FsVersion string `json:"fs_version,omitempty"`
+	// SmartD is the remembered `smartctl -d` for this drive, so the UI can show which
+	// override is active rather than only offering to set one.
+	SmartD    string  `json:"smart_d,omitempty"`
+	Name      string  `json:"name"`
+	Notes     string  `json:"notes"`
+	Tags      string  `json:"tags"`
+	Hidden    bool    `json:"hidden"`
+	FirstSeen string  `json:"first_seen"`
+	LastSeen  string  `json:"last_seen"`
+	LastScan  *string `json:"last_scan"`
+	IsMissing bool    `json:"is_missing"`
 }
 
 func toDeviceJSON(d store.DeviceRecord) deviceJSON {
@@ -54,6 +61,9 @@ func toDeviceJSON(d store.DeviceRecord) deviceJSON {
 		CapacityBytes:   d.CapacityBytes,
 		WWN:             d.WWN,
 		Rotation:        d.Rotation,
+		Removable:       d.Removable,
+		FsVersion:       d.FsVersion,
+		SmartD:          d.TransportOverride,
 		Health:          d.Health,
 		HealthRationale: d.HealthRationale,
 		Score:           d.Score,

@@ -128,6 +128,37 @@ func TestEveryThemeNameHasAPalette(t *testing.T) {
 	}
 }
 
+// A bare `svg { … }` rule overrides the width/height *attributes* of every SVG in
+// the document, because CSS beats presentation attributes. That is exactly how the
+// health gauge silently shrank to the icon size, so the rule stays scoped to .icon.
+func TestStylesheetDoesNotStyleBareSVG(t *testing.T) {
+	raw, err := fs.ReadFile(assets, "assets/styles/components.css")
+	if err != nil {
+		t.Fatalf("read components.css: %v", err)
+	}
+	for i, line := range strings.Split(string(raw), "\n") {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "svg {" || strings.HasPrefix(trimmed, "svg,") || strings.HasPrefix(trimmed, "svg ") {
+			t.Errorf("components.css:%d styles a bare svg selector (%q); "+
+				"it would override the gauge and sparkline attributes", i+1, trimmed)
+		}
+	}
+}
+
+// Paragraph margins are reset in the stylesheet, so spacing comes from the
+// container's gap. Without the reset, two otherwise identical cards space unevenly
+// depending on whether they happen to contain a <p>.
+func TestStylesheetResetsParagraphMargins(t *testing.T) {
+	raw, err := fs.ReadFile(assets, "assets/styles/components.css")
+	if err != nil {
+		t.Fatalf("read components.css: %v", err)
+	}
+	sheet := string(raw)
+	if !strings.Contains(sheet, "p {\n  margin: 0;\n}") {
+		t.Error("components.css no longer resets paragraph margins; cards will space unevenly")
+	}
+}
+
 // A duplicated name would silently shadow one entry in the picker.
 func TestThemeNamesAreUnique(t *testing.T) {
 	seen := map[string]bool{}

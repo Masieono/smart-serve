@@ -1,5 +1,5 @@
 // Shared UI components (docs/UI.md §6).
-import { el, svg, fmtBytes, fmtTemp, fmtScore, fmtAgo, scoreGrade, scoreBand, verdictClass } from './dom.js';
+import { el, svg, fmtBytes, fmtTemp, fmtScore, fmtAgo, fmtDateTime, scoreGrade, scoreBand, verdictClass } from './dom.js';
 import { icon } from './icons.js';
 
 const VERDICT_LABEL = { good: 'Good', caution: 'Caution', bad: 'Bad', unknown: 'Unknown' };
@@ -72,24 +72,75 @@ export function sparkLine(values, height = 40) {
 }
 
 /**
- * Inline SVG sparkline. Deliberately minimal — no axes, no labels — because the
- * point is the shape and the numbers beside it carry the detail.
+ * Inline SVG sparkline with a hover readout.
  *
- * `band` colours the line by health (good/caution/bad) so a trend is readable at a
- * glance; without it the line uses the neutral data-visualisation colour.
+ * Deliberately minimal — no axes, no labels — because the point is the shape. Hovering
+ * (or arrowing with the keyboard) gives the exact figure for one reading without
+ * putting numbers on the line.
+ *
+ * `points` are `{ts, value}` in time order; `format(value)` renders the readout.
  */
-export function sparkline(values, opts = {}) {
-  const { height = 40, band = null } = opts;
-  const line = sparkLine(values, height);
-  if (!line) return null;
+export function sparkline(points, opts = {}) {
+  const { height = 40, band = null, format = (v) => String(v) } = opts;
+  const usable = (points || []).filter((p) => typeof p.value === 'number' && Number.isFinite(p.value));
+  if (usable.length < 2) return null;
+
+  const line = sparkLine(usable.map((p) => p.value), height);
   const stroke = band ? `spark-${band}` : 'spark';
 
-  return svg(
-    `<svg class="sparkline" viewBox="0 0 ${SPARK_WIDTH} ${height}" preserveAspectRatio="none" aria-hidden="true">` +
-      `<path class="spark-area" d="${line} L${SPARK_WIDTH} ${height} L0 ${height} Z"/>` +
-      `<path class="${stroke}" d="${line}" vector-effect="non-scaling-stroke"/>` +
-      `</svg>`,
-  );
+  const marker = el('div', { class: 'spark-marker', hidden: true });
+  const readout = el('div', { class: 'spark-readout', hidden: true });
+  const plot = el('div', { class: 'spark-plot', tabindex: '0', role: 'img',
+    'aria-label': `${usable.length} readings, ${format(usable[0].value)} to ${format(usable[usable.length - 1].value)}` }, [
+    svg(
+      `<svg class="sparkline" viewBox="0 0 ${SPARK_WIDTH} ${height}" preserveAspectRatio="none" aria-hidden="true">` +
+        `<path class="spark-area" d="${line} L${SPARK_WIDTH} ${height} L0 ${height} Z"/>` +
+        `<path class="${stroke}" d="${line}" vector-effect="non-scaling-stroke"/>` +
+        `</svg>`,
+    ),
+    marker,
+    readout,
+  ]);
+
+  const show = (index) => {
+    const point = usable[index];
+    const percent = (index / (usable.length - 1)) * 100;
+    marker.hidden = false;
+    marker.style.left = `${percent}%`;
+    readout.hidden = false;
+    readout.style.left = `${percent}%`;
+    // Anchored at the ends rather than centred, so the readout never runs off the card.
+    readout.dataset.edge = index === 0 ? 'start' : index === usable.length - 1 ? 'end' : 'mid';
+    readout.textContent = `${format(point.value)} · ${fmtDateTime(point.ts)}`;
+  };
+
+  const hide = () => {
+    marker.hidden = true;
+    readout.hidden = true;
+  };
+
+  // The plot is stretched to its container, so the index comes from the pointer's
+  // position within the *element* rather than from the SVG's own coordinate space.
+  const indexFromX = (clientX) => {
+    const box = plot.getBoundingClientRect();
+    if (!box.width) return 0;
+    const ratio = Math.max(0, Math.min(1, (clientX - box.left) / box.width));
+    return Math.round(ratio * (usable.length - 1));
+  };
+
+  let cursor = usable.length - 1;
+  plot.addEventListener('mousemove', (event) => show(indexFromX(event.clientX)));
+  plot.addEventListener('mouseleave', hide);
+  plot.addEventListener('focus', () => show(cursor));
+  plot.addEventListener('blur', hide);
+  plot.addEventListener('keydown', (event) => {
+    if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+    event.preventDefault();
+    cursor = Math.max(0, Math.min(usable.length - 1, cursor + (event.key === 'ArrowRight' ? 1 : -1)));
+    show(cursor);
+  });
+
+  return plot;
 }
 
 // The viewBox width is fixed and the element is stretched to its container, so a
@@ -101,12 +152,11 @@ const SPARK_WIDTH = 240;
  * Rows with fewer than two readings are dropped — a single point is not a trend.
  */
 export function trendRow(metric, points) {
-  const values = points.map((p) => p.value);
-  if (values.length < 2) return null;
+  const usable = (points || []).filter((p) => typeof p.value === 'number' && Number.isFinite(p.value));
+  if (usable.length < 2) return null;
 
-  const first = values[0];
-  const last = values[values.length - 1];
-  const change = metric.delta ? metric.delta(last - first, points) : null;
+  const last = usable[usable.length - 1].value;
+  const change = metric.delta ? metric.delta(last - usable[0].value, usable) : null;
 
   return el('div', { class: 'trend-row' }, [
     el('div', { class: 'trend-head' }, [
@@ -115,7 +165,7 @@ export function trendRow(metric, points) {
       el('span', { class: 'trend-value', text: metric.format(last) }),
       change ? el('span', { class: `trend-delta ${change.tone}`, text: change.text }) : null,
     ]),
-    sparkline(values, { band: metric.band ? scoreBand(last) : null }),
+    sparkline(usable, { band: metric.band ? scoreBand(last) : null, format: metric.format }),
   ]);
 }
 
@@ -160,6 +210,26 @@ export function transportLabel(device) {
   return t || 'unknown';
 }
 
+/**
+ * The status pill for a device card.
+ *
+ * Three different situations, and conflating them would mislead: the drive is gone,
+ * the drive is present but cannot report S.M.A.R.T. at all, or the drive reported a
+ * verdict. "Unknown" is right for none of the first two.
+ */
+function statusBadge(device) {
+  if (device.is_missing) {
+    return el('span', { class: 'badge badge-unknown' }, [icon('help'), 'Not connected']);
+  }
+  if (device.smart_available === false) {
+    return el('span', {
+      class: 'badge badge-unknown',
+      title: 'This drive does not report S.M.A.R.T. — most USB flash drives cannot.',
+    }, [icon('help'), 'No S.M.A.R.T.']);
+  }
+  return verdictBadge(device.health);
+}
+
 export function deviceCard(device, onOpen, onScan) {
   const title = device.name || device.model || device.device_path || device.serial;
   const mounted = device.mountpoints && device.mountpoints.length
@@ -197,12 +267,12 @@ export function deviceCard(device, onOpen, onScan) {
           text: `${device.model || '—'}${device.device_path ? ` · ${device.device_path}` : ''}`,
         }),
       ]),
-      device.is_missing
-        ? el('span', { class: 'badge badge-unknown' }, [icon('help'), 'Not connected'])
-        : verdictBadge(device.health),
+      statusBadge(device),
     ]),
     el('div', { class: 'device-card-body' }, [
-      healthGauge(device.score, 88),
+      // A drive that cannot report S.M.A.R.T. has no score to draw, so the ring is
+      // omitted rather than shown permanently empty.
+      device.smart_available === false ? null : healthGauge(device.score, 88),
       el('div', { class: 'kv' }, rows.flatMap(([label, value]) => [
         el('span', { class: 'kv-label', text: label }),
         el('span', { class: 'kv-value', text: value, title: value }),

@@ -49,6 +49,61 @@ func TestSaveScanUpdatesAndMarksMissing(t *testing.T) {
 	}
 }
 
+// The lsblk facts exist mainly for drives that report no S.M.A.R.T., so they have to
+// survive a round trip — including the difference between "not removable" and "lsblk
+// did not say", which is why removable is a pointer rather than a bool.
+func TestSaveScanStoresLsblkFacts(t *testing.T) {
+	ctx := context.Background()
+	s := newTestStore(t)
+
+	yes, no := true, false
+	at := time.Date(2026, 3, 1, 9, 0, 0, 0, time.UTC)
+	if _, err := s.SaveScan(ctx, "manual", at, at, []ScannedDevice{
+		{Serial: "STICK", Model: "USB DISK 3.0", Removable: &yes, FsVersion: "1.0",
+			Fstype: "exfat", Firmware: "PMAP", Health: "unknown", Score: -1,
+			Error: "SMART support is: Unavailable"},
+		{Serial: "FIXED", Model: "SSD", Removable: &no, Health: "good", Score: 100},
+		{Serial: "OLD", Model: "scanned before 0004", Health: "good", Score: 100},
+	}); err != nil {
+		t.Fatalf("SaveScan: %v", err)
+	}
+
+	stick, err := s.GetDevice(ctx, "STICK")
+	if err != nil {
+		t.Fatalf("GetDevice: %v", err)
+	}
+	if stick.Removable == nil || !*stick.Removable {
+		t.Errorf("removable = %v, want true", stick.Removable)
+	}
+	if stick.Fstype != "exfat" || stick.FsVersion != "1.0" {
+		t.Errorf("filesystem = %q %q, want exfat 1.0", stick.Fstype, stick.FsVersion)
+	}
+	// lsblk's REV fills the firmware gap when smartctl cannot be read.
+	if stick.Firmware != "PMAP" {
+		t.Errorf("firmware = %q, want PMAP", stick.Firmware)
+	}
+	if stick.SmartAvailable {
+		t.Error("a drive whose smartctl read failed must not be S.M.A.R.T.-available")
+	}
+
+	fixed, err := s.GetDevice(ctx, "FIXED")
+	if err != nil {
+		t.Fatalf("GetDevice: %v", err)
+	}
+	if fixed.Removable == nil || *fixed.Removable {
+		t.Errorf("removable = %v, want false", fixed.Removable)
+	}
+
+	// "Not reported" must stay distinguishable from a definite "no".
+	old, err := s.GetDevice(ctx, "OLD")
+	if err != nil {
+		t.Fatalf("GetDevice: %v", err)
+	}
+	if old.Removable != nil {
+		t.Errorf("removable = %v, want nil when nobody said", *old.Removable)
+	}
+}
+
 func TestSaveScanRecordsSnapshots(t *testing.T) {
 	ctx := context.Background()
 	s := newTestStore(t)

@@ -17,7 +17,7 @@ history — is one file that can be backed up with `cp` while the app is stopped
 | `serial` | TEXT UNIQUE | primary identity; `__nomodel:<model>` fallback when serial is empty |
 | `model` | TEXT | e.g. `Samsung SSD 870 EVO 1TB` |
 | `model_family` | TEXT NULL | |
-| `firmware` | TEXT NULL | firmware revision (migration 0003); useful for spotting known-bad firmware |
+| `firmware` | TEXT NULL | firmware revision (migration 0003); useful for spotting known-bad firmware. Falls back to lsblk's `REV` when smartctl cannot be read — the only value a drive with no S.M.A.R.T. has |
 | `device_path` | TEXT | last-seen path, e.g. `/dev/sda` — informational only, never identity |
 | `transport` | TEXT | `sata`, `nvme`, `usb`, `sas`… |
 | `smart_bus` | TEXT | `ata`, `nvme`, `scsi` |
@@ -27,6 +27,8 @@ history — is one file that can be backed up with `cp` while the app is stopped
 | `wwn` | TEXT NULL | |
 | `mountpoints` | TEXT | JSON array, aggregated from the disk **and its partitions** — a whole-disk node is never mounted itself, so partitions are the only source of this |
 | `fstype` | TEXT NULL | comma-separated filesystem types, aggregated the same way |
+| `fs_version` | TEXT NULL | filesystem versions (`1.0`, `FAT32`…), aggregated the same way (migration 0004) |
+| `removable` | INTEGER NULL | lsblk's `rm` (migration 0004). **Nullable on purpose**: `0` is "fixed media" and `NULL` is "nobody said", and a flash drive is a different thing from a fixed disk |
 | `smart_available` | INTEGER | 0 when device present in lsblk but SMART unreadable |
 | `smart_error` | TEXT NULL | capture failure reason |
 | `health` | TEXT | `good` / `caution` / `bad` / `unknown` (see SMART_INTERPRETATION.md) |

@@ -21,7 +21,11 @@ type Discovered struct {
 	Removable   bool     `json:"removable"`
 	Rotational  bool     `json:"rotational"`
 	WWN         string   `json:"wwn,omitempty"`
-	SmartType   string   `json:"smart_type,omitempty"` // smartctl -d transport hint
+	// Rev and FsVersion come from lsblk alone. They are the only firmware and
+	// filesystem detail available for a drive that reports no S.M.A.R.T.
+	Rev       string `json:"rev,omitempty"`
+	FsVersion string `json:"fs_version,omitempty"`
+	SmartType string `json:"smart_type,omitempty"` // smartctl -d transport hint
 }
 
 type lsblkOut struct {
@@ -37,6 +41,8 @@ type lsblkDev struct {
 	Type        string     `json:"type"`
 	Tran        *string    `json:"tran"`
 	Fstype      *string    `json:"fstype"`
+	Fsver       *string    `json:"fsver"`
+	Rev         *string    `json:"rev"`
 	Mountpoints []string   `json:"mountpoints"`
 	Rota        bool       `json:"rota"`
 	Rm          bool       `json:"rm"`
@@ -59,7 +65,7 @@ type smartScanOut struct {
 func ListDevices(ctx context.Context, timeout time.Duration) ([]Discovered, error) {
 	lsblkRes, err := Run(ctx, timeout, "lsblk",
 		"--json", "--paths", "--bytes",
-		"--output", "NAME,KNAME,MODEL,SERIAL,SIZE,TYPE,TRAN,MOUNTPOINTS,FSTYPE,ROTA,RM,WWN",
+		"--output", "NAME,KNAME,MODEL,SERIAL,SIZE,TYPE,TRAN,MOUNTPOINTS,FSTYPE,FSVER,REV,ROTA,RM,WWN",
 	)
 	if err != nil {
 		return nil, fmt.Errorf("lsblk: %w", err)
@@ -99,8 +105,8 @@ func parseLsblk(data []byte) ([]Discovered, error) {
 		}
 		// A whole disk is never mounted itself — its partitions carry the
 		// mountpoints and filesystems — so gather them from the tree.
-		var mounts, fstypes []string
-		collectTree(d, &mounts, &fstypes)
+		var mounts, fstypes, fsvers []string
+		collectTree(d, &mounts, &fstypes, &fsvers)
 
 		out = append(out, Discovered{
 			Path:        d.Name,
@@ -114,20 +120,25 @@ func parseLsblk(data []byte) ([]Discovered, error) {
 			Removable:   d.Rm,
 			Rotational:  d.Rota,
 			WWN:         deref(d.WWN),
+			Rev:         deref(d.Rev),
+			FsVersion:   strings.Join(cleanMountpoints(fsvers), ", "),
 		})
 	}
 	return out, nil
 }
 
-// collectTree walks a device and its children, gathering mountpoints and
-// filesystems (the disk's own values first, then its partitions').
-func collectTree(d lsblkDev, mounts, fstypes *[]string) {
+// collectTree walks a device and its children, gathering mountpoints, filesystems and
+// filesystem versions (the disk's own values first, then its partitions').
+func collectTree(d lsblkDev, mounts, fstypes, fsvers *[]string) {
 	*mounts = append(*mounts, d.Mountpoints...)
 	if d.Fstype != nil {
 		*fstypes = append(*fstypes, *d.Fstype)
 	}
+	if d.Fsver != nil {
+		*fsvers = append(*fsvers, *d.Fsver)
+	}
 	for _, child := range d.Children {
-		collectTree(child, mounts, fstypes)
+		collectTree(child, mounts, fstypes, fsvers)
 	}
 }
 

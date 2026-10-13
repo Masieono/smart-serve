@@ -25,6 +25,12 @@ func TestParseLsblkKeepsWholeDisksOnly(t *testing.T) {
 	if sda.Fstype != "ext4" {
 		t.Errorf("sda fstype = %q, want ext4 from its partition", sda.Fstype)
 	}
+	if sda.Rev != "1.0" {
+		t.Errorf("sda rev = %q, want 1.0", sda.Rev)
+	}
+	if sda.FsVersion != "1.0" {
+		t.Errorf("sda fsver = %q, want 1.0 from its partition", sda.FsVersion)
+	}
 
 	nvme := devices[1]
 	if nvme.Serial != "S4Y4NJ0R222807" {
@@ -42,14 +48,22 @@ func TestParseLsblkKeepsWholeDisksOnly(t *testing.T) {
 	if nvme.Fstype != "vfat, ext4" {
 		t.Errorf("nvme fstype = %q, want %q", nvme.Fstype, "vfat, ext4")
 	}
+	if nvme.FsVersion != "FAT32, 1.0" {
+		t.Errorf("nvme fsver = %q, want %q", nvme.FsVersion, "FAT32, 1.0")
+	}
 
 	// A disk with no partitions reports nothing rather than an empty string.
 	usb := devices[2]
 	if !usb.Removable || usb.Transport != "usb" || !usb.Rotational {
 		t.Errorf("usb device flags wrong: %+v", usb)
 	}
-	if len(usb.Mountpoints) != 0 || usb.Fstype != "" {
-		t.Errorf("usb mountpoints = %v, fstype = %q; want empty", usb.Mountpoints, usb.Fstype)
+	if len(usb.Mountpoints) != 0 || usb.Fstype != "" || usb.FsVersion != "" {
+		t.Errorf("usb mountpoints = %v, fstype = %q, fsver = %q; want empty",
+			usb.Mountpoints, usb.Fstype, usb.FsVersion)
+	}
+	// lsblk's REV is the only firmware revision a drive with no S.M.A.R.T. has.
+	if usb.Rev != "PMAP" {
+		t.Errorf("usb rev = %q, want PMAP", usb.Rev)
 	}
 }
 

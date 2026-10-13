@@ -298,14 +298,20 @@ func settingInt(settings map[string]string, key string, def int) int {
 
 // toStored maps a scan result onto the persistence shape.
 func toStored(d Device) store.ScannedDevice {
+	removable := d.Discovered.Removable
 	out := store.ScannedDevice{
-		Serial:          serialFor(d),
-		Model:           strings.TrimSpace(d.Discovered.Model),
-		DevicePath:      d.Discovered.Path,
-		Transport:       d.Discovered.Transport,
-		WWN:             d.Discovered.WWN,
-		Mountpoints:     d.Discovered.Mountpoints,
-		Fstype:          d.Discovered.Fstype,
+		Serial:      serialFor(d),
+		Model:       strings.TrimSpace(d.Discovered.Model),
+		DevicePath:  d.Discovered.Path,
+		Transport:   d.Discovered.Transport,
+		WWN:         d.Discovered.WWN,
+		Mountpoints: d.Discovered.Mountpoints,
+		Fstype:      d.Discovered.Fstype,
+		Removable:   &removable,
+		FsVersion:   d.Discovered.FsVersion,
+		// lsblk's REV is the only firmware revision available when smartctl cannot be
+		// read, which is exactly the case for a drive with no S.M.A.R.T.
+		Firmware:        d.Discovered.Rev,
 		Health:          string(d.Health.Verdict),
 		HealthRationale: d.Health.Rationale,
 		Score:           d.Health.Score,
@@ -315,7 +321,9 @@ func toStored(d Device) store.ScannedDevice {
 	if sd := d.Data; sd != nil {
 		out.SmartBus = string(sd.Bus)
 		out.ModelFamily = sd.ModelFamily
-		out.Firmware = sd.Firmware
+		if sd.Firmware != "" {
+			out.Firmware = sd.Firmware
+		}
 		out.InterfaceSpeed = sd.InterfaceSpeed
 		if sd.Model != "" {
 			out.Model = sd.Model

@@ -124,8 +124,11 @@ function renderSidebar(path) {
     el('div', { class: 'sidebar-foot' }, [
       el('button', { class: 'btn btn-primary', type: 'button', onclick: () => ctx.scan() },
         [icon('scan'), 'Scan now']),
-      el('div', { class: 'muted', style: 'font-size:var(--text-xs)',
-        text: 'Data reflects the last scan.' }),
+      el('div', { class: 'sidebar-note' }, [
+        el('div', { text: 'Data reflects the last scan.' }),
+        el('div', { text: `Smart-Serve ${root.dataset.version || 'dev'} · S.M.A.R.T. via smartmontools, ` +
+          'which never writes to a drive.' }),
+      ]),
     ]),
   );
 }

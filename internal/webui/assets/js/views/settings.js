@@ -226,8 +226,6 @@ function draw(container, ctx, data, { carried = {}, unit: unitOverride } = {}) {
     },
   });
 
-  const version = document.getElementById('app')?.dataset.version || 'dev';
-
   mount(container,
     el('div', { class: 'page-head' }, [
       el('div', {}, [
@@ -238,6 +236,9 @@ function draw(container, ctx, data, { carried = {}, unit: unitOverride } = {}) {
       save,
     ]),
 
+    // One grid for all three cards: auto-fit decides how many columns fit, so a wide
+    // screen gets three side by side and a narrow one stacks them. That is what keeps
+    // the gap between a label and its control from stretching across the page.
     el('div', { class: 'settings-grid' }, [
       el('div', { class: 'card stack' }, [
         el('h2', { text: 'Health thresholds' }),
@@ -253,9 +254,7 @@ function draw(container, ctx, data, { carried = {}, unit: unitOverride } = {}) {
         el('h2', { text: 'Alerts and retention' }),
         el('div', {}, operationRows),
       ]),
-    ]),
 
-    el('div', { class: 'settings-grid' }, [
       el('div', { class: 'card stack' }, [
         el('h2', { text: 'Appearance' }),
         el('div', {}, [
@@ -266,12 +265,6 @@ function draw(container, ctx, data, { carried = {}, unit: unitOverride } = {}) {
           ...customRows,
           tintRow,
         ]),
-      ]),
-
-      el('div', { class: 'card stack' }, [
-        el('h2', { text: 'About' }),
-        el('div', { class: 'muted', text: `Smart-Serve ${version}` }),
-        el('div', { class: 'muted', text: 'S.M.A.R.T. data comes from smartmontools; the app never writes to a drive.' }),
       ]),
     ]),
   );

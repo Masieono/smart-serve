@@ -63,6 +63,7 @@ function draw(container, ctx, data, history) {
     stat('Interface', d.interface_speed),
     stat('Transport', transportLabel(d)),
     stat('Rotation', d.rotation ? `${fmtInt(d.rotation)} rpm` : 'solid state'),
+    stat('Removable', yesNo(d.removable)),
     stat('WWN', d.wwn),
     stat('Device path', d.device_path),
   ], 'No identity information was reported for this drive.');
@@ -75,7 +76,9 @@ function draw(container, ctx, data, history) {
     stat('Data written', m.data_written_bytes != null ? fmtBytes(m.data_written_bytes) : null),
     stat('Life remaining', lifeText(m.life_left_pct, wearPct)),
     stat('Mountpoints', d.mountpoints && d.mountpoints.length ? d.mountpoints.join(', ') : 'not mounted'),
-    stat('Filesystem', d.fstype),
+    // The filesystem version comes from lsblk and is often all there is to say about
+    // a drive that reports no S.M.A.R.T.
+    stat('Filesystem', [d.fstype, d.fs_version].filter(Boolean).join(' ')),
     stat('First seen', fmtDateTime(d.first_seen)),
     stat('Last scanned', d.last_scan ? `${fmtAgo(d.last_scan)} (${fmtDateTime(d.last_scan)})` : 'never'),
   ], 'This drive reports no usage or media figures.');
@@ -108,45 +111,103 @@ function draw(container, ctx, data, history) {
             el('span', { class: 'muted', text: `${fmtScore(d.score)}/100 · ${scoreGrade(d.score)}` }),
           ]),
           el('div', { text: d.health_rationale || '—' }),
-          el('div', { class: 'muted', style: 'font-size:var(--text-xs)',
-            text: d.smart_available
-              ? 'S.M.A.R.T. data available'
-              : `S.M.A.R.T. unavailable: ${d.smart_error || 'unknown reason'}` }),
         ]),
+      ]),
+      d.smart_available ? null : noSmartNotice(ctx, d),
+    ]),
+
+    el('div', { class: 'settings-grid' }, [
+      el('div', { class: 'card stack' }, [
+        el('h2', { text: 'Identity' }),
+        identity,
+      ]),
+
+      el('div', { class: 'card stack' }, [
+        el('h2', { text: 'Usage and media' }),
+        usage,
       ]),
     ]),
 
-    el('div', { class: 'card' }, [
-      el('h2', { style: 'margin-bottom:var(--space-4)', text: 'Identity' }),
-      identity,
-    ]),
-
-    el('div', { class: 'card' }, [
-      el('h2', { style: 'margin-bottom:var(--space-4)', text: 'Usage and media' }),
-      usage,
-    ]),
-
-    trendCard(series, (next) => {
-      trendRange = next;
-      render(container, ctx, d.serial);
-    }),
-
-    d.notes ? el('div', { class: 'card' }, [
-      el('h2', { style: 'margin-bottom:var(--space-2)', text: 'Notes' }),
+    d.notes ? el('div', { class: 'card stack' }, [
+      el('h2', { text: 'Notes' }),
       el('p', { text: d.notes }),
     ]) : null,
 
-    el('div', { class: 'card' }, [
-      el('div', { class: 'row', style: 'margin-bottom:var(--space-3)' }, [
-        el('h2', { text: nvme ? 'NVMe health log' : 'S.M.A.R.T. attributes' }),
-        el('span', { class: 'spacer' }),
-        el('button', { class: 'btn btn-sm btn-ghost', type: 'button',
-          onclick: (e) => toggleRaw(d, e.currentTarget) }, ['Show raw output']),
+    el('div', { class: 'settings-grid' }, [
+      trendCard(series, (next) => {
+        trendRange = next;
+        render(container, ctx, d.serial);
+      }),
+
+      el('div', { class: 'card stack' }, [
+        el('div', { class: 'row' }, [
+          el('h2', { text: nvme ? 'NVMe health log' : 'S.M.A.R.T. attributes' }),
+          el('span', { class: 'spacer' }),
+          el('button', { class: 'btn btn-sm btn-ghost', type: 'button',
+            onclick: (e) => toggleRaw(d, e.currentTarget) }, ['Show raw output']),
+        ]),
+        nvme ? nvmeTable(nvme) : attributeTable(attrs),
+        el('div', { id: 'raw-holder' }),
       ]),
-      nvme ? nvmeTable(nvme) : attributeTable(attrs),
-      el('div', { id: 'raw-holder' }),
     ]),
   );
+}
+
+/** "yes" / "no" for a tri-state flag; undefined (not reported) renders no row. */
+function yesNo(value) {
+  if (value === true) return 'yes';
+  if (value === false) return 'no';
+  return null;
+}
+
+// The `-d` values smartctl accepts for the USB bridges people actually hit.
+const TRANSPORT_OVERRIDES = [
+  'sat', 'usbjmicron', 'usbcypress', 'usbsunplus', 'usb-storage', 'scsi', 'nvme', 'auto',
+];
+
+/**
+ * A drive that reports no S.M.A.R.T. is not a broken drive.
+ *
+ * Most USB flash drives and card readers simply do not implement it, and some bridges
+ * do not pass it through. The honest answer is to say so and show what the operating
+ * system could tell us, rather than presenting a raw smartctl error as though the
+ * drive had failed — and to offer the one thing that sometimes fixes it.
+ */
+function noSmartNotice(ctx, d) {
+  const transport = el('select', {}, [
+    el('option', { value: '', text: 'Auto-detect' }),
+    ...TRANSPORT_OVERRIDES.map((v) => el('option', { value: v, text: `-d ${v}` })),
+  ]);
+  transport.value = d.smart_d || '';
+
+  return el('div', { class: 'notice' }, [
+    el('div', { class: 'notice-title' }, [icon('help'), 'This drive does not report S.M.A.R.T.']),
+    el('p', { class: 'muted', text: 'Most USB flash drives and card readers do not implement it, ' +
+      'and some USB bridges do not pass it through. There is no health reading to give — but the ' +
+      'identity, capacity and filesystem above come from the operating system, not from the drive.' }),
+    el('div', { class: 'notice-action' }, [
+      el('p', { class: 'muted', text: 'If this is a hard drive or SSD inside a USB enclosure, the ' +
+        'bridge may just need the right transport. Pick one and rescan to find out.' }),
+      el('div', { class: 'row' }, [
+        transport,
+        el('button', { class: 'btn btn-sm', type: 'button', text: 'Apply & rescan',
+          onclick: async (event) => {
+            event.currentTarget.disabled = true;
+            try {
+              await api.setTransport(d.serial, transport.value);
+              await api.scanDevice(d.serial);
+              toast(transport.value ? `Rescanned with -d ${transport.value}` : 'Transport override cleared', 'good');
+              ctx.refresh();
+            } catch (err) {
+              toast(err.message, 'error');
+            } finally {
+              event.currentTarget.disabled = false;
+            }
+          } }),
+      ]),
+    ]),
+    d.smart_error ? el('p', { class: 'mono muted', text: d.smart_error }) : null,
+  ]);
 }
 
 function stat(label, value) {
