@@ -165,15 +165,20 @@ func (n *Notifier) temperatureSettings(ctx context.Context) (threshold int, unit
 	return threshold, unit
 }
 
-// TestEvent is the synthetic event behind "send test", so an operator can see
-// exactly what a real alert looks like before trusting it.
+// TestEvent is the synthetic event behind "send test". Its Title and Body say plainly
+// that it is a test — an operator pressing Test is asking "does this channel work?",
+// not "what does an alert look like" — while the payload keeps a realistic shape so a
+// consumer's parser is exercised by it.
 func TestEvent(version string) Event {
 	return Event{
-		Type:        EventHealthChange,
-		Priority:    PriorityHigh,
+		Type:     EventHealthChange,
+		Priority: PriorityHigh,
+		Test:     true,
+		// Unmistakably synthetic: these only reach the JSON payload, since Title and
+		// Body are replaced wholesale for a test.
 		Serial:      "SMARTSERVE-TEST",
-		DeviceName:  "smart-serve test",
-		DeviceModel: "Synthetic device",
+		DeviceName:  "Smart-Serve test",
+		DeviceModel: "synthetic",
 		OldHealth:   "good",
 		NewHealth:   "caution",
 		Rationale:   "This is a test notification from Smart-Serve.",

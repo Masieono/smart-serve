@@ -152,6 +152,33 @@ aggregated, not linked (`ADR-012`).
    (without an open tab). This is the acceptance test for the idle-frugality
    invariant.
 
+### The image's own health check
+
+The image ships a `HEALTHCHECK` that asks the **HTTP server**, not the binary:
+
+```sh
+wget -qO- "http://127.0.0.1:${SMARTSERVE_ADDR##*:}$b/healthz" > /dev/null || exit 1
+```
+
+It deliberately does not run `smart-serve version`, which exits 0 for a process whose
+server is wedged — a container could then sit there reporting healthy while the API was
+unreachable. The two expansions are there so a non-default deployment still checks
+correctly: the port is taken from `SMARTSERVE_ADDR` (which may carry a host, e.g.
+`0.0.0.0:9090`), and `SMARTSERVE_BASE_PATH` is normalised to the same leading-slash,
+no-trailing-slash shape the server expects, so subpath hosting (`ADR-015`) is checked at
+`/smartserve/healthz` rather than silently 404ing.
+
+Check it directly with `docker inspect --format '{{.State.Health.Status}}' smart-serve`,
+or hit the endpoint yourself: `curl -fsS http://localhost:8080/healthz` → `ok`.
+
+### Build context
+
+`.dockerignore` keeps `.git`, local `data/`, stray `*.db` files and build output out of
+the build context. Without it, `COPY . .` ships the entire working tree — including a
+developer's database — into the builder. It is scoped so that `internal/webui/assets/**`
+and `internal/store/migrations/**`, the only things the build actually embeds, are never
+dropped.
+
 ## Local development & live preview
 
 So the app can be developed and previewed outside a deployment host:

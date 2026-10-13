@@ -1,0 +1,30 @@
+# Build-context hygiene (docs/DEPLOYMENT.md).
+#
+# Without this, `COPY . .` sends the entire working tree into the builder: .git, any
+# local database, and release binaries. None of it is needed — the build embeds only
+# internal/store/migrations/*.sql and internal/webui/assets/**.
+
+# Version control
+.git
+.github
+.gitignore
+
+# Local runtime state. A developer's /data must never reach an image.
+data/
+*.db
+*.db-shm
+*.db-wal
+
+# Build output
+/smart-serve
+/bin/
+/out/
+
+# Documentation and tooling the compiler never reads. Scoped to the top level and to
+# docs/, so a stray .md inside an embedded asset directory can never be dropped.
+/*.md
+/docs/
+Makefile
+docker-compose*.yml
+Dockerfile
+.dockerignore

@@ -2,6 +2,7 @@ package notify
 
 import (
 	"context"
+	"encoding/json"
 	"strings"
 	"testing"
 	"time"
@@ -276,13 +277,62 @@ func TestEventTitleIsASCII(t *testing.T) {
 	}
 }
 
-func TestTestEventLooksLikeARealAlert(t *testing.T) {
+// A test notification has to read as a test. "Drive health changed" for a drive that
+// does not exist is confusing in a notification tray — and in the JSON it is worse,
+// because it can trip an automation that is watching for real alerts.
+func TestTestEventIsIdentifiableAsATest(t *testing.T) {
 	ev := TestEvent("1.2.3")
-	if ev.Type != EventHealthChange || ev.OldHealth != "good" || ev.NewHealth != "caution" {
-		t.Errorf("test event = %+v", ev)
+
+	if !ev.Test {
+		t.Error("TestEvent must set Test, or nothing downstream can tell it apart")
 	}
-	if ev.Version != "1.2.3" || ev.Body() == "" {
-		t.Errorf("test event = %+v", ev)
+	if got, want := ev.Title(), "Test from Smart-Serve"; got != want {
+		t.Errorf("Title = %q, want %q", got, want)
+	}
+	body := ev.Body()
+	if !strings.Contains(body, "test notification") {
+		t.Errorf("Body = %q, want it to say it is a test", body)
+	}
+	if !strings.Contains(body, "1.2.3") {
+		t.Errorf("Body = %q, want the version, so an operator knows which instance sent it", body)
+	}
+	// The alert wording must not leak into the test message.
+	if strings.Contains(body, "Drive health changed") {
+		t.Errorf("Body = %q, want no drive-alert wording", body)
+	}
+}
+
+// The flag has to be on the wire. A consumer that cannot see it has no way to decline
+// to act on a test.
+func TestTestEventSerialisesTheTestFlag(t *testing.T) {
+	raw, err := json.Marshal(TestEvent("1.2.3"))
+	if err != nil {
+		t.Fatalf("Marshal: %v", err)
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(raw, &payload); err != nil {
+		t.Fatalf("Unmarshal: %v", err)
+	}
+	if payload["test"] != true {
+		t.Errorf("payload = %s, want \"test\": true", raw)
+	}
+
+	// A real alert must not carry it, or the flag means nothing.
+	raw, err = json.Marshal(Event{Type: EventHealthChange, NewHealth: "bad"})
+	if err != nil {
+		t.Fatalf("Marshal: %v", err)
+	}
+	if strings.Contains(string(raw), "\"test\"") {
+		t.Errorf("real event payload = %s, want no test flag", raw)
+	}
+}
+
+// The payload keeps a realistic shape, so a webhook consumer's parser is exercised by
+// the test rather than only by a real alert.
+func TestTestEventPayloadIsWellFormed(t *testing.T) {
+	ev := TestEvent("1.2.3")
+	if ev.Type != EventHealthChange || ev.Serial == "" || ev.ScanTS == 0 || ev.Version != "1.2.3" {
+		t.Errorf("test event = %+v, want a complete payload", ev)
 	}
 }
 

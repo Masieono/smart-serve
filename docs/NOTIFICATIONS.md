@@ -94,6 +94,14 @@ Default payload (JSON):
 }
 ```
 
+A **test** payload (`POST /api/channels/test`, or `/api/channels/{id}/test`) has the
+same shape plus `"test": true`, and the synthetic device is named `Smart-Serve test` /
+`synthetic`. The flag is on the wire on purpose: an automation watching this webhook has
+to be able to tell a test from a real alert and decline to act on it, because a test that
+looks exactly like a fault can otherwise trip real paging. The human-readable message is
+replaced outright for a test — title `Test from Smart-Serve`, body a short note that the
+channel is working plus the version, so an operator can tell which instance sent it.
+
 Delivery: 10 s timeout, 2 retries with 5 s backoff on 5xx/network errors; non-2xx
 final failure logged to `notification_log` as `failed` (never blocks the scan).
 

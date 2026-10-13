@@ -3,7 +3,10 @@
 # --- build stage -------------------------------------------------------------
 FROM golang:1.27-alpine AS build
 WORKDIR /src
-COPY go.mod ./
+
+# go.sum comes with go.mod. Without it `go mod download` cannot verify checksums, so it
+# writes its own go.sum and this layer caches on an unverified module graph.
+COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
 RUN CGO_ENABLED=0 go build -trimpath -ldflags "-s -w" -o /out/smart-serve ./cmd/smartserve
@@ -24,8 +27,16 @@ EXPOSE 8080
 ENV SMARTSERVE_ADDR=":8080" \
     SMARTSERVE_DB="/data/smartserve.db"
 
-HEALTHCHECK --interval=60s --timeout=5s --start-period=10s --retries=3 \
-  CMD ["/usr/local/bin/smart-serve", "version"]
+# Ask the HTTP server, not the binary. `smart-serve version` exits 0 for a process whose
+# server is wedged, so it would report healthy while the API is unreachable.
+#
+# The address may carry a host (`0.0.0.0:8080`), so everything up to the last colon is
+# stripped. The base path is normalised to a leading slash and no trailing one — the
+# same shape the server itself expects (ADR-015) — so an unset base path yields
+# `/healthz` and `/smartserve` yields `/smartserve/healthz`.
+HEALTHCHECK --interval=60s --timeout=5s --start-period=10s --retries=3 CMD \
+  b="/${SMARTSERVE_BASE_PATH#/}"; b="${b%/}"; \
+  wget -qO- "http://127.0.0.1:${SMARTSERVE_ADDR##*:}$b/healthz" > /dev/null || exit 1
 
 ENTRYPOINT ["/usr/local/bin/smart-serve"]
 CMD ["serve"]

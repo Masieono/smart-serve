@@ -64,6 +64,10 @@ type Event struct {
 	Error        string   `json:"error,omitempty"`
 	ScanTS       int64    `json:"scan_ts"`
 	Version      string   `json:"smartserve_version,omitempty"`
+	// Test marks a synthetic event from the "send test" button. It is on the wire on
+	// purpose: an automation watching a webhook has to be able to tell a test from a
+	// real alert and decline to act on it.
+	Test bool `json:"test,omitempty"`
 
 	// key and tempUnit are presentation details and are deliberately not on the
 	// wire: the payload always carries canonical Celsius, which is what a machine
@@ -83,6 +87,9 @@ func (e Event) Key() string {
 // Title is the one-line summary. It is used as the ntfy Title header, so it must
 // stay printable ASCII.
 func (e Event) Title() string {
+	if e.Test {
+		return "Test from Smart-Serve"
+	}
 	switch e.Type {
 	case EventHealthChange:
 		return "Drive health changed: " + e.label()
@@ -101,6 +108,20 @@ func (e Event) Title() string {
 // Body is the message text. The first line repeats the title so the message still
 // reads correctly in clients that do not render the Title header.
 func (e Event) Body() string {
+	// A test is not shaped like a drive alert. "Drive health changed" for a device that
+	// does not exist is confusing in a notification tray, and in the JSON it is worse:
+	// it can trip an automation that is watching for real alerts.
+	if e.Test {
+		lines := []string{
+			e.emoji() + " Test from Smart-Serve",
+			"This is a test notification. If you can read it, this channel is working.",
+		}
+		if e.Version != "" {
+			lines = append(lines, "Smart-Serve "+e.Version)
+		}
+		return strings.Join(lines, "\n")
+	}
+
 	lines := []string{e.emoji() + " " + e.Title()}
 
 	switch e.Type {
@@ -164,6 +185,9 @@ func (e Event) label() string {
 }
 
 func (e Event) emoji() string {
+	if e.Test {
+		return "🔔"
+	}
 	switch e.Type {
 	case EventHealthChange:
 		switch e.NewHealth {
