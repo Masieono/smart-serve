@@ -2,7 +2,7 @@
 import { el, mount, clear, setTemperatureUnit as applyTemperatureUnit } from './dom.js';
 import { icon } from './icons.js';
 import { api, appPath } from './api.js';
-import { toast } from './components.js';
+import { toast, confirmDialog } from './components.js';
 import * as dashboard from './views/dashboard.js';
 import * as device from './views/device.js';
 import * as schedules from './views/schedules.js';
@@ -45,6 +45,34 @@ const ctx = {
     } catch (err) {
       toast(err.message, 'error');
       scanning = false;
+    }
+  },
+  // Rescans one drive. Unlike a full scan this waits for the result, because one
+  // drive is quick and the button that started it is right there.
+  async scanDevice(serial) {
+    try {
+      await api.scanDevice(serial);
+      toast('Drive rescanned', 'good');
+      route();
+    } catch (err) {
+      // "device X is not connected" is the interesting case: the drive was unplugged
+      // between the last scan and this button press.
+      toast(err.message, 'error');
+    }
+  },
+  // Removes a drive and everything derived from it. Only reachable through a
+  // confirmation, because it is not undoable.
+  async forgetDevice(serial) {
+    const ok = await confirmDialog('Forget this drive',
+      'This removes the drive, its history and its notes. A scan will not bring it ' +
+      'back unless it is connected again. This cannot be undone.', 'Forget');
+    if (!ok) return;
+    try {
+      await api.forgetDevice(serial);
+      toast('Drive forgotten', 'good');
+      ctx.navigate('/');
+    } catch (err) {
+      toast(err.message, 'error');
     }
   },
 };
@@ -153,6 +181,9 @@ function bindShortcuts() {
   document.addEventListener('keydown', (event) => {
     const tag = (event.target.tagName || '').toLowerCase();
     if (tag === 'input' || tag === 'textarea' || tag === 'select') return;
+    // A modal owns the keyboard while it is open. Starting a full scan behind a
+    // dialog the user is still reading is never what they meant.
+    if (document.querySelector('dialog[open]')) return;
     if (event.key === 's') {
       event.preventDefault();
       ctx.scan();

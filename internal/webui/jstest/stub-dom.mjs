@@ -49,9 +49,14 @@ export class StubNode {
     this.style = new StubStyle();
   }
 
-  append(child) {
-    if (child && typeof child === 'object') child.parent = this;
-    this.childNodes.push(child);
+  // Element.append takes any number of nodes; a stub that accepted only the first
+  // would silently drop siblings and make a two-button footer look like a one-button
+  // footer.
+  append(...children) {
+    for (const child of children) {
+      if (child && typeof child === 'object') child.parent = this;
+      this.childNodes.push(child);
+    }
   }
 
   setAttribute(key, value) {
@@ -105,6 +110,11 @@ export class StubNode {
     if (this.parent) this.parent.removeChild(this);
   }
 
+  /** The slice of Element.getBoundingClientRect the dialogs use for backdrop clicks. */
+  getBoundingClientRect() {
+    return this.boundingBox || { top: 0, left: 0, right: 100, bottom: 100, width: 100, height: 100 };
+  }
+
   /** Depth-first search for the first descendant matching a predicate. */
   find(predicate) {
     for (const child of this.childNodes) {
@@ -153,12 +163,26 @@ export function installStubDom() {
   return globalThis.document;
 }
 
-/** Serve a JSON payload to any fetch() the module under test makes. */
-export function stubFetch(payload) {
-  globalThis.fetch = async () => ({
-    ok: true,
-    status: 200,
-    statusText: 'OK',
-    text: async () => JSON.stringify(payload),
-  });
+/** Serve a JSON payload to any fetch() the module under test makes.
+ *
+ *  Pass an array as `requests` to collect what was sent — needed to assert on a save
+ *  payload rather than only on the resulting DOM. */
+export function stubFetch(payload, requests = null) {
+  globalThis.fetch = async (url, init = {}) => {
+    if (requests) {
+      let body = null;
+      try {
+        body = init.body ? JSON.parse(init.body) : null;
+      } catch {
+        body = null; // not JSON; leave it unrecorded rather than throwing
+      }
+      requests.push({ url: String(url), method: init.method || 'GET', body });
+    }
+    return {
+      ok: true,
+      status: 200,
+      statusText: 'OK',
+      text: async () => JSON.stringify(payload),
+    };
+  };
 }

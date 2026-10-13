@@ -221,17 +221,34 @@ A window silences **everything** for the drives it covers: an array rebuild, a
 migration, a chassis being moved. It exists so that a planned event does not require
 disabling a channel and remembering to re-enable it.
 
+A window is either **one-off** or **recurring**:
+
 ```json
 [
-  { "label": "array rebuild",
+  { "label": "array rebuild", "recurrence": "once",
     "starts_at": 1760000000000, "ends_at": 1760014400000,
-    "serials": [] }
+    "serials": [] },
+
+  { "label": "nightly backup", "recurrence": "daily",
+    "start_minute": 120, "end_minute": 240, "days": [] },
+
+  { "label": "weekend maintenance", "recurrence": "weekly",
+    "start_minute": 1380, "end_minute": 120, "days": [1, 5] }
 ]
 ```
 
+- **One-off** windows carry absolute instants in unix milliseconds.
+- **Recurring** windows carry minutes past midnight. They are read on the **server's**
+  clock — the same one the scheduler evaluates cron against — so "02:00" means 02:00
+  where the app runs, not where the browser is. `days` holds weekday numbers
+  (0 = Sunday) and is only used by `weekly`.
+- A window **crossing midnight** is supported (23:00–02:00). The morning half belongs
+  to the day the window started on, so a weekly `Friday 23:00–02:00` window covers
+  Saturday's small hours.
 - Stored as the `maintenance_windows` setting (`DATA_MODEL.md`) and edited from the
-  Notifications page. There is no table and no endpoint: a window is a configuration
-  value, not a resource with a lifecycle.
+  Notifications page, where the drives are picked from a list rather than typed.
+  There is no table and no endpoint: a window is a configuration value, not a
+  resource with a lifecycle.
 - `serials: []` covers every drive; a populated list covers only those, matched
   case-insensitively because serials are hand-typed. An event with no serial (a
   `scan_failure`) is not covered by a scoped window.
@@ -239,9 +256,13 @@ disabling a channel and remembering to re-enable it.
 - **Zero idle cost.** Windows are evaluated at dispatch time against the clock.
   Nothing sleeps until one opens or closes (`FEATURES.md` §E).
 - A malformed setting parses as *no windows*. Failing closed would let a typo in a
-  settings value silence every alert on the host, which is the worse failure.
+  settings value silence every alert on the host, which is the worse failure. A
+  window whose end is not after its start, or a recurring window with no days, is
+  dropped the same way.
 - `POST /api/channels/{id}/test` ignores windows: an operator pressing Test is asking
   "does this channel work right now?".
+- The UI labels a recurring window by its schedule rather than "active", because the
+  browser's clock is not necessarily the server's.
 
 ### Acknowledgement (deferred)
 

@@ -70,6 +70,8 @@ function draw(container, ctx, data) {
         : null,
     ]),
     el('div', { class: 'devices-head-sub muted', text: `Last scan ${fmtAgo(data.last_scan_ts)}` }),
+    el('div', { class: 'devices-head-sub muted', text: 'Rescan a single drive from its card. Open a ' +
+      'drive that is no longer connected to forget it entirely.' }),
   ]);
 
   if (!all.length) {
@@ -94,7 +96,7 @@ function draw(container, ctx, data) {
         .some((field) => String(field).toLowerCase().includes(query));
     });
     mount(grid, shown.length
-      ? shown.map((d) => deviceCard(d, ctx.openDevice, () => ctx.scan()))
+      ? shown.map((d) => deviceCard(d, ctx.openDevice, () => ctx.scanDevice(d.serial)))
       : [emptyState('Nothing to show', 'No devices match the current filter.')]);
   }
   paint();

@@ -64,7 +64,7 @@ Deferred, but the constraints are worth recording before anyone builds it.
 | B5 | Device appeared / disappeared alerts | MVP | 💤 | appeared is opt-in |
 | B6 | Scheduled-scan failure alerts | MVP | 💤 | |
 | B7 | Alert acknowledgement (mute a known issue, keep the verdict) | P2 | 💤 | **deferred, not dropped** — belongs in the app; the state it needs costs more than the noise it removes at single-host scale |
-| B8 | Maintenance / silence windows (suppress during e.g. array rebuild) | P2 | 💤 | **done** — a `maintenance_windows` setting, optionally scoped to serials; evaluated at dispatch time, so no idle cost |
+| B8 | Maintenance / silence windows (suppress during e.g. array rebuild) | P2 | 💤 | **done** — a `maintenance_windows` setting, one-off or recurring (daily/weekly), optionally scoped to drives picked from a list; evaluated at dispatch time, so no idle cost |
 | B9 | Self-test result notifications (pass/fail) | P2 | 💤 | |
 | B10 | ntfy action buttons ("Open dashboard"), priority, tags | P2 | 💤 | |
 | B11 | Gotify / Telegram / Discord / SMTP adapters | P2 | 💤 | **done** — each a small `Sender`; the editor is data-driven, so adding another is a data change |
@@ -90,9 +90,9 @@ Deferred, but the constraints are worth recording before anyone builds it.
 | # | Feature | Tier | Idle | Notes |
 |---|---|---|---|---|
 | D1 | Dashboard cards + device detail view | MVP | 💤 | |
-| D2 | Theme picker: dark / light / auto / custom accent colour | MVP | 💤 | **done** — plus Catppuccin (Latte/Mocha), Dracula, Nord and Gruvbox (light/dark) palettes |
+| D2 | Theme picker: dark / light / auto / custom accent colour | MVP | 💤 | **done** — plus Catppuccin (4 flavours), Dracula, Nord, Gruvbox, Synthwave, Hacker, Solarized, Tokyo Night and One Dark palettes |
 | D3 | Responsive mobile layout | MVP | 💤 | |
-| D4 | Hide / unhide devices | MVP | 💤 | escape hatch for unreadable bridges |
+| D4 | Hide / unhide devices, and forget one entirely | MVP | 💤 | escape hatch for unreadable bridges; **forget** is for the plug-in-once workflow |
 | D5 | Filter & sort devices (health, name, transport) | P2 | 💤 | |
 | D6 | Side-by-side multi-device comparison | P3 | 💤 | |
 | D7 | Localization (multi-language) | P3 | 💤 | CDI parity |

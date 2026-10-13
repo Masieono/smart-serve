@@ -178,6 +178,18 @@ checkboxes and type picker cannot drift from the server.
 - `PUT /api/devices/{serial}/transport` — set a per-device `-d` transport override
   (`{ "smart_d": "sat" }`), persisted in `device_transport_overrides`
   (`FEATURES.md` A11).
+- `POST /api/devices/{serial}/scan` — rescan **only this drive**, synchronously.
+  Returns `{ "scan_id": 2, "status": "completed", "serial": "…", "devices_total": 1 }`.
+  A `404` means the drive is not connected any more. This is what makes the
+  per-card Scan button honest: it used to run a full scan, so pressing it on one
+  card re-read every drive.
+  A single-drive scan deliberately does **not** mark the drives it did not look at
+  as disconnected (`DATA_MODEL.md`); they were never checked.
+- `DELETE /api/devices/{serial}` — **forget** a drive: the device row, its snapshots
+  and its notes. `scan_history` is left alone, because it records what happened
+  rather than what exists. Returns `{ "serial": "…", "forgotten": true }`, or `404`
+  if the serial was never stored. A later scan re-adds the drive if it is physically
+  present — forgetting is not a blocklist.
 - `GET /api/devices/{serial}/report?format=txt|json|html|csv` — report export for
   warranty/RMA (`FEATURES.md` A8). `txt` (default), `html` and `csv` are served as
   downloads with a `smart-serve-<serial>.<ext>` filename; `json` is returned inline
@@ -200,7 +212,6 @@ checkboxes and type picker cannot drift from the server.
 Maintenance windows deliberately get **no endpoints**: they are a `maintenance_windows`
 setting (`DATA_MODEL.md`) edited from the Notifications page, because a window is a
 configuration value rather than a resource with its own lifecycle.
-
 ## Events (SSE)
 
 ### `GET /api/events` — text/event-stream, long-lived

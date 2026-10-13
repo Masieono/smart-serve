@@ -21,12 +21,14 @@ const EVENT_LABELS = {
 export async function render(container, ctx) {
   mount(container, el('div', { class: 'skeleton', style: 'width:30%;height:24px' }));
   try {
-    const [channels, log, settings] = await Promise.all([
+    const [channels, log, settings, devices] = await Promise.all([
       api.channels(),
       api.notifications(25),
       api.settings(),
+      // The maintenance-window editor picks drives by name, so it needs the list.
+      api.devices(),
     ]);
-    draw(container, ctx, channels, log, settings);
+    draw(container, ctx, channels, log, settings, devices);
   } catch (err) {
     mount(container, errorBox(`Could not load channels: ${err.message}`));
   }
@@ -41,13 +43,14 @@ function parseEvents(raw) {
   }
 }
 
-function draw(container, ctx, data, log, settings) {
+function draw(container, ctx, data, log, settings, deviceData) {
   const channels = data.channels || [];
   const eventTypes = (log && log.event_types) || EVENT_TYPES;
   // The server owns the list of channel types it can actually deliver to, so a
   // build without a provider never offers it (docs/NOTIFICATIONS.md).
   const typeList = (log && log.channel_types) || null;
   const windows = parseWindows(settings && settings.settings && settings.settings.maintenance_windows);
+  const devices = ((deviceData && deviceData.devices) || []).filter((d) => d.serial);
   const head = el('div', { class: 'page-head' }, [
     el('div', {}, [
       el('h1', { text: 'Notifications' }),
@@ -61,7 +64,7 @@ function draw(container, ctx, data, log, settings) {
   if (!channels.length) {
     mount(container, head, emptyState('No channels yet',
       'Add a channel — ntfy, Gotify, Telegram, Discord, email or a webhook — to be told when a drive starts failing.'),
-      maintenanceCard(ctx, windows));
+      maintenanceCard(ctx, windows, devices));
     return;
   }
 
@@ -113,7 +116,7 @@ function draw(container, ctx, data, log, settings) {
           } }, [icon('trash')]),
       ]),
     ]);
-  })), deliveryLog(log, channels), maintenanceCard(ctx, windows));
+  })), deliveryLog(log, channels), maintenanceCard(ctx, windows, devices));
 }
 
 // --- maintenance windows ------------------------------------------------------
@@ -149,11 +152,52 @@ export function parseLocalInput(value) {
   return Number.isFinite(ms) ? ms : null;
 }
 
-/** Where a window sits relative to now. */
+/** Where a window sits relative to now. Recurring windows are labelled by their
+ *  schedule instead: their times are read on the *server's* clock, so a browser in
+ *  another timezone cannot say whether one is live right now. */
 export function windowState(w, now) {
+  if (isRecurring(w)) return 'recurring';
   if (now >= w.ends_at) return 'ended';
   if (now >= w.starts_at) return 'active';
   return 'upcoming';
+}
+
+const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+/** Whether a window repeats rather than being a single interval. */
+export function isRecurring(w) {
+  return Boolean(w) && (w.recurrence === 'daily' || w.recurrence === 'weekly');
+}
+
+/** Minutes past midnight as "HH:MM". */
+export function fmtClock(minutes) {
+  const m = ((Number(minutes) || 0) % 1440 + 1440) % 1440;
+  return `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+}
+
+/** Parses an "HH:MM" time input into minutes past midnight, or null. */
+export function parseClock(value) {
+  const match = /^(\d{1,2}):(\d{2})$/.exec(String(value ?? '').trim());
+  if (!match) return null;
+  const hours = Number(match[1]);
+  const minutes = Number(match[2]);
+  if (hours > 23 || minutes > 59) return null;
+  return hours * 60 + minutes;
+}
+
+/** A window's schedule in words, for the list. */
+export function describeWindow(w) {
+  if (!isRecurring(w)) {
+    return `${fmtDateTime(w.starts_at)} → ${fmtDateTime(w.ends_at)}`;
+  }
+  const hours = `${fmtClock(w.start_minute)}–${fmtClock(w.end_minute)}`;
+  if (w.recurrence === 'daily') return `Every day, ${hours}`;
+  const days = (w.days || [])
+    .slice()
+    .sort((a, b) => a - b)
+    .map((d) => DAY_NAMES[d] || '?')
+    .join(', ');
+  return `${days} · ${hours}`;
 }
 
 /**
@@ -162,17 +206,42 @@ export function windowState(w, now) {
  * just filled in, rather than after a round trip.
  */
 export function buildWindow(values) {
-  const start = parseLocalInput(values.start);
-  const end = parseLocalInput(values.end);
-  if (start === null || end === null) return { error: 'Pick a start and end time.' };
-  if (end <= start) return { error: 'The end must be after the start.' };
-  const serials = String(values.serials || '')
+  const label = String(values.label || '').trim();
+  const serials = toSerialList(values.serials);
+  const recurrence = values.recurrence === 'weekly' ? 'weekly'
+    : values.recurrence === 'daily' ? 'daily' : 'once';
+
+  if (recurrence === 'once') {
+    const start = parseLocalInput(values.start);
+    const end = parseLocalInput(values.end);
+    if (start === null || end === null) return { error: 'Pick a start and end time.' };
+    if (end <= start) return { error: 'The end must be after the start.' };
+    return { window: { label, serials, recurrence: 'once', starts_at: start, ends_at: end } };
+  }
+
+  const startMinute = parseClock(values.startTime);
+  const endMinute = parseClock(values.endTime);
+  if (startMinute === null || endMinute === null) return { error: 'Pick a start and end time.' };
+  // Equal ends would be a zero-length window, which can never apply.
+  if (startMinute === endMinute) return { error: 'The end must be different from the start.' };
+
+  const days = recurrence === 'weekly'
+    ? [...new Set((values.days || []).map(Number).filter((d) => d >= 0 && d <= 6))].sort()
+    : [];
+  if (recurrence === 'weekly' && !days.length) return { error: 'Pick at least one day.' };
+
+  return {
+    window: { label, serials, recurrence, start_minute: startMinute, end_minute: endMinute, days },
+  };
+}
+
+/** Serial numbers from a list of picked drives. */
+function toSerialList(raw) {
+  if (Array.isArray(raw)) return raw.map((s) => String(s).trim()).filter(Boolean);
+  return String(raw || '')
     .split(',')
     .map((s) => s.trim())
     .filter(Boolean);
-  return {
-    window: { label: String(values.label || '').trim(), starts_at: start, ends_at: end, serials },
-  };
 }
 
 async function saveWindows(ctx, windows) {
@@ -185,15 +254,20 @@ async function saveWindows(ctx, windows) {
   }
 }
 
-function maintenanceCard(ctx, windows) {
+function maintenanceCard(ctx, windows, devices) {
   const now = Date.now();
-  const sorted = [...windows].sort((a, b) => a.starts_at - b.starts_at);
+  // Recurring windows sort by their time of day; one-off ones by when they start.
+  const sorted = [...windows].sort((a, b) => {
+    if (isRecurring(a) !== isRecurring(b)) return isRecurring(a) ? 1 : -1;
+    return isRecurring(a) ? a.start_minute - b.start_minute : a.starts_at - b.starts_at;
+  });
 
   return el('div', { class: 'card stack' }, [
     el('div', { class: 'row' }, [
       el('h2', { text: 'Maintenance windows' }),
       el('span', { class: 'spacer' }),
-      el('button', { class: 'btn btn-sm', type: 'button', onclick: () => editWindow(ctx, windows) },
+      el('button', { class: 'btn btn-sm', type: 'button',
+        onclick: () => editWindow(ctx, windows, devices) },
         [icon('plus'), 'Add window']),
     ]),
     el('p', { class: 'muted', text: 'Alerts are silenced for the drives a window covers — an array ' +
@@ -201,22 +275,22 @@ function maintenanceCard(ctx, windows) {
       'to remember to switch back on.' }),
     sorted.length
       ? el('div', { class: 'stack', style: 'gap:var(--space-2)' },
-          sorted.map((w) => windowRow(ctx, windows, w, now)))
+          sorted.map((w) => windowRow(ctx, windows, devices, w, now)))
       : el('p', { class: 'muted', text: 'No maintenance windows configured.' }),
   ]);
 }
 
-function windowRow(ctx, windows, w, now) {
+function windowRow(ctx, windows, devices, w, now) {
   const state = windowState(w, now);
-  const tone = { active: 'caution', upcoming: 'unknown', ended: 'good' }[state];
+  const tone = { active: 'caution', upcoming: 'unknown', ended: 'good', recurring: 'unknown' }[state];
 
   return el('div', { class: 'row window-row' }, [
     el('div', { style: 'flex:1;min-width:0' }, [
       el('div', { class: 'setting-label', text: w.label || 'Maintenance window' }),
-      el('div', { class: 'setting-help',
-        text: `${fmtDateTime(w.starts_at)} → ${fmtDateTime(w.ends_at)}` }),
-      el('div', { class: 'setting-help',
-        text: w.serials && w.serials.length ? `Drives: ${w.serials.join(', ')}` : 'All drives' }),
+      el('div', { class: 'setting-help', text: describeWindow(w) }),
+      el('div', { class: 'setting-help', text: w.serials && w.serials.length
+        ? `Drives: ${w.serials.map((s) => labelForSerial(devices, s)).join(', ')}`
+        : 'All drives' }),
     ]),
     el('span', { class: `badge badge-${tone}`, text: state }),
     el('button', { class: 'btn btn-sm btn-ghost', type: 'button', title: 'Delete',
@@ -227,39 +301,125 @@ function windowRow(ctx, windows, w, now) {
   ]);
 }
 
-function editWindow(ctx, windows) {
-  openDialog('Add maintenance window', (body, close) => {
+/** A drive's friendly name where we have one, so the list is readable. */
+function labelForSerial(devices, serial) {
+  const match = devices.find((d) => d.serial === serial);
+  if (!match) return serial;
+  return match.name || match.model || serial;
+}
+
+function editWindow(ctx, windows, devices) {
+  openDialog('Add maintenance window', (body, close, foot) => {
     const now = Date.now();
     const label = el('input', { type: 'text', placeholder: 'e.g. array rebuild' });
+    const recurrence = el('select', {}, [
+      el('option', { value: 'once', text: 'Once — a start and end date' }),
+      el('option', { value: 'daily', text: 'Every day' }),
+      el('option', { value: 'weekly', text: 'Certain days of the week' }),
+    ]);
+
     const start = el('input', { type: 'datetime-local', value: localInputValue(now) });
     const end = el('input', { type: 'datetime-local', value: localInputValue(now + 2 * 3600000) });
-    const serials = el('input', { type: 'text', placeholder: 'leave blank for every drive' });
+    const onceGroup = el('div', { class: 'stack', style: 'gap:var(--space-4)' }, [
+      el('div', { class: 'field' }, [el('label', { text: 'Starts' }), start]),
+      el('div', { class: 'field' }, [el('label', { text: 'Ends' }), end,
+        hint('Your browser’s local timezone. The window ends at this time.')]),
+    ]);
+
+    const startTime = el('input', { type: 'time', value: '02:00' });
+    const endTime = el('input', { type: 'time', value: '04:00' });
+    const dayRows = DAY_NAMES.map((name, index) => {
+      const box = el('input', { type: 'checkbox', checked: index === 0 || index === 6 });
+      box.dataset.day = String(index);
+      return el('label', { class: 'field-row' }, [box, el('span', { text: name })]);
+    });
+    const daysField = el('div', { class: 'field' }, [
+      el('label', { text: 'Days' }),
+      el('div', { class: 'row wrap', style: 'gap:var(--space-3)' }, dayRows),
+    ]);
+    const recurringGroup = el('div', { class: 'stack', style: 'gap:var(--space-4)' }, [
+      el('div', { class: 'row', style: 'gap:var(--space-4)' }, [
+        el('div', { class: 'field' }, [el('label', { text: 'From' }), startTime]),
+        el('div', { class: 'field' }, [el('label', { text: 'To' }), endTime]),
+      ]),
+      daysField,
+      hint('Recurring times are read on the server’s clock — the same one scheduled scans use.'),
+    ]);
+
+    const syncRecurrence = () => {
+      const recurring = recurrence.value !== 'once';
+      onceGroup.hidden = recurring;
+      recurringGroup.hidden = !recurring;
+      daysField.hidden = recurrence.value !== 'weekly';
+    };
+    recurrence.addEventListener('change', syncRecurrence);
+    syncRecurrence();
+
+    const drives = drivePicker(devices);
 
     body.append(
       el('div', { class: 'field' }, [el('label', { text: 'Label' }), label,
         hint('Shown in the delivery log, so you can tell which window silenced an alert.')]),
-      el('div', { class: 'field' }, [el('label', { text: 'Starts' }), start]),
-      el('div', { class: 'field' }, [el('label', { text: 'Ends' }), end,
-        hint('Times are in your browser’s local timezone. The window ends at this time.')]),
-      el('div', { class: 'field' }, [el('label', { text: 'Drives' }), serials,
-        hint('Comma-separated serial numbers, or blank to silence every drive.')]),
-      el('div', { class: 'dialog-foot', style: 'border:0;padding:0' }, [
-        el('button', { class: 'btn', type: 'button', text: 'Cancel', onclick: close }),
-        el('button', { class: 'btn btn-primary', type: 'button', text: 'Add', onclick: async (event) => {
-          const built = buildWindow({
-            label: label.value, start: start.value, end: end.value, serials: serials.value,
-          });
-          if (built.error) {
-            toast(built.error, 'error');
-            return;
-          }
-          event.currentTarget.disabled = true;
-          await saveWindows(ctx, [...windows, built.window]);
-          close();
-        } }),
-      ]),
+      el('div', { class: 'field' }, [el('label', { text: 'Repeats' }), recurrence]),
+      onceGroup,
+      recurringGroup,
+      el('div', { class: 'field' }, [el('label', { text: 'Drives' }), drives.element,
+        hint(devices.length
+          ? 'Nothing selected means every drive, including ones not connected yet.'
+          : 'No drives discovered yet — the window will cover every drive.')]),
+    );
+
+    foot.append(
+      el('button', { class: 'btn', type: 'button', text: 'Cancel', onclick: close }),
+      el('button', { class: 'btn btn-primary', type: 'button', text: 'Add', onclick: async (event) => {
+        const built = buildWindow({
+          label: label.value,
+          recurrence: recurrence.value,
+          start: start.value,
+          end: end.value,
+          startTime: startTime.value,
+          endTime: endTime.value,
+          days: dayRows
+            .filter((row) => row.querySelector('input').checked)
+            .map((row) => Number(row.querySelector('input').dataset.day)),
+          serials: drives.selected(),
+        });
+        if (built.error) {
+          toast(built.error, 'error');
+          return;
+        }
+        event.currentTarget.disabled = true;
+        await saveWindows(ctx, [...windows, built.window]);
+        close();
+      } }),
     );
   });
+}
+
+/**
+ * A checklist of the drives we know about, so a window can be scoped by picking names
+ * rather than pasting serial numbers. Nothing ticked means every drive, which also
+ * covers drives that are not connected right now.
+ */
+function drivePicker(devices) {
+  const boxes = devices.map((d) => {
+    const box = el('input', { type: 'checkbox' });
+    box.dataset.serial = d.serial;
+    return el('label', { class: 'drive-pick' }, [
+      box,
+      el('span', { class: 'drive-pick-name', text: d.name || d.model || d.serial }),
+      el('span', { class: 'drive-pick-meta', text: d.serial }),
+    ]);
+  });
+
+  return {
+    element: boxes.length
+      ? el('div', { class: 'drive-pick-list' }, boxes)
+      : el('p', { class: 'muted', text: 'No drives discovered yet.' }),
+    selected: () => boxes
+      .filter((row) => row.querySelector('input').checked)
+      .map((row) => row.querySelector('input').dataset.serial),
+  };
 }
 
 // The delivery log is the only record of an alert that fired while a channel was
@@ -430,7 +590,7 @@ function editChannel(ctx, existing, eventTypes = EVENT_TYPES, serverTypes = null
   const saved = parseConfig(existing && existing.config);
   const offered = availableTypes(serverTypes);
 
-  openDialog(existing ? 'Edit channel' : 'New channel', (body, close) => {
+  openDialog(existing ? 'Edit channel' : 'New channel', (body, close, foot) => {
     const type = el('select', {}, offered.map((t) => el('option', { value: t.type, text: t.label })));
     // A channel saved with a type this build no longer ships falls back to the first
     // offered type rather than leaving the select blank.
@@ -519,38 +679,39 @@ function editChannel(ctx, existing, eventTypes = EVENT_TYPES, serverTypes = null
       ]),
       el('label', { class: 'field-row' }, [enabled, el('span', { text: 'Enabled' })]),
       hint('Save, then use Test on the channel card to verify delivery.'),
-      el('div', { class: 'dialog-foot', style: 'border:0;padding:0' }, [
-        el('button', { class: 'btn', type: 'button', text: 'Cancel', onclick: close }),
-        el('button', { class: 'btn btn-primary', type: 'button', text: 'Save', onclick: async (event) => {
-          const problem = validate();
-          if (problem) {
-            toast(problem, 'error');
-            return;
-          }
-          const payload = {
-            type: type.value,
-            label: label.value.trim(),
-            config: buildConfig(),
-            events: eventRows
-              .filter((row) => row.querySelector('input').checked)
-              .map((row) => row.querySelector('input').dataset.event),
-            enabled: enabled.checked,
-          };
-          if (existing) payload.id = existing.id;
+    );
 
-          event.currentTarget.disabled = true;
-          try {
-            if (existing) await api.updateChannel(payload);
-            else await api.createChannel(payload);
-            toast('Channel saved', 'good');
-            close();
-            ctx.refresh();
-          } catch (err) {
-            toast(err.message, 'error');
-            event.currentTarget.disabled = false;
-          }
-        } }),
-      ]),
+    foot.append(
+      el('button', { class: 'btn', type: 'button', text: 'Cancel', onclick: close }),
+      el('button', { class: 'btn btn-primary', type: 'button', text: 'Save', onclick: async (event) => {
+        const problem = validate();
+        if (problem) {
+          toast(problem, 'error');
+          return;
+        }
+        const payload = {
+          type: type.value,
+          label: label.value.trim(),
+          config: buildConfig(),
+          events: eventRows
+            .filter((row) => row.querySelector('input').checked)
+            .map((row) => row.querySelector('input').dataset.event),
+          enabled: enabled.checked,
+        };
+        if (existing) payload.id = existing.id;
+
+        event.currentTarget.disabled = true;
+        try {
+          if (existing) await api.updateChannel(payload);
+          else await api.createChannel(payload);
+          toast('Channel saved', 'good');
+          close();
+          ctx.refresh();
+        } catch (err) {
+          toast(err.message, 'error');
+          event.currentTarget.disabled = false;
+        }
+      } }),
     );
   });
 }

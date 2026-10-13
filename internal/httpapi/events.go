@@ -3,6 +3,7 @@ package httpapi
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -49,6 +50,69 @@ func (s *Server) handleScan(w http.ResponseWriter, r *http.Request) {
 		_, _, _ = s.scanner.Scan(ctx, trigger)
 	}()
 	writeJSON(w, http.StatusAccepted, map[string]any{"status": status})
+}
+
+// handleScanDevice rescans a single drive.
+//
+// This is what makes the per-drive Scan button honest: it used to call the full
+// scan, so pressing it on one card re-read every drive (docs/API.md).
+func (s *Server) handleScanDevice(w http.ResponseWriter, r *http.Request) {
+	serial := r.PathValue("serial")
+	if serial == "" {
+		writeError(w, http.StatusBadRequest, "serial is required")
+		return
+	}
+
+	// The stored record supplies the drive's last-seen path, which is how a bridge
+	// that reports a different serial to lsblk than the drive does to smartctl is
+	// found again.
+	path := ""
+	if rec, derr := s.store.GetDevice(r.Context(), serial); derr == nil && rec != nil {
+		path = rec.DevicePath
+	}
+
+	res, joined, err := s.scanner.ScanDevice(r.Context(), serial, path, scan.DeviceScan)
+	if err != nil {
+		if errors.Is(err, scan.ErrDeviceNotConnected) {
+			writeError(w, http.StatusNotFound, err.Error())
+			return
+		}
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	status := "completed"
+	if joined {
+		status = "joined"
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"scan_id":       res.ScanID,
+		"status":        status,
+		"serial":        serial,
+		"devices_total": len(res.Devices),
+	})
+}
+
+// handleForgetDevice removes a drive and everything derived from it. This is the
+// escape hatch for a workflow that plugs in drives to read them once: without it the
+// list fills up with hardware that will never come back (docs/API.md).
+func (s *Server) handleForgetDevice(w http.ResponseWriter, r *http.Request) {
+	serial := r.PathValue("serial")
+	if serial == "" {
+		writeError(w, http.StatusBadRequest, "serial is required")
+		return
+	}
+
+	found, err := s.store.DeleteDevice(r.Context(), serial)
+	if err != nil {
+		s.fail(w, "forget device", err)
+		return
+	}
+	if !found {
+		writeError(w, http.StatusNotFound, "no such device")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"serial": serial, "forgotten": true})
 }
 
 func (s *Server) handleScanHistory(w http.ResponseWriter, r *http.Request) {

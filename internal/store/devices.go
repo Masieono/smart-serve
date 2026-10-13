@@ -74,6 +74,18 @@ type DeviceRecord struct {
 // device, a snapshot per device, and missing-marking for devices that did not
 // appear in this scan. It returns the scan id.
 func (s *Store) SaveScan(ctx context.Context, trigger string, started, ended time.Time, devices []ScannedDevice) (int64, error) {
+	return s.saveScan(ctx, trigger, started, ended, devices, true)
+}
+
+// SavePartialScan persists a scan that only looked at some drives.
+//
+// It deliberately skips the "mark everything else missing" step: the drives it did
+// not look at were never checked, so reporting them as disconnected would be a lie.
+func (s *Store) SavePartialScan(ctx context.Context, trigger string, started, ended time.Time, devices []ScannedDevice) (int64, error) {
+	return s.saveScan(ctx, trigger, started, ended, devices, false)
+}
+
+func (s *Store) saveScan(ctx context.Context, trigger string, started, ended time.Time, devices []ScannedDevice, markAbsent bool) (int64, error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return 0, err
@@ -118,8 +130,10 @@ func (s *Store) SaveScan(ctx context.Context, trigger string, started, ended tim
 		}
 	}
 
-	if err := markMissing(ctx, tx, seen); err != nil {
-		return 0, err
+	if markAbsent {
+		if err := markMissing(ctx, tx, seen); err != nil {
+			return 0, err
+		}
 	}
 	if _, err := tx.ExecContext(ctx,
 		`UPDATE scan_history SET devices_ok = ?, devices_failed = ? WHERE id = ?`,
@@ -127,6 +141,42 @@ func (s *Store) SaveScan(ctx context.Context, trigger string, started, ended tim
 		return 0, err
 	}
 	return scanID, tx.Commit()
+}
+
+// DeleteDevice forgets a drive completely: the device row, its snapshots, and its
+// user metadata.
+//
+// Scan history is deliberately left alone. It is a record of what happened, not of
+// what exists, and deleting rows from it would rewrite the past.
+func (s *Store) DeleteDevice(ctx context.Context, serial string) (bool, error) {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return false, err
+	}
+	defer tx.Rollback()
+
+	for _, stmt := range []string{
+		`DELETE FROM snapshots WHERE serial = ?`,
+		`DELETE FROM device_notes WHERE serial = ?`,
+		`DELETE FROM device_transport_overrides WHERE serial = ?`,
+	} {
+		if _, err := tx.ExecContext(ctx, stmt, serial); err != nil {
+			return false, fmt.Errorf("forget device %s: %w", serial, err)
+		}
+	}
+
+	res, err := tx.ExecContext(ctx, `DELETE FROM devices WHERE serial = ?`, serial)
+	if err != nil {
+		return false, fmt.Errorf("forget device %s: %w", serial, err)
+	}
+	affected, err := res.RowsAffected()
+	if err != nil {
+		return false, err
+	}
+	if err := tx.Commit(); err != nil {
+		return false, err
+	}
+	return affected > 0, nil
 }
 
 func upsertDevice(ctx context.Context, tx *sql.Tx, d ScannedDevice, lastScan any, started, ended time.Time) error {

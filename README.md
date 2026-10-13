@@ -32,9 +32,9 @@ database daemon.
 - **Tiny footprint** — single static Go binary, embedded frontend, SQLite storage in
   one file, distroless+smartmontools image well under 20 MB.
 - **Clean, themable UI** — a sleek, navigable interface designed as a first-class
-  requirement: dark / light / auto, Catppuccin, Dracula, Nord and Gruvbox palettes,
-  plus a custom accent colour — and a theme picker that never touches component code
-  (`docs/UI.md`).
+  requirement: dark / light / auto, Catppuccin, Dracula, Nord, Gruvbox, Synthwave,
+  Hacker, Solarized, Tokyo Night and One Dark palettes, plus a custom accent colour —
+  and a theme picker that never touches component code (`docs/UI.md`).
 
 ## Quick start
 

@@ -288,19 +288,44 @@ export function toast(message, kind = 'info') {
 
 // --- dialog -------------------------------------------------------------------
 
-/** Modal dialog. `render` receives the body element and a close() callback. */
+/**
+ * Modal dialog. `render(body, close, foot)` fills the scrollable body and the fixed
+ * footer.
+ *
+ * The footer is a separate slot rather than something the caller appends to the body
+ * so action buttons stay visible however long the content gets: a Close button below
+ * the fold is indistinguishable from having no way out at all.
+ */
 export function openDialog(title, render) {
   const body = el('div', { class: 'dialog-body' });
+  const foot = el('div', { class: 'dialog-foot' });
   const dialog = el('dialog', { 'aria-label': title }, [
     el('div', { class: 'dialog-head' }, [el('h2', { text: title })]),
     body,
+    foot,
   ]);
   dialog.addEventListener('close', () => dialog.remove());
+
+  // Clicking the backdrop dismisses. The click lands on the dialog element itself
+  // because its children cover the rest of the box — but a drag that starts inside
+  // and ends outside also targets it, so the coordinates are checked too.
+  dialog.addEventListener('click', (event) => {
+    if (isBackdropClick(dialog, event)) dialog.close();
+  });
+
   const close = () => dialog.close();
-  render(body, close);
+  render(body, close, foot);
   document.body.append(dialog);
   dialog.showModal();
   return { dialog, close };
+}
+
+/** Whether a click should be read as a click on the modal backdrop. */
+export function isBackdropClick(dialog, event) {
+  if (event.target !== dialog) return false;
+  const box = dialog.getBoundingClientRect();
+  return event.clientX < box.left || event.clientX > box.right
+    || event.clientY < box.top || event.clientY > box.bottom;
 }
 
 /** Confirm dialog; resolves true when confirmed, false on cancel or dismissal. */
@@ -313,19 +338,19 @@ export function confirmDialog(title, message, confirmLabel = 'Confirm') {
       resolve(value);
     };
 
-    const { dialog } = openDialog(title, (body, close) => {
+    const { dialog } = openDialog(title, (body, close, foot) => {
       body.append(el('p', { text: message }));
-      body.append(el('div', { class: 'dialog-foot', style: 'border:0;padding:0' }, [
+      foot.append(
         el('button', { class: 'btn', type: 'button', text: 'Cancel',
           onclick: () => { settle(false); close(); } }),
         el('button', { class: 'btn btn-danger', type: 'button', text: confirmLabel,
           onclick: () => { settle(true); close(); } }),
-      ]));
+      );
     });
 
-    // Escape, or any other dismissal, closes the dialog without a button press.
-    // Listening for `close` is the only reliable signal. Settling on a timer
-    // instead resolves the promise before the user has even seen the dialog, so
+    // Escape, a backdrop click, or any other dismissal closes the dialog without a
+    // button press. Listening for `close` is the only reliable signal. Settling on a
+    // timer instead resolves the promise before the user has even seen the dialog, so
     // every caller's `if (!(await confirmDialog(...))) return` bails out and the
     // confirmed action silently never happens.
     dialog.addEventListener('close', () => settle(false));

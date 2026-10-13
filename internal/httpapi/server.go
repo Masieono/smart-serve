@@ -98,6 +98,7 @@ func (s *Server) routes(mux *http.ServeMux) {
 
 	mux.HandleFunc("GET /api/devices", s.handleListDevices)
 	mux.HandleFunc("GET /api/devices/{serial}", s.handleGetDevice)
+	mux.HandleFunc("DELETE /api/devices/{serial}", s.handleForgetDevice)
 	mux.HandleFunc("PUT /api/devices/{serial}/notes", s.handleSetNotes)
 	mux.HandleFunc("PUT /api/devices/{serial}/transport", s.handleSetTransport)
 	mux.HandleFunc("GET /api/devices/{serial}/raw", s.handleRaw)
@@ -105,6 +106,7 @@ func (s *Server) routes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/devices/{serial}/history", s.handleHistory)
 
 	mux.HandleFunc("POST /api/scan", s.handleScan)
+	mux.HandleFunc("POST /api/devices/{serial}/scan", s.handleScanDevice)
 	mux.HandleFunc("GET /api/scans", s.handleScanHistory)
 
 	mux.HandleFunc("GET /api/settings", s.handleGetSettings)

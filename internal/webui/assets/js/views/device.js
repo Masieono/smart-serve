@@ -1,5 +1,8 @@
 // Device detail (docs/UI.md §7.2).
-import { el, mount, clear, fmtBytes, fmtDateTime, fmtAgo, fmtTemp, fmtHours, fmtInt, fmtScore, scoreGrade } from '../dom.js';
+import {
+  el, mount, clear, fmtBytes, fmtDateTime, fmtAgo, fmtTemp, fmtHours, fmtInt, fmtScore,
+  scoreGrade, convertTemp, convertTempDelta, temperatureUnitName,
+} from '../dom.js';
 import { api } from '../api.js';
 import { verdictBadge, healthGauge, attributeTable, errorBox, openDialog, toast, transportLabel, trendRow } from '../components.js';
 import { icon } from '../icons.js';
@@ -86,10 +89,14 @@ function draw(container, ctx, data, history) {
         el('div', { class: 'sub', text: `${d.model || '—'}${d.device_path ? ` · ${d.device_path}` : ''}` }),
       ]),
       el('span', { class: 'spacer' }),
-      el('button', { class: 'btn btn-sm', type: 'button', onclick: () => ctx.scan() }, [icon('scan'), 'Scan']),
+      el('button', { class: 'btn btn-sm', type: 'button', title: 'Rescan just this drive',
+        onclick: () => ctx.scanDevice(d.serial) }, [icon('scan'), 'Scan']),
       el('button', { class: 'btn btn-sm', type: 'button', title: 'Export a report',
         onclick: () => exportDialog(d) }, [icon('download'), 'Export']),
       el('button', { class: 'btn btn-sm', type: 'button', onclick: () => editNotes(ctx, d) }, [icon('save'), 'Notes']),
+      el('button', { class: 'btn btn-sm btn-ghost', type: 'button',
+        title: 'Remove this drive, its history and its notes',
+        onclick: () => ctx.forgetDevice(d.serial) }, [icon('trash'), 'Forget']),
     ]),
 
     el('div', { class: 'card stack' }, [
@@ -189,8 +196,12 @@ const TREND_METRICS = [
   {
     key: 'temperature_c',
     label: 'Temperature',
-    format: (v) => `${Math.round(v)} °C`,
-    delta: (d) => ({ text: signed(d, ' °C'), tone: d > 0 ? 'bad' : 'good' }),
+    format: (v) => `${convertTemp(v)} °${temperatureUnitName()}`,
+    // A delta is a span, so it converts without the offset.
+    delta: (d) => ({
+      text: signed(convertTempDelta(d), ` °${temperatureUnitName()}`),
+      tone: d > 0 ? 'bad' : 'good',
+    }),
   },
   {
     key: 'power_on_hours',
@@ -267,9 +278,10 @@ const EXPORT_FORMATS = [
 ];
 
 function exportDialog(device) {
-  openDialog('Export report', (body, close) => {
-    body.append(el('p', { class: 'muted', text: `Download ${device.model || device.serial} as:` }));
-    body.append(el('div', { class: 'stack', style: 'gap:var(--space-2)' },
+  openDialog('Export report', (body, close, foot) => {
+    body.append(el('p', { class: 'muted',
+      text: `Download ${device.name || device.model || device.serial} as:` }));
+    body.append(el('div', { class: 'export-list' },
       EXPORT_FORMATS.map(([format, label, help]) =>
         el('a', {
           class: 'export-option',
@@ -279,15 +291,11 @@ function exportDialog(device) {
           // synchronously can cancel the download in some browsers.
           onclick: () => setTimeout(close, 0),
         }, [
-          el('div', {}, [
-            el('div', { class: 'setting-label', text: label }),
-            el('div', { class: 'setting-help', text: help }),
-          ]),
+          el('span', { class: 'export-label', text: label }),
+          el('span', { class: 'export-help', text: help }),
           icon('download'),
         ]))));
-    body.append(el('div', { class: 'dialog-foot', style: 'border:0;padding:0' }, [
-      el('button', { class: 'btn', type: 'button', text: 'Close', onclick: close }),
-    ]));
+    foot.append(el('button', { class: 'btn', type: 'button', text: 'Close', onclick: close }));
   });
 }
 
@@ -358,7 +366,7 @@ async function toggleRaw(device, button) {
 }
 
 function editNotes(ctx, device) {
-  openDialog('Device notes', (body, close) => {
+  openDialog('Device notes', (body, close, foot) => {
     const name = el('input', { type: 'text', value: device.name || '', placeholder: 'e.g. boot, backup pool' });
     const tags = el('input', { type: 'text', value: device.tags || '', placeholder: 'e.g. critical,os' });
     const notes = el('textarea', { value: device.notes || '', placeholder: 'Anything worth remembering about this drive' });
@@ -369,31 +377,32 @@ function editNotes(ctx, device) {
       el('div', { class: 'field' }, [el('label', { text: 'Tags' }), tags]),
       el('div', { class: 'field' }, [el('label', { text: 'Notes' }), notes]),
       el('label', { class: 'field-row' }, [hidden, el('span', { text: 'Hide from the dashboard' })]),
-      el('div', { class: 'dialog-foot', style: 'border:0;padding:0' }, [
-        el('button', { class: 'btn', type: 'button', text: 'Cancel', onclick: close }),
-        el('button', {
-          class: 'btn btn-primary',
-          type: 'button',
-          text: 'Save',
-          onclick: async (event) => {
-            event.currentTarget.disabled = true;
-            try {
-              await api.setNotes(device.serial, {
-                name: name.value.trim(),
-                tags: tags.value.trim(),
-                notes: notes.value,
-                hidden: hidden.checked,
-              });
-              toast('Notes saved', 'good');
-              close();
-              ctx.refresh();
-            } catch (err) {
-              toast(err.message, 'error');
-              event.currentTarget.disabled = false;
-            }
-          },
-        }),
-      ]),
+    );
+
+    foot.append(
+      el('button', { class: 'btn', type: 'button', text: 'Cancel', onclick: close }),
+      el('button', {
+        class: 'btn btn-primary',
+        type: 'button',
+        text: 'Save',
+        onclick: async (event) => {
+          event.currentTarget.disabled = true;
+          try {
+            await api.setNotes(device.serial, {
+              name: name.value.trim(),
+              tags: tags.value.trim(),
+              notes: notes.value,
+              hidden: hidden.checked,
+            });
+            toast('Notes saved', 'good');
+            close();
+            ctx.refresh();
+          } catch (err) {
+            toast(err.message, 'error');
+            event.currentTarget.disabled = false;
+          }
+        },
+      }),
     );
   });
 }

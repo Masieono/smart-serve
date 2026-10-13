@@ -82,7 +82,16 @@ func New(themeFn ThemeFunc, opts Options) (http.Handler, error) {
 // pinned together by tests on both sides.
 var ThemeNames = []string{
 	"auto", "light", "dark",
-	"catppuccin-latte", "catppuccin-mocha", "dracula", "nord", "gruvbox-light", "gruvbox-dark",
+
+	"catppuccin-latte", "catppuccin-frappe", "catppuccin-macchiato", "catppuccin-mocha",
+	"dracula", "nord",
+	"gruvbox-light", "gruvbox-dark",
+	"synthwave-light", "synthwave-dark",
+	"hacker",
+	"solarized-light", "solarized-dark",
+	"tokyo-night",
+	"one-dark",
+
 	"custom",
 }
 

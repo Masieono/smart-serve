@@ -102,7 +102,7 @@ function draw(container, ctx, data) {
 }
 
 function editSchedule(ctx, existing) {
-  openDialog(existing ? 'Edit schedule' : 'New schedule', (body, close) => {
+  openDialog(existing ? 'Edit schedule' : 'New schedule', (body, close, foot) => {
     const label = el('input', { type: 'text', value: (existing && existing.label) || '', placeholder: 'e.g. nightly' });
 
     const mode = el('select', {}, [
@@ -231,33 +231,34 @@ function editSchedule(ctx, existing) {
       cronRow,
       preview,
       el('label', { class: 'field-row' }, [enabled, el('span', { text: 'Enabled' })]),
-      el('div', { class: 'dialog-foot', style: 'border:0;padding:0' }, [
-        el('button', { class: 'btn', type: 'button', text: 'Cancel', onclick: close }),
-        el('button', { class: 'btn btn-primary', type: 'button', text: 'Save', onclick: async (event) => {
-          const { kind, every_seconds, cron } = compute();
-          if (kind === 'cron') {
-            const problem = cronFieldError(cron);
-            if (problem) {
-              toast(problem, 'error');
-              return;
-            }
-          }
-          const payload = { label: label.value.trim(), kind, enabled: enabled.checked, every_seconds, cron };
-          if (existing) payload.id = existing.id;
+    );
 
-          event.currentTarget.disabled = true;
-          try {
-            if (existing) await api.updateSchedule(payload);
-            else await api.createSchedule(payload);
-            toast('Schedule saved', 'good');
-            close();
-            ctx.refresh();
-          } catch (err) {
-            toast(err.message, 'error');
-            event.currentTarget.disabled = false;
+    foot.append(
+      el('button', { class: 'btn', type: 'button', text: 'Cancel', onclick: close }),
+      el('button', { class: 'btn btn-primary', type: 'button', text: 'Save', onclick: async (event) => {
+        const { kind, every_seconds, cron } = compute();
+        if (kind === 'cron') {
+          const problem = cronFieldError(cron);
+          if (problem) {
+            toast(problem, 'error');
+            return;
           }
-        } }),
-      ]),
+        }
+        const payload = { label: label.value.trim(), kind, enabled: enabled.checked, every_seconds, cron };
+        if (existing) payload.id = existing.id;
+
+        event.currentTarget.disabled = true;
+        try {
+          if (existing) await api.updateSchedule(payload);
+          else await api.createSchedule(payload);
+          toast('Schedule saved', 'good');
+          close();
+          ctx.refresh();
+        } catch (err) {
+          toast(err.message, 'error');
+          event.currentTarget.disabled = false;
+        }
+      } }),
     );
   });
 }

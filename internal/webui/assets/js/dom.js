@@ -136,6 +136,21 @@ export function toCelsius(displayed, fromUnit = currentUnit) {
   return fromUnit === 'f' ? Math.round(((n - 32) * 5) / 9) : n;
 }
 
+/**
+ * A temperature *difference* in the display unit.
+ *
+ * A delta is a span, not a reading, so it scales without the offset — using
+ * convertTemp on it would report a 2 °C rise as a 36 °F rise.
+ */
+export function convertTempDelta(delta, targetUnit = currentUnit) {
+  // Number(null) is 0, so a missing reading would otherwise render as a real
+  // "0 °C" change rather than nothing at all.
+  if (delta === null || delta === undefined) return null;
+  const n = Number(delta);
+  if (!Number.isFinite(n)) return null;
+  return targetUnit === 'f' ? Math.round((n * 9) / 5) : n;
+}
+
 export function fmtTemp(celsius) {
   const value = convertTemp(celsius);
   return value === null ? '—' : `${value} °${temperatureUnitName()}`;
@@ -147,7 +162,7 @@ export function fmtInt(value) {
   return Number(value).toLocaleString();
 }
 
-/** Grade label from the score (docs/SMART_INTERPRETATION.md §8.1). */
+/** Colour band for a 0–100 score, used by gauges and sparklines. */
 export function scoreBand(score) {
   if (score === null || score === undefined || score < 0) return 'unknown';
   if (score >= 75) return 'good';

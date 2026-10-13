@@ -48,6 +48,8 @@ export const api = {
   },
 
   scan: (wait = false) => request('POST', `/api/scan${wait ? '?wait=1' : ''}`),
+  scanDevice: (serial) => request('POST', `/api/devices/${encodeURIComponent(serial)}/scan`),
+  forgetDevice: (serial) => request('DELETE', `/api/devices/${encodeURIComponent(serial)}`),
   scans: () => request('GET', '/api/scans'),
 
   settings: () => request('GET', '/api/settings'),

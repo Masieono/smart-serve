@@ -237,6 +237,17 @@ a:hover {
   display: none;
 }
 
+/* --- dialogs, toolbars, misc ------------------------------------------------ */
+
+/* Icons carry a default size so an SVG that lands outside a .btn or .badge cannot
+   stretch its container to the SVG default of 300x150. Anything with a more
+   specific rule (.gauge svg, .sparkline, …) still wins. */
+svg {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+}
+
 /* --- buttons ---------------------------------------------------------------- */
 
 .btn {
@@ -589,16 +600,63 @@ a:hover {
   border-radius: var(--radius-sm);
 }
 
-/* --- export options --------------------------------------------------------- */
+/* A scrollable checklist of drives, so a long drive list cannot make the dialog
+   taller than the screen. */
+.drive-pick-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  max-height: 220px;
+  overflow-y: auto;
+  padding: var(--space-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
 
-/* One row per format: label and explanation on the left, the download affordance on
-   the right, so the choice is explicit rather than hidden behind a single button. */
-.export-option {
+.drive-pick {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: var(--space-4);
-  padding: var(--space-3);
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.drive-pick:hover {
+  background: var(--surface-2);
+}
+
+.drive-pick-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.drive-pick-meta {
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+}
+
+/* --- export options --------------------------------------------------------- */
+
+/* One row per format: label over explanation on the left, a small download
+   affordance on the right. The icon is sized here rather than left to the SVG
+   default of 300x150, which is what turned these rows into half-screen boxes. */
+.export-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.export-option {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  column-gap: var(--space-4);
+  padding: var(--space-3) var(--space-4);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   color: inherit;
@@ -610,11 +668,41 @@ a:hover {
   background: var(--surface-2);
 }
 
+.export-label {
+  font-weight: 600;
+}
+
+.export-help {
+  grid-column: 1;
+  color: var(--muted);
+  font-size: var(--text-xs);
+}
+
+.export-option svg {
+  grid-row: 1 / span 2;
+  width: 18px;
+  height: 18px;
+  color: var(--muted);
+}
+
+.export-option:hover svg {
+  color: var(--accent);
+}
+
 /* --- settings rows ---------------------------------------------------------- */
 
 /* A list of settings, not a grid of labelled boxes. The label and its explanation
    sit together on the left and the control is right-aligned, so every value lands
-   in one column and the whole page can be scanned and compared at a glance. */
+   in one column and the whole page can be scanned and compared at a glance.
+   Two of these cards sit side by side (`.settings-grid`), which is what keeps the
+   gap between a label and its control from stretching across a whole wide screen. */
+.settings-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(460px, 1fr));
+  gap: var(--space-4);
+  align-items: start;
+}
+
 .setting-row {
   display: flex;
   align-items: center;
@@ -923,7 +1011,12 @@ input[type="checkbox"] {
 
 /* --- dialogs ---------------------------------------------------------------- */
 
+/* The dialog is a column so its footer stays put while the body scrolls. Without a
+   height cap a long body pushes the action buttons off the bottom of the screen,
+   which reads as "there is no way to close this". */
 dialog {
+  display: flex;
+  flex-direction: column;
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   background: var(--surface);
@@ -931,6 +1024,7 @@ dialog {
   padding: 0;
   max-width: 560px;
   width: calc(100% - var(--space-5) * 2);
+  max-height: min(85vh, 900px);
   box-shadow: var(--shadow-2);
 }
 
@@ -939,6 +1033,7 @@ dialog::backdrop {
 }
 
 .dialog-head {
+  flex: 0 0 auto;
   display: flex;
   align-items: center;
   gap: var(--space-3);
@@ -947,15 +1042,19 @@ dialog::backdrop {
 }
 
 .dialog-body {
+  flex: 1 1 auto;
+  /* Lets the flex item shrink below its content size, which is what makes the
+     overflow actually scroll rather than push the footer off the dialog. */
+  min-height: 0;
   padding: var(--space-5);
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
-  max-height: 70vh;
   overflow-y: auto;
 }
 
 .dialog-foot {
+  flex: 0 0 auto;
   display: flex;
   justify-content: flex-end;
   gap: var(--space-2);

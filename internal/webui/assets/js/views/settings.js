@@ -11,11 +11,20 @@ const THEMES = [
   ['light', 'Light'],
   ['dark', 'Dark'],
   ['catppuccin-latte', 'Catppuccin Latte'],
+  ['catppuccin-frappe', 'Catppuccin Frappé'],
+  ['catppuccin-macchiato', 'Catppuccin Macchiato'],
   ['catppuccin-mocha', 'Catppuccin Mocha'],
   ['dracula', 'Dracula'],
   ['nord', 'Nord'],
   ['gruvbox-light', 'Gruvbox Light'],
   ['gruvbox-dark', 'Gruvbox Dark'],
+  ['synthwave-light', 'Synthwave Light'],
+  ['synthwave-dark', "Synthwave '84"],
+  ['hacker', 'Hacker'],
+  ['solarized-light', 'Solarized Light'],
+  ['solarized-dark', 'Solarized Dark'],
+  ['tokyo-night', 'Tokyo Night'],
+  ['one-dark', 'One Dark'],
   ['custom', 'Custom (pick your own accent)'],
 ];
 
@@ -128,7 +137,10 @@ function draw(container, ctx, data, { carried = {}, unit: unitOverride } = {}) {
     el('option', { value: 'c', text: 'Celsius (°C)' }),
     el('option', { value: 'f', text: 'Fahrenheit (°F)' }),
   ]);
-  unit.value = settings.temperature_unit === 'f' ? 'f' : 'c';
+  // renderUnit, not the stored setting: this page re-renders on a unit change, and
+  // reading the stored value back would snap the picker to Celsius the instant the
+  // user chose Fahrenheit — and Save would then persist the wrong unit.
+  unit.value = renderUnit;
 
   // Switching units re-renders so the temperature slider's bounds and label match.
   // Values edited but not yet saved are carried across in Celsius, so nothing the
@@ -226,37 +238,41 @@ function draw(container, ctx, data, { carried = {}, unit: unitOverride } = {}) {
       save,
     ]),
 
-    el('div', { class: 'card stack' }, [
-      el('h2', { text: 'Health thresholds' }),
-      el('div', {}, [
-        ...thresholdRows,
-        settingRow('Caution on any sector problem',
-          'Flag a drive as soon as a single reallocated, pending or uncorrectable sector appears.',
-          warn),
+    el('div', { class: 'settings-grid' }, [
+      el('div', { class: 'card stack' }, [
+        el('h2', { text: 'Health thresholds' }),
+        el('div', {}, [
+          ...thresholdRows,
+          settingRow('Caution on any sector problem',
+            'Flag a drive as soon as a single reallocated, pending or uncorrectable sector appears.',
+            warn),
+        ]),
+      ]),
+
+      el('div', { class: 'card stack' }, [
+        el('h2', { text: 'Alerts and retention' }),
+        el('div', {}, operationRows),
       ]),
     ]),
 
-    el('div', { class: 'card stack' }, [
-      el('h2', { text: 'Alerts and retention' }),
-      el('div', {}, operationRows),
-    ]),
-
-    el('div', { class: 'card stack' }, [
-      el('h2', { text: 'Appearance' }),
-      el('div', {}, [
-        settingRow('Temperature unit',
-          'How drive temperatures are displayed. The threshold above follows this too — the stored value stays Celsius, which is what the drives report.',
-          unit),
-        themeRow,
-        ...customRows,
-        tintRow,
+    el('div', { class: 'settings-grid' }, [
+      el('div', { class: 'card stack' }, [
+        el('h2', { text: 'Appearance' }),
+        el('div', {}, [
+          settingRow('Temperature unit',
+            'How drive temperatures are displayed. The threshold above follows this too — the stored value stays Celsius, which is what the drives report.',
+            unit),
+          themeRow,
+          ...customRows,
+          tintRow,
+        ]),
       ]),
-    ]),
 
-    el('div', { class: 'card stack' }, [
-      el('h2', { text: 'About' }),
-      el('div', { class: 'muted', text: `Smart-Serve ${version}` }),
-      el('div', { class: 'muted', text: 'S.M.A.R.T. data comes from smartmontools; the app never writes to a drive.' }),
+      el('div', { class: 'card stack' }, [
+        el('h2', { text: 'About' }),
+        el('div', { class: 'muted', text: `Smart-Serve ${version}` }),
+        el('div', { class: 'muted', text: 'S.M.A.R.T. data comes from smartmontools; the app never writes to a drive.' }),
+      ]),
     ]),
   );
 }

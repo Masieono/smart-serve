@@ -4,6 +4,8 @@ package scan
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -58,6 +60,62 @@ func (s *Scanner) Run(ctx context.Context) ([]Device, error) {
 		out = append(out, s.scanOne(ctx, d, timeout, thresholds))
 	}
 	return out, nil
+}
+
+// ErrDeviceNotConnected reports a rescan of a drive that is no longer present. It is
+// a condition the caller can act on (the drive was unplugged), not a server fault.
+var ErrDeviceNotConnected = errors.New("device is not connected")
+
+// preScanSerial is the identity available before a drive is read.
+//
+// A stored device is keyed on smartctl's serial, which is not known until after the
+// read, so the lsblk serial is used to find the candidate. The two agree for ATA and
+// NVMe drives; a USB bridge that reports a different serial to lsblk than the drive
+// does to smartctl is handled by the path fallback in RunDevice.
+func preScanSerial(d smart.Discovered) string {
+	if s := strings.TrimSpace(d.Serial); s != "" {
+		return s
+	}
+	name := strings.TrimSpace(d.Model)
+	if name == "" {
+		name = d.Path
+	}
+	return "__nomodel:" + name
+}
+
+// RunDevice rescans a single drive, identified by its stored serial.
+//
+// `path` is the drive's last-seen device node. It is the fallback for a drive whose
+// bridge reports a different serial to lsblk than the drive reports to smartctl, and
+// the result is only accepted if its identity matches — the node may now belong to a
+// different drive, and reading the wrong disk would be worse than reporting that the
+// original is gone.
+func (s *Scanner) RunDevice(ctx context.Context, serial, path string) (Device, error) {
+	timeout, thresholds := s.resolve(ctx)
+
+	devices, err := smart.ListDevices(ctx, timeout)
+	if err != nil {
+		return Device{}, err
+	}
+
+	var candidate *smart.Discovered
+	for i := range devices {
+		d := devices[i]
+		if strings.EqualFold(preScanSerial(d), serial) {
+			return s.scanOne(ctx, d, timeout, thresholds), nil
+		}
+		if candidate == nil && path != "" && d.Path == path {
+			candidate = &devices[i]
+		}
+	}
+
+	if candidate != nil {
+		res := s.scanOne(ctx, *candidate, timeout, thresholds)
+		if strings.EqualFold(res.Serial(), serial) {
+			return res, nil
+		}
+	}
+	return Device{}, fmt.Errorf("%s: %w", serial, ErrDeviceNotConnected)
 }
 
 // resolve returns the timeout and thresholds to use for one scan, consulting the

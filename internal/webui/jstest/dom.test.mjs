@@ -6,7 +6,7 @@ installStubDom();
 
 const {
   el, mount, fmtBytes, fmtHours, fmtInt, scoreGrade,
-  fmtTemp, setTemperatureUnit, temperatureUnitName, convertTemp, toCelsius,
+  fmtTemp, setTemperatureUnit, temperatureUnitName, convertTemp, toCelsius, convertTempDelta,
 } = await import('../assets/js/dom.js');
 
 // Regression: an array of nodes used to be stringified into
@@ -93,4 +93,14 @@ test('an unrecognised temperature unit falls back to Celsius', () => {
 test('fmtTemp blanks missing readings', () => {
   assert.equal(fmtTemp(null), '—');
   assert.equal(fmtTemp(undefined), '—');
+});
+
+// A delta is a span, not a reading: converting it with the offset would report a
+// 2 °C rise as a 36 °F rise.
+test('a temperature delta converts without the offset', () => {
+  assert.equal(convertTempDelta(2, 'c'), 2);
+  assert.equal(convertTempDelta(2, 'f'), 4); // 2 °C = 3.6 °F, rounded
+  assert.equal(convertTempDelta(-5, 'f'), -9); // -5 °C = -9 °F
+  assert.equal(convertTempDelta(null, 'f'), null);
+  assert.equal(convertTempDelta(undefined, 'f'), null);
 });

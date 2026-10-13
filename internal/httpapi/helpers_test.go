@@ -3,6 +3,7 @@ package httpapi
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -28,6 +29,24 @@ type fakeRunner struct {
 func (f *fakeRunner) Run(context.Context) ([]scan.Device, error) {
 	f.calls++
 	return f.devices, f.err
+}
+
+// RunDevice stands in for a single-drive rescan. It mirrors the real lookup: serial
+// first, then the last-seen path.
+func (f *fakeRunner) RunDevice(_ context.Context, serial, path string) (scan.Device, error) {
+	f.calls++
+	if f.err != nil {
+		return scan.Device{}, f.err
+	}
+	for _, d := range f.devices {
+		if strings.EqualFold(d.Serial(), serial) {
+			return d, nil
+		}
+		if path != "" && d.Discovered.Path == path {
+			return d, nil
+		}
+	}
+	return scan.Device{}, fmt.Errorf("%s: %w", serial, scan.ErrDeviceNotConnected)
 }
 
 func sampleDevices() []scan.Device {

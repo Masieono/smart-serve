@@ -92,11 +92,14 @@ theme picker without touching any component code.
   and components only ever reference `var(--…)`.
 - **Built-in themes:** `auto` (follows the OS via `prefers-color-scheme`), `light`,
   `dark`.
-- **Named palettes:** `catppuccin-latte`, `catppuccin-mocha`, `dracula`, `nord`,
-  `gruvbox-light`, `gruvbox-dark`. Each states its own `--palette-*`, accent and
-  health colours, so a palette looks like itself rather than the default in a
-  different shade. Their soft variants and hover shades are mixed once from the
-  solid values (`color-mix`), so a new palette is a dozen lines.
+- **Named palettes:** `catppuccin-latte`, `catppuccin-frappe`, `catppuccin-macchiato`,
+  `catppuccin-mocha`, `dracula`, `nord`, `gruvbox-light`, `gruvbox-dark`,
+  `synthwave-light`, `synthwave-dark`, `hacker`, `solarized-light`, `solarized-dark`,
+  `tokyo-night`, `one-dark`. Each states its own `--palette-*`, accent and health
+  colours, so a palette looks like itself rather than the default in a different
+  shade. Their soft variants and hover shades are mixed once from the solid values
+  (`color-mix`), so a new palette is a dozen lines plus a line in the derived-token
+  `:is(...)` rule.
 - **Custom theme:** the user picks an **accent colour** and a **base** (light or
   dark). Derived tokens (`--accent-contrast`, hover/active shades, focus ring) are
   computed from the accent's luminance so text on the accent always meets WCAG AA
@@ -130,6 +133,7 @@ picker offers exactly `ThemeNames`.
 | **Attribute table** | Sortable, zebra rows; ID / name / value / worst / threshold / interpreted raw / status dot; per-attribute help tooltip ("what is this?"). |
 | **Sparkline / trend card** | Inline SVG per metric (health score, temperature, power-on hours, wear) with the current value and the change across the window, plus a 7 / 30 / 90 day / all range selector. A row with fewer than two readings is dropped — one point is not a trend. |
 | **Export dialog** | One row per format (plain text / web page / spreadsheet / JSON) with what each is for, rather than a single button that silently picks one. |
+| **Settings grid** | The settings cards sit two-up where there is room. Each row keeps its label and explanation on the left and its control on the right, so every value lands in one column; two columns halve the dead space between them without making the controls cramped. |
 | **Scan button** | Primary action. States: idle · scanning (spinner + "3/5 devices") · done (toast). |
 | **Toasts** | Scan complete, saved, notification sent; auto-dismiss, stacked. |
 | **Dialogs / sheets** | Schedule editor, channel editor, maintenance window, transport override, export, confirmations. Full-screen sheets on mobile. |

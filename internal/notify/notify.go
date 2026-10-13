@@ -268,6 +268,9 @@ type DispatcherOptions struct {
 	Budget time.Duration
 	// Squelch is how long a repeating condition stays quiet (default 1h).
 	Squelch time.Duration
+	// Location is the clock recurring maintenance windows are read against
+	// (default time.Local, matching how the scheduler evaluates cron).
+	Location *time.Location
 	// Now overrides the clock in tests.
 	Now func() time.Time
 }
@@ -280,6 +283,7 @@ type Dispatcher struct {
 	log     *slog.Logger
 	budget  time.Duration
 	squelch time.Duration
+	loc     *time.Location
 	now     func() time.Time
 }
 
@@ -291,6 +295,7 @@ func NewDispatcher(st Store, reg *Registry, opts DispatcherOptions) *Dispatcher 
 		log:     opts.Logger,
 		budget:  opts.Budget,
 		squelch: opts.Squelch,
+		loc:     opts.Location,
 		now:     opts.Now,
 	}
 	if d.log == nil {
@@ -301,6 +306,9 @@ func NewDispatcher(st Store, reg *Registry, opts DispatcherOptions) *Dispatcher 
 	}
 	if d.squelch <= 0 {
 		d.squelch = time.Hour
+	}
+	if d.loc == nil {
+		d.loc = time.Local
 	}
 	if d.now == nil {
 		d.now = time.Now
@@ -398,7 +406,7 @@ func (d *Dispatcher) deliver(ctx context.Context, ch store.Channel, sender Sende
 	// A maintenance window silences everything for the drives it covers. It is
 	// checked before squelching because it is a deliberate operator action, and the
 	// delivery log should say so rather than blaming a squelch timer.
-	if w := ActiveWindow(p.windows, d.now(), ev.Serial); w != nil {
+	if w := ActiveWindow(p.windows, d.now(), ev.Serial, d.loc); w != nil {
 		d.record(ctx, ch.ID, ev, OutcomeSquelched, "maintenance window: "+w.Name())
 		return
 	}

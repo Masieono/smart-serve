@@ -249,13 +249,61 @@
   --unknown: #928374;
 }
 
+/* Catppuccin Frappé */
+[data-theme="catppuccin-frappe"] {
+  color-scheme: dark;
+  --palette-bg: #292c3c;
+  --palette-surface: #303446;
+  --palette-surface-2: #414559;
+  --palette-text: #c6d0f5;
+  --palette-muted: #a5adce;
+  --palette-border: #51576d;
+  --palette-focus: #8caaee;
+  --palette-overlay: rgba(35, 38, 52, 0.6);
+
+  --accent: #8caaee;
+  --accent-contrast: #232634;
+  --good: #a6d189;
+  --caution: #e5c890;
+  --bad: #e78284;
+  --unknown: #838ba7;
+}
+
+/* Catppuccin Macchiato */
+[data-theme="catppuccin-macchiato"] {
+  color-scheme: dark;
+  --palette-bg: #1e2030;
+  --palette-surface: #24273a;
+  --palette-surface-2: #363a4f;
+  --palette-text: #cad3f5;
+  --palette-muted: #a5adcb;
+  --palette-border: #494d64;
+  --palette-focus: #8aadf4;
+  --palette-overlay: rgba(24, 25, 38, 0.6);
+
+  --accent: #8aadf4;
+  --accent-contrast: #181926;
+  --good: #a6da95;
+  --caution: #eed49f;
+  --bad: #ed8796;
+  --unknown: #8087a2;
+}
+
 /* Derived tokens for every named palette.
    Soft variants and the hover shade are mixed from the solid colours, so a palette
    only has to state its own solid values. The hover mixes towards the text colour,
    which darkens on a light theme and lightens on a dark one — one rule that is
-   correct in both directions. */
-:is([data-theme="catppuccin-latte"], [data-theme="catppuccin-mocha"], [data-theme="dracula"],
-    [data-theme="nord"], [data-theme="gruvbox-dark"], [data-theme="gruvbox-light"]) {
+   correct in both directions.
+
+   TestEveryThemeNameHasAPalette checks that every palette block also appears here,
+   so a new theme cannot be added with a flat accent and no soft variants. */
+:is([data-theme="catppuccin-latte"], [data-theme="catppuccin-frappe"],
+    [data-theme="catppuccin-macchiato"], [data-theme="catppuccin-mocha"],
+    [data-theme="dracula"], [data-theme="nord"],
+    [data-theme="gruvbox-dark"], [data-theme="gruvbox-light"],
+    [data-theme="synthwave-dark"], [data-theme="synthwave-light"], [data-theme="hacker"],
+    [data-theme="solarized-dark"], [data-theme="solarized-light"],
+    [data-theme="tokyo-night"], [data-theme="one-dark"]) {
   --accent-hover: color-mix(in srgb, var(--accent) 82%, var(--palette-text));
   --accent-soft: color-mix(in srgb, var(--accent) 16%, transparent);
   --good-soft: color-mix(in srgb, var(--good) 16%, transparent);
@@ -265,6 +313,145 @@
   --info: var(--accent);
   --gauge-track: color-mix(in srgb, var(--palette-muted) 25%, transparent);
   --sparkline: var(--accent);
+}
+
+/* Synthwave '84 — https://github.com/robb0wen/synthwave-vscode */
+[data-theme="synthwave-dark"] {
+  color-scheme: dark;
+  --palette-bg: #241b2f;
+  --palette-surface: #262335;
+  --palette-surface-2: #34294f;
+  --palette-text: #f0e8ff;
+  --palette-muted: #a89bc4;
+  --palette-border: #4a3f6b;
+  --palette-focus: #ff7edb;
+  --palette-overlay: rgba(20, 14, 30, 0.72);
+
+  --accent: #ff7edb;
+  --accent-contrast: #262335;
+  --good: #72f1b8;
+  --caution: #fede5d;
+  --bad: #fe4450;
+  --unknown: #848bbd;
+}
+
+/* Synthwave light — the same palette family, darkened for a pale background. */
+[data-theme="synthwave-light"] {
+  color-scheme: light;
+  --palette-bg: #f4ecff;
+  --palette-surface: #fdfaff;
+  --palette-surface-2: #ece0fb;
+  --palette-text: #2a2139;
+  --palette-muted: #6b5f8a;
+  --palette-border: #d8c9f0;
+  --palette-focus: #b3289a;
+  --palette-overlay: rgba(42, 33, 57, 0.45);
+
+  --accent: #b3289a;
+  --accent-contrast: #ffffff;
+  --good: #0f7a52;
+  --caution: #8a6100;
+  --bad: #c02a3a;
+  --unknown: #7d84a8;
+}
+
+/* Hacker — phosphor green on near-black. */
+[data-theme="hacker"] {
+  color-scheme: dark;
+  --palette-bg: #050805;
+  --palette-surface: #0a100a;
+  --palette-surface-2: #101a10;
+  --palette-text: #33ff33;
+  --palette-muted: #22a822;
+  --palette-border: #1c3d1c;
+  --palette-focus: #33ff33;
+  --palette-overlay: rgba(0, 0, 0, 0.75);
+
+  --accent: #33ff33;
+  --accent-contrast: #050805;
+  --good: #33ff33;
+  --caution: #ffff33;
+  --bad: #ff4444;
+  --unknown: #4d7a4d;
+}
+
+/* Solarized — https://ethanschoonover.com/solarized */
+[data-theme="solarized-dark"] {
+  color-scheme: dark;
+  --palette-bg: #002b36;
+  --palette-surface: #073642;
+  --palette-surface-2: #0b4553;
+  --palette-text: #93a1a1;
+  --palette-muted: #839496;
+  --palette-border: #586e75;
+  --palette-focus: #268bd2;
+  --palette-overlay: rgba(0, 26, 33, 0.7);
+
+  --accent: #268bd2;
+  --accent-contrast: #fdf6e3;
+  --good: #859900;
+  --caution: #b58900;
+  --bad: #dc322f;
+  --unknown: #839496;
+}
+
+[data-theme="solarized-light"] {
+  color-scheme: light;
+  --palette-bg: #fdf6e3;
+  --palette-surface: #eee8d5;
+  --palette-surface-2: #e3dcc4;
+  --palette-text: #586e75;
+  --palette-muted: #657b83;
+  --palette-border: #d3cbb7;
+  --palette-focus: #268bd2;
+  --palette-overlay: rgba(88, 110, 117, 0.4);
+
+  --accent: #268bd2;
+  --accent-contrast: #fdf6e3;
+  --good: #859900;
+  --caution: #b58900;
+  --bad: #dc322f;
+  --unknown: #93a1a1;
+}
+
+/* Tokyo Night — https://github.com/enkia/tokyo-night-vscode-theme */
+[data-theme="tokyo-night"] {
+  color-scheme: dark;
+  --palette-bg: #16161e;
+  --palette-surface: #1a1b26;
+  --palette-surface-2: #292e42;
+  --palette-text: #c0caf5;
+  --palette-muted: #9aa5ce;
+  --palette-border: #2f3549;
+  --palette-focus: #7aa2f7;
+  --palette-overlay: rgba(13, 13, 20, 0.7);
+
+  --accent: #7aa2f7;
+  --accent-contrast: #16161e;
+  --good: #9ece6a;
+  --caution: #e0af68;
+  --bad: #f7768e;
+  --unknown: #565f89;
+}
+
+/* One Dark — https://github.com/atom/one-dark-syntax */
+[data-theme="one-dark"] {
+  color-scheme: dark;
+  --palette-bg: #21252b;
+  --palette-surface: #282c34;
+  --palette-surface-2: #2c313a;
+  --palette-text: #abb2bf;
+  --palette-muted: #7f848e;
+  --palette-border: #3b4048;
+  --palette-focus: #61afef;
+  --palette-overlay: rgba(20, 23, 27, 0.7);
+
+  --accent: #61afef;
+  --accent-contrast: #21252b;
+  --good: #98c379;
+  --caution: #e5c07b;
+  --bad: #e06c75;
+  --unknown: #7f848e;
 }
 
 /* --- semantic tokens -------------------------------------------------------- */

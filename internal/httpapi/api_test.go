@@ -1,9 +1,12 @@
 package httpapi
 
 import (
+	"context"
 	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestHealthz(t *testing.T) {
@@ -247,6 +250,108 @@ func TestReportExportUnknownDevice(t *testing.T) {
 	srv, _, _, _ := newTestServer(t, Options{})
 
 	rec := do(t, srv, http.MethodGet, "/api/devices/nope/report?format=html", "", nil)
+	if rec.Code != http.StatusNotFound {
+		t.Errorf("status = %d, want 404", rec.Code)
+	}
+}
+
+// countMissing counts the drives flagged as not present in the latest scan.
+func countMissing(t *testing.T, rec *httptest.ResponseRecorder) int {
+	t.Helper()
+	var resp struct {
+		Devices []struct {
+			IsMissing bool `json:"is_missing"`
+		} `json:"devices"`
+	}
+	decodeBody(t, rec, &resp)
+	missing := 0
+	for _, d := range resp.Devices {
+		if d.IsMissing {
+			missing++
+		}
+	}
+	return missing
+}
+
+func TestDeviceScanRescansOnlyThatDrive(t *testing.T) {
+	srv, _, _, _ := newTestServer(t, Options{})
+	do(t, srv, http.MethodPost, "/api/scan?wait=1", "", nil)
+
+	if got := countMissing(t, do(t, srv, http.MethodGet, "/api/devices", "", nil)); got != 0 {
+		t.Fatalf("after a full scan %d drives are missing, want 0", got)
+	}
+
+	rec := do(t, srv, http.MethodPost, "/api/devices/S1/scan", "", nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("device scan status = %d, body = %s", rec.Code, rec.Body.String())
+	}
+	var resp struct {
+		Serial       string `json:"serial"`
+		Status       string `json:"status"`
+		DevicesTotal int    `json:"devices_total"`
+	}
+	decodeBody(t, rec, &resp)
+	if resp.Serial != "S1" || resp.DevicesTotal != 1 {
+		t.Errorf("response = %+v, want a single-device scan of S1", resp)
+	}
+
+	// The regression this guards: a single-drive save that reused the full-scan path
+	// would mark every drive it did not look at as disconnected.
+	if got := countMissing(t, do(t, srv, http.MethodGet, "/api/devices", "", nil)); got != 0 {
+		t.Errorf("a single-drive scan marked %d other drives disconnected", got)
+	}
+}
+
+func TestDeviceScanUnknownSerial(t *testing.T) {
+	srv, _, _, _ := newTestServer(t, Options{})
+	do(t, srv, http.MethodPost, "/api/scan?wait=1", "", nil)
+
+	rec := do(t, srv, http.MethodPost, "/api/devices/nope/scan", "", nil)
+	if rec.Code != http.StatusNotFound {
+		t.Errorf("status = %d, want 404", rec.Code)
+	}
+}
+
+func TestForgetDeviceRemovesEverythingDerivedFromIt(t *testing.T) {
+	srv, st, _, _ := newTestServer(t, Options{})
+	do(t, srv, http.MethodPost, "/api/scan?wait=1", "", nil)
+
+	// A note and a snapshot, so the cleanup is observable rather than implied.
+	if rec := do(t, srv, http.MethodPut, "/api/devices/S1/notes", `{"name":"boot"}`, nil); rec.Code != http.StatusOK {
+		t.Fatalf("notes status = %d", rec.Code)
+	}
+
+	rec := do(t, srv, http.MethodDelete, "/api/devices/S1", "", nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("forget status = %d, body = %s", rec.Code, rec.Body.String())
+	}
+
+	if rec := do(t, srv, http.MethodGet, "/api/devices/S1", "", nil); rec.Code != http.StatusNotFound {
+		t.Errorf("a forgotten device is still readable (status %d)", rec.Code)
+	}
+
+	// Snapshots must go with it, or the drive keeps reappearing in history and trends.
+	series, err := st.SnapshotSeries(context.Background(), "S1", time.Time{}, time.Now().Add(time.Hour))
+	if err != nil {
+		t.Fatalf("SnapshotSeries: %v", err)
+	}
+	if len(series) != 0 {
+		t.Errorf("snapshots = %d, want 0 after forgetting the device", len(series))
+	}
+
+	// A later scan of the same host must not resurrect it: it is not connected.
+	if rec := do(t, srv, http.MethodPost, "/api/scan?wait=1", "", nil); rec.Code != http.StatusOK {
+		t.Fatalf("rescan status = %d", rec.Code)
+	}
+	if got := countMissing(t, do(t, srv, http.MethodGet, "/api/devices", "", nil)); got != 0 {
+		t.Errorf("missing = %d, want 0 — a forgotten device should not come back as missing", got)
+	}
+}
+
+func TestForgetDeviceUnknownSerial(t *testing.T) {
+	srv, _, _, _ := newTestServer(t, Options{})
+
+	rec := do(t, srv, http.MethodDelete, "/api/devices/nope", "", nil)
 	if rec.Code != http.StatusNotFound {
 		t.Errorf("status = %d, want 404", rec.Code)
 	}

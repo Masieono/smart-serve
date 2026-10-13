@@ -129,7 +129,7 @@ worse than no setting at all.
 | `theme_base` | `"dark"` | base for `custom`: `light` \| `dark` | `webui` |
 | `theme_accent` | `"#3b82f6"` | accent colour, read **only** when `theme` is `custom` | `webui` |
 | `theme_surface_tint` | `"neutral"` | `neutral` \| `slate` \| `warm` \| `cool`; remixes any theme's palette | `webui` |
-| `maintenance_windows` | `[]` | JSON list of `{label, starts_at, ends_at, serials[]}` (unix ms) — silences alerts for the drives it covers while active | `notify` |
+| `maintenance_windows` | `[]` | JSON list of windows — see `NOTIFICATIONS.md` for the shape. One-off (`starts_at`/`ends_at`) or recurring (`daily`/`weekly` with a time of day), optionally scoped to serials | `notify` |
 
 Thresholds are read **per scan** (`interp.FromSettings`) rather than captured at
 start-up, so a value changed in the UI applies to the very next scan. The same

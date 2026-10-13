@@ -10,7 +10,14 @@ const { themeNames } = await import('../assets/js/views/settings.js');
 // offers a theme the server will not render, or hides one it will.
 const EXPECTED_THEMES = [
   'auto', 'light', 'dark',
-  'catppuccin-latte', 'catppuccin-mocha', 'dracula', 'nord', 'gruvbox-light', 'gruvbox-dark',
+  'catppuccin-latte', 'catppuccin-frappe', 'catppuccin-macchiato', 'catppuccin-mocha',
+  'dracula', 'nord',
+  'gruvbox-light', 'gruvbox-dark',
+  'synthwave-light', 'synthwave-dark',
+  'hacker',
+  'solarized-light', 'solarized-dark',
+  'tokyo-night',
+  'one-dark',
   'custom',
 ];
 

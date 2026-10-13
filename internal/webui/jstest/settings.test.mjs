@@ -84,3 +84,96 @@ test('a Fahrenheit preference converts the threshold and its bounds', async () =
     .find((n) => n.className === 'setting-unit');
   assert.equal(unit.textContent, '°F');
 });
+
+// --- the unit picker ----------------------------------------------------------
+
+/** The Celsius/Fahrenheit picker. */
+function unitPicker(container) {
+  return container.all('select').find((s) => s.all('option').some((o) => o.value === 'f'));
+}
+
+function saveButton(container) {
+  return container.all('button').find((b) => /save/i.test(b.textContent));
+}
+
+const flush = () => new Promise((resolve) => setTimeout(resolve, 1));
+
+// Switching units re-renders the page so the slider's bounds follow. A re-render
+// that reads the unit back from the stored settings snaps the picker to Celsius the
+// instant the user chooses Fahrenheit, which is exactly the bug this pins.
+test('switching to Fahrenheit survives the re-render', async () => {
+  installStubDom();
+  stubFetch({ settings: { temperature_unit: 'c', temperature_threshold_c: '55' } });
+
+  const container = document.createElement('div');
+  await render(container);
+  assert.equal(unitPicker(container).value, 'c');
+
+  unitPicker(container).value = 'f';
+  unitPicker(container).dispatch('change');
+
+  assert.equal(unitPicker(container).value, 'f', 'the picker snapped back to Celsius');
+
+  // And the threshold followed, so the slider is adjustable in the shown unit.
+  const slider = container.all('input').find((n) => n.className === 'setting-range');
+  assert.equal(slider.value, '131');
+  assert.equal(slider.getAttribute('min'), '86');
+});
+
+// The other half of the same bug: with the picker reset to Celsius, Save persisted
+// Celsius, so the choice could never be kept either.
+test('saving after switching units stores Fahrenheit and keeps Celsius', async () => {
+  installStubDom();
+  const requests = [];
+  stubFetch({ settings: { temperature_unit: 'c', temperature_threshold_c: '55' } }, requests);
+
+  const container = document.createElement('div');
+  await render(container);
+
+  unitPicker(container).value = 'f';
+  unitPicker(container).dispatch('change');
+  saveButton(container).click();
+  await flush();
+
+  const put = requests.find((r) => r.method === 'PUT');
+  assert.ok(put, 'Save should PUT the settings');
+  assert.equal(put.body.temperature_unit, 'f');
+  // 131 °F is the same temperature as the stored 55 °C; the database stays Celsius.
+  assert.equal(put.body.temperature_threshold_c, '55');
+});
+
+// Every control on the page must reach the save payload. A control that renders but
+// is never sent is a setting that silently does nothing.
+test('the save payload carries every control the page renders', async () => {
+  installStubDom();
+  const requests = [];
+  stubFetch({ settings: {} }, requests);
+
+  const container = document.createElement('div');
+  await render(container);
+
+  saveButton(container).click();
+  await flush();
+
+  const put = requests.find((r) => r.method === 'PUT');
+  assert.ok(put, 'Save should PUT the settings');
+  for (const key of [
+    'temperature_threshold_c',
+    'reallocated_bad_threshold',
+    'pending_bad_threshold',
+    'uncorrectable_bad_threshold',
+    'nvme_percentage_used_warn',
+    'warn_on_any_nonzero',
+    'squelch_seconds',
+    'retention_days',
+    'notification_log_retention_days',
+    'temperature_unit',
+    'theme',
+    'theme_base',
+    'theme_accent',
+    'theme_surface_tint',
+  ]) {
+    assert.ok(key in put.body, `${key} is rendered but never saved`);
+  }
+});
+

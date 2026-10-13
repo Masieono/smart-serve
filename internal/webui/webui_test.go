@@ -90,11 +90,25 @@ func TestEveryThemeNameHasAPalette(t *testing.T) {
 	}
 	sheet := string(raw)
 
+	// The derived tokens (hover shade, soft variants) live in one :is(...) rule.
+	// Extract it so membership is checked against that rule alone, not the sheet as a
+	// whole — the palette block would otherwise satisfy the check by itself.
+	derived := ""
+	if start := strings.Index(sheet, ":is([data-theme="); start >= 0 {
+		if end := strings.Index(sheet[start:], ") {"); end >= 0 {
+			derived = sheet[start : start+end]
+		}
+	}
+	if derived == "" {
+		t.Fatal("could not find the derived-token :is(...) rule in tokens.css")
+	}
+
 	for _, name := range ThemeNames {
 		switch name {
-		// The built-ins share selectors: light is grouped with :root, and custom is
-		// qualified by its base.
-		case "light", "dark":
+		// The built-ins are not palettes: `light` and `dark` carry the base tokens
+		// (which `auto` resolves to via prefers-color-scheme), and `custom` derives
+		// its accent from settings.
+		case "auto", "light", "dark":
 			if !strings.Contains(sheet, `[data-theme="`+name+`"]`) {
 				t.Errorf("tokens.css has no [data-theme=%q] selector", name)
 			}
@@ -106,7 +120,22 @@ func TestEveryThemeNameHasAPalette(t *testing.T) {
 			if !strings.Contains(sheet, `[data-theme="`+name+`"] {`) {
 				t.Errorf("tokens.css has no palette block for %q", name)
 			}
+			if !strings.Contains(derived, `[data-theme="`+name+`"]`) {
+				t.Errorf("palette %q is missing from the derived-token rule; "+
+					"its accent would have no hover shade or soft variants", name)
+			}
 		}
+	}
+}
+
+// A duplicated name would silently shadow one entry in the picker.
+func TestThemeNamesAreUnique(t *testing.T) {
+	seen := map[string]bool{}
+	for _, name := range ThemeNames {
+		if seen[name] {
+			t.Errorf("duplicate theme name %q", name)
+		}
+		seen[name] = true
 	}
 }
 
