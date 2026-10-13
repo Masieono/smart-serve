@@ -31,7 +31,10 @@ async function request(method, path, body) {
 export const api = {
   devices: () => request('GET', '/api/devices'),
   device: (serial) => request('GET', `/api/devices/${encodeURIComponent(serial)}`),
-  history: (serial) => request('GET', `/api/devices/${encodeURIComponent(serial)}/history`),
+  history: (serial, from) => request(
+    'GET',
+    `/api/devices/${encodeURIComponent(serial)}/history${from ? `?from=${encodeURIComponent(from)}` : ''}`,
+  ),
   setNotes: (serial, notes) => request('PUT', `/api/devices/${encodeURIComponent(serial)}/notes`, notes),
   setTransport: (serial, smartD) =>
     request('PUT', `/api/devices/${encodeURIComponent(serial)}/transport`, { smart_d: smartD }),

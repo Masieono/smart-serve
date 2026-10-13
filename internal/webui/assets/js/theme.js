@@ -44,11 +44,20 @@ export function applyTheme(settings) {
   if (settings.theme_base) root.dataset.themeBase = settings.theme_base;
   if (settings.theme_surface_tint) root.dataset.themeTint = settings.theme_surface_tint;
 
-  const accent = settings.theme_accent;
-  if (accent) {
-    root.style.setProperty('--accent', accent);
-    root.style.setProperty('--accent-contrast', contrastOn(accent));
-    root.style.setProperty('--accent-hover', shade(accent, -0.12));
-    root.style.setProperty('--accent-soft', withAlpha(accent, 0.16));
+  // Only the custom theme takes its accent from settings. A named palette owns its
+  // own, so the inline override is cleared as well as skipped — leaving a stale one
+  // behind would quietly win over the stylesheet and flatten the theme.
+  for (const property of ACCENT_PROPERTIES) {
+    root.style.removeProperty(property);
   }
+  if (settings.theme !== 'custom') return;
+
+  const accent = settings.theme_accent;
+  if (!accent) return;
+  root.style.setProperty('--accent', accent);
+  root.style.setProperty('--accent-contrast', contrastOn(accent));
+  root.style.setProperty('--accent-hover', shade(accent, -0.12));
+  root.style.setProperty('--accent-soft', withAlpha(accent, 0.16));
 }
+
+const ACCENT_PROPERTIES = ['--accent', '--accent-contrast', '--accent-hover', '--accent-soft'];

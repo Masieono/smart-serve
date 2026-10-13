@@ -179,6 +179,79 @@ func TestSetNotes(t *testing.T) {
 	}
 }
 
+func TestReportExportFormats(t *testing.T) {
+	srv, _, _, _ := newTestServer(t, Options{})
+	do(t, srv, http.MethodPost, "/api/scan?wait=1", "", nil)
+
+	// Every format the API advertises must actually render, and must be offered as a
+	// download rather than displayed — an export you have to copy out of a browser
+	// tab is not an export.
+	cases := []struct {
+		format      string
+		contentType string
+		want        []string
+	}{
+		{"txt", "text/plain", []string{"smart-serve report", "Samsung SSD 870 EVO", "GOOD"}},
+		{"html", "text/html", []string{"<!doctype html>", "Samsung SSD 870 EVO", "Reallocated_Sector_Ct"}},
+		{"csv", "text/csv", []string{"field,value", "attr 5 Reallocated_Sector_Ct"}},
+	}
+	for _, c := range cases {
+		rec := do(t, srv, http.MethodGet, "/api/devices/S1/report?format="+c.format, "", nil)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("%s: status = %d, body = %s", c.format, rec.Code, rec.Body.String())
+		}
+		if ct := rec.Header().Get("Content-Type"); !strings.HasPrefix(ct, c.contentType) {
+			t.Errorf("%s: content type = %q, want %q", c.format, ct, c.contentType)
+		}
+		if cd := rec.Header().Get("Content-Disposition"); !strings.Contains(cd, "."+c.format) {
+			t.Errorf("%s: disposition = %q, want an attachment filename", c.format, cd)
+		}
+		for _, want := range c.want {
+			if !strings.Contains(rec.Body.String(), want) {
+				t.Errorf("%s: body missing %q", c.format, want)
+			}
+		}
+	}
+
+	// JSON is the machine format and stays inline.
+	rec := do(t, srv, http.MethodGet, "/api/devices/S1/report?format=json", "", nil)
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), `"device"`) {
+		t.Errorf("json: status = %d, body = %s", rec.Code, rec.Body.String())
+	}
+
+	rec = do(t, srv, http.MethodGet, "/api/devices/S1/report?format=pdf", "", nil)
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("unknown format status = %d, want 400", rec.Code)
+	}
+}
+
+// An export must be self-contained: it has to stay readable long after the app has
+// been uninstalled, so nothing may point back at the server.
+func TestHTMLReportIsSelfContained(t *testing.T) {
+	srv, _, _, _ := newTestServer(t, Options{})
+	do(t, srv, http.MethodPost, "/api/scan?wait=1", "", nil)
+
+	rec := do(t, srv, http.MethodGet, "/api/devices/S1/report?format=html", "", nil)
+	body := rec.Body.String()
+	for _, forbidden := range []string{"http://", "https://", "<script", "src="} {
+		if strings.Contains(body, forbidden) {
+			t.Errorf("html report references %q; it must stand alone", forbidden)
+		}
+	}
+	if !strings.Contains(body, "<style>") {
+		t.Error("html report should carry its own styles")
+	}
+}
+
+func TestReportExportUnknownDevice(t *testing.T) {
+	srv, _, _, _ := newTestServer(t, Options{})
+
+	rec := do(t, srv, http.MethodGet, "/api/devices/nope/report?format=html", "", nil)
+	if rec.Code != http.StatusNotFound {
+		t.Errorf("status = %d, want 404", rec.Code)
+	}
+}
+
 func TestReportExport(t *testing.T) {
 	srv, _, _, _ := newTestServer(t, Options{})
 	do(t, srv, http.MethodPost, "/api/scan?wait=1", "", nil)

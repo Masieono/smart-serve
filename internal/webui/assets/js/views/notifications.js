@@ -21,8 +21,12 @@ const EVENT_LABELS = {
 export async function render(container, ctx) {
   mount(container, el('div', { class: 'skeleton', style: 'width:30%;height:24px' }));
   try {
-    const [channels, log] = await Promise.all([api.channels(), api.notifications(25)]);
-    draw(container, ctx, channels, log);
+    const [channels, log, settings] = await Promise.all([
+      api.channels(),
+      api.notifications(25),
+      api.settings(),
+    ]);
+    draw(container, ctx, channels, log, settings);
   } catch (err) {
     mount(container, errorBox(`Could not load channels: ${err.message}`));
   }
@@ -37,22 +41,27 @@ function parseEvents(raw) {
   }
 }
 
-function draw(container, ctx, data, log) {
+function draw(container, ctx, data, log, settings) {
   const channels = data.channels || [];
   const eventTypes = (log && log.event_types) || EVENT_TYPES;
+  // The server owns the list of channel types it can actually deliver to, so a
+  // build without a provider never offers it (docs/NOTIFICATIONS.md).
+  const typeList = (log && log.channel_types) || null;
+  const windows = parseWindows(settings && settings.settings && settings.settings.maintenance_windows);
   const head = el('div', { class: 'page-head' }, [
     el('div', {}, [
       el('h1', { text: 'Notifications' }),
       el('div', { class: 'sub', text: 'Alerts fire on health transitions — never on every scan.' }),
     ]),
     el('span', { class: 'spacer' }),
-    el('button', { class: 'btn btn-primary', type: 'button', onclick: () => editChannel(ctx, null, eventTypes) },
+    el('button', { class: 'btn btn-primary', type: 'button', onclick: () => editChannel(ctx, null, eventTypes, typeList) },
       [icon('plus'), 'New channel']),
   ]);
 
   if (!channels.length) {
     mount(container, head, emptyState('No channels yet',
-      'Add an ntfy topic or a webhook to be told when a drive starts failing.'));
+      'Add a channel — ntfy, Gotify, Telegram, Discord, email or a webhook — to be told when a drive starts failing.'),
+      maintenanceCard(ctx, windows));
     return;
   }
 
@@ -90,7 +99,7 @@ function draw(container, ctx, data, log) {
             }
           } }, ['Test']),
         el('button', { class: 'btn btn-sm btn-ghost', type: 'button', title: 'Edit',
-          onclick: () => editChannel(ctx, c, eventTypes) }, [icon('settings')]),
+          onclick: () => editChannel(ctx, c, eventTypes, typeList) }, [icon('settings')]),
         el('button', { class: 'btn btn-sm btn-ghost', type: 'button', title: 'Delete',
           onclick: async () => {
             if (!(await confirmDialog('Delete channel', `Delete "${c.label || c.type}"?`, 'Delete'))) return;
@@ -104,7 +113,153 @@ function draw(container, ctx, data, log) {
           } }, [icon('trash')]),
       ]),
     ]);
-  })), deliveryLog(log, channels));
+  })), deliveryLog(log, channels), maintenanceCard(ctx, windows));
+}
+
+// --- maintenance windows ------------------------------------------------------
+
+/**
+ * Decodes the maintenance_windows setting. Anything malformed is treated as "no
+ * windows", matching the server: a bad value must never look like an active silence.
+ */
+export function parseWindows(raw) {
+  if (typeof raw !== 'string' || !raw.trim()) return [];
+  try {
+    const list = JSON.parse(raw);
+    if (!Array.isArray(list)) return [];
+    return list.filter((w) => w && Number.isFinite(w.starts_at) && Number.isFinite(w.ends_at)
+      && w.ends_at > w.starts_at);
+  } catch {
+    return [];
+  }
+}
+
+/** A `datetime-local` value: local time, no timezone suffix, minute precision. */
+export function localInputValue(ms) {
+  const d = new Date(ms);
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T` +
+    `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+/** Parses a `datetime-local` value as local time, or null when it is not a time. */
+export function parseLocalInput(value) {
+  if (!value) return null;
+  const ms = new Date(value).getTime();
+  return Number.isFinite(ms) ? ms : null;
+}
+
+/** Where a window sits relative to now. */
+export function windowState(w, now) {
+  if (now >= w.ends_at) return 'ended';
+  if (now >= w.starts_at) return 'active';
+  return 'upcoming';
+}
+
+/**
+ * Builds a window from the form values, or returns an error message. Validating here
+ * as well as on the server means the operator sees the problem in the field they
+ * just filled in, rather than after a round trip.
+ */
+export function buildWindow(values) {
+  const start = parseLocalInput(values.start);
+  const end = parseLocalInput(values.end);
+  if (start === null || end === null) return { error: 'Pick a start and end time.' };
+  if (end <= start) return { error: 'The end must be after the start.' };
+  const serials = String(values.serials || '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+  return {
+    window: { label: String(values.label || '').trim(), starts_at: start, ends_at: end, serials },
+  };
+}
+
+async function saveWindows(ctx, windows) {
+  try {
+    await api.putSettings({ maintenance_windows: JSON.stringify(windows) });
+    toast('Maintenance windows saved', 'good');
+    ctx.refresh();
+  } catch (err) {
+    toast(err.message, 'error');
+  }
+}
+
+function maintenanceCard(ctx, windows) {
+  const now = Date.now();
+  const sorted = [...windows].sort((a, b) => a.starts_at - b.starts_at);
+
+  return el('div', { class: 'card stack' }, [
+    el('div', { class: 'row' }, [
+      el('h2', { text: 'Maintenance windows' }),
+      el('span', { class: 'spacer' }),
+      el('button', { class: 'btn btn-sm', type: 'button', onclick: () => editWindow(ctx, windows) },
+        [icon('plus'), 'Add window']),
+    ]),
+    el('p', { class: 'muted', text: 'Alerts are silenced for the drives a window covers — an array ' +
+      'rebuild, a migration, a chassis being moved. Windows expire on their own, so there is nothing ' +
+      'to remember to switch back on.' }),
+    sorted.length
+      ? el('div', { class: 'stack', style: 'gap:var(--space-2)' },
+          sorted.map((w) => windowRow(ctx, windows, w, now)))
+      : el('p', { class: 'muted', text: 'No maintenance windows configured.' }),
+  ]);
+}
+
+function windowRow(ctx, windows, w, now) {
+  const state = windowState(w, now);
+  const tone = { active: 'caution', upcoming: 'unknown', ended: 'good' }[state];
+
+  return el('div', { class: 'row window-row' }, [
+    el('div', { style: 'flex:1;min-width:0' }, [
+      el('div', { class: 'setting-label', text: w.label || 'Maintenance window' }),
+      el('div', { class: 'setting-help',
+        text: `${fmtDateTime(w.starts_at)} → ${fmtDateTime(w.ends_at)}` }),
+      el('div', { class: 'setting-help',
+        text: w.serials && w.serials.length ? `Drives: ${w.serials.join(', ')}` : 'All drives' }),
+    ]),
+    el('span', { class: `badge badge-${tone}`, text: state }),
+    el('button', { class: 'btn btn-sm btn-ghost', type: 'button', title: 'Delete',
+      onclick: async () => {
+        if (!(await confirmDialog('Delete window', `Delete "${w.label || 'this window'}"?`, 'Delete'))) return;
+        await saveWindows(ctx, windows.filter((x) => x !== w));
+      } }, [icon('trash')]),
+  ]);
+}
+
+function editWindow(ctx, windows) {
+  openDialog('Add maintenance window', (body, close) => {
+    const now = Date.now();
+    const label = el('input', { type: 'text', placeholder: 'e.g. array rebuild' });
+    const start = el('input', { type: 'datetime-local', value: localInputValue(now) });
+    const end = el('input', { type: 'datetime-local', value: localInputValue(now + 2 * 3600000) });
+    const serials = el('input', { type: 'text', placeholder: 'leave blank for every drive' });
+
+    body.append(
+      el('div', { class: 'field' }, [el('label', { text: 'Label' }), label,
+        hint('Shown in the delivery log, so you can tell which window silenced an alert.')]),
+      el('div', { class: 'field' }, [el('label', { text: 'Starts' }), start]),
+      el('div', { class: 'field' }, [el('label', { text: 'Ends' }), end,
+        hint('Times are in your browser’s local timezone. The window ends at this time.')]),
+      el('div', { class: 'field' }, [el('label', { text: 'Drives' }), serials,
+        hint('Comma-separated serial numbers, or blank to silence every drive.')]),
+      el('div', { class: 'dialog-foot', style: 'border:0;padding:0' }, [
+        el('button', { class: 'btn', type: 'button', text: 'Cancel', onclick: close }),
+        el('button', { class: 'btn btn-primary', type: 'button', text: 'Add', onclick: async (event) => {
+          const built = buildWindow({
+            label: label.value, start: start.value, end: end.value, serials: serials.value,
+          });
+          if (built.error) {
+            toast(built.error, 'error');
+            return;
+          }
+          event.currentTarget.disabled = true;
+          await saveWindows(ctx, [...windows, built.window]);
+          close();
+        } }),
+      ]),
+    );
+  });
 }
 
 // The delivery log is the only record of an alert that fired while a channel was
@@ -144,15 +299,143 @@ function deliveryLog(log, channels) {
   ]);
 }
 
-function editChannel(ctx, existing, eventTypes = EVENT_TYPES) {
+// One entry per channel type. Each field declares how to render itself and how to
+// read itself back, so adding a provider is a data change rather than another branch
+// in the editor (docs/NOTIFICATIONS.md).
+const CHANNEL_TYPES = [
+  {
+    type: 'ntfy',
+    label: 'ntfy (push notifications)',
+    fields: [
+      { key: 'server', label: 'Server', default: 'https://ntfy.sh',
+        help: 'ntfy.sh, or your own self-hosted server.' },
+      { key: 'topic', label: 'Topic', required: true, placeholder: 'my-smart-alerts',
+        help: 'Subscribe to this topic in the ntfy app to receive the alerts.' },
+      { key: 'token', label: 'Access token', secret: true,
+        help: 'Can also come from the SMARTSERVE_NTFY_TOKEN environment variable (ADR-013).' },
+    ],
+  },
+  {
+    type: 'gotify',
+    label: 'Gotify (self-hosted push)',
+    fields: [
+      { key: 'server', label: 'Server', required: true, placeholder: 'https://gotify.example.com' },
+      { key: 'token', label: 'App token', secret: true, required: true,
+        help: 'Create an application in Gotify and copy its token.' },
+    ],
+  },
+  {
+    type: 'telegram',
+    label: 'Telegram',
+    fields: [
+      { key: 'token', label: 'Bot token', secret: true, required: true,
+        help: 'From @BotFather. The bot must be allowed to post in the chat.' },
+      { key: 'chat_id', label: 'Chat ID', required: true, placeholder: '-1001234567890',
+        help: 'Send /start to the bot, then ask @userinfobot for the id.' },
+      { key: 'thread_id', label: 'Topic ID', placeholder: 'optional',
+        help: 'Only needed for a forum topic.' },
+    ],
+  },
+  {
+    type: 'discord',
+    label: 'Discord (webhook)',
+    fields: [
+      { key: 'webhook_url', label: 'Webhook URL', secret: true, required: true,
+        placeholder: 'https://discord.com/api/webhooks/…',
+        help: 'Channel settings → Integrations → Webhooks.' },
+      { key: 'username', label: 'Display name', placeholder: 'Smart-Serve' },
+    ],
+  },
+  {
+    type: 'smtp',
+    label: 'Email (SMTP)',
+    fields: [
+      { key: 'host', label: 'SMTP host', required: true, placeholder: 'smtp.example.com' },
+      { key: 'port', label: 'Port', default: '587', placeholder: '587',
+        help: '587 upgrades with STARTTLS, 465 uses implicit TLS.' },
+      { key: 'username', label: 'Username' },
+      { key: 'password', label: 'Password', secret: true },
+      { key: 'from', label: 'From address', required: true, placeholder: 'smart-serve@example.com' },
+      { key: 'to', label: 'Recipients', required: true, placeholder: 'ops@example.com, me@example.com',
+        help: 'Separate several addresses with commas.' },
+    ],
+  },
+  {
+    type: 'webhook',
+    label: 'Webhook (generic HTTP POST)',
+    fields: [
+      { key: 'url', label: 'URL', required: true, placeholder: 'https://example.com/hook',
+        help: 'Smart-Serve sends a JSON body describing the event.' },
+      { key: 'method', label: 'Method', options: ['POST', 'PUT'], default: 'POST' },
+      { key: 'headers', label: 'Headers', multiline: true,
+        placeholder: 'Authorization: Bearer abc123',
+        parse: textToHeaders, format: headersToText,
+        help: 'One "Name: value" per line — for example an Authorization header.' },
+    ],
+  },
+];
+
+/** The specs the editor should offer, limited to what the server can deliver to. */
+export function availableTypes(serverTypes) {
+  if (!Array.isArray(serverTypes) || !serverTypes.length) return CHANNEL_TYPES;
+  const offered = CHANNEL_TYPES.filter((t) => serverTypes.includes(t.type));
+  return offered.length ? offered : CHANNEL_TYPES;
+}
+
+function specFor(type) {
+  return CHANNEL_TYPES.find((t) => t.type === type) || CHANNEL_TYPES[0];
+}
+
+/**
+ * Builds a channel config from a type spec and its raw field values. Pure, so the
+ * mapping — trimming, dropping blanks, parsing header lines — can be tested without
+ * a DOM.
+ *
+ * Blank optional fields are omitted rather than sent as empty strings, so the
+ * server's own defaults apply.
+ */
+export function configFromValues(type, values) {
+  const config = {};
+  for (const field of specFor(type).fields) {
+    const raw = String(values[field.key] ?? '').trim();
+    const value = field.parse ? field.parse(raw) : raw;
+    if (value === '' || value === null || value === undefined) continue;
+    if (typeof value === 'object' && !Object.keys(value).length) continue;
+    config[field.key] = value;
+  }
+  return config;
+}
+
+/**
+ * The first missing required field, as a message, or null. Derived from the same
+ * spec that builds the form, so a new required field cannot be added without also
+ * being enforced.
+ */
+export function missingRequired(type, values) {
+  for (const field of specFor(type).fields) {
+    if (field.required && !String(values[field.key] ?? '').trim()) {
+      return `${field.label} is required.`;
+    }
+  }
+  return null;
+}
+
+/** The channel types the editor offers, in order. */
+export function channelTypes() {
+  return CHANNEL_TYPES.map((t) => t.type);
+}
+
+
+function editChannel(ctx, existing, eventTypes = EVENT_TYPES, serverTypes = null) {
   const saved = parseConfig(existing && existing.config);
+  const offered = availableTypes(serverTypes);
 
   openDialog(existing ? 'Edit channel' : 'New channel', (body, close) => {
-    const type = el('select', {}, [
-      el('option', { value: 'ntfy', text: 'ntfy (push notifications)' }),
-      el('option', { value: 'webhook', text: 'Webhook (generic HTTP POST)' }),
-    ]);
-    type.value = (existing && existing.type) || 'ntfy';
+    const type = el('select', {}, offered.map((t) => el('option', { value: t.type, text: t.label })));
+    // A channel saved with a type this build no longer ships falls back to the first
+    // offered type rather than leaving the select blank.
+    type.value = (existing && existing.type) || offered[0].type;
+    if (!type.value) type.value = offered[0].type;
 
     const label = el('input', {
       type: 'text',
@@ -160,46 +443,43 @@ function editChannel(ctx, existing, eventTypes = EVENT_TYPES) {
       placeholder: 'e.g. server alerts',
     });
 
-    // ntfy: structured fields instead of raw JSON.
-    const ntfyServer = el('input', { type: 'text', value: saved.server || 'https://ntfy.sh' });
-    const ntfyTopic = el('input', { type: 'text', value: saved.topic || '', placeholder: 'my-smart-alerts' });
-    const ntfyToken = el('input', { type: 'password', value: saved.token || '', placeholder: 'leave blank for public topics' });
+    // Controls are built once per type and kept, so flicking through the type list
+    // does not discard what has already been typed.
+    const groups = new Map();
+    const controls = new Map();
 
-    const ntfyGroup = el('div', { class: 'stack', style: 'gap:var(--space-3)' }, [
-      el('div', { class: 'field' }, [el('label', { text: 'Server' }), ntfyServer,
-        hint('ntfy.sh, or your own self-hosted server.')]),
-      el('div', { class: 'field' }, [el('label', { text: 'Topic' }), ntfyTopic,
-        hint('Subscribe to this topic in the ntfy app to receive the alerts.')]),
-      el('div', { class: 'field' }, [el('label', { text: 'Access token (optional)' }), ntfyToken,
-        hint('Can also come from the SMARTSERVE_NTFY_TOKEN environment variable (ADR-013).')]),
-    ]);
+    for (const spec of offered) {
+      const map = {};
+      const fields = spec.fields.map((field) => {
+        let control;
+        if (field.options) {
+          control = el('select', {}, field.options.map((o) => el('option', { value: o, text: o })));
+        } else if (field.multiline) {
+          control = el('textarea', {});
+        } else {
+          control = el('input', { type: field.secret ? 'password' : 'text' });
+        }
 
-    // webhook: URL + method + "Name: value" header lines.
-    const hookURL = el('input', { type: 'text', value: saved.url || '', placeholder: 'https://example.com/hook' });
-    const hookMethod = el('select', {}, [
-      el('option', { value: 'POST', text: 'POST' }),
-      el('option', { value: 'PUT', text: 'PUT' }),
-    ]);
-    hookMethod.value = saved.method || 'POST';
-    const hookHeaders = el('textarea', {
-      value: headersToText(saved.headers),
-      placeholder: 'Authorization: Bearer abc123',
-    });
+        // Only the type being edited has saved values; the others start blank.
+        const raw = existing && existing.type === spec.type ? saved[field.key] : undefined;
+        const text = field.format ? field.format(raw) : raw;
+        control.value = text === undefined || text === null ? '' : String(text);
+        if (!control.value && field.default) control.value = field.default;
+        if (field.placeholder) control.placeholder = field.placeholder;
 
-    const hookGroup = el('div', { class: 'stack', style: 'gap:var(--space-3)' }, [
-      el('div', { class: 'field' }, [el('label', { text: 'URL' }), hookURL,
-        hint('Smart-Serve sends a JSON body describing the event.')]),
-      el('div', { class: 'field' }, [el('label', { text: 'Method' }), hookMethod]),
-      el('div', { class: 'field' }, [
-        el('label', { text: 'Headers' }),
-        hookHeaders,
-        hint('One "Name: value" per line — for example an Authorization header.'),
-      ]),
-    ]);
+        map[field.key] = control;
+        return el('div', { class: 'field' }, [
+          el('label', { text: field.label }),
+          control,
+          field.help ? hint(field.help) : null,
+        ]);
+      });
+      controls.set(spec.type, map);
+      groups.set(spec.type, el('div', { class: 'stack', style: 'gap:var(--space-3)' }, fields));
+    }
 
     const syncType = () => {
-      ntfyGroup.hidden = type.value !== 'ntfy';
-      hookGroup.hidden = type.value !== 'webhook';
+      for (const [name, group] of groups) group.hidden = name !== type.value;
     };
     type.addEventListener('change', syncType);
     syncType();
@@ -214,32 +494,25 @@ function editChannel(ctx, existing, eventTypes = EVENT_TYPES) {
     });
 
     function buildConfig() {
-      if (type.value === 'ntfy') {
-        const config = {
-          server: ntfyServer.value.trim() || 'https://ntfy.sh',
-          topic: ntfyTopic.value.trim(),
-        };
-        if (ntfyToken.value.trim()) config.token = ntfyToken.value.trim();
-        return config;
-      }
-      return {
-        url: hookURL.value.trim(),
-        method: hookMethod.value,
-        headers: textToHeaders(hookHeaders.value),
-      };
+      const spec = specFor(type.value);
+      const map = controls.get(spec.type);
+      const values = {};
+      for (const field of spec.fields) values[field.key] = map[field.key].value;
+      return configFromValues(type.value, values);
     }
 
-    function validate() {
-      if (type.value === 'ntfy' && !ntfyTopic.value.trim()) return 'Enter an ntfy topic.';
-      if (type.value === 'webhook' && !hookURL.value.trim()) return 'Enter the webhook URL.';
-      return null;
-    }
+    const validate = () => {
+      const spec = specFor(type.value);
+      const map = controls.get(spec.type);
+      const values = {};
+      for (const field of spec.fields) values[field.key] = map[field.key].value;
+      return missingRequired(type.value, values);
+    };
 
     body.append(
       el('div', { class: 'field' }, [el('label', { text: 'Type' }), type]),
       el('div', { class: 'field' }, [el('label', { text: 'Label' }), label]),
-      ntfyGroup,
-      hookGroup,
+      ...groups.values(),
       el('div', { class: 'field' }, [
         el('label', { text: 'Send me an alert when…' }),
         el('div', { class: 'stack', style: 'gap:var(--space-1)' }, eventRows),

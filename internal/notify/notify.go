@@ -323,9 +323,9 @@ func (d *Dispatcher) Dispatch(ctx context.Context, events []Event) {
 	ctx, cancel := context.WithTimeout(ctx, d.budget)
 	defer cancel()
 
-	// Resolved once per pass rather than per delivery, so the setting is read at
-	// most once however many events and channels there are.
-	squelch := d.configuredSquelch(ctx)
+	// Resolved once per pass rather than per delivery, so the settings table is read
+	// at most once however many events and channels there are.
+	p := d.newPass(ctx)
 
 	for _, ch := range channels {
 		if !ch.Enabled {
@@ -341,23 +341,30 @@ func (d *Dispatcher) Dispatch(ctx context.Context, events []Event) {
 			if !subscribed(ch.Events, ev.Type) {
 				continue
 			}
-			d.deliver(ctx, ch, sender, cfg, ev, squelch)
+			d.deliver(ctx, ch, sender, cfg, ev, p)
 		}
 	}
 }
 
-// configuredSquelch resolves the squelch window for this pass from the
-// user-tunable setting, falling back to the configured default.
-func (d *Dispatcher) configuredSquelch(ctx context.Context) time.Duration {
+// pass carries the configuration resolved once per dispatch pass.
+type pass struct {
+	squelch time.Duration
+	windows []MaintenanceWindow
+}
+
+// newPass resolves the per-pass configuration from settings, falling back to the
+// configured defaults when the table cannot be read.
+func (d *Dispatcher) newPass(ctx context.Context) pass {
+	p := pass{squelch: d.squelch}
 	settings, err := d.store.GetSettings(ctx)
 	if err != nil {
-		return d.squelch
+		return p
 	}
-	seconds, perr := strconv.Atoi(strings.TrimSpace(settings["squelch_seconds"]))
-	if perr != nil || seconds <= 0 {
-		return d.squelch
+	if seconds, perr := strconv.Atoi(strings.TrimSpace(settings["squelch_seconds"])); perr == nil && seconds > 0 {
+		p.squelch = time.Duration(seconds) * time.Second
 	}
-	return time.Duration(seconds) * time.Second
+	p.windows = ParseMaintenanceWindows(settings["maintenance_windows"])
+	return p
 }
 
 // SendTest delivers a synthetic event to one channel, bypassing subscription
@@ -387,8 +394,15 @@ func (d *Dispatcher) ValidateConfig(typ string, cfg map[string]any) error {
 // Types lists the channel types this dispatcher can deliver to.
 func (d *Dispatcher) Types() []string { return d.reg.Types() }
 
-func (d *Dispatcher) deliver(ctx context.Context, ch store.Channel, sender Sender, cfg map[string]any, ev Event, squelch time.Duration) {
-	if window := squelchWindow(ev, squelch); window > 0 {
+func (d *Dispatcher) deliver(ctx context.Context, ch store.Channel, sender Sender, cfg map[string]any, ev Event, p pass) {
+	// A maintenance window silences everything for the drives it covers. It is
+	// checked before squelching because it is a deliberate operator action, and the
+	// delivery log should say so rather than blaming a squelch timer.
+	if w := ActiveWindow(p.windows, d.now(), ev.Serial); w != nil {
+		d.record(ctx, ch.ID, ev, OutcomeSquelched, "maintenance window: "+w.Name())
+		return
+	}
+	if window := squelchWindow(ev, p.squelch); window > 0 {
 		last, err := d.store.LastNotificationAt(ctx, ch.ID, ev.Key())
 		if err == nil && last != nil && d.now().Sub(*last) < window {
 			d.record(ctx, ch.ID, ev, OutcomeSquelched, "within "+window.String()+" squelch window")

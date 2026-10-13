@@ -2,6 +2,7 @@ package webui
 
 import (
 	"context"
+	"io/fs"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -12,8 +13,8 @@ func themeFunc(theme Theme) ThemeFunc {
 	return func(context.Context) Theme { return theme }
 }
 
-func TestIndexRendersTheme(t *testing.T) {
-	h, err := New(themeFunc(Theme{Name: "dark", Base: "light", Accent: "#ff8800", Tint: "warm"}),
+func TestIndexRendersACustomTheme(t *testing.T) {
+	h, err := New(themeFunc(Theme{Name: "custom", Base: "light", Accent: "#ff8800", Tint: "warm"}),
 		Options{Version: "1.2.3"})
 	if err != nil {
 		t.Fatalf("New: %v", err)
@@ -27,7 +28,7 @@ func TestIndexRendersTheme(t *testing.T) {
 
 	body := rec.Body.String()
 	for _, want := range []string{
-		`data-theme="dark"`,
+		`data-theme="custom"`,
 		`data-theme-base="light"`,
 		`data-theme-tint="warm"`,
 		"--accent:#ff8800",
@@ -41,14 +42,70 @@ func TestIndexRendersTheme(t *testing.T) {
 	}
 }
 
+// A named palette owns its own accent. An inline override would win over the
+// stylesheet and flatten every theme to the same blue, which is the whole point of
+// shipping the palettes.
+func TestNamedThemesDoNotTakeTheCustomAccent(t *testing.T) {
+	for _, name := range ThemeNames {
+		if name == "custom" {
+			continue
+		}
+		h, err := New(themeFunc(Theme{Name: name, Accent: "#ff8800"}), Options{})
+		if err != nil {
+			t.Fatalf("New: %v", err)
+		}
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/", nil))
+		body := rec.Body.String()
+		if strings.Contains(body, "--accent:") {
+			t.Errorf("theme %q leaked an inline accent override into the shell", name)
+		}
+		if !strings.Contains(body, `data-theme="`+name+`"`) {
+			t.Errorf("theme %q was not rendered into the shell", name)
+		}
+	}
+}
+
 func TestThemeInvalidValuesFallBack(t *testing.T) {
 	h, _ := New(themeFunc(Theme{Name: "hotdog", Base: "purple", Accent: "not-a-colour", Tint: "zebra"}), Options{})
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/", nil))
 	body := rec.Body.String()
-	for _, want := range []string{`data-theme="auto"`, `data-theme-base="dark"`, `data-theme-tint="neutral"`, "--accent:#3b82f6"} {
+	for _, want := range []string{`data-theme="auto"`, `data-theme-base="dark"`, `data-theme-tint="neutral"`} {
 		if !strings.Contains(body, want) {
 			t.Errorf("fallback missing %q in %s", want, body)
+		}
+	}
+	if strings.Contains(body, "--accent:") {
+		t.Error("a fallback theme should not emit an accent override")
+	}
+}
+
+// Every name the picker offers must have a palette in the stylesheet, or choosing it
+// silently renders the default colours.
+func TestEveryThemeNameHasAPalette(t *testing.T) {
+	raw, err := fs.ReadFile(assets, "assets/styles/tokens.css")
+	if err != nil {
+		t.Fatalf("read tokens.css: %v", err)
+	}
+	sheet := string(raw)
+
+	for _, name := range ThemeNames {
+		switch name {
+		// The built-ins share selectors: light is grouped with :root, and custom is
+		// qualified by its base.
+		case "light", "dark":
+			if !strings.Contains(sheet, `[data-theme="`+name+`"]`) {
+				t.Errorf("tokens.css has no [data-theme=%q] selector", name)
+			}
+		case "custom":
+			if !strings.Contains(sheet, `[data-theme="custom"]`) {
+				t.Error(`tokens.css has no [data-theme="custom"] selector`)
+			}
+		default:
+			if !strings.Contains(sheet, `[data-theme="`+name+`"] {`) {
+				t.Errorf("tokens.css has no palette block for %q", name)
+			}
 		}
 	}
 }

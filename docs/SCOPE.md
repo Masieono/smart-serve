@@ -30,7 +30,8 @@ The application is useful and shippable with only these:
    sectors (5), pending sectors (197), uncorrectable sectors (198), and temperature.
 7. **Notifications: ntfy + generic webhook** — health-state transitions (with
    squelching), temperature above threshold, device disappeared/reappeared, scan
-   failures. Channel config UI. See `docs/NOTIFICATIONS.md`.
+   failures. Channel config UI. See `docs/NOTIFICATIONS.md`. (Since extended with
+   Gotify, Telegram, Discord and SMTP — see Phase 2 item 3.)
 8. **Docker deployment** — published image, docker-compose reference, documented
    device-access options (`docs/DEPLOYMENT.md`).
 9. **Storage engine** — SQLite persistence of devices, notes, snapshots, schedules,
@@ -39,12 +40,15 @@ The application is useful and shippable with only these:
 10. **Diagnostics** — raw `smartctl` output viewer per device, and a per-device
     transport override (`-d sat`, …) for stubborn USB bridges (`FEATURES.md` A10/A11).
 11. **Report export** — copy/download a CrystalDiskInfo-style S.M.A.R.T. report per
-    device (`FEATURES.md` A8).
-12. **At-a-glance extras** — health summary bar, human-readable drive age, and
-    firmware version / serial / WWN display (`FEATURES.md` A6/A7/A9).
-13. **Polish & ops** — dark/light theme, responsive layout, hide-device escape hatch,
-    `/healthz` for Docker `HEALTHCHECK`, multi-arch (amd64/arm64) image
-    (`FEATURES.md` C2/C8, D2/D3/D4).
+  device (`FEATURES.md` A8). Delivered as an Export dialog offering plain text, a
+  self-contained web page, a spreadsheet, or JSON.
+12. **At-a-glance extras** — health summary bar (now part of the Devices header),
+  human-readable drive age, and firmware version / serial / WWN display
+  (`FEATURES.md` A6/A7/A9).
+13. **Polish & ops** — themes (dark/light/auto, the community palettes and a custom
+  accent), responsive layout, hide-device escape hatch, `/healthz` for Docker
+  `HEALTHCHECK`, multi-arch (amd64/arm64) image
+  (`FEATURES.md` C2/C8, D2/D3/D4).
 
 14. **Health score (basic)** — a 0–100 score + grade computed from current
     attributes, shown alongside Good/Caution/Bad (`FEATURES.md` A17).
@@ -64,30 +68,40 @@ validated end-to-end is Docker device access on real hardware (`DEPLOYMENT.md`).
 
 ## Phase 2 — "insight"
 
-1. **History & trending** — snapshot timeline charts per device (temperature,
-  reallocated sectors, pending sectors, wear); computed from the MVP-era snapshot
-  store (already accumulating).
+Status is recorded per item, so the roadmap reflects what is actually shipped rather
+than what was planned.
+
+1. **History & trending** — **done.** Per-device snapshot charts (temperature, wear,
+  power-on hours, health score) in a trend card on the device page, with a
+  7 / 30 / 90 day / all range selector. Sector-count charts wait on the longevity
+  work below.
 2. **Remaining-longevity estimates** — NVMe: percentage-used + available-spare
   projection. SSD: wear-leveling/media-wear indicators. HDD: degradation-rate
   projection from reallocated/pending sector growth. Always presented as an
   estimate with explicit confidence caveats (`docs/SMART_INTERPRETATION.md`).
-3. **Notification adapters** — Gotify, Telegram, Discord, SMTP email.
+  **Not started.**
+3. **Notification adapters** — Gotify, Telegram, Discord, SMTP email. **Done.**
 4. **SMART self-test triggering** (offline/short/extended) — the first
-   hardware-affecting feature; gated behind an explicit opt-in setting and a
-   per-test confirmation in the UI.
-5. **Squelch configuration** — user-tunable dedupe windows per channel.
+   hardware-affecting feature. **Deferred, and deliberately last:** it is opt-in and
+   never automatic, and a running test must show a progress reading, because a long
+   test on a large drive runs for hours (`FEATURES.md` A19, `ADR-017`).
+5. **Squelch configuration** — user-tunable dedupe window. **Done** — the
+   `squelch_seconds` setting.
 6. **In-app knowledge-base refresh** — an opt-in, user-pressed action to update the
-   drive knowledge base without waiting for a release (`ADR-011`).
+   drive knowledge base without waiting for a release (`ADR-011`). **Not started.**
 
 7. **Degradation trend detection** — a "worsening" early-warning badge plus history
-   charts / sparklines (`FEATURES.md` A14/A15).
+   charts / sparklines (`FEATURES.md` A14/A15). **Partial:** the charts and sparklines
+   (`A15`) are done; the badge is not.
 8. **Trend-aware health score** — refines the MVP score using history
-   (`FEATURES.md` A17).
+   (`FEATURES.md` A17). **Not started.**
 9. **Self-test scheduling + self-test log**, and **SMART error log** display
-   (`FEATURES.md` A19/A20).
+   (`FEATURES.md` A19/A20). **Not started.**
 10. **Alert acknowledgement & maintenance/silence windows** (`FEATURES.md` B7/B8).
+    Maintenance windows **done**; acknowledgement **deferred** (`ADR-017`).
 11. **ntfy action buttons / priority / tags** and a per-channel event-subscription UI
-    (`FEATURES.md` B10/B12).
+    (`FEATURES.md` B10/B12). Subscription UI **done**; ntfy action buttons **not
+    started**.
 
 ## Phase 3 — backlog (nice-to-have, no commitments)
 

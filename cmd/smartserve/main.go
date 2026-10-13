@@ -127,6 +127,10 @@ func runServe() error {
 	registry := notify.NewRegistry()
 	registry.Register(notify.NewNtfy(nil))
 	registry.Register(notify.NewWebhook(nil))
+	registry.Register(notify.NewGotify(nil))
+	registry.Register(notify.NewTelegram(nil))
+	registry.Register(notify.NewDiscord(nil))
+	registry.Register(notify.NewSMTP())
 	dispatcher := notify.NewDispatcher(st, registry, notify.DispatcherOptions{Logger: logger})
 	manager.OnPostScan(notify.NewNotifier(st, dispatcher, cfg.Version, logger).OnScan)
 

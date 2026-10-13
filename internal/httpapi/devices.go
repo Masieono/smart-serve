@@ -140,19 +140,31 @@ func (s *Server) handleGetDevice(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, resp)
 }
 
+// snapshotPayload is the decoded form of the attributes blob stored with each
+// snapshot (docs/DATA_MODEL.md).
+type snapshotPayload struct {
+	Attributes []model.Attribute `json:"attributes"`
+	NVMe       *model.NVMeHealth `json:"nvme"`
+}
+
+// decodeSnapshot parses a snapshot's attributes blob, tolerating anything malformed
+// so a corrupt row can never break a report.
+func decodeSnapshot(snap *store.Snapshot) snapshotPayload {
+	var payload snapshotPayload
+	if snap == nil || strings.TrimSpace(snap.Attributes) == "" {
+		return payload
+	}
+	_ = json.Unmarshal([]byte(snap.Attributes), &payload)
+	return payload
+}
+
 // snapshotMetrics derives throughput, power cycles and the like from the stored
 // attributes blob, so the UI does not have to understand S.M.A.R.T. layouts.
 func snapshotMetrics(snap *store.Snapshot) interp.Metrics {
 	if snap == nil {
 		return interp.Metrics{}
 	}
-	var payload struct {
-		Attributes []model.Attribute `json:"attributes"`
-		NVMe       *model.NVMeHealth `json:"nvme"`
-	}
-	if strings.TrimSpace(snap.Attributes) != "" {
-		_ = json.Unmarshal([]byte(snap.Attributes), &payload)
-	}
+	payload := decodeSnapshot(snap)
 	return interp.DeriveMetrics(&model.SmartData{
 		Attributes:   payload.Attributes,
 		NVMe:         payload.NVMe,

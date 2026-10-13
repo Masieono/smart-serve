@@ -20,20 +20,38 @@ avoid idle cost.
 | A5 | Temperature, power-on hours, power cycles, capacity | MVP | 🔌 | |
 | A6 | Firmware version, serial, WWN, interface speed display | MVP | 💤 | from smartctl |
 | A7 | Human-readable drive age ("in service 4.2 years") | MVP | 💤 | derived from power-on hours |
-| A8 | Copy / export S.M.A.R.T. report | MVP | 💤 | formats selectable in Settings (default text); bundled multi-format download in P2 |
-| A9 | Health summary bar (n good / n caution / n bad) | MVP | 💤 | at-a-glance |
+| A8 | Copy / export S.M.A.R.T. report | MVP | 💤 | **done** — plain text, self-contained web page, `field,value` spreadsheet, or JSON, chosen from an Export dialog |
+| A9 | Health summary bar (n good / n caution / n bad) | MVP | 💤 | **done** — folded into the Devices header as a compact clickable list beside the title and search box |
 | A10 | Raw `smartctl` output viewer (diagnostics toggle) | MVP | 💤 | vital for USB bridge quirks |
 | A11 | Per-device transport override (`-d sat`, …) | MVP | 💤 | manual fix for stubborn bridges |
 | A12 | Attribute help tooltips ("what is Reallocated Sectors?") | MVP | 💤 | educational, CDI-like |
 | A13 | Scan history log (durations, per-device errors) | MVP | 💤 | |
 | A14 | Degradation trend detection ("worsening" early-warning badge) | P2 | 💤 | `SMART_INTERPRETATION.md` §5 |
-| A15 | History charts (temp, sectors, wear) + sparklines | P2 | 💤 | from snapshot store |
+| A15 | History charts (temp, sectors, wear) + sparklines | P2 | 💤 | **done** — per-metric sparkline card on the device page, with a 7/30/90-day/all range selector |
 | A16 | Remaining-longevity estimate (NVMe / SSD / HDD) | P2 | 💤 | with confidence labels |
 | A17 | Health score 0–100 + letter grade | MVP/P2 | 💤 | basic in MVP; trend-aware in P2 |
 | A18 | Snapshot diff ("what changed since last scan") | P2 | 💤 | |
-| A19 | SMART self-test (manual short/long + scheduled) + self-test log | P2 | ⚠ | first hardware-affecting feature; default short, configurable |
+| A19 | SMART self-test (manual short/long + scheduled) + self-test log | P2 | ⚠ | **eventually — opt-in only, see below** |
 | A20 | SMART error log display | P2 | 🔌 | ATA error log / NVMe error log |
 | A21 | Drive knowledge base (rated TBW, known firmware advisories) | P3 | 💤 | bundled static table; opt-in in-app refresh |
+
+### A19 — SMART self-test: how it should behave when it lands
+
+Deferred, but the constraints are worth recording before anyone builds it.
+
+- **Opt-in, and never automatic.** Nothing fires a self-test because the app started,
+  because a scan ran, or because a drive appeared. The user presses a button, or
+  creates a schedule they explicitly asked for. This is the only feature that writes
+  to a drive.
+- **A running test needs a progress reading.** A long test on a 14 TB drive runs for
+  many hours — that is the normal case for the drives this app targets, not an edge
+  case. A spinner with no percentage is indistinguishable from a hang, so the UI must
+  surface the drive's own progress figure (the ATA self-test polling minutes, or the
+  NVMe self-test log's percent-complete) and say so plainly when a drive reports
+  none.
+- **It lands last.** Docker device access has to be validated on real hardware first
+  (`DEPLOYMENT.md`): a self-test is the one operation where getting the device
+  plumbing wrong actually matters.
 
 ## B. Alerts & notification
 
@@ -45,11 +63,11 @@ avoid idle cost.
 | B4 | Temperature alerts | MVP | 💤 | |
 | B5 | Device appeared / disappeared alerts | MVP | 💤 | appeared is opt-in |
 | B6 | Scheduled-scan failure alerts | MVP | 💤 | |
-| B7 | Alert acknowledgement (mute a known issue, keep the verdict) | P2 | 💤 | avoids alert fatigue |
-| B8 | Maintenance / silence windows (suppress during e.g. array rebuild) | P2 | 💤 | |
+| B7 | Alert acknowledgement (mute a known issue, keep the verdict) | P2 | 💤 | **deferred, not dropped** — belongs in the app; the state it needs costs more than the noise it removes at single-host scale |
+| B8 | Maintenance / silence windows (suppress during e.g. array rebuild) | P2 | 💤 | **done** — a `maintenance_windows` setting, optionally scoped to serials; evaluated at dispatch time, so no idle cost |
 | B9 | Self-test result notifications (pass/fail) | P2 | 💤 | |
 | B10 | ntfy action buttons ("Open dashboard"), priority, tags | P2 | 💤 | |
-| B11 | Gotify / Telegram / Discord / SMTP adapters | P2 | 💤 | |
+| B11 | Gotify / Telegram / Discord / SMTP adapters | P2 | 💤 | **done** — each a small `Sender`; the editor is data-driven, so adding another is a data change |
 | B12 | Per-channel event subscription UI | P2 | 💤 | |
 | B13 | Weekly digest (one summary instead of per-event) | P3 | 💤 | |
 
@@ -72,7 +90,7 @@ avoid idle cost.
 | # | Feature | Tier | Idle | Notes |
 |---|---|---|---|---|
 | D1 | Dashboard cards + device detail view | MVP | 💤 | |
-| D2 | Theme picker: dark / light / auto / custom accent colour | MVP | 💤 | token-based (`UI.md` §5) |
+| D2 | Theme picker: dark / light / auto / custom accent colour | MVP | 💤 | **done** — plus Catppuccin (Latte/Mocha), Dracula, Nord and Gruvbox (light/dark) palettes |
 | D3 | Responsive mobile layout | MVP | 💤 | |
 | D4 | Hide / unhide devices | MVP | 💤 | escape hatch for unreadable bridges |
 | D5 | Filter & sort devices (health, name, transport) | P2 | 💤 | |
@@ -85,10 +103,14 @@ These rules exist so feature growth cannot erode the product's core promise:
 
 1. **No periodic device reads** outside an explicit or scheduled scan.
 2. **Time-based features sleep to the next event** — never tick on an interval.
-   (Schedules, silence windows, retention — all computed as a single `time.Sleep`.)
+   (Schedules, retention — computed as a single `time.Sleep`.) A feature that only
+   needs to be consulted *when something else already happened* — maintenance
+   windows, squelching — is evaluated at that moment instead, which is cheaper still.
 3. **Any scraper-style endpoint** (Prometheus) ships **disabled by default**.
 4. **UI freshness is always tied to the last scan** — never to live polling. The
    "last scanned" timestamp is visible on every screen.
+5. **Anything that writes to a drive is opt-in and never automatic** — the user
+   presses the button, or sets the schedule (A19).
 
 ## F. Explicitly rejected (see `SCOPE.md` non-goals)
 

@@ -1,7 +1,7 @@
 // Dashboard: device cards, health summary, scan button (docs/UI.md §7.1).
 import { el, mount, fmtAgo } from '../dom.js';
 import { api } from '../api.js';
-import { deviceCard, summaryBar, emptyState, skeletonCards, errorBox } from '../components.js';
+import { deviceCard, healthFilter, emptyState, skeletonCards, errorBox } from '../components.js';
 import { icon } from '../icons.js';
 
 let filter = null;
@@ -30,39 +30,46 @@ function draw(container, ctx, data) {
   const search = el('input', {
     type: 'search',
     id: 'device-search',
+    class: 'devices-search',
     placeholder: 'Filter by name, model or serial  (/)',
     value: query,
-    style: 'max-width:280px',
     oninput: () => {
       query = search.value.trim().toLowerCase();
       paint();
     },
   });
 
-  const head = el('div', { class: 'page-head' }, [
-    el('div', {}, [
+  // One rectangle for the page identity, the health counts and the search box. The
+  // counts are a filter for the grid below, so they belong beside the thing they
+  // filter rather than in a row of their own.
+  const head = el('div', { class: 'card devices-head' }, [
+    el('div', { class: 'devices-head-row' }, [
       el('h1', { text: 'Devices' }),
-      el('div', { class: 'sub', text: `Last scan ${fmtAgo(data.last_scan_ts)}` }),
+      healthFilter(counts, filter, (next) => {
+        filter = next;
+        draw(container, ctx, data);
+      }),
+      el('span', { class: 'spacer' }),
+      search,
+      // No scan button here: the sidebar carries the global one, and every card has
+      // its own rescan. A third copy in the header was pure duplication.
+      missing.length
+        ? el('button', {
+            class: 'btn btn-sm',
+            type: 'button',
+            'aria-pressed': showMissing ? 'true' : 'false',
+            title: 'Drives recorded earlier that were not present in the last scan',
+            onclick: () => {
+              showMissing = !showMissing;
+              draw(container, ctx, data);
+            },
+          }, [
+            icon('help'),
+            showMissing ? `Hide ${missing.length} disconnected` : `Show ${missing.length} disconnected`,
+          ])
+        : null,
     ]),
-    el('span', { class: 'spacer' }),
-    search,
-    // No scan button here: the sidebar carries the global one, and every card has
-    // its own rescan. A third copy in the header was pure duplication.
-    missing.length
-      ? el('button', {
-          class: 'btn',
-          type: 'button',
-          'aria-pressed': showMissing ? 'true' : 'false',
-          title: 'Drives recorded earlier that were not present in the last scan',
-          onclick: () => {
-            showMissing = !showMissing;
-            draw(container, ctx, data);
-          },
-        }, [
-          icon('help'),
-          showMissing ? `Hide ${missing.length} disconnected` : `Show ${missing.length} disconnected`,
-        ])
-      : null,
+    el('div', { class: 'devices-head-sub muted', text: `Last scan ${fmtAgo(data.last_scan_ts)}` }),
   ]);
 
   if (!all.length) {
@@ -92,12 +99,6 @@ function draw(container, ctx, data) {
   }
   paint();
 
-  mount(container,
-    head,
-    summaryBar(counts, filter, (next) => {
-      filter = next;
-      draw(container, ctx, data);
-    }),
-    grid);
+  mount(container, head, grid);
 }
 

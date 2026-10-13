@@ -4,6 +4,25 @@
 // `close` event, and a stub that swallowed listeners could not have caught the
 // bug where a confirmation resolved before the user clicked anything.
 
+/** A minimal CSSStyleDeclaration: enough to assert on what applyTheme sets. */
+class StubStyle {
+  constructor() {
+    this.properties = new Map();
+  }
+
+  setProperty(name, value) {
+    this.properties.set(name, String(value));
+  }
+
+  removeProperty(name) {
+    this.properties.delete(name);
+  }
+
+  getPropertyValue(name) {
+    return this.properties.get(name) || '';
+  }
+}
+
 export class StubNode {
   constructor(tag) {
     this.tagName = tag.toUpperCase();
@@ -27,7 +46,7 @@ export class StubNode {
     this.disabled = false;
     this.open = false;
     this.checked = false;
-    this.style = { setProperty() {}, removeProperty() {} };
+    this.style = new StubStyle();
   }
 
   append(child) {

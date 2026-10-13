@@ -80,7 +80,7 @@ history — is one file that can be backed up with `cp` while the app is stopped
 | Column | Type | Notes |
 |---|---|---|
 | `id` | INTEGER PK | |
-| `type` | TEXT | `ntfy`, `webhook` (Phase 2: `gotify`, `telegram`, `discord`, `smtp`) |
+| `type` | TEXT | `ntfy`, `gotify`, `telegram`, `discord`, `smtp`, `webhook` (`NOTIFICATIONS.md`) |
 | `label` | TEXT | |
 | `config` | TEXT | type-specific JSON (see NOTIFICATIONS.md) |
 | `enabled` | INTEGER DEFAULT 1 | |
@@ -125,21 +125,30 @@ worse than no setting at all.
 | `missed_run_policy` | `"skip"` | `skip` \| `run_once` | `sched` (env-seeded) |
 | `timezone` | `""` | schedule time zone; empty = container `TZ` (C6) | `sched` |
 | `temperature_unit` | `"c"` | `c` \| `f` — display only; stored values stay Celsius | `webui`, `notify` |
-| `theme` | `"auto"` | `auto` \| `light` \| `dark` \| `custom` (`UI.md` §5) | `webui` |
+| `theme` | `"auto"` | `auto` \| `light` \| `dark` \| `catppuccin-latte` \| `catppuccin-mocha` \| `dracula` \| `nord` \| `gruvbox-light` \| `gruvbox-dark` \| `custom` (`UI.md` §5) | `webui` |
 | `theme_base` | `"dark"` | base for `custom`: `light` \| `dark` | `webui` |
-| `theme_accent` | `"#3b82f6"` | accent colour for `custom` themes | `webui` |
-| `theme_surface_tint` | `"neutral"` | `neutral` \| `slate` \| `warm` \| `cool` | `webui` |
-| `scan_exclude_devices` | `[]` | device paths/serials to skip | **Phase 2 — not implemented** |
-| `health_score_enabled` | `true` | show the 0–100 score/grade (D13) | **Phase 2 — not implemented** |
+| `theme_accent` | `"#3b82f6"` | accent colour, read **only** when `theme` is `custom` | `webui` |
+| `theme_surface_tint` | `"neutral"` | `neutral` \| `slate` \| `warm` \| `cool`; remixes any theme's palette | `webui` |
+| `maintenance_windows` | `[]` | JSON list of `{label, starts_at, ends_at, serials[]}` (unix ms) — silences alerts for the drives it covers while active | `notify` |
 
 Thresholds are read **per scan** (`interp.FromSettings`) rather than captured at
 start-up, so a value changed in the UI applies to the very next scan. The same
-applies to the squelch window, the command timeout, the schedule timezone and the
-missed-run policy. A threshold whose only reader is a `DefaultThresholds()` call at
-boot is a control that lies, which is exactly what this table exists to prevent.
-| `selftest_enabled` | `false` | allow self-test triggering — opt-in, hardware-affecting (D10) |
-| `selftest_default_kind` | `"short"` | `short` \| `long` (D10) |
-| `report_export_formats` | `["txt"]` | enabled export formats (D11) |
+applies to the squelch window, the maintenance windows, the command timeout, the
+schedule timezone and the missed-run policy. A threshold whose only reader is a
+`DefaultThresholds()` call at boot is a control that lies, which is exactly what this
+table exists to prevent.
+
+### Specified but not implemented
+
+Listed so the schema direction is frozen. A key that nothing reads lives here rather
+than in the table above, so "what does this setting do" never has two answers.
+
+| Key | Default | Meaning | Status |
+|---|---|---|---|
+| `health_score_enabled` | `true` | show the 0–100 score/grade (D13) | not implemented — the score is always computed and displayed |
+| `selftest_enabled` | `false` | allow self-test triggering — opt-in, hardware-affecting (D10) | not implemented |
+| `selftest_default_kind` | `"short"` | `short` \| `long` (D10) | not implemented |
+| `report_export_formats` | `["txt"]` | enabled export formats (D11) | not implemented — all four formats are always offered |
 
 ### `scan_history` — one row per scan run (MVP: scan-history log, FEATURES A13)
 
@@ -163,9 +172,13 @@ boot is a control that lies, which is exactly what this table exists to prevent.
 ### Future tables (Phase 2 — specified now to freeze schema direction)
 
 - `alert_acknowledgements` (`event_key`, `acked_at`, `acked_by`, `expires_at`) —
-  mutes a known issue without changing the verdict.
-- `maintenance_windows` (`id`, `label`, `starts_at`, `ends_at`, `device_filter`) —
-  suppresses notifications during known maintenance.
+  mutes a known issue without changing the verdict. Deferred deliberately: at
+  single-host scale the state costs more to maintain than the noise it removes.
+
+Maintenance windows deliberately get **no table**: they are a short JSON list in the
+`maintenance_windows` setting, read once per dispatch pass and evaluated against the
+clock. Nothing sleeps until a window opens or closes, so they add no idle cost
+(`FEATURES.md` §E).
 
 ## Retention & pruning
 

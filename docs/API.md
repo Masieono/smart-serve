@@ -124,11 +124,10 @@ takes effect immediately instead of at the next sleep boundary.
 ## Notification channels
 
 - `GET /api/channels`
-- `POST /api/channels` — `{ "type": "ntfy", "label": "alerts", "config": { "server": "https://ntfy.sh", "topic": "my-smart-alerts" }, "events": ["health_change", "temperature_high", "device_disappeared"] }`
-  (webhook config: `{ "url": "...", "method": "POST", "headers": {...} }`).
+- `POST /api/channels` — `{ "type": "ntfy", "label": "alerts", "config": { "server": "https://ntfy.sh", "topic": "my-smart-alerts" }, "events": ["health_change", "temperature_high", "device_disappeared"] }`.
   An empty or absent `events` array means "every event". The config is validated
   against the channel type's sender, so a missing topic or a malformed URL is a
-  `400` at the point of editing.
+  `400` at the point of editing. Config shapes per type are in `NOTIFICATIONS.md`.
 - `PUT /api/channels/{id}` — update (same validation).
 - `DELETE /api/channels/{id}`
 - `POST /api/channels/{id}/test` — send a test event immediately, bypassing
@@ -148,7 +147,7 @@ takes effect immediately instead of at the next sleep boundary.
   ],
   "event_types": ["health_change", "temperature_high", "device_disappeared",
                   "device_appeared", "scan_failure"],
-  "channel_types": ["ntfy", "webhook"]
+  "channel_types": ["discord", "gotify", "ntfy", "smtp", "telegram", "webhook"]
 }
 ```
 
@@ -160,11 +159,12 @@ checkboxes and type picker cannot drift from the server.
 ## Settings
 
 - `GET /api/settings` / `PUT /api/settings` — key/value map. The full default key
-  list (thresholds, retention, squelch, theme, excludes) is in `DATA_MODEL.md`;
-  every interpretation threshold is edited here, never via env vars (`ADR-009`).
-  The response includes each setting's effective value, its default, and its
-  source (`env` or `db`). Appearance keys: `theme`, `theme_base`, `theme_accent`,
-  `theme_surface_tint` (`UI.md` §5).
+  list (thresholds, retention, squelch, maintenance windows, theme) is in
+  `DATA_MODEL.md`; every interpretation threshold is edited here, never via env vars
+  (`ADR-009`). The response includes each setting's effective value, its default,
+  and its source (`env` or `db`). Appearance keys: `theme`, `theme_base`,
+  `theme_accent`, `theme_surface_tint` (`UI.md` §5). `maintenance_windows` is the
+  JSON list described in `NOTIFICATIONS.md`; it has no endpoint of its own.
 
 ## Diagnostics & operations
 
@@ -178,21 +178,28 @@ checkboxes and type picker cannot drift from the server.
 - `PUT /api/devices/{serial}/transport` — set a per-device `-d` transport override
   (`{ "smart_d": "sat" }`), persisted in `device_transport_overrides`
   (`FEATURES.md` A11).
-- `GET /api/devices/{serial}/report?format=txt|json|html` — CrystalDiskInfo-style
-  report export for warranty/RMA (`FEATURES.md` A8). Enabled formats come from the
-  `report_export_formats` setting; `?bundle=1` returns a zip of all enabled formats
-  (Phase 2). **Implemented so far:** `txt` (default) and `json`; `html` and
-  `?bundle=1` land with the Phase 2 export work.
+- `GET /api/devices/{serial}/report?format=txt|json|html|csv` — report export for
+  warranty/RMA (`FEATURES.md` A8). `txt` (default), `html` and `csv` are served as
+  downloads with a `smart-serve-<serial>.<ext>` filename; `json` is returned inline
+  because it is the machine format. An unknown format is a `400`.
+  `txt` is a CrystalDiskInfo-style summary, `html` a self-contained page with no
+  external references (it has to stay readable after the app is uninstalled), `csv`
+  a two-column `field,value` sheet covering identity, health and every attribute.
+  A per-format enable list (`report_export_formats`) and a `?bundle=1` zip remain
+  unimplemented (`DATA_MODEL.md`).
 
 ## Phase 2 endpoints (specified now to freeze direction)
 
 - `POST /api/devices/{serial}/selftest` — body `{ "kind": "short" | "long" }`;
   defaults to the `selftest_default_kind` setting (`short`); requires
-  `selftest_enabled`. `GET …/selftest` returns the self-test log (`FEATURES.md` A19).
+  `selftest_enabled`. `GET …/selftest` returns the self-test log, including a
+  progress reading while a test is running (`FEATURES.md` A19).
 - `POST /api/acknowledge` — `{ "event_key": "health_change:<serial>:caution" }`
   mutes that event without changing the verdict (`FEATURES.md` B7).
-- `GET|POST|PUT|DELETE /api/maintenance-windows` — silence windows
-  (`FEATURES.md` B8).
+
+Maintenance windows deliberately get **no endpoints**: they are a `maintenance_windows`
+setting (`DATA_MODEL.md`) edited from the Notifications page, because a window is a
+configuration value rather than a resource with its own lifecycle.
 
 ## Events (SSE)
 
@@ -213,7 +220,7 @@ SSE is the only push mechanism; no WebSocket (see ADR-006). Reconnect handling i
 native (browser `EventSource` auto-retry with `Last-Event-ID` cursor for missed
 `scan_complete`s; the server keeps a small ring buffer of recent events).
 
-## History (Phase 2 endpoint, specified now to freeze schema)
+## History (implemented)
 
 - `GET /api/devices/{serial}/history?from=…&to=…` — snapshots in range, with
   computed series (`temperature_c`, `wear_pct`, attr-5/197/198 raw values,

@@ -148,6 +148,14 @@ export function fmtInt(value) {
 }
 
 /** Grade label from the score (docs/SMART_INTERPRETATION.md §8.1). */
+export function scoreBand(score) {
+  if (score === null || score === undefined || score < 0) return 'unknown';
+  if (score >= 75) return 'good';
+  if (score >= 40) return 'caution';
+  return 'bad';
+}
+
+/** Grade label from the score (docs/SMART_INTERPRETATION.md §8.1). */
 export function scoreGrade(score) {
   if (score === null || score === undefined || score < 0) return 'n/a';
   if (score >= 90) return 'Excellent';

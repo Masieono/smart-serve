@@ -178,7 +178,8 @@ are naturally container-orchestration concerns.
   `SMARTSERVE_MISSED_RUN_POLICY`, `SMARTSERVE_COMMAND_TIMEOUT`,
   `SMARTSERVE_LOG_LEVEL`.
 - **Everything else — Settings UI, persisted in SQLite**: every interpretation
-  threshold, retention, squelch, theme, exclude lists, schedules, channels, notes.
+  threshold, retention, squelch, maintenance windows, theme, schedules, channels,
+  notes.
 
 **Precedence:** an env var provides the *default* for a setting only while that
 setting is absent from the DB. Once the user changes it in the UI, the DB value
@@ -347,6 +348,48 @@ area for the owner's use); multi-user accounts/roles (rejected — out of scope,
 **Consequences.** (+) lean; no credential storage, no user database, no session
 handling. (−) exposing the port directly without a proxy is unsafe — stated loudly in
 `DEPLOYMENT.md`.
+
+## ADR-017: Deferring acknowledgement, and storing maintenance windows as a setting
+
+**Context.** Three Phase 2 items were reviewed together: alert acknowledgement
+(`FEATURES.md` B7), maintenance/silence windows (B8), and SMART self-test triggering
+(A19). The owner wants all three eventually; the question was which to build now.
+
+**Decision.**
+
+1. **Maintenance windows — built, as a setting.** A window is a JSON list in the
+   `maintenance_windows` setting, evaluated by the dispatcher at dispatch time.
+   No table, no endpoints, no scheduler involvement. The dispatcher already resolved
+   the settings table once per pass, so the marginal cost was a parse and a comparison
+   per event. Because nothing sleeps until a window opens or closes, this preserves
+   the zero-idle-cost invariant (`FEATURES.md` §E) more cheaply than the
+   next-boundary-sleep design originally sketched in `NOTIFICATIONS.md`.
+2. **Acknowledgement — deferred, documented as wanted.** It needs a table with expiry
+   and "has the condition changed since?" bookkeeping, plus UI to list and revoke
+   acknowledgements. At single-host scale that state costs more to maintain than the
+   alert noise it removes. The part that would have been expensive to retrofit — a
+   stable `event_key` per alert, already recorded in `notification_log` — is already
+   in place.
+3. **SMART self-test — deferred, and last.** It is the only feature that writes to a
+   drive, so it lands after Docker device access has been validated on real hardware.
+   Two constraints are recorded in `FEATURES.md` A19: it is **opt-in and never
+   automatic**, and a running test must show a **progress reading**, because a long
+   test on a 14 TB drive runs for many hours and a spinner with no percentage is
+   indistinguishable from a hang.
+4. **`scan_exclude_devices` — dropped.** A per-device hide flag already covers the use
+   case, and two ways to hide a drive is one too many.
+
+**Alternatives.**
+- *Build all three now* — the self-test would ship untested against real device
+  plumbing, which is the one place a mistake is expensive.
+- *A `maintenance_windows` table with CRUD endpoints* — more code, and it would have
+  needed the scheduler to wake at each window boundary, adding an idle-cost surface
+  for no benefit. Rejected once the dispatch-time check proved sufficient.
+
+**Consequences.** (+) planned maintenance is silenceable today with no new idle cost;
+the deferred items are recorded with their constraints so they are picked up, not
+rediscovered. (−) acknowledgement stays on the backlog, and the self-test's progress
+requirement now constrains its eventual API shape (`API.md`).
 
 
 

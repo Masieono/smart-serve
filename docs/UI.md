@@ -82,27 +82,42 @@ what makes theming (Section 5) a token-swap rather than a rewrite.
 - **Data-viz tokens:** `--gauge-track`, `--gauge-fill`, `--sparkline` (separate from
   semantic colours so charts stay readable in every theme).
 
-## 5. Theme system (dark / light / custom colour themes)
+## 5. Theme system
 
 Theming is a **token-swap**, never a component change. This is the key to shipping a
 theme picker without touching any component code.
 
-- **Mechanism:** tokens are defined on `[data-theme="light"]`, `[data-theme="dark"]`,
-  and `[data-theme="custom"]` selectors; components only ever reference `var(--…)`.
+- **Mechanism:** each theme is a `[data-theme="…"]` block setting the `--palette-*`
+  tokens; the semantic tokens (`--bg`, `--surface`, `--text`, …) derive from those,
+  and components only ever reference `var(--…)`.
 - **Built-in themes:** `auto` (follows the OS via `prefers-color-scheme`), `light`,
   `dark`.
+- **Named palettes:** `catppuccin-latte`, `catppuccin-mocha`, `dracula`, `nord`,
+  `gruvbox-light`, `gruvbox-dark`. Each states its own `--palette-*`, accent and
+  health colours, so a palette looks like itself rather than the default in a
+  different shade. Their soft variants and hover shades are mixed once from the
+  solid values (`color-mix`), so a new palette is a dozen lines.
 - **Custom theme:** the user picks an **accent colour** and a **base** (light or
   dark). Derived tokens (`--accent-contrast`, hover/active shades, focus ring) are
   computed from the accent's luminance so text on the accent always meets WCAG AA
-  contrast automatically. Optional surface tint (slate / neutral / warm / cool).
+  contrast automatically.
+- **The accent picker belongs to `custom`.** A named palette owns its accent; the
+  server emits no inline override for one, and `applyTheme` clears any override left
+  behind when switching away. An inline value wins over the stylesheet, so leaving
+  one in place would flatten every theme to the same colour.
+- **Surface tint** (`neutral` / `slate` / `warm` / `cool`) remixes whichever palette
+  is active, so it composes with a named theme.
 - **No theme files:** a theme is a handful of token values stored in settings —
   nothing to install, nothing to break.
 - **No flash of wrong theme:** the server renders `<html data-theme="…">` from the
   stored setting, so the correct theme is applied before first paint (no JS-only
   theming). A tiny inline script only handles `auto` → OS resolution.
-- **Persistence:** `theme`, `theme_base`, `theme_accent` settings
-  (`DATA_MODEL.md`); applied per-browser via a cookie for unauthenticated MVP so
-  multiple users/devices can differ, with the server value as the default.
+- **Persistence:** `theme`, `theme_base`, `theme_accent`, `theme_surface_tint`
+  settings (`DATA_MODEL.md`).
+
+Two tests keep the picker and the stylesheet honest: the Go side asserts every name
+in `ThemeNames` has a palette block in `tokens.css`, and the JS side asserts the
+picker offers exactly `ThemeNames`.
 
 ## 6. Component inventory
 
@@ -111,13 +126,14 @@ theme picker without touching any component code.
 | **Verdict badge** | Pill: icon + word + colour (`good`/`caution`/`bad`/`unknown`). Colour is never the only signal. |
 | **Health gauge** | Circular SVG ring, 0–100 + grade. Colour = band. Hover/tap → penalty breakdown popover (§8.4 of `SMART_INTERPRETATION.md`). |
 | **Device card** | Name (user), model, capacity, verdict badge, small gauge, temperature, transport icon (USB vs internal), mountpoint(s), "last scanned". Actions: open, scan-this, hide. A card whose drive is absent from the latest scan shows a *Not connected* badge and is dimmed. |
-| **Summary bar** | Counts by verdict + total; clicking filters the grid. |
+| **Devices header** | One card holding the page title, the clickable verdict counts and the search box. The counts are a filter for the grid below, so they sit beside the thing they filter instead of in a row of their own. |
 | **Attribute table** | Sortable, zebra rows; ID / name / value / worst / threshold / interpreted raw / status dot; per-attribute help tooltip ("what is this?"). |
-| **Sparkline** | Inline SVG trend for temp / sectors / wear (Phase 2). |
+| **Sparkline / trend card** | Inline SVG per metric (health score, temperature, power-on hours, wear) with the current value and the change across the window, plus a 7 / 30 / 90 day / all range selector. A row with fewer than two readings is dropped — one point is not a trend. |
+| **Export dialog** | One row per format (plain text / web page / spreadsheet / JSON) with what each is for, rather than a single button that silently picks one. |
 | **Scan button** | Primary action. States: idle · scanning (spinner + "3/5 devices") · done (toast). |
 | **Toasts** | Scan complete, saved, notification sent; auto-dismiss, stacked. |
-| **Dialogs / sheets** | Schedule editor, channel editor, transport override, confirmations. Full-screen sheets on mobile. |
-| **Empty states** | "No scan yet — press Scan to discover drives", "No devices found", "No schedules". |
+| **Dialogs / sheets** | Schedule editor, channel editor, maintenance window, transport override, export, confirmations. Full-screen sheets on mobile. |
+| **Empty states** | "No scan yet — press Scan to discover drives", "No devices found", "No schedules", "No history yet — trends appear once this drive has been scanned a few times". |
 | **Skeletons** | Placeholder shapes while data loads — never a blank screen. |
 | **Settings forms** | Inline validation; each field shows its **effective value, default, and source** (`env` or `db`, per `ADR-009`). |
 

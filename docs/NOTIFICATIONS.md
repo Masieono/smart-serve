@@ -1,10 +1,12 @@
 # Smart-Serve — Notifications
 
-> **Status: implemented (MVP).** The scheduler lives in `internal/sched` and the
-> delivery pipeline in `internal/notify`: transition detection, ntfy and webhook
-> senders, squelching, the delivery log (`GET /api/notifications`), and
-> `POST /api/channels/{id}/test`. Phase 2 adapters (Gotify, Telegram, Discord,
-> SMTP) implement the same `Sender` interface and change nothing else.
+> **Status: implemented.** The scheduler lives in `internal/sched` and the delivery
+> pipeline in `internal/notify`: transition detection, six channel types (ntfy,
+> Gotify, Telegram, Discord, SMTP, generic webhook), squelching, maintenance
+> windows, the delivery log (`GET /api/notifications`), and
+> `POST /api/channels/{id}/test`.
+>
+> Acknowledgement (`FEATURES.md` B7) is **deferred** — see §Suppression.
 
 ## Event catalog
 
@@ -23,7 +25,13 @@ notifier bus.
 Priority influences formatting (ntfy priority header, webhook payload field) and
 squelch defaults — not delivery: every channel subscribed to the event gets it.
 
-## Channels (MVP)
+## Channels
+
+Every channel type implements the same `Sender` interface
+(`Send(ctx, cfg, Event) error`), so adding a provider never touches the scan
+pipeline. `GET /api/notifications` reports the registered set as `channel_types`,
+and the UI's editor offers exactly that list — a build without a provider cannot
+offer it.
 
 ### ntfy (first-class)
 
@@ -89,6 +97,81 @@ Default payload (JSON):
 Delivery: 10 s timeout, 2 retries with 5 s backoff on 5xx/network errors; non-2xx
 final failure logged to `notification_log` as `failed` (never blocks the scan).
 
+### Gotify
+
+```json
+{ "type": "gotify", "config": { "server": "https://gotify.example.com", "token": "app-token" } }
+```
+
+Single `POST <server>/message?token=<token>` with `{title, message, priority}`.
+Priority maps onto Gotify's 0–10 scale: low → 3, medium → 6, high → 9. The server
+URL must be `http(s)`, so a bare hostname is rejected when the channel is saved
+rather than failing on the first alert.
+
+### Telegram
+
+```json
+{
+  "type": "telegram",
+  "config": {
+    "token": "123456:ABC…", "chat_id": "-1001234567890",
+    "thread_id": "", "api_base": ""
+  }
+}
+```
+
+`POST <api_base>/bot<token>/sendMessage`. `api_base` defaults to
+`https://api.telegram.org` and exists so a self-hosted Bot API server works (and so
+the transport is testable without reaching Telegram). `thread_id` is sent as a
+number, because the Bot API rejects a string.
+
+### Discord
+
+```json
+{ "type": "discord", "config": { "webhook_url": "https://discord.com/api/webhooks/…", "username": "" } }
+```
+
+Posts an embed rather than plain text: the coloured bar carries the priority
+(green/amber/red, matching the app's health colours), and the fields stay aligned in
+Discord's own layout.
+
+### Email (SMTP)
+
+```json
+{
+  "type": "smtp",
+  "config": {
+    "host": "smtp.example.com", "port": "587",
+    "username": "", "password": "",
+    "from": "smart-serve@example.com",
+    "to": "ops@example.com, me@example.com"
+  }
+}
+```
+
+The only adapter that is not an HTTP POST, but it shares the retry rules and the
+transient classification. Port 465 is treated as implicit TLS (the socket is
+encrypted from the first byte) and everything else as plaintext-then-STARTTLS —
+getting that backwards is the usual reason an SMTP config fails with no useful
+error. A blank port means 587; a port that is present but unparseable is rejected,
+because a typo in that field must not quietly send mail somewhere else.
+
+The subject is RFC 2047-encoded (it carries a device model) and the body is
+quoted-printable (it carries emoji) — a raw 8-bit body is not legal and some servers
+reject it outright.
+
+### Adding a provider
+
+1. Implement `Sender` (`Type`, `Send`) and, for structured config, `ConfigValidator`.
+2. Register it in `cmd/smartserve/main.go`.
+3. Add its field spec to `CHANNEL_TYPES` in
+   `internal/webui/assets/js/views/notifications.js` — the editor is data-driven, so
+   the form, its required-field validation and its config payload all follow.
+
+Two tests pin the two ends together: `TestRegistryShipsTheExpectedChannelTypes`
+(Go) and `the editor offers every registered channel type` (JS) assert the same
+list, so a provider cannot be half-added.
+
 ## Squelching (dedupe)
 
 Rule: for each `(channel, event_key)` pair, where `event_key` is:
@@ -122,17 +205,55 @@ events the dedupe is structural rather than temporal:
 The event key is still recorded for all of them — it is what makes the delivery
 log readable, and what an acknowledgement would key on in Phase 2.
 
-## Suppression: acknowledgement & maintenance windows (Phase 2)
+## Suppression
 
-Two additional suppression layers sit on top of squelching:
+Three layers sit on top of the event catalog. Each one records *why* it was quiet in
+`notification_log`, because a silence with no explanation is indistinguishable from a
+bug.
 
-- **Acknowledgement** — a user can acknowledge a specific `event_key`; it is then
-  muted until the underlying condition changes or the acknowledgement expires.
-  The verdict is unchanged — this only silences the alert (`FEATURES.md` B7).
-- **Maintenance windows** — a time range (optionally filtered to certain devices)
-  during which *no* notifications fire (e.g. while rebuilding an array)
-  (`FEATURES.md` B8). Windows are computed as a next-boundary sleep, preserving the
-  zero-idle-cost invariant (`FEATURES.md` §E).
+### Squelching (implemented)
+
+See above — a per-`(channel, event_key)` time window.
+
+### Maintenance windows (implemented)
+
+A window silences **everything** for the drives it covers: an array rebuild, a
+migration, a chassis being moved. It exists so that a planned event does not require
+disabling a channel and remembering to re-enable it.
+
+```json
+[
+  { "label": "array rebuild",
+    "starts_at": 1760000000000, "ends_at": 1760014400000,
+    "serials": [] }
+]
+```
+
+- Stored as the `maintenance_windows` setting (`DATA_MODEL.md`) and edited from the
+  Notifications page. There is no table and no endpoint: a window is a configuration
+  value, not a resource with a lifecycle.
+- `serials: []` covers every drive; a populated list covers only those, matched
+  case-insensitively because serials are hand-typed. An event with no serial (a
+  `scan_failure`) is not covered by a scoped window.
+- The end is **exclusive**, so a window ending at 06:00 does not silence 06:00.
+- **Zero idle cost.** Windows are evaluated at dispatch time against the clock.
+  Nothing sleeps until one opens or closes (`FEATURES.md` §E).
+- A malformed setting parses as *no windows*. Failing closed would let a typo in a
+  settings value silence every alert on the host, which is the worse failure.
+- `POST /api/channels/{id}/test` ignores windows: an operator pressing Test is asking
+  "does this channel work right now?".
+
+### Acknowledgement (deferred)
+
+A user would acknowledge a specific `event_key`, muting it until the underlying
+condition changes or the acknowledgement expires, leaving the verdict untouched
+(`FEATURES.md` B7).
+
+Deferred deliberately rather than dropped: it belongs in the app, but at single-host
+scale the state it needs (`alert_acknowledgements`, with expiry and "has the
+condition changed since?" bookkeeping) costs more to maintain than the noise it
+removes. The event key already exists and is already recorded, which is the part that
+would have been expensive to retrofit.
 
 ## Delivery mechanics
 
@@ -169,7 +290,11 @@ pipeline.
 |---|---|
 | `sent` | the destination returned 2xx |
 | `failed` | it returned 4xx (permanent — a config problem, so no retry) or 5xx/network after two retries |
-| `squelched` | inside a squelch window; recorded so the log explains the silence |
+| `squelched` | inside a squelch window, or inside a maintenance window; recorded so the log explains the silence |
+
+A maintenance-window suppression names the window (`maintenance window: array
+rebuild`), so an operator can tell a deliberate silence from a squelch timer or a
+delivery failure.
 
 Retries use a 10 s request timeout with two retries and a 5 s backoff on 5xx or
 network errors. A 4xx is never retried — repeating a rejected request only burns
@@ -179,8 +304,8 @@ cannot delay the next scheduled scan.
 The log write itself deliberately survives context cancellation: the budget
 expiring must not erase the evidence of what happened.
 
-## Phase 2 adapters
+## Adapters
 
-`gotify`, `telegram`, `discord`, `smtp` — each an adapter implementing the same
-`Notifier` interface: `Send(ctx, Event, DeviceContext) (Outcome, error)`. Adding a
-channel never touches the scan pipeline.
+`ntfy`, `gotify`, `telegram`, `discord`, `smtp` and `webhook` are implemented
+(`internal/notify/adapters.go`, `smtp.go`). Each is a small `Sender`; the dispatcher
+knows nothing about any of them.

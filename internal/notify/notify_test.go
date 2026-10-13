@@ -26,11 +26,12 @@ type loggedEntry struct {
 
 // fakeStore is an in-memory Store that records what the dispatcher did.
 type fakeStore struct {
-	mu       sync.Mutex
-	channels []store.Channel
-	logged   []loggedEntry
-	last     map[string]time.Time
-	settings map[string]string
+	mu          sync.Mutex
+	channels    []store.Channel
+	logged      []loggedEntry
+	last        map[string]time.Time
+	settings    map[string]string
+	settingsErr error
 }
 
 func newFakeStore(channels ...store.Channel) *fakeStore {
@@ -46,6 +47,9 @@ func (f *fakeStore) ListChannels(context.Context) ([]store.Channel, error) {
 func (f *fakeStore) GetSettings(context.Context) (map[string]string, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	if f.settingsErr != nil {
+		return nil, f.settingsErr
+	}
 	if f.settings == nil {
 		return map[string]string{}, nil
 	}
@@ -126,6 +130,16 @@ func (s *recordingSender) attempts() []string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return append([]string(nil), s.names...)
+}
+
+// onlyLogged returns the single delivery-log entry, for tests that expect exactly one.
+func (f *fakeStore) onlyLogged() (loggedEntry, bool) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if len(f.logged) != 1 {
+		return loggedEntry{}, false
+	}
+	return f.logged[0], true
 }
 
 func testDispatcher(st Store, sender Sender, opts DispatcherOptions) *Dispatcher {
@@ -242,7 +256,7 @@ func TestConfiguredSquelchHonoursTheSetting(t *testing.T) {
 	st.settings = map[string]string{"squelch_seconds": "120"}
 	d := testDispatcher(st, nil, DispatcherOptions{Squelch: time.Hour})
 
-	if got := d.configuredSquelch(context.Background()); got != 2*time.Minute {
+	if got := d.newPass(context.Background()).squelch; got != 2*time.Minute {
 		t.Errorf("squelch = %v, want 2m from the setting", got)
 	}
 }
@@ -250,8 +264,24 @@ func TestConfiguredSquelchHonoursTheSetting(t *testing.T) {
 func TestConfiguredSquelchFallsBackToTheDefault(t *testing.T) {
 	d := testDispatcher(newFakeStore(), nil, DispatcherOptions{Squelch: 45 * time.Minute})
 
-	if got := d.configuredSquelch(context.Background()); got != 45*time.Minute {
+	if got := d.newPass(context.Background()).squelch; got != 45*time.Minute {
 		t.Errorf("squelch = %v, want the configured default", got)
+	}
+}
+
+// A settings read that fails must not stop alerts: the pass falls back to the
+// configured defaults rather than delivering nothing.
+func TestPassSurvivesAnUnreadableSettingsTable(t *testing.T) {
+	st := newFakeStore()
+	st.settingsErr = errors.New("database is locked")
+	d := testDispatcher(st, nil, DispatcherOptions{Squelch: 45 * time.Minute})
+
+	p := d.newPass(context.Background())
+	if p.squelch != 45*time.Minute {
+		t.Errorf("squelch = %v, want the configured default", p.squelch)
+	}
+	if len(p.windows) != 0 {
+		t.Errorf("windows = %v, want none", p.windows)
 	}
 }
 

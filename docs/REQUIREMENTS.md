@@ -39,9 +39,9 @@ is listed for a decision before implementation begins.
 
 | ID | Decision | Recorded in |
 |---|---|---|
-| D10 (was Q9) | **Self-test** — a UI trigger offering **short/long**, defaulting to **short**; the default is changeable in Settings; scheduled self-tests also supported. Phase 2 (committed). | `SCOPE.md` P2#9, `API.md`, `FEATURES.md` A19 |
-| D11 (was Q10) | **Report export** — formats selectable in Settings, **default plain text**; a bundled multi-format download (zip) is offered in Phase 2. | `API.md`, `DATA_MODEL.md`, `FEATURES.md` A8 |
-| D12 (was Q11) | **Alert acknowledgement + maintenance/silence windows** — implemented regardless of tier; scheduled as committed Phase 2 work ("MVP vs Phase 2" is release order, not scope). | `SCOPE.md` P2#10, `NOTIFICATIONS.md` |
+| D10 (was Q9) | **Self-test** — a UI trigger offering **short/long**, defaulting to **short**; the default is changeable in Settings; scheduled self-tests also supported. Phase 2, **and last** — opt-in only, never automatic, and it must show a progress reading (a long test on a large drive runs for hours). | `SCOPE.md` P2#9, `API.md`, `FEATURES.md` A19, `ADR-017` |
+| D11 (was Q10) | **Report export** — four formats (plain text, self-contained web page, spreadsheet, JSON) chosen from an Export dialog. A per-format enable list and a zip bundle are **not** implemented; the formats are all always offered. | `API.md`, `DATA_MODEL.md`, `FEATURES.md` A8 |
+| D12 (was Q11) | **Alert acknowledgement + maintenance/silence windows** — maintenance windows **implemented** as a `maintenance_windows` setting (no table, no endpoints). Acknowledgement **deferred**: wanted, but its state costs more than the noise it removes at single-host scale. | `SCOPE.md` P2#10, `NOTIFICATIONS.md`, `ADR-017` |
 | D13 (was Q12) | **Both** a 0–100 health score **and** Good/Caution/Bad. Basic score ships in MVP; the trend-aware refinement lands in Phase 2. | `SCOPE.md` MVP#14 + P2#8, `FEATURES.md` A17 |
 | D14 (was Q13) | **Multi-arch image (amd64 + arm64)** in MVP. Clarified: this is the host CPU architecture the container runs on (x86-64 servers vs ARM NAS / Raspberry Pi / Apple Silicon), not a different deployment model. | `DEPLOYMENT.md`, `FEATURES.md` C8 |
 | D15 (was C18) | **Licensing** — application source is **MIT**; the image carries smartmontools' GPLv2 notices + source pointer. | `ADR-012`, `README.md` |

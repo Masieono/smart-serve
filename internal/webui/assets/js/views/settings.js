@@ -4,6 +4,26 @@ import { api } from '../api.js';
 import { errorBox, toast } from '../components.js';
 import { applyTheme } from '../theme.js';
 
+// Themes offered in Appearance. Kept in step with ThemeNames in
+// internal/webui/webui.go — a test on each side pins the pair together.
+const THEMES = [
+  ['auto', 'Auto (follows your system)'],
+  ['light', 'Light'],
+  ['dark', 'Dark'],
+  ['catppuccin-latte', 'Catppuccin Latte'],
+  ['catppuccin-mocha', 'Catppuccin Mocha'],
+  ['dracula', 'Dracula'],
+  ['nord', 'Nord'],
+  ['gruvbox-light', 'Gruvbox Light'],
+  ['gruvbox-dark', 'Gruvbox Dark'],
+  ['custom', 'Custom (pick your own accent)'],
+];
+
+/** The theme values the picker offers, in order. */
+export function themeNames() {
+  return THEMES.map(([value]) => value);
+}
+
 // Numeric settings are edited with a slider plus a number box: drag to explore,
 // type for precision. `min`/`max`/`step` describe the slider. A temperature is
 // expressed in the *display* unit and converted back to Celsius on save, because
@@ -125,7 +145,7 @@ function draw(container, ctx, data, { carried = {}, unit: unitOverride } = {}) {
     draw(container, ctx, data, { carried: next, unit: unit.value });
   });
 
-  const theme = el('select', {}, ['auto', 'light', 'dark', 'custom'].map((v) => el('option', { value: v, text: v })));
+  const theme = el('select', {}, THEMES.map(([value, text]) => el('option', { value, text })));
   theme.value = settings.theme;
   const themeBase = el('select', {}, ['dark', 'light'].map((v) => el('option', { value: v, text: v })));
   themeBase.value = settings.theme_base;
@@ -140,10 +160,28 @@ function draw(container, ctx, data, { carried = {}, unit: unitOverride } = {}) {
     theme_surface_tint: themeTint.value,
   });
 
+  // The base and accent only affect the custom theme — a named palette owns its own
+  // — so those two rows are hidden rather than sitting there doing nothing.
+  const themeRow = settingRow('Theme',
+    'Named palettes ship with the app. Auto follows your operating system.', theme);
+  const customRows = [
+    settingRow('Custom base', 'Light or dark foundations for a custom theme.', themeBase),
+    settingRow('Accent colour', 'Recolours buttons, links and focus rings.', themeAccent),
+  ];
+  const tintRow = settingRow('Surface tint',
+    'Shifts every surface together; neutral leaves the palette untouched.', themeTint);
+  const syncThemeRows = () => {
+    for (const row of customRows) row.hidden = theme.value !== 'custom';
+  };
+
   // Live preview while the picker is open.
   for (const control of [theme, themeBase, themeAccent, themeTint]) {
-    control.addEventListener('input', () => applyTheme(currentTheme()));
+    control.addEventListener('input', () => {
+      syncThemeRows();
+      applyTheme(currentTheme());
+    });
   }
+  syncThemeRows();
 
   const save = el('button', {
     class: 'btn btn-primary',
@@ -209,10 +247,9 @@ function draw(container, ctx, data, { carried = {}, unit: unitOverride } = {}) {
         settingRow('Temperature unit',
           'How drive temperatures are displayed. The threshold above follows this too — the stored value stays Celsius, which is what the drives report.',
           unit),
-        settingRow('Theme', 'Auto follows your operating system.', theme),
-        settingRow('Custom base', 'Used only when the theme is "custom".', themeBase),
-        settingRow('Accent colour', 'Recolours buttons, links and focus rings.', themeAccent),
-        settingRow('Surface tint', 'Shifts every surface together; neutral leaves the palette untouched.', themeTint),
+        themeRow,
+        ...customRows,
+        tintRow,
       ]),
     ]),
 

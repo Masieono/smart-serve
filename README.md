@@ -17,19 +17,24 @@ database daemon.
 - **Scheduled scanning** — configure recurring S.M.A.R.T. scans (interval or cron-style)
   from the web UI. The scheduler lives inside the container; no host cron needed.
 - **CrystalDiskInfo-style readouts** — Good / Caution / Bad verdicts per drive, per-
-  attribute detail, temperature, and (Phase 2) remaining-longevity estimates for SSDs
-  and HDDs based on wear metrics and degradation trends.
+  attribute detail, temperature, a 0–100 health score, and per-metric trend
+  sparklines (health score, temperature, power-on hours, wear) with a 7/30/90-day
+  range selector.
 - **Drive naming & notes** — name your drives ("boot", "backup pool") and save free-form
   notes per device. Identity is keyed by serial number, so notes survive reboots, replug
   events, and device-letter changes.
-- **Alert notifications** — get notified when a drive's health state changes (e.g.
-  ntfy and generic webhooks at MVP). Health-transition events with squelching so a
-  failing drive doesn't spam you on every scan.
+- **Export anywhere** — plain text (the format to attach to a warranty claim), a
+  self-contained web page, a spreadsheet, or JSON.
+- **Alert notifications** — get notified when a drive's health state changes. ntfy,
+  Gotify, Telegram, Discord, email (SMTP) and generic webhooks; health-transition
+  events with squelching so a failing drive doesn't spam you on every scan, and
+  maintenance windows for planned work.
 - **Tiny footprint** — single static Go binary, embedded frontend, SQLite storage in
   one file, distroless+smartmontools image well under 20 MB.
 - **Clean, themable UI** — a sleek, navigable interface designed as a first-class
-  requirement: dark / light / auto plus custom accent-colour themes, and a theme
-  picker that never touches component code (`docs/UI.md`).
+  requirement: dark / light / auto, Catppuccin, Dracula, Nord and Gruvbox palettes,
+  plus a custom accent colour — and a theme picker that never touches component code
+  (`docs/UI.md`).
 
 ## Quick start
 
@@ -57,7 +62,7 @@ Then open `http://<host>:8080` and press **Scan**.
 | [`docs/DATA_MODEL.md`](docs/DATA_MODEL.md) | SQLite schema, retention policy, migrations |
 | [`docs/API.md`](docs/API.md) | Internal REST + SSE API specification |
 | [`docs/SMART_INTERPRETATION.md`](docs/SMART_INTERPRETATION.md) | How SMART values become CrystalDiskInfo-style verdicts and longevity estimates |
-| [`docs/NOTIFICATIONS.md`](docs/NOTIFICATIONS.md) | Event catalog, ntfy/webhook adapters, squelching rules |
+| [`docs/NOTIFICATIONS.md`](docs/NOTIFICATIONS.md) | Event catalog, the six channel adapters, squelching and maintenance windows |
 | [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) | Docker options, device access, security notes, USB guidance |
 | [`docs/DECISIONS.md`](docs/DECISIONS.md) | Architecture Decision Record (ADR) log |
 | [`docs/REQUIREMENTS.md`](docs/REQUIREMENTS.md) | Requirements traceability, decisions, considerations, assumptions |
@@ -73,9 +78,12 @@ C1–C24 all confirmed or resolved) and [`docs/DECISIONS.md`](docs/DECISIONS.md)
 (ADR-001–ADR-016). Repository: private under GitHub user **Masieono**, image
 `ghcr.io/masieono/smart-serve` (made public at v1). CI: GitHub Actions.
 
-Every `SCOPE.md` MVP item is built. The remaining work is Docker deployment
-validation on real hardware and the Phase 2 features (history/trending, longevity
-estimates, further notification adapters, SMART self-tests).
+Every `SCOPE.md` MVP item is built, and the Phase 2 work delivered so far is
+history/trending, the notification adapters (Gotify, Telegram, Discord, SMTP),
+maintenance windows, and the theme palettes. The remaining work is Docker deployment
+validation on real hardware, remaining-longevity estimates, and SMART self-tests —
+which are deliberately last, because a self-test is the only feature that writes to a
+drive (`docs/FEATURES.md` A19).
 
 ## Implementation status
 
@@ -88,12 +96,15 @@ alert.
 - [x] Scan orchestration + `smart-serve scan` CLI (`internal/scan`, `cmd/smartserve`)
 - [x] SQLite persistence + migrations (`internal/store`) — unit-tested
 - [x] HTTP API + SSE (`internal/httpapi`, `internal/events`) — unit-tested
-- [x] Web UI (`internal/webui`) — dashboard, device detail, schedules, notifications,
-      settings; dark/light/auto + custom-accent themes
+- [x] Web UI (`internal/webui`) — dashboard, device detail with trend sparklines,
+      schedules, notifications, settings; light/dark/auto, Catppuccin, Dracula, Nord
+      and Gruvbox palettes, plus a custom accent colour
 - [x] Scheduler (`internal/sched`) — interval + cron, in-process, sleeps to the next
       boundary rather than ticking — unit-tested
-- [x] Notifications (`internal/notify`) — ntfy + webhook, transition-based alerts,
-      squelching, delivery log, channel test — unit-tested
+- [x] Notifications (`internal/notify`) — ntfy, Gotify, Telegram, Discord, SMTP and
+      webhooks; transition-based alerts, squelching, maintenance windows, delivery
+      log, channel test — unit-tested
+- [x] Multi-format report export (`txt` / `html` / `csv` / `json`) — unit-tested
 - [x] Dockerfile, docker-compose (prod + dev), GitHub Actions CI
 - [ ] Docker device-access validation on real hardware (`docs/DEPLOYMENT.md`)
 

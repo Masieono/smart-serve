@@ -1,5 +1,5 @@
 // Shared UI components (docs/UI.md §6).
-import { el, svg, fmtBytes, fmtTemp, fmtScore, fmtAgo, scoreGrade, verdictClass } from './dom.js';
+import { el, svg, fmtBytes, fmtTemp, fmtScore, fmtAgo, scoreGrade, scoreBand, verdictClass } from './dom.js';
 import { icon } from './icons.js';
 
 const VERDICT_LABEL = { good: 'Good', caution: 'Caution', bad: 'Bad', unknown: 'Unknown' };
@@ -21,13 +21,7 @@ export function healthGauge(score, size = 76) {
   const hasScore = score !== null && score !== undefined && score >= 0;
   const pct = hasScore ? Math.max(0, Math.min(100, score)) : 0;
   const offset = circumference * (1 - pct / 100);
-
-  let band = 'unknown';
-  if (hasScore) {
-    if (score >= 75) band = 'good';
-    else if (score >= 40) band = 'caution';
-    else band = 'bad';
-  }
+  const band = scoreBand(score);
 
   const ring = svg(
     `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" aria-hidden="true">` +
@@ -54,30 +48,106 @@ export function healthGauge(score, size = 76) {
   ]);
 }
 
-/** Clickable health counts that filter the device grid. */
-export function summaryBar(counts, active, onFilter) {
+/**
+ * The SVG path for a series, as an "M…L…" string. Pure, so the geometry can be
+ * tested without a DOM — and the geometry is the part with edge cases.
+ *
+ * Returns null for fewer than two readings: a single point is not a trend.
+ */
+export function sparkLine(values, height = 40) {
+  const points = (values || []).filter((v) => typeof v === 'number' && Number.isFinite(v));
+  if (points.length < 2) return null;
+
+  const min = Math.min(...points);
+  const max = Math.max(...points);
+  // A perfectly flat series has no range; treating it as 1 renders a straight line
+  // instead of dividing by zero into a row of NaN coordinates.
+  const span = max - min || 1;
+  const stepX = SPARK_WIDTH / (points.length - 1);
+  const y = (v) => height - ((v - min) / span) * (height - 6) - 3;
+
+  return points
+    .map((v, i) => `${i === 0 ? 'M' : 'L'}${(i * stepX).toFixed(1)} ${y(v).toFixed(1)}`)
+    .join(' ');
+}
+
+/**
+ * Inline SVG sparkline. Deliberately minimal — no axes, no labels — because the
+ * point is the shape and the numbers beside it carry the detail.
+ *
+ * `band` colours the line by health (good/caution/bad) so a trend is readable at a
+ * glance; without it the line uses the neutral data-visualisation colour.
+ */
+export function sparkline(values, opts = {}) {
+  const { height = 40, band = null } = opts;
+  const line = sparkLine(values, height);
+  if (!line) return null;
+  const stroke = band ? `spark-${band}` : 'spark';
+
+  return svg(
+    `<svg class="sparkline" viewBox="0 0 ${SPARK_WIDTH} ${height}" preserveAspectRatio="none" aria-hidden="true">` +
+      `<path class="spark-area" d="${line} L${SPARK_WIDTH} ${height} L0 ${height} Z"/>` +
+      `<path class="${stroke}" d="${line}" vector-effect="non-scaling-stroke"/>` +
+      `</svg>`,
+  );
+}
+
+// The viewBox width is fixed and the element is stretched to its container, so a
+// sparkline fills whatever column it lands in.
+const SPARK_WIDTH = 240;
+
+/**
+ * A labelled trend: current value, the change across the window, and the shape.
+ * Rows with fewer than two readings are dropped — a single point is not a trend.
+ */
+export function trendRow(metric, points) {
+  const values = points.map((p) => p.value);
+  if (values.length < 2) return null;
+
+  const first = values[0];
+  const last = values[values.length - 1];
+  const change = metric.delta ? metric.delta(last - first, points) : null;
+
+  return el('div', { class: 'trend-row' }, [
+    el('div', { class: 'trend-head' }, [
+      el('span', { class: 'setting-label', text: metric.label }),
+      el('span', { class: 'spacer' }),
+      el('span', { class: 'trend-value', text: metric.format(last) }),
+      change ? el('span', { class: `trend-delta ${change.tone}`, text: change.text }) : null,
+    ]),
+    sparkline(values, { band: metric.band ? scoreBand(last) : null }),
+  ]);
+}
+
+/**
+ * Clickable health counts, rendered as a compact inline list rather than a row of
+ * boxes: these are a filter control, and four bordered cards spent an entire row on
+ * four numbers.
+ */
+export function healthFilter(counts, active, onFilter) {
   const items = [
-    ['bad', 'Failing'],
-    ['caution', 'Caution'],
-    ['good', 'Healthy'],
-    ['unknown', 'Unknown'],
+    ['bad', 'failing'],
+    ['caution', 'caution'],
+    ['good', 'healthy'],
+    ['unknown', 'unknown'],
   ];
-  return el(
-    'div',
-    { class: 'summary', role: 'group', 'aria-label': 'Filter by health' },
-    items.map(([key, label]) =>
-      el('button', {
-        class: 'summary-item',
+  return el('div', { class: 'health-list', role: 'group', 'aria-label': 'Filter by health' },
+    items.map(([key, label]) => {
+      const count = counts[key] || 0;
+      return el('button', {
+        class: 'health-item',
         type: 'button',
         'aria-pressed': active === key ? 'true' : 'false',
+        // A count of zero is still worth showing — "0 failing" is the reassurance
+        // you opened the app for — but it should not look like a live filter.
+        'aria-label': `${count} ${label}`,
         onclick: () => onFilter(active === key ? null : key),
       }, [
         el('span', { class: `dot dot-${key}` }),
-        el('span', { class: 'summary-count', text: String(counts[key] || 0) }),
-        el('span', { class: 'muted', text: label }),
-      ]),
-    ),
-  );
+        el('span', { class: 'health-count', text: String(count) }),
+        el('span', { class: 'health-label', text: label }),
+      ]);
+    }));
 }
 
 /** Friendly transport name; "usb"/"sata"/"nvme" alone are ambiguous. */

@@ -1,19 +1,44 @@
 // Device detail (docs/UI.md §7.2).
 import { el, mount, clear, fmtBytes, fmtDateTime, fmtAgo, fmtTemp, fmtHours, fmtInt, fmtScore, scoreGrade } from '../dom.js';
 import { api } from '../api.js';
-import { verdictBadge, healthGauge, attributeTable, errorBox, openDialog, toast, transportLabel } from '../components.js';
+import { verdictBadge, healthGauge, attributeTable, errorBox, openDialog, toast, transportLabel, trendRow } from '../components.js';
 import { icon } from '../icons.js';
+
+// Trend windows. The history endpoint takes an absolute `from`, so the window is
+// resolved at request time and "30 days" stays 30 days after a reload.
+const TREND_RANGES = [
+  ['7', '7 days'],
+  ['30', '30 days'],
+  ['90', '90 days'],
+  ['all', 'All'],
+];
+
+// Module-level so the choice survives navigating between drives.
+let trendRange = '30';
 
 export async function render(container, ctx, serial) {
   mount(container, el('div', { class: 'skeleton', style: 'width:40%;height:24px' }));
   try {
-    draw(container, ctx, await api.device(serial));
+    const [device, history] = await Promise.all([
+      api.device(serial),
+      api.history(serial, historyFrom()),
+    ]);
+    draw(container, ctx, device, history);
   } catch (err) {
     mount(container, errorBox(`Could not load device: ${err.message}`));
   }
 }
 
-function draw(container, ctx, data) {
+/** The absolute start of the selected window, or null for everything. */
+function historyFrom() {
+  if (trendRange === 'all') return null;
+  const days = Number(trendRange);
+  if (!Number.isFinite(days) || days <= 0) return null;
+  return new Date(Date.now() - days * 86400000).toISOString();
+}
+
+function draw(container, ctx, data, history) {
+  const series = (history && history.series) || [];
   const d = data.device;
   const snapshot = data.snapshot || null;
   const payload = snapshot && snapshot.attributes ? snapshot.attributes : null;
@@ -26,31 +51,31 @@ function draw(container, ctx, data) {
     : (snapshot ? snapshot.power_on_hours : null);
   const wearPct = snapshot ? snapshot.wear_pct : null;
 
-  const identity = el('div', { class: 'form-grid' }, [
-    stat('Model', d.model || '—'),
-    stat('Model family', d.model_family || '—'),
+  const identity = statGrid([
+    stat('Model', d.model),
+    stat('Model family', d.model_family),
     stat('Serial', d.serial),
-    stat('Firmware', d.firmware || '—'),
+    stat('Firmware', d.firmware),
     stat('Capacity', fmtBytes(d.capacity_bytes)),
-    stat('Interface', d.interface_speed || '—'),
+    stat('Interface', d.interface_speed),
     stat('Transport', transportLabel(d)),
     stat('Rotation', d.rotation ? `${fmtInt(d.rotation)} rpm` : 'solid state'),
-    stat('WWN', d.wwn || '—'),
-    stat('Device path', d.device_path || '—'),
-  ]);
+    stat('WWN', d.wwn),
+    stat('Device path', d.device_path),
+  ], 'No identity information was reported for this drive.');
 
-  const usage = el('div', { class: 'form-grid' }, [
-    stat('Power-on hours', powerOnHours != null ? `${fmtHours(powerOnHours)} (${fmtInt(powerOnHours)} h)` : '—'),
-    stat('Power cycles', m.power_cycles != null ? fmtInt(m.power_cycles) : '—'),
+  const usage = statGrid([
+    stat('Power-on hours', powerOnHours != null ? `${fmtHours(powerOnHours)} (${fmtInt(powerOnHours)} h)` : null),
+    stat('Power cycles', m.power_cycles != null ? fmtInt(m.power_cycles) : null),
     stat('Temperature', fmtTemp(d.temperature_c)),
-    stat('Data read', m.data_read_bytes != null ? fmtBytes(m.data_read_bytes) : '—'),
-    stat('Data written', m.data_written_bytes != null ? fmtBytes(m.data_written_bytes) : '—'),
+    stat('Data read', m.data_read_bytes != null ? fmtBytes(m.data_read_bytes) : null),
+    stat('Data written', m.data_written_bytes != null ? fmtBytes(m.data_written_bytes) : null),
     stat('Life remaining', lifeText(m.life_left_pct, wearPct)),
     stat('Mountpoints', d.mountpoints && d.mountpoints.length ? d.mountpoints.join(', ') : 'not mounted'),
-    stat('Filesystem', d.fstype || '—'),
+    stat('Filesystem', d.fstype),
     stat('First seen', fmtDateTime(d.first_seen)),
     stat('Last scanned', d.last_scan ? `${fmtAgo(d.last_scan)} (${fmtDateTime(d.last_scan)})` : 'never'),
-  ]);
+  ], 'This drive reports no usage or media figures.');
 
   mount(container,
     el('div', { class: 'page-head' }, [
@@ -62,7 +87,8 @@ function draw(container, ctx, data) {
       ]),
       el('span', { class: 'spacer' }),
       el('button', { class: 'btn btn-sm', type: 'button', onclick: () => ctx.scan() }, [icon('scan'), 'Scan']),
-      el('a', { class: 'btn btn-sm', href: api.reportUrl(d.serial, 'txt'), download: '' }, [icon('download'), 'Report']),
+      el('button', { class: 'btn btn-sm', type: 'button', title: 'Export a report',
+        onclick: () => exportDialog(d) }, [icon('download'), 'Export']),
       el('button', { class: 'btn btn-sm', type: 'button', onclick: () => editNotes(ctx, d) }, [icon('save'), 'Notes']),
     ]),
 
@@ -93,6 +119,11 @@ function draw(container, ctx, data) {
       usage,
     ]),
 
+    trendCard(series, (next) => {
+      trendRange = next;
+      render(container, ctx, d.serial);
+    }),
+
     d.notes ? el('div', { class: 'card' }, [
       el('h2', { style: 'margin-bottom:var(--space-2)', text: 'Notes' }),
       el('p', { text: d.notes }),
@@ -112,10 +143,24 @@ function draw(container, ctx, data) {
 }
 
 function stat(label, value) {
+  if (value === null || value === undefined) return null;
+  const text = String(value).trim();
+  if (text === '' || text === '—') return null;
   return el('div', {}, [
     el('span', { class: 'stat-label', text: label }),
-    el('span', { class: 'stat-value', text: String(value) }),
+    el('span', { class: 'stat-value', text, title: text }),
   ]);
+}
+
+/**
+ * A details grid. Rows the drive does not report are dropped rather than shown as a
+ * bare em dash: a row whose only content is "—" tells you nothing except that the
+ * field exists, and a screenful of them reads as broken rather than sparse.
+ */
+function statGrid(rows, emptyNote) {
+  const shown = rows.filter(Boolean);
+  if (!shown.length) return el('p', { class: 'muted', text: emptyNote });
+  return el('div', { class: 'form-grid' }, shown);
 }
 
 /** "96% remaining (4% used)" — prefers the drive's own life figure. */
@@ -125,7 +170,125 @@ function lifeText(lifeLeft, wearPct) {
     const used = Math.round(wearPct);
     return `${100 - used}% remaining (${used}% used)`;
   }
-  return '—';
+  return null;
+}
+
+// --- trends -------------------------------------------------------------------
+
+// Each metric knows how to render itself and whether a change means anything. A
+// rising power-on-hour count is not a health signal — it is just the drive being
+// used — so that row reports a rate rather than a coloured delta.
+const TREND_METRICS = [
+  {
+    key: 'score',
+    label: 'Health score',
+    band: true,
+    format: (v) => `${Math.round(v)}/100`,
+    delta: (d) => ({ text: signed(d), tone: d > 0 ? 'good' : 'bad' }),
+  },
+  {
+    key: 'temperature_c',
+    label: 'Temperature',
+    format: (v) => `${Math.round(v)} °C`,
+    delta: (d) => ({ text: signed(d, ' °C'), tone: d > 0 ? 'bad' : 'good' }),
+  },
+  {
+    key: 'power_on_hours',
+    label: 'Power-on hours',
+    format: (v) => `${Math.round(v)} h`,
+    delta: (_delta, points) => ({ text: usageRate(points), tone: 'neutral' }),
+  },
+  {
+    key: 'wear_pct',
+    label: 'Wear',
+    format: (v) => `${Math.round(v)}% used`,
+    delta: (d) => ({ text: signed(d, '%'), tone: d > 0 ? 'bad' : 'good' }),
+  },
+];
+
+function trendCard(series, onRange) {
+  const selector = el('div', { class: 'row', style: 'gap:var(--space-1)' },
+    TREND_RANGES.map(([value, label]) =>
+      el('button', {
+        class: 'health-item',
+        type: 'button',
+        'aria-pressed': trendRange === value ? 'true' : 'false',
+        onclick: () => onRange(value),
+      }, [el('span', { class: 'health-label', text: label })])));
+
+  const rows = TREND_METRICS
+    .map((metric) => trendRow(metric, seriesFor(metric.key, series)))
+    .filter(Boolean);
+
+  return el('div', { class: 'card stack' }, [
+    el('div', { class: 'row' }, [
+      el('h2', { text: 'Trend' }),
+      el('span', { class: 'spacer' }),
+      selector,
+    ]),
+    rows.length
+      ? el('div', {}, rows)
+      : el('p', { class: 'muted', text: series.length
+        ? 'Not enough readings in this window yet — a trend needs at least two scans.'
+        : 'No history yet. Trends appear once this drive has been scanned a few times.' }),
+  ]);
+}
+
+/** One metric's points, dropping snapshots where the drive reported nothing. */
+function seriesFor(key, series) {
+  return series
+    .map((snap) => ({ ts: snap.ts, value: snap[key] }))
+    .filter((p) => typeof p.value === 'number' && Number.isFinite(p.value));
+}
+
+/** "+3" / "-2 °C" — always signed, so the direction is never ambiguous. */
+function signed(delta, unit = '') {
+  const rounded = Math.round(delta * 10) / 10;
+  return `${rounded > 0 ? '+' : ''}${rounded}${unit}`;
+}
+
+/** Hours per day across the window: the useful reading of a rising counter. */
+function usageRate(points) {
+  const hours = points[points.length - 1].value - points[0].value;
+  const days = (new Date(points[points.length - 1].ts) - new Date(points[0].ts)) / 86400000;
+  if (!(days > 0) || hours <= 0) return 'no change';
+  return `+${(hours / days).toFixed(1)} h/day`;
+}
+
+// --- export -------------------------------------------------------------------
+
+// Exports a report in any of the formats the API renders. A single "Report" link
+// silently picked one of four, which is a choice the user should be making.
+const EXPORT_FORMATS = [
+  ['txt', 'Plain text', 'CrystalDiskInfo-style summary — the format to attach to a warranty claim.'],
+  ['html', 'Web page', 'A self-contained page you can print or email. Opens without the app.'],
+  ['csv', 'Spreadsheet', 'Every field and attribute as name/value rows.'],
+  ['json', 'JSON', 'The full structure, for scripting.'],
+];
+
+function exportDialog(device) {
+  openDialog('Export report', (body, close) => {
+    body.append(el('p', { class: 'muted', text: `Download ${device.model || device.serial} as:` }));
+    body.append(el('div', { class: 'stack', style: 'gap:var(--space-2)' },
+      EXPORT_FORMATS.map(([format, label, help]) =>
+        el('a', {
+          class: 'export-option',
+          href: api.reportUrl(device.serial, format),
+          download: '',
+          // Close after the click has been handled: removing the anchor
+          // synchronously can cancel the download in some browsers.
+          onclick: () => setTimeout(close, 0),
+        }, [
+          el('div', {}, [
+            el('div', { class: 'setting-label', text: label }),
+            el('div', { class: 'setting-help', text: help }),
+          ]),
+          icon('download'),
+        ]))));
+    body.append(el('div', { class: 'dialog-foot', style: 'border:0;padding:0' }, [
+      el('button', { class: 'btn', type: 'button', text: 'Close', onclick: close }),
+    ]));
+  });
 }
 
 function nvmeTable(n) {

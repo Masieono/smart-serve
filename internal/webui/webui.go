@@ -21,9 +21,9 @@ var assets embed.FS
 
 // Theme is the persisted appearance configuration.
 type Theme struct {
-	Name   string // auto | light | dark | custom
+	Name   string // one of ThemeNames
 	Base   string // light | dark (used by the custom theme)
-	Accent string // #rrggbb
+	Accent string // #rrggbb (used by the custom theme)
 	Tint   string // neutral | slate | warm | cool
 }
 
@@ -75,6 +75,17 @@ func New(themeFn ThemeFunc, opts Options) (http.Handler, error) {
 	}), nil
 }
 
+// ThemeNames lists every theme the UI can render. Named palettes live in
+// tokens.css; "custom" builds an accent from settings and "auto" follows the OS.
+//
+// internal/webui/assets/js/views/settings.js must offer the same list — the two are
+// pinned together by tests on both sides.
+var ThemeNames = []string{
+	"auto", "light", "dark",
+	"catppuccin-latte", "catppuccin-mocha", "dracula", "nord", "gruvbox-light", "gruvbox-dark",
+	"custom",
+}
+
 type indexData struct {
 	Theme     string
 	ThemeBase string
@@ -86,11 +97,12 @@ type indexData struct {
 }
 
 func renderIndex(w http.ResponseWriter, tmpl *template.Template, theme Theme, baseHref, basePath, version string) {
+	name := normalize(theme.Name, ThemeNames, "auto")
 	data := indexData{
-		Theme:     normalize(theme.Name, []string{"auto", "light", "dark", "custom"}, "auto"),
+		Theme:     name,
 		ThemeBase: normalize(theme.Base, []string{"light", "dark"}, "dark"),
 		Tint:      normalize(theme.Tint, []string{"neutral", "slate", "warm", "cool"}, "neutral"),
-		ThemeVars: template.CSS(themeVars(theme)),
+		ThemeVars: template.CSS(themeVars(name, theme)),
 		BaseHref:  baseHref,
 		BasePath:  basePath,
 		Version:   version,
@@ -112,9 +124,15 @@ func normalize(value string, allowed []string, fallback string) string {
 	return fallback
 }
 
-// themeVars derives the accent custom properties, including a contrast colour
-// chosen for WCAG AA (docs/UI.md §5).
-func themeVars(theme Theme) string {
+// themeVars derives the accent custom properties for a custom theme, including a
+// contrast colour chosen for WCAG AA (docs/UI.md §5).
+//
+// A named palette owns its own accent, so nothing is emitted for it: an inline value
+// would win over the stylesheet and flatten every theme to the same blue.
+func themeVars(name string, theme Theme) string {
+	if name != "custom" {
+		return ""
+	}
 	accent := strings.TrimSpace(theme.Accent)
 	if _, _, _, ok := parseHex(accent); !ok {
 		accent = DefaultTheme.Accent

@@ -121,6 +121,152 @@
   }
 }
 
+/* --- named palettes --------------------------------------------------------- */
+/* Community palettes. Each states the same --palette-* tokens as the built-in light
+   and dark themes, plus its own accent and health colours, so a named theme looks
+   like itself rather than the default palette in a different shade. The derived
+   tokens (soft variants, hover shades) are mixed once, below. */
+
+/* Catppuccin Latte — https://catppuccin.com */
+[data-theme="catppuccin-latte"] {
+  color-scheme: light;
+  --palette-bg: #e6e9ef;
+  --palette-surface: #eff1f5;
+  --palette-surface-2: #dce0e8;
+  --palette-text: #4c4f69;
+  --palette-muted: #6c6f85;
+  --palette-border: #ccd0da;
+  --palette-focus: #1e66f5;
+  --palette-overlay: rgba(76, 79, 105, 0.45);
+
+  --accent: #1e66f5;
+  --accent-contrast: #ffffff;
+  --good: #40a02b;
+  --caution: #df8e1d;
+  --bad: #d20f39;
+  --unknown: #8c8fa1;
+}
+
+/* Catppuccin Mocha */
+[data-theme="catppuccin-mocha"] {
+  color-scheme: dark;
+  --palette-bg: #181825;
+  --palette-surface: #1e1e2e;
+  --palette-surface-2: #313244;
+  --palette-text: #cdd6f4;
+  --palette-muted: #a6adc8;
+  --palette-border: #45475a;
+  --palette-focus: #89b4fa;
+  --palette-overlay: rgba(17, 17, 27, 0.6);
+
+  --accent: #89b4fa;
+  --accent-contrast: #11111b;
+  --good: #a6e3a1;
+  --caution: #f9e2af;
+  --bad: #f38ba8;
+  --unknown: #7f849c;
+}
+
+/* Dracula — https://draculatheme.com */
+[data-theme="dracula"] {
+  color-scheme: dark;
+  --palette-bg: #21222c;
+  --palette-surface: #282a36;
+  --palette-surface-2: #343746;
+  --palette-text: #f8f8f2;
+  /* Dracula's own "comment" purple is too dim for body copy against #282a36, so
+     muted text is a lightened cousin of it. */
+  --palette-muted: #b8bcd0;
+  --palette-border: #44475a;
+  --palette-focus: #bd93f9;
+  --palette-overlay: rgba(33, 34, 44, 0.7);
+
+  --accent: #bd93f9;
+  --accent-contrast: #21222c;
+  --good: #50fa7b;
+  --caution: #f1fa8c;
+  --bad: #ff5555;
+  --unknown: #7d84a8;
+}
+
+/* Nord — https://www.nordtheme.com */
+[data-theme="nord"] {
+  color-scheme: dark;
+  --palette-bg: #2e3440;
+  --palette-surface: #3b4252;
+  --palette-surface-2: #434c5e;
+  --palette-text: #eceff4;
+  --palette-muted: #d8dee9;
+  --palette-border: #4c566a;
+  --palette-focus: #88c0d0;
+  --palette-overlay: rgba(46, 52, 64, 0.7);
+
+  --accent: #88c0d0;
+  --accent-contrast: #2e3440;
+  --good: #a3be8c;
+  --caution: #ebcb8b;
+  --bad: #bf616a;
+  --unknown: #8f9bb0;
+}
+
+/* Gruvbox dark — https://github.com/morhetz/gruvbox */
+[data-theme="gruvbox-dark"] {
+  color-scheme: dark;
+  --palette-bg: #282828;
+  --palette-surface: #3c3836;
+  --palette-surface-2: #504945;
+  --palette-text: #ebdbb2;
+  --palette-muted: #a89984;
+  --palette-border: #665c54;
+  --palette-focus: #83a598;
+  --palette-overlay: rgba(40, 40, 40, 0.75);
+
+  --accent: #83a598;
+  --accent-contrast: #282828;
+  --good: #b8bb26;
+  --caution: #fabd2f;
+  --bad: #fb4934;
+  --unknown: #928374;
+}
+
+/* Gruvbox light */
+[data-theme="gruvbox-light"] {
+  color-scheme: light;
+  --palette-bg: #fbf1c7;
+  --palette-surface: #f9f5d7;
+  --palette-surface-2: #ebdbb2;
+  --palette-text: #3c3836;
+  --palette-muted: #7c6f64;
+  --palette-border: #d5c4a1;
+  --palette-focus: #076678;
+  --palette-overlay: rgba(60, 56, 54, 0.45);
+
+  --accent: #076678;
+  --accent-contrast: #fbf1c7;
+  --good: #79740e;
+  --caution: #b57614;
+  --bad: #9d0006;
+  --unknown: #928374;
+}
+
+/* Derived tokens for every named palette.
+   Soft variants and the hover shade are mixed from the solid colours, so a palette
+   only has to state its own solid values. The hover mixes towards the text colour,
+   which darkens on a light theme and lightens on a dark one — one rule that is
+   correct in both directions. */
+:is([data-theme="catppuccin-latte"], [data-theme="catppuccin-mocha"], [data-theme="dracula"],
+    [data-theme="nord"], [data-theme="gruvbox-dark"], [data-theme="gruvbox-light"]) {
+  --accent-hover: color-mix(in srgb, var(--accent) 82%, var(--palette-text));
+  --accent-soft: color-mix(in srgb, var(--accent) 16%, transparent);
+  --good-soft: color-mix(in srgb, var(--good) 16%, transparent);
+  --caution-soft: color-mix(in srgb, var(--caution) 18%, transparent);
+  --bad-soft: color-mix(in srgb, var(--bad) 16%, transparent);
+  --unknown-soft: color-mix(in srgb, var(--unknown) 16%, transparent);
+  --info: var(--accent);
+  --gauge-track: color-mix(in srgb, var(--palette-muted) 25%, transparent);
+  --sparkline: var(--accent);
+}
+
 /* --- semantic tokens -------------------------------------------------------- */
 
 :root {
