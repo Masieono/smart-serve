@@ -7,9 +7,19 @@ services:
     volumes:
       - smartserve-data:/data
       - /dev:/dev:ro
-    # NVMe S.M.A.R.T. goes through an ioctl the kernel guards with CAP_SYS_ADMIN, which
-    # Docker drops by default — without this, the boot drive is visible but every read
-    # comes back "Operation not permitted". See docs/DEPLOYMENT.md.
+    # Two separate gates, both required, and the /dev mount above provides neither.
+    #
+    # 1. The device cgroup. Docker's default allow-list is null, zero, full, tty,
+    #    random, urandom and the ptys. Everything else is denied, so a bind-mounted
+    #    /dev is fully visible while every open() returns EPERM — smartctl reports
+    #    "Smartctl open device: /dev/nvme0n1 failed: Operation not permitted".
+    # 2. CAP_SYS_ADMIN. Once open() succeeds, NVMe reads go through
+    #    NVME_IOCTL_ADMIN_CMD, which the kernel guards with this capability and Docker
+    #    drops by default. SATA/USB reads use SG_IO and do not need it.
+    #
+    # See docs/DEPLOYMENT.md.
+    device_cgroup_rules:
+      - 'a *:* rwm'
     cap_add:
       - SYS_ADMIN
     environment:

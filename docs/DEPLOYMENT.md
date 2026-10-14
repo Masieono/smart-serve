@@ -25,38 +25,56 @@ services:
     volumes:
       - smartserve-data:/data
       - /dev:/dev:ro            # read-only mount of host /dev
+    # Both of these are required, and the /dev mount above provides neither.
+    device_cgroup_rules:
+      - 'a *:* rwm'             # 1. permission to open the nodes
     cap_add:
-      - SYS_ADMIN               # required for NVMe S.M.A.R.T. — see below
+      - SYS_ADMIN               # 2. the NVMe ioctl capability
     restart: unless-stopped
 
 volumes:
   smartserve-data:
 ```
 
-Read-only `/dev` is sufficient for the *file access*. It is **not** sufficient for the
-*ioctls*, and that distinction is the usual reason a container sees a drive but gets no
-S.M.A.R.T. from it:
+**Mounting `/dev` is necessary but not sufficient.** There are two independent gates
+between the container and a S.M.A.R.T. read, and a bind mount opens neither. Both
+produce the same `EPERM`, which is why this is worth reading before experimenting.
 
-- **NVMe** reads go through `NVME_IOCTL_ADMIN_CMD`, which the kernel guards with
-  `capable(CAP_SYS_ADMIN)`. Docker drops that capability by default, so every NVMe read
-  fails with `EPERM` **even though the container runs as root** — the node is visible,
-  the command runs, and it comes back "Operation not permitted". Since the boot drive on
-  most modern machines is NVMe, this is the first thing to check when a container
-  "doesn't see" a drive it plainly has mounted.
-- **SATA/ATA** reads go through `SG_IO`. Read-only passthrough is normally allowed
-  without extra capabilities, but some controllers and USB bridges need
-  `CAP_SYS_RAWIO` as well. If your SATA drives misbehave, add it:
-  `cap_add: [SYS_ADMIN, SYS_RAWIO]`.
+**1. The device cgroup — the one that bites first.** Docker's default allow-list is
+`null`, `zero`, `full`, `tty`, `random`, `urandom` and the ptys; every other device is
+denied. So with `/dev` mounted the container can *see* every node and `open()` returns
+`EPERM` on all of them:
 
-Diagnosing it: open the drive in the UI and use **Show raw output** — it prints exactly
-what `smartctl` said, verbatim. From the host:
-
-```bash
-docker exec smart-serve smartctl -x /dev/nvme0n1
+```
+Smartctl open device: /dev/nvme0n1 failed: Operation not permitted
 ```
 
-A node that is missing entirely (`No such file or directory`) is a mount problem. A node
-that exists but answers `Operation not permitted` is a capability problem.
+The tell is that it fails on **every** device — SATA and USB alike — and that it fails at
+the *open* stage rather than during a query. `device_cgroup_rules: ['a *:* rwm']` lifts
+it and, unlike enumerating `devices:`, keeps working when a USB drive appears at a new
+letter. The exposure is the same as the mount you already have: `/dev` was never hidden,
+only unopenable.
+
+**2. `CAP_SYS_ADMIN` — needed only once `open()` succeeds.** NVMe reads go through
+`NVME_IOCTL_ADMIN_CMD`, which the kernel guards with `capable(CAP_SYS_ADMIN)`, and Docker
+drops it by default — so an NVMe drive fails with `EPERM` even as root. SATA and USB
+devices use `SG_IO` and normally need no capability at all; if yours do, add `SYS_RAWIO`
+(`cap_add: [SYS_ADMIN, SYS_RAWIO]`).
+
+Because gate 1 masks gate 2, fix them together. Adding only the capability changes
+nothing, which is the confusing part.
+
+To confirm which gate you are on, bypass smartctl entirely:
+
+```bash
+docker exec smart-serve-dev dd if=/dev/nvme0n1 of=/dev/null bs=512 count=1
+```
+
+`Operation not permitted` from `dd` is the cgroup. `dd` succeeding while `smartctl` fails
+is the capability.
+
+The UI reports this too: open the drive and use **Show raw output** — it prints what
+`smartctl` said, verbatim.
 
 Caveat: device nodes appear and disappear with hotplug (a node opened mid-scan after
 removal can error — handled per scan, retried next scan).
@@ -75,8 +93,9 @@ docker run -d \
 Most secure, but device letters shift across reboots and USB plugs — only practical
 for stable internal disks. Not recommended for the USB use case.
 
-`--device` grants the node, not the capability, so the `SYS_ADMIN` note above applies
-here too — enumerate the NVMe *controller* as well as its namespace.
+`--device` adds the device cgroup rule for you, so no `device_cgroup_rules` is needed
+here. It does **not** grant a capability, so `SYS_ADMIN` is still required for NVMe —
+and enumerate the NVMe *controller* as well as its namespace.
 
 ### Option C — `--privileged` (works, but unnecessary)
 
