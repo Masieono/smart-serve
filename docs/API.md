@@ -131,7 +131,10 @@ the drive does not report them; a drive with no S.M.A.R.T. data yields `{}`, and
 verdict stays `unknown`.
 
 `projection` is what the drive's **history** says about where it is heading, over a
-180-day window (`internal/interp/longevity.go`, `SCOPE.md` §2.2):
+180-day window (`internal/interp/longevity.go`, `SCOPE.md` §2.2). The window matches the
+default `retention_days` setting, since snapshots older than that have been pruned; lowering
+retention shortens the window, which is correct — the trend is limited by the history that
+exists rather than by the constant.
 
 | Field | Meaning |
 |---|---|
