@@ -9,29 +9,34 @@ import (
 
 	"github.com/masieono/smart-serve/internal/interp"
 	"github.com/masieono/smart-serve/internal/model"
+	"github.com/masieono/smart-serve/internal/smart"
 	"github.com/masieono/smart-serve/internal/store"
 )
 
 // deviceJSON is the API representation of a device (docs/API.md).
 type deviceJSON struct {
-	Serial          string   `json:"serial"`
-	Model           string   `json:"model"`
-	ModelFamily     string   `json:"model_family,omitempty"`
-	Firmware        string   `json:"firmware,omitempty"`
-	DevicePath      string   `json:"device_path"`
-	Transport       string   `json:"transport"`
-	SmartBus        string   `json:"smart_bus,omitempty"`
-	CapacityBytes   *uint64  `json:"capacity_bytes,omitempty"`
-	WWN             string   `json:"wwn,omitempty"`
-	Rotation        *int     `json:"rotation,omitempty"`
-	Health          string   `json:"health"`
-	HealthRationale string   `json:"health_rationale"`
-	Score           int      `json:"score"`
-	TemperatureC    *int     `json:"temperature_c,omitempty"`
-	SmartAvailable  bool     `json:"smart_available"`
-	SmartError      string   `json:"smart_error,omitempty"`
-	Mountpoints     []string `json:"mountpoints"`
-	Fstype          string   `json:"fstype,omitempty"`
+	Serial          string  `json:"serial"`
+	Model           string  `json:"model"`
+	ModelFamily     string  `json:"model_family,omitempty"`
+	Firmware        string  `json:"firmware,omitempty"`
+	DevicePath      string  `json:"device_path"`
+	Transport       string  `json:"transport"`
+	SmartBus        string  `json:"smart_bus,omitempty"`
+	CapacityBytes   *uint64 `json:"capacity_bytes,omitempty"`
+	WWN             string  `json:"wwn,omitempty"`
+	Rotation        *int    `json:"rotation,omitempty"`
+	Health          string  `json:"health"`
+	HealthRationale string  `json:"health_rationale"`
+	Score           int     `json:"score"`
+	TemperatureC    *int    `json:"temperature_c,omitempty"`
+	SmartAvailable  bool    `json:"smart_available"`
+	SmartError      string  `json:"smart_error,omitempty"`
+	// SmartCause names *why* the read failed. Three unrelated problems — a blocked
+	// device node, a refused query, and a drive with no S.M.A.R.T. — all arrive as the
+	// same "Operation not permitted", so the UI cannot tell them apart from the text.
+	SmartCause  string   `json:"smart_cause,omitempty"`
+	Mountpoints []string `json:"mountpoints"`
+	Fstype      string   `json:"fstype,omitempty"`
 	// Removable and FsVersion come from lsblk. For a drive that reports no S.M.A.R.T.
 	// they are often the only description there is.
 	Removable *bool  `json:"removable,omitempty"`
@@ -70,6 +75,7 @@ func toDeviceJSON(d store.DeviceRecord) deviceJSON {
 		TemperatureC:    d.TemperatureC,
 		SmartAvailable:  d.SmartAvailable,
 		SmartError:      d.SmartError,
+		SmartCause:      string(smart.ClassifyFailure(d.SmartError)),
 		Mountpoints:     d.Mountpoints,
 		Fstype:          d.Fstype,
 		Name:            d.Name,

@@ -1122,6 +1122,20 @@ input[type="checkbox"] {
   border-top: 1px solid var(--border);
 }
 
+/* A copy-pasteable compose fragment. Scrolls rather than wraps: YAML broken across
+   lines is worse than YAML that needs a sideways scroll. */
+.notice-fix {
+  margin: 0;
+  padding: var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-1);
+  color: var(--text);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  overflow-x: auto;
+}
+
 /* --- sidebar footer notes --------------------------------------------------- */
 
 /* Provenance and freshness, kept together at the bottom of the sidebar rather than

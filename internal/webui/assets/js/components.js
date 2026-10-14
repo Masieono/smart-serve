@@ -219,17 +219,30 @@ export function transportLabel(device) {
 }
 
 /**
+ * Causes that mean the read was *refused* rather than the drive having nothing to say.
+ * The server names them (internal/smart/failure.go) because smartctl reports both as the
+ * same "Operation not permitted".
+ */
+export const BLOCKED_CAUSES = new Set(['device_blocked', 'query_blocked']);
+
+/**
  * The status pill for a device card.
  *
- * Three different situations, and conflating them would mislead: the drive is gone,
- * the drive is present but cannot report S.M.A.R.T. at all, or the drive reported a
- * verdict. "Unknown" is right for none of the first two.
+ * Four different situations, and conflating them would mislead: the drive is gone, the
+ * drive is present but we were not allowed to read it, the drive cannot report S.M.A.R.T.
+ * at all, or the drive reported a verdict. "Unknown" is right for none of the first three.
  */
 function statusBadge(device) {
   if (device.is_missing) {
     return el('span', { class: 'badge badge-unknown' }, [icon('help'), 'Not connected']);
   }
   if (device.smart_available === false) {
+    if (BLOCKED_CAUSES.has(device.smart_cause)) {
+      return el('span', {
+        class: 'badge badge-caution',
+        title: device.smart_error || 'S.M.A.R.T. reads are blocked',
+      }, [icon('alert'), 'Blocked']);
+    }
     return el('span', {
       class: 'badge badge-unknown',
       title: 'This drive does not report S.M.A.R.T. — most USB flash drives cannot.',

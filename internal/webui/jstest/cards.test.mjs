@@ -71,6 +71,24 @@ test('a drive that cannot report S.M.A.R.T. is labelled as such', () => {
   assert.doesNotMatch(text, /Unknown/);
 });
 
+// A blocked read is not the drive's fault. Labelling it "No S.M.A.R.T." sends the reader
+// looking at the hardware instead of at the compose file.
+test('a blocked read is labelled differently from a drive with no S.M.A.R.T.', () => {
+  const blocked = textOf(card({
+    smart_available: false, health: 'unknown', score: -1, smart_cause: 'device_blocked',
+    smart_error: 'Smartctl open device: /dev/sda failed: Operation not permitted',
+  }));
+  assert.match(blocked, /Blocked/);
+  assert.doesNotMatch(blocked, /No S\.M\.A\.R\.T\./);
+
+  const unsupported = textOf(card({
+    smart_available: false, health: 'unknown', score: -1, smart_cause: 'unsupported',
+    smart_error: 'SMART support is: Unavailable',
+  }));
+  assert.match(unsupported, /No S\.M\.A\.R\.T\./);
+  assert.doesNotMatch(unsupported, /Blocked/);
+});
+
 // There is no score to draw, so an empty ring would only read as broken.
 test('a drive with no S.M.A.R.T. has no health gauge', () => {
   const isGauge = (n) => n.className === 'gauge';

@@ -74,6 +74,10 @@ jobs:
           context: .
           platforms: linux/amd64,linux/arm64
           push: true
+          # Stamped into the binary so a published image can say which release it is.
+          # Without this the Dockerfile's ARG falls back to "dev" and every image ever
+          # published reports 0.0.0-dev in the sidebar.
+          build-args: VERSION=${{ github.ref_name }}
           tags: |
             ghcr.io/masieono/smart-serve:latest
             ghcr.io/masieono/smart-serve:${{ github.ref_name }}

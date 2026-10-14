@@ -64,6 +64,22 @@ mounted at `/` and `/home` reports `["/", "/home"]`.
 "fixed media" from "unknown"; `smart_d` is the remembered per-device `smartctl -d`
 override, omitted when none is set.
 
+`smart_cause` is present only when `smart_available` is false, and names *why* the read
+failed. Three unrelated problems arrive from smartctl as the same "Operation not
+permitted", and they need three different fixes, so the app classifies them rather than
+passing the text through (`internal/smart/failure.go`):
+
+| `smart_cause` | Means | Fix |
+|---|---|---|
+| `device_blocked` | the device node could not be opened | `device_cgroup_rules: ['a *:* rwm']` |
+| `query_blocked` | it opened, but the query was refused | `cap_add: [SYS_ADMIN, SYS_RAWIO]` |
+| `unsupported` | the drive has no S.M.A.R.T. to report | none — this is a USB flash drive |
+| `missing` | the node is gone | replug the drive, or rescan |
+
+The first two are the container's problem rather than the drive's, which is why they are
+distinguished: telling a container user their drive "does not report S.M.A.R.T." when it
+was simply not allowed to be read sends them looking in the wrong place.
+
 ### `GET /api/devices/{serial}` — full device detail
 
 Everything above plus the normalized SMART payload for the last scan: ATA attribute

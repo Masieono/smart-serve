@@ -211,7 +211,9 @@ aggregated, not linked (`ADR-012`).
 ## Verifying the deployment
 
 1. `docker logs smart-serve` — startup should log schema version and scheduler
-   state, then go quiet.
+   state, then go quiet. It also runs **one device-access probe** and logs the result,
+   so a blocked container says so here instead of only showing an empty dashboard:
+   `S.M.A.R.T. reads are blocked, not unsupported` with the cause and the compose fix.
 2. Open the UI → press **Scan** → every `lsblk` disk appears.
 3. `docker stats smart-serve` — after the scan settles, CPU ~0%, memory <20 MB
    (without an open tab). This is the acceptance test for the idle-frugality

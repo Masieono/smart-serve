@@ -128,7 +128,7 @@ picker offers exactly `ThemeNames`.
 |---|---|
 | **Verdict badge** | Pill: icon + word + colour (`good`/`caution`/`bad`/`unknown`). Colour is never the only signal. |
 | **Health gauge** | Circular SVG ring, 0–100 + grade. Colour = band. Sized from the `size` argument, never from CSS — a bare `svg` rule would override its width/height attributes. |
-| **Device card** | Name (user), model, capacity, verdict badge, small gauge, temperature, transport icon (USB vs internal), mountpoint(s), "last scanned". Actions: open, scan-this, hide. A card whose drive is absent from the latest scan shows a *Not connected* badge and is dimmed; a drive that cannot report S.M.A.R.T. shows a *No S.M.A.R.T.* badge and no gauge. |
+| **Device card** | Name (user), model, capacity, verdict badge, small gauge, temperature, transport icon (USB vs internal), mountpoint(s), "last scanned". Actions: open, scan-this, hide. A card whose drive is absent from the latest scan shows a *Not connected* badge and is dimmed; a drive we were not allowed to read shows *Blocked*; a drive that cannot report S.M.A.R.T. shows *No S.M.A.R.T.* — and neither draws a gauge. |
 | **Devices header** | One card holding the page title, the clickable verdict counts and the search box. The counts are a filter for the grid below, so they sit beside the thing they filter instead of in a row of their own. |
 | **Attribute table** | Sortable, zebra rows; ID / name / value / worst / threshold / interpreted raw / status dot; per-attribute help tooltip ("what is this?"). |
 | **Sparkline / trend card** | Inline SVG per metric (health score, temperature, power-on hours, wear) with the current value and the change across the window, plus a 7 / 30 / 90 day / all range selector. Hovering (or arrowing, when focused) shows a marker and a three-line readout — value, date, time — for that reading. A row with fewer than two readings is dropped — one point is not a trend. |
@@ -189,14 +189,22 @@ picker offers exactly `ThemeNames`.
   node is never mounted itself (`DATA_MODEL.md`). Filesystem shows every distinct
   type found, e.g. `ext4, vfat`, followed by the filesystem version when lsblk
   reports one (`exfat 1.0`).
-- **Drives with no S.M.A.R.T.:** instead of a raw smartctl error the page shows a
-  **notice** — a neutral panel, not an error box — saying the drive does not report
-  S.M.A.R.T., why (most USB flash drives and card readers do not implement it, and
-  some bridges do not pass it through), and that the identity, capacity and
-  filesystem shown come from the operating system rather than the drive. The same
-  panel offers the one thing that sometimes fixes it: a per-device `smartctl -d`
-  transport override with **Apply & rescan**, for a real SSD or HDD sitting behind a
-  USB bridge. The override is shown as currently set, not merely offered.
+- **Drives with no S.M.A.R.T. reading:** the page shows a **notice** — a neutral panel,
+  not an error box — and it distinguishes two situations that smartctl reports
+  identically (`smart_cause`, `API.md`):
+  - *A drive that cannot report S.M.A.R.T.* says so, explains that most USB flash drives
+    and card readers do not implement it, notes that the identity, capacity and filesystem
+    shown come from the operating system rather than the drive, and offers the one thing
+    that sometimes fixes it: a per-device `smartctl -d` transport override with
+    **Apply & rescan**, shown as currently set.
+  - *A read the container was not allowed to make* says **that** instead, names which of
+    the three gates is closed, and prints the exact compose fragment to add. Telling a
+    container user their drive "does not report S.M.A.R.T." when it was simply blocked
+    sends them looking at the hardware instead of the compose file — which is the whole
+    reason the cause is classified server-side rather than left as raw text.
+
+  The dashboard card carries a *Blocked* badge for the second case and *No S.M.A.R.T.*
+  for the first, so the two are distinguishable without opening the drive.
 - **Trend hover readout:** hovering a sparkline shows a vertical marker at the nearest
   reading plus a readout of its value, date and time — stacked on three lines rather
   than run together, because one line wide enough to hold a full timestamp spans most of

@@ -113,7 +113,7 @@ function draw(container, ctx, data, history) {
           el('div', { text: d.health_rationale || '—' }),
         ]),
       ]),
-      d.smart_available ? null : noSmartNotice(ctx, d),
+      d.smart_available ? null : smartProblemNotice(ctx, d),
     ]),
 
     el('div', { class: 'panel-grid' }, [
@@ -166,14 +166,52 @@ const TRANSPORT_OVERRIDES = [
 ];
 
 /**
- * A drive that reports no S.M.A.R.T. is not a broken drive.
- *
- * Most USB flash drives and card readers simply do not implement it, and some bridges
- * do not pass it through. The honest answer is to say so and show what the operating
- * system could tell us, rather than presenting a raw smartctl error as though the
- * drive had failed — and to offer the one thing that sometimes fixes it.
+ * The two ways a container blocks a S.M.A.R.T. read, with the compose lines that fix
+ * each. Both arrive as "Operation not permitted" from smartctl, which is why the
+ * distinction is made server-side and only the wording lives here.
  */
-function noSmartNotice(ctx, d) {
+const BLOCKED_FIXES = {
+  device_blocked: {
+    title: 'The container cannot open this device',
+    body: 'The drive is visible, but this process is not allowed to open its device ' +
+      'node, so no S.M.A.R.T. query can be made. In Docker that is the device cgroup: ' +
+      'mounting /dev makes the nodes visible without permitting them to be opened.',
+    fix: "device_cgroup_rules:\n  - 'a *:* rwm'",
+  },
+  query_blocked: {
+    title: 'The S.M.A.R.T. query was refused',
+    body: 'The device opened, but the query itself was denied — a missing capability. ' +
+      'Which one depends on the drive: a native NVMe needs CAP_SYS_ADMIN, and a drive ' +
+      'behind a USB bridge needs CAP_SYS_RAWIO for its passthrough.',
+    fix: 'cap_add:\n  - SYS_ADMIN\n  - SYS_RAWIO',
+  },
+};
+
+/**
+ * Why this drive has no S.M.A.R.T. reading — and the two reasons are not the same thing.
+ *
+ * A drive that cannot report S.M.A.R.T. is not broken, and a container that is not
+ * allowed to read one is not broken either, but only one of them is the drive's problem.
+ * Showing "this drive does not report S.M.A.R.T." for a permissions failure sends the
+ * reader looking at the hardware instead of at the compose file.
+ */
+function smartProblemNotice(ctx, d) {
+  const blocked = BLOCKED_FIXES[d.smart_cause];
+  if (blocked) {
+    return el('div', { class: 'notice' }, [
+      el('div', { class: 'notice-title' }, [icon('alert'), blocked.title]),
+      el('p', { class: 'muted', text: blocked.body }),
+      el('div', { class: 'notice-action' }, [
+        el('p', { class: 'muted', text: 'Add this to the smart-serve service in your ' +
+          'compose file, then recreate the container:' }),
+        el('pre', { class: 'notice-fix', text: blocked.fix }),
+        el('p', { class: 'muted', text: 'All three gates have to be open, and each one ' +
+          'masks the next — see docs/DEPLOYMENT.md.' }),
+      ]),
+      d.smart_error ? el('p', { class: 'mono muted', text: d.smart_error }) : null,
+    ]);
+  }
+
   const transport = el('select', {}, [
     el('option', { value: '', text: 'Auto-detect' }),
     ...TRANSPORT_OVERRIDES.map((v) => el('option', { value: v, text: `-d ${v}` })),
