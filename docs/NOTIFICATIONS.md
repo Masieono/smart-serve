@@ -168,6 +168,80 @@ The subject is RFC 2047-encoded (it carries a device model) and the body is
 quoted-printable (it carries emoji) — a raw 8-bit body is not legal and some servers
 reject it outright.
 
+## Verifying a channel
+
+Every adapter is unit-tested against a local stub (`internal/notify/adapters_test.go`),
+which proves the request shape, the auth header, the priority mapping and the retry
+classification. It cannot prove that *your* credentials reach *your* server — that needs
+the real thing, and it is the one part of a notification setup that cannot be tested
+from here.
+
+**Use the editor's Test button.** It sends one event through the settings *as they stand
+on screen*, saved or not, and does not close the dialog or write anything — so a bad
+token can be corrected and retried in place. The API returns the destination's own error
+verbatim, which is the fastest way to tell a bad token from a bad URL. (A draft test is
+not recorded in the delivery log, because a draft has no stored channel to attribute it
+to; saved channels are.)
+
+Each recipe below is: where the credential comes from, what to paste, and what the
+common failure looks like.
+
+### ntfy
+
+1. Pick a topic name that is hard to guess — anyone who knows it can publish to it on
+   the public server.
+2. Paste server (`https://ntfy.sh`, or your own), topic, and an access token if your
+   server requires one.
+3. Subscribe to the topic in the app or the web UI, then press **Test**.
+
+*Failure looks like:* `403` for a bad or missing token, `404` for a topic your
+self-hosted server does not allow.
+
+### Gotify
+
+1. On your Gotify server: **Apps → Create Application**. Copy the **app token**.
+2. Paste server (`https://gotify.example.com` — the scheme is required) and the token.
+3. Press **Test**; the message should appear with its priority colour.
+
+*Failure looks like:* `401` is almost always the **client** token pasted instead of the
+app token. They look alike and both are long strings; a client token authenticates a
+*client*, not an application, and cannot post.
+
+### Telegram
+
+1. Message **@BotFather** → `/newbot` → copy the bot token.
+2. **Send your new bot a message** (or add it to a group). A bot cannot start a
+   conversation, so its `chat_id` does not exist until something talks to it first —
+   this is the step people skip.
+3. Read the id back: open `https://api.telegram.org/bot<token>/getUpdates` and find
+   `chat.id`. A group id is negative; a forum topic's id goes in `thread_id`.
+4. Paste token, `chat_id`, optional `thread_id`, and press **Test**.
+
+*Failure looks like:* `400 Bad Request: chat not found` means step 2 was skipped.
+`401 Unauthorized` means the token is wrong.
+
+### Discord
+
+1. Channel settings → **Integrations → Webhooks → New Webhook** → copy the webhook URL.
+2. Paste it as `webhook_url`, optionally set a display name, and press **Test**.
+
+*Failure looks like:* `401`/`404` for a revoked or mistyped webhook. A webhook URL is a
+secret — anyone holding it can post to that channel.
+
+### Email (SMTP)
+
+1. Use your provider's **submission** settings, not its IMAP settings. Port `587` is
+   STARTTLS, `465` is implicit TLS; the wrong one is the usual cause of a config that
+   hangs or fails with no useful error.
+2. Paste host, port, username and password, `from`, and one or more `to` addresses
+   separated by commas. Leave the username blank for an unauthenticated relay.
+3. Press **Test**.
+
+*Failure looks like:* `535` for bad credentials — many providers need an **app
+password** rather than the account password. A rejected `from` usually means the address
+is not one the provider lets you send as. A TLS error against an internal server is
+usually a self-signed certificate.
+
 ### Adding a provider
 
 1. Implement `Sender` (`Type`, `Send`) and, for structured config, `ConfigValidator`.
