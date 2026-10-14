@@ -132,9 +132,10 @@ picker offers exactly `ThemeNames`.
 | **Devices header** | One card holding the page title, the clickable verdict counts and the search box. The counts are a filter for the grid below, so they sit beside the thing they filter instead of in a row of their own. |
 | **Attribute table** | Sortable, zebra rows; ID / name / value / worst / threshold / interpreted raw / status dot; per-attribute help tooltip ("what is this?"). |
 | **Sparkline / trend card** | Inline SVG per metric (health score, temperature, power-on hours, wear) with the current value and the change across the window, plus a 7 / 30 / 90 day / all range selector. Hovering (or arrowing, when focused) shows a marker and a three-line readout — value, date, time — for that reading. A row with fewer than two readings is dropped — one point is not a trend. |
-| **Notice** | A neutral panel for an explanation that is not a fault — currently "this drive does not report S.M.A.R.T.", with the transport-override control. Deliberately not an error box: the drive is not failing. |
+| **Notice** | A neutral panel for an explanation that is not a fault. Two of them: "this drive does not report S.M.A.R.T." (with the transport-override control), and — added later — "the container was not allowed to read this drive", which names which of the three access gates is closed and prints the compose fragment that opens it. Deliberately not an error box in either case: neither is the drive failing. |
 | **Export dialog** | One row per format (plain text / web page / spreadsheet / JSON) with what each is for, rather than a single button that silently picks one. |
-| **Panel grid** (`.panel-grid`) | The two-column page layout, shared by the settings page and the device detail page. One grid per page, never one per row: two separate grids size their columns independently and their gutters drift apart. Cards are stretched to their row rather than `align-items: start`, so the gap beneath a short card matches the gap beside it. `.panel-wide` spans both columns, for prose like the notes card. |
+| **Panel grid** (`.panel-grid`) | The shared page layout, shared by the settings page and the device detail page: `repeat(auto-fit, minmax(min(100%, 460px), 1fr))`, so the settings page's three cards sit side by side at wide widths. One grid per page, never one per row: two separate grids size their columns independently and their gutters drift apart. Cards are stretched to their row rather than `align-items: start`, so the gap beneath a short card matches the gap beside it. `.panel-wide` spans both columns, for prose like the notes card. |
+| **Panel grid, capped** (`.panel-grid-pair`) | `.panel-grid` capped at two columns however wide the viewport gets — one below 1024px, two above. Auto-fit fits *four* 460px panels across a 2560px monitor, which squeezed the trend sparklines and the health-log table into columns too narrow for the type they carry. The device detail page uses this; settings keeps auto-fit, because three short cards genuinely do fit. |
 | **Scan button** | Primary action. States: idle · scanning (spinner + "3/5 devices") · done (toast). |
 | **Toasts** | Scan complete, saved, notification sent; auto-dismiss, stacked. |
 | **Dialogs / sheets** | Schedule editor, channel editor, maintenance window, transport override, export, confirmations. Full-screen sheets on mobile. |
@@ -164,15 +165,26 @@ picker offers exactly `ThemeNames`.
   not worked it out yet", when the truth is that most USB flash drives and card
   readers simply do not implement it. Its health ring is omitted rather than drawn
   permanently empty, since there is no score to draw.
+- **Blocked:** a drive the container was *not allowed* to read carries a *Blocked* badge
+  instead, because that is the container's problem rather than the drive's and the two
+  need different fixes. The distinction is made server-side (`smart_cause`), since
+  smartctl reports both as the same "Operation not permitted".
+- **Worsening:** a drive whose bad-sector count is rising over the recent window carries
+  a *Worsening* badge alongside its verdict. Separate from the verdict because the two
+  answer different questions — the verdict says how the drive looks *now*, this says which
+  way it is going, and a drive can be green today and still be the one worth replacing
+  first. Reported as a direction, never as a date (`SCOPE.md` §2.2).
 
 ### 7.2 Device detail
 - **Header:** editable inline name, model, serial, firmware, capacity, drive age.
 - **Health block:** large gauge + verdict badge + plain-language rationale
   ("5 pending sectors").
-- **Two columns**, from a single `.panel-grid`: **Identity** beside **Usage and media**,
-  then the trend card beside the attribute table, with the notes card spanning both.
-  One grid for the whole page, not one per row — two separate grids each size their own
-  columns and their gutters drift apart as soon as their contents differ.
+- **Two columns**, from a single `.panel-grid .panel-grid-pair`: **Identity** beside
+  **Usage and media**, then the trend card beside the attribute table, with the notes card
+  spanning both. One grid for the whole page, not one per row — two separate grids each
+  size their own columns and their gutters drift apart as soon as their contents differ.
+  The grid is capped at two columns (§6): at 2560px an auto-fitting grid fits four panels
+  across, which is not the layout this page was designed around.
 - **Even gutters.** Cards are stretched to their row, deliberately *not* `align-items:
   start`. A grid row is as tall as its tallest card either way, so a short card that
   stops early leaves the gap *beneath* it looking wider than the gap *beside* it;
@@ -185,6 +197,13 @@ picker offers exactly `ThemeNames`.
   read / written, life remaining, mountpoints, filesystem, first seen, last scanned.
   Throughput and power figures come from the API's derived `metrics` block
   (`API.md`), so ATA and NVMe drives read identically.
+- **Outlook** (`.projection`, at the foot of the Usage card): the longevity estimate from
+  the drive's history — a sentence, not a figure. Deliberately kept out of the stat grid
+  above it: a number in that column reads as a measurement, and this is an extrapolation
+  from a handful of readings. The confidence (`low` / `medium`) and the caveat are shown
+  inline rather than behind a tooltip, because a caveat nobody reads is not a caveat. A
+  *Worsening* badge appears here too when bad sectors are rising. A drive with too little
+  history says "Not enough history yet" instead of guessing.
 - **Mountpoints / Filesystem:** taken from the disk's *partitions* — a whole-disk
   node is never mounted itself (`DATA_MODEL.md`). Filesystem shows every distinct
   type found, e.g. `ext4, vfat`, followed by the filesystem version when lsblk
@@ -215,6 +234,9 @@ picker offers exactly `ThemeNames`.
   spare, percentage used, data units read/written (count **and** humanised size),
   host read/write commands, controller busy time, power cycles/hours, unsafe
   shutdowns, media errors, error-log entries, warning/critical temperature time.
+  Sixteen counters in a flat list read as a wall, so the NVMe log is **grouped** —
+  *Health*, *Lifetime*, *Workload*, *Errors* — and set a size up from the attribute
+  table, which needs `--text-xs` for its seven columns and this does not.
   A "show raw `smartctl` output" toggle sits alongside it. It shows the output stored
   for the drive from the last scan — including when the read *failed*, where smartctl's
   own complaint is the most useful thing on the page — so it is a reliable way to see

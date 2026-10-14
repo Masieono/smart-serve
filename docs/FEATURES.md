@@ -26,15 +26,42 @@ avoid idle cost.
 | A11 | Per-device transport override (`-d sat`, …) | MVP | 💤 | **done** — offered on the device page for any drive whose S.M.A.R.T. cannot be read, and shown as currently set |
 | A12 | Attribute help tooltips ("what is Reallocated Sectors?") | MVP | 💤 | educational, CDI-like |
 | A13 | Scan history log (durations, per-device errors) | MVP | 💤 | |
-| A14 | Degradation trend detection ("worsening" early-warning badge) | P2 | 💤 | `SMART_INTERPRETATION.md` §5 |
+| A14 | Degradation trend detection ("worsening" early-warning badge) | P2 | 💤 | **done** — see below |
 | A15 | History charts (temp, sectors, wear) + sparklines | P2 | 💤 | **done** — per-metric sparkline card on the device page, with a 7/30/90-day/all range selector |
-| A16 | Remaining-longevity estimate (NVMe / SSD / HDD) | P2 | 💤 | with confidence labels |
+| A16 | Remaining-longevity estimate (NVMe / SSD / HDD) | P2 | 💤 | **done** — see below, with confidence labels |
 | A17 | Health score 0–100 + letter grade | MVP/P2 | 💤 | basic in MVP; trend-aware in P2 |
 | A18 | Snapshot diff ("what changed since last scan") | P2 | 💤 | |
 | A19 | SMART self-test (manual short/long + scheduled) + self-test log | P2 | ⚠ | **eventually — opt-in only, see below** |
 | A20 | SMART error log display | P2 | 🔌 | ATA error log / NVMe error log |
 | A21 | Drive knowledge base (rated TBW, known firmware advisories) | P3 | 💤 | bundled static table; opt-in in-app refresh |
 | A22 | Usable support for drives with no S.M.A.R.T. (USB flash drives, card readers) | P2 | 💤 | **done** — see below |
+
+### A14/A16 — Longevity and the worsening badge
+
+Both come from the same history, and both are deliberately modest, because a S.M.A.R.T.
+reading is a snapshot of a device that does not know its own future.
+
+**Longevity** is extrapolated from the drive's own wear counter (NVMe `percentage_used`),
+reported as a horizon — *"80% of rated life left, about 320 days at the current rate"* —
+with a confidence that reflects how long the drive was actually watched (`low` under a
+month, `medium` beyond) and its caveat shown **inline**, not behind a tooltip: a caveat
+nobody reads is not a caveat. A window shorter than a day produces no rate at all, because
+two scans an hour apart say nothing about remaining life.
+
+**Sector growth is a rate, never a date.** Counts arrive in bursts, and a date
+extrapolated through two of them looks precise and means nothing — so the app reports
+*"7 new sector problems in 60 days"* and says why there is no forecast. For the same
+reason, ATA wear counters are left alone: they are vendor-specific enough that guessing at
+one is worse than reporting none, so an ATA drive falls back to the sector basis.
+
+**The worsening badge** (`A14`) fires when bad sectors are accumulating, on the dashboard
+card and the device page. It is separate from the verdict badge because the two answer
+different questions: the verdict says how the drive looks *now*, the badge says which way
+it is going — and a drive can be green today and still be the one worth replacing first.
+
+A drive with too little history says so rather than guessing, and a drive that reports no
+sector counts is *absent* from the trend rather than reported as flat: no history is not
+the same finding as a clean bill of health.
 
 ### A22 — Drives with no S.M.A.R.T.
 

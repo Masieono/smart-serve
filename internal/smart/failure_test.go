@@ -68,13 +68,25 @@ func TestClassifyFailureIgnoresCaseAndPadding(t *testing.T) {
 }
 
 func TestMessagesFromPrefersSmartctlsOwnWords(t *testing.T) {
-	stdout := []byte(`{"messages":[{"string":"first"},{"string":"second"}]}`)
-	if got := messagesFrom(stdout, []byte("stderr noise")); got != "first; second" {
-		t.Errorf("messagesFrom = %q, want both messages joined", got)
+	// The nesting is the point: smartctl emits messages under `smartctl`, and a probe that
+	// looked at the top level found nothing and reported a blocked drive as healthy.
+	nested := []byte(`{"smartctl":{"messages":[{"severity":"error","string":"first"},{"string":"second"}]}}`)
+	if got := messagesFrom(nested, []byte("stderr noise")); got != "error: first; second" {
+		t.Errorf("messagesFrom = %q, want both messages joined, with severity kept", got)
+	}
+	// A top-level messages array is not what smartctl emits, and must not be mistaken for one.
+	topLevel := []byte(`{"messages":[{"string":"not where smartctl puts it"}]}`)
+	if got := messagesFrom(topLevel, []byte("fallback")); got != "fallback" {
+		t.Errorf("messagesFrom = %q, want the stderr fallback", got)
 	}
 	// With no messages, stderr is all there is.
 	if got := messagesFrom([]byte(`{}`), []byte("  cannot open  ")); got != "cannot open" {
 		t.Errorf("messagesFrom = %q, want the trimmed stderr", got)
+	}
+	// Blank entries are not messages.
+	blank := []byte(`{"smartctl":{"messages":[{"string":"   "},{"string":"real"}]}}`)
+	if got := messagesFrom(blank, nil); got != "real" {
+		t.Errorf("messagesFrom = %q, want only the non-blank message", got)
 	}
 	// Garbage must fall through rather than panic or produce junk.
 	if got := messagesFrom([]byte("not json"), []byte("fallback")); got != "fallback" {

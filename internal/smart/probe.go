@@ -51,20 +51,33 @@ func ProbeDeviceAccess(ctx context.Context, timeout time.Duration) (ProbeResult,
 	return out, nil
 }
 
-// messagesFrom joins smartctl's JSON messages, falling back to stderr when it emitted
-// none. The messages are where smartctl explains a refusal.
+// messagesFrom joins smartctl's own messages, falling back to stderr when it emitted none.
+//
+// The nesting matters: smartctl puts them under `smartctl.messages`, not at the top level,
+// which is the same shape parse.go reads. An earlier version of this looked at the top
+// level, where nothing ever appears — so the probe found no messages, classified an empty
+// string as "no failure", and reported a blocked container as healthy. An unread message
+// list and an empty one are indistinguishable, which is what made it invisible.
 func messagesFrom(stdout, stderr []byte) string {
 	var parsed struct {
-		Messages []struct {
-			String string `json:"string"`
-		} `json:"messages"`
+		Smartctl struct {
+			Messages []struct {
+				Severity string `json:"severity"`
+				String   string `json:"string"`
+			} `json:"messages"`
+		} `json:"smartctl"`
 	}
-	if json.Unmarshal(stdout, &parsed) == nil && len(parsed.Messages) > 0 {
-		parts := make([]string, 0, len(parsed.Messages))
-		for _, m := range parsed.Messages {
-			if s := strings.TrimSpace(m.String); s != "" {
-				parts = append(parts, s)
+	if json.Unmarshal(stdout, &parsed) == nil {
+		parts := make([]string, 0, len(parsed.Smartctl.Messages))
+		for _, m := range parsed.Smartctl.Messages {
+			s := strings.TrimSpace(m.String)
+			if s == "" {
+				continue
 			}
+			if sev := strings.ToLower(strings.TrimSpace(m.Severity)); sev == "error" || sev == "warning" {
+				s = sev + ": " + s
+			}
+			parts = append(parts, s)
 		}
 		if len(parts) > 0 {
 			return strings.Join(parts, "; ")

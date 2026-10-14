@@ -89,6 +89,19 @@ test('a blocked read is labelled differently from a drive with no S.M.A.R.T.', (
   assert.doesNotMatch(unsupported, /Blocked/);
 });
 
+// A drive whose bad-sector count is moving is worth replacing before it stops moving at
+// all, so the dashboard flags it — separately from the verdict, which only describes today.
+test('a drive with growing bad sectors is flagged as worsening', () => {
+  const worsening = textOf(card({
+    smart_available: true, health: 'good', score: 98, worsening: 5,
+  }));
+  assert.match(worsening, /Worsening/);
+
+  // Green and stable must stay green: the flag is about direction, not about the verdict.
+  const stable = textOf(card({ smart_available: true, health: 'good', score: 98 }));
+  assert.doesNotMatch(stable, /Worsening/);
+});
+
 // There is no score to draw, so an empty ring would only read as broken.
 test('a drive with no S.M.A.R.T. has no health gauge', () => {
   const isGauge = (n) => n.className === 'gauge';

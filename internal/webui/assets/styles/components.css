@@ -427,6 +427,21 @@ a:hover {
   gap: var(--space-4);
 }
 
+/* Capped at two columns however wide the viewport gets.
+   Auto-fit fits four 460px panels side by side at 2560px, which squeezes the trend
+   sparklines and the health-log table into columns too narrow for the type they carry.
+   Two columns is the layout the device page was designed around, and it keeps the
+   reading order predictable: identity and usage, then trend and detail. */
+.panel-grid-pair {
+  grid-template-columns: 1fr;
+}
+
+@media (min-width: 1024px) {
+  .panel-grid-pair {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
 /* A panel that spans the grid: prose about the subject rather than a column of facts. */
 .panel-wide {
   grid-column: 1 / -1;
@@ -1008,6 +1023,39 @@ table.data td.num {
   text-align: right;
 }
 
+/* The NVMe health log is two narrow columns of short values, so it has none of the width
+   pressure that forces the attribute table down to --text-xs. Sixteen rows at that size
+   read as a wall, which is exactly what it was. Roomy type, and grouped into sections by
+   the row class below, because "lifetime", "workload" and "errors" counters all look
+   alike in a flat list. */
+table.data.data-log {
+  font-size: var(--text-sm);
+}
+
+table.data.data-log th,
+table.data.data-log td {
+  padding: var(--space-3);
+}
+
+/* No zebra striping here: the section headers are the visual grouping, and alternation
+   on top of them just looks arbitrary. */
+table.data.data-log tbody tr:nth-child(even) {
+  background: transparent;
+}
+
+/* A landmark inside the body, not a column heading — so it must not inherit the sticky
+   header behaviour. */
+table.data tbody tr.section th {
+  position: static;
+  background: transparent;
+  color: var(--muted);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding-top: var(--space-4);
+}
+
 .dot {
   display: inline-block;
   width: 8px;
@@ -1120,6 +1168,34 @@ input[type="checkbox"] {
   gap: var(--space-2);
   padding-top: var(--space-2);
   border-top: 1px solid var(--border);
+}
+
+/* The outlook: a sentence and its caveat, deliberately not a figure in the stat grid. */
+.projection {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--border);
+}
+
+.projection-label {
+  font-size: var(--text-xs);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.projection-confidence {
+  font-size: var(--text-xs);
+}
+
+.projection-caveat {
+  margin: 0;
+  font-size: var(--text-xs);
+  line-height: 1.5;
+  max-width: 60ch;
 }
 
 /* A copy-pasteable compose fragment. Scrolls rather than wraps: YAML broken across

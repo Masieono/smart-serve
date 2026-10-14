@@ -34,7 +34,11 @@ type ScannedDevice struct {
 	TemperatureC    *int
 	PowerOnHours    *int64
 	WearPct         *float64
-	AttributesJSON  string
+	// Sectors is the total of the bad-sector attributes (5 + 197 + 198) at this scan.
+	// Kept per snapshot so a trend can be computed without loading the attributes blob,
+	// and left nil when the drive does not report sector counts at all.
+	Sectors        *int64
+	AttributesJSON string
 	// RawOutput is smartctl's own output for this drive, kept verbatim: when a bridge
 	// misbehaves it is the only thing that explains why.
 	RawOutput string
@@ -137,11 +141,11 @@ func (s *Store) saveScan(ctx context.Context, trigger string, started, ended tim
 			return 0, err
 		}
 		if _, err := tx.ExecContext(ctx, `INSERT INTO snapshots
-			(serial, ts, scan_id, health, score, temperature_c, power_on_hours, wear_pct, attributes)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			(serial, ts, scan_id, health, score, temperature_c, power_on_hours, wear_pct, sectors, attributes)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			d.Serial, ended.UnixMilli(), scanID, d.Health, d.Score,
 			nullInt(d.TemperatureC), nullInt64(d.PowerOnHours), nullFloat(d.WearPct),
-			d.AttributesJSON); err != nil {
+			nullInt64(d.Sectors), d.AttributesJSON); err != nil {
 			return 0, fmt.Errorf("insert snapshot for %s: %w", d.Serial, err)
 		}
 	}
@@ -509,9 +513,63 @@ type Snapshot struct {
 	TemperatureC *int
 	PowerOnHours *int64
 	WearPct      *float64
+	// Sectors is the bad-sector total recorded at this snapshot. Nil means the drive does
+	// not report one (NVMe), or the row predates migration 0006.
+	Sectors *int64
 	// Attributes is the normalized JSON blob. It is populated by LatestSnapshot
 	// only, to avoid loading heavy blobs for whole series.
 	Attributes string
+}
+
+// SectorTrend returns, per serial, how many bad sectors appeared between the first and
+// last snapshot in the window.
+//
+// One query rather than one per device, because the dashboard needs this for every drive
+// at once. Rows are ordered and folded in Go instead of using a correlated subquery per
+// device: the fold is trivially correct, and the row set is bounded by the window and
+// small — the heavy attributes blob is deliberately not selected.
+//
+// A device with fewer than two rows in the window is absent from the map, which is the
+// honest answer: no history means no trend, not a flat one.
+func (s *Store) SectorTrend(ctx context.Context, from time.Time) (map[string]int64, error) {
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT serial, sectors FROM snapshots
+		WHERE sectors IS NOT NULL AND ts >= ?
+		ORDER BY serial, ts`, from.UnixMilli())
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	first := map[string]int64{}
+	last := map[string]int64{}
+	count := map[string]int{}
+	for rows.Next() {
+		var (
+			serial  string
+			sectors int64
+		)
+		if err := rows.Scan(&serial, &sectors); err != nil {
+			return nil, err
+		}
+		if count[serial] == 0 {
+			first[serial] = sectors
+		}
+		last[serial] = sectors
+		count[serial]++
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	out := make(map[string]int64, len(first))
+	for serial, n := range count {
+		if n < 2 {
+			continue
+		}
+		out[serial] = last[serial] - first[serial]
+	}
+	return out, nil
 }
 
 // LatestSnapshot returns the most recent snapshot for a device, including the
@@ -523,12 +581,13 @@ func (s *Store) LatestSnapshot(ctx context.Context, serial string) (*Snapshot, e
 		temperature sql.NullInt64
 		hours       sql.NullInt64
 		wear        sql.NullFloat64
+		sectors     sql.NullInt64
 	)
 	err := s.db.QueryRowContext(ctx, `
-		SELECT id, serial, ts, scan_id, health, score, temperature_c, power_on_hours, wear_pct, attributes
+		SELECT id, serial, ts, scan_id, health, score, temperature_c, power_on_hours, wear_pct, sectors, attributes
 		FROM snapshots WHERE serial = ? ORDER BY ts DESC LIMIT 1`, serial).
 		Scan(&snap.ID, &snap.Serial, &ts, &snap.ScanID, &snap.Health, &snap.Score,
-			&temperature, &hours, &wear, &snap.Attributes)
+			&temperature, &hours, &wear, &sectors, &snap.Attributes)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
@@ -544,6 +603,10 @@ func (s *Store) LatestSnapshot(ctx context.Context, serial string) (*Snapshot, e
 	if wear.Valid {
 		v := wear.Float64
 		snap.WearPct = &v
+	}
+	if sectors.Valid {
+		v := sectors.Int64
+		snap.Sectors = &v
 	}
 	return &snap, nil
 }
@@ -563,7 +626,7 @@ func (s *Store) SaveFailedScan(ctx context.Context, trigger string, started, end
 // SnapshotSeries returns the recorded history for one device within a range.
 func (s *Store) SnapshotSeries(ctx context.Context, serial string, from, to time.Time) ([]Snapshot, error) {
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT id, serial, ts, scan_id, health, score, temperature_c, power_on_hours, wear_pct
+		SELECT id, serial, ts, scan_id, health, score, temperature_c, power_on_hours, wear_pct, sectors
 		FROM snapshots WHERE serial = ? AND ts >= ? AND ts <= ?
 		ORDER BY ts`, serial, from.UnixMilli(), to.UnixMilli())
 	if err != nil {
@@ -579,9 +642,10 @@ func (s *Store) SnapshotSeries(ctx context.Context, serial string, from, to time
 			temperature  sql.NullInt64
 			powerOnHours sql.NullInt64
 			wearPct      sql.NullFloat64
+			sectors      sql.NullInt64
 		)
 		if err := rows.Scan(&snap.ID, &snap.Serial, &ts, &snap.ScanID, &snap.Health,
-			&snap.Score, &temperature, &powerOnHours, &wearPct); err != nil {
+			&snap.Score, &temperature, &powerOnHours, &wearPct, &sectors); err != nil {
 			return nil, err
 		}
 		snap.TS = fromMS(ts)
@@ -593,6 +657,10 @@ func (s *Store) SnapshotSeries(ctx context.Context, serial string, from, to time
 		if wearPct.Valid {
 			v := wearPct.Float64
 			snap.WearPct = &v
+		}
+		if sectors.Valid {
+			v := sectors.Int64
+			snap.Sectors = &v
 		}
 		out = append(out, snap)
 	}

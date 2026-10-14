@@ -40,9 +40,36 @@ function historyFrom() {
   return new Date(Date.now() - days * 86400000).toISOString();
 }
 
+/**
+ * What the history says about where the drive is heading.
+ *
+ * Prose rather than a figure in the stat grid above it. A number in that column reads as
+ * a measurement; this is an extrapolation from a handful of readings, and it says so —
+ * the caveat is shown inline rather than hidden behind a tooltip, because a caveat nobody
+ * reads is not a caveat.
+ */
+function projectionBlock(p) {
+  if (!p || !p.summary) return null;
+  return el('div', { class: 'projection' }, [
+    el('div', { class: 'row' }, [
+      el('span', { class: 'projection-label', text: 'Outlook' }),
+      p.worsening
+        ? el('span', { class: 'badge badge-caution', title: p.worsening },
+            [icon('alert'), 'Worsening'])
+        : null,
+    ]),
+    el('div', { text: p.summary }),
+    p.confidence
+      ? el('div', { class: 'muted projection-confidence', text: `${p.confidence} confidence` })
+      : null,
+    p.caveat ? el('p', { class: 'muted projection-caveat', text: p.caveat }) : null,
+  ]);
+}
+
 function draw(container, ctx, data, history) {
   const series = (history && history.series) || [];
   const d = data.device;
+  const projection = data.projection || null;
   const snapshot = data.snapshot || null;
   const payload = snapshot && snapshot.attributes ? snapshot.attributes : null;
   const attrs = payload ? payload.attributes || [] : [];
@@ -116,7 +143,7 @@ function draw(container, ctx, data, history) {
       d.smart_available ? null : smartProblemNotice(ctx, d),
     ]),
 
-    el('div', { class: 'panel-grid' }, [
+    el('div', { class: 'panel-grid panel-grid-pair' }, [
       el('div', { class: 'card stack' }, [
         el('h2', { text: 'Identity' }),
         identity,
@@ -125,6 +152,7 @@ function draw(container, ctx, data, history) {
       el('div', { class: 'card stack' }, [
         el('h2', { text: 'Usage and media' }),
         usage,
+        projectionBlock(projection),
       ]),
 
       // Prose about the drive rather than a column of facts, so it spans the grid
@@ -398,30 +426,56 @@ function exportDialog(device) {
   });
 }
 
-function nvmeTable(n) {
-  const rows = [
-    ['Critical warning', String(n.critical_warning)],
-    ['Available spare', `${n.available_spare}%`],
-    ['Spare threshold', `${n.available_spare_threshold}%`],
-    ['Percentage used', `${n.percentage_used}%`],
-    ['Data units read', dataUnits(n.data_units_read)],
-    ['Data units written', dataUnits(n.data_units_written)],
-    ['Host read commands', fmtInt(n.host_reads)],
-    ['Host write commands', fmtInt(n.host_writes)],
-    ['Controller busy time', `${fmtInt(n.controller_busy_time)} min`],
-    ['Power cycles', fmtInt(n.power_cycles)],
-    ['Power-on hours', fmtInt(n.power_on_hours)],
-    ['Unsafe shutdowns', fmtInt(n.unsafe_shutdowns)],
-    ['Media errors', fmtInt(n.media_errors)],
-    ['Error log entries', fmtInt(n.num_err_log_entries)],
-    ['Warning temp time', `${fmtInt(n.warning_temp_time)} min`],
-    ['Critical comp time', `${fmtInt(n.critical_comp_time)} min`],
+// Exported so the grouping can be pinned by a test: the structure is the fix for the
+// density, and a refactor back to a flat list would silently undo it.
+export function nvmeTable(n) {
+  // Grouped rather than one flat list of sixteen rows. The log mixes counters that
+  // describe the drive's health, its lifetime, its workload and its errors, and in a flat
+  // list all four read alike — which is what made this the densest panel on the page.
+  const sections = [
+    ['Health', [
+      ['Critical warning', fmtInt(n.critical_warning)],
+      ['Available spare', percent(n.available_spare)],
+      ['Spare threshold', percent(n.available_spare_threshold)],
+      ['Percentage used', percent(n.percentage_used)],
+    ]],
+    ['Lifetime', [
+      ['Power-on hours', fmtInt(n.power_on_hours)],
+      ['Power cycles', fmtInt(n.power_cycles)],
+      ['Unsafe shutdowns', fmtInt(n.unsafe_shutdowns)],
+      ['Controller busy time', `${fmtInt(n.controller_busy_time)} min`],
+      ['Warning temp time', `${fmtInt(n.warning_temp_time)} min`],
+      ['Critical comp time', `${fmtInt(n.critical_comp_time)} min`],
+    ]],
+    ['Workload', [
+      ['Data units read', dataUnits(n.data_units_read)],
+      ['Data units written', dataUnits(n.data_units_written)],
+      ['Host read commands', fmtInt(n.host_reads)],
+      ['Host write commands', fmtInt(n.host_writes)],
+    ]],
+    ['Errors', [
+      ['Media errors', fmtInt(n.media_errors)],
+      ['Error log entries', fmtInt(n.num_err_log_entries)],
+    ]],
   ];
+
+  const body = [];
+  for (const [title, rows] of sections) {
+    body.push(el('tr', { class: 'section' }, [
+      el('th', { colspan: '2', text: title }),
+    ]));
+    for (const [k, v] of rows) {
+      body.push(el('tr', {}, [
+        el('td', { text: k }),
+        el('td', { class: 'num', text: String(v) }),
+      ]));
+    }
+  }
+
   return el('div', { class: 'table-wrap' }, [
-    el('table', { class: 'data' }, [
+    el('table', { class: 'data data-log' }, [
       el('thead', {}, [el('tr', {}, [el('th', { text: 'Field' }), el('th', { class: 'num', text: 'Value' })])]),
-      el('tbody', {}, rows.map(([k, v]) =>
-        el('tr', {}, [el('td', { text: k }), el('td', { class: 'num', text: String(v) })]))),
+      el('tbody', {}, body),
     ]),
   ]);
 }
@@ -431,6 +485,12 @@ function nvmeTable(n) {
 function dataUnits(count) {
   if (count === null || count === undefined) return '—';
   return `${fmtInt(count)} (${fmtBytes(Number(count) * 512000)})`;
+}
+
+// A percentage that may be absent. Interpolating straight into a template rendered a
+// missing field as "undefined%", which is worse than admitting the drive did not say.
+function percent(value) {
+  return value === null || value === undefined ? '—' : `${value}%`;
 }
 
 async function toggleRaw(device, button) {

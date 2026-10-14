@@ -226,6 +226,22 @@ export function transportLabel(device) {
 export const BLOCKED_CAUSES = new Set(['device_blocked', 'query_blocked']);
 
 /**
+ * The early-warning pill: bad sectors are accumulating.
+ *
+ * Kept separate from the verdict badge because the two answer different questions. The
+ * verdict says how the drive looks *now*; this says which way it is going. A drive can be
+ * green today and still be the one worth replacing first.
+ */
+function worseningBadge(device) {
+  if (!device.worsening) return null;
+  return el('span', {
+    class: 'badge badge-caution',
+    title: `${device.worsening} new sector problems since the start of the window. ` +
+      'Sector counts arrive in bursts, so this is a direction rather than a date.',
+  }, [icon('alert'), 'Worsening']);
+}
+
+/**
  * The status pill for a device card.
  *
  * Four different situations, and conflating them would mislead: the drive is gone, the
@@ -288,6 +304,7 @@ export function deviceCard(device, onOpen, onScan) {
           text: `${device.model || '—'}${device.device_path ? ` · ${device.device_path}` : ''}`,
         }),
       ]),
+      worseningBadge(device),
       statusBadge(device),
     ]),
     el('div', { class: 'device-card-body' }, [

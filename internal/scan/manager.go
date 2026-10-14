@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/masieono/smart-serve/internal/events"
+	"github.com/masieono/smart-serve/internal/interp"
 	"github.com/masieono/smart-serve/internal/model"
 	"github.com/masieono/smart-serve/internal/store"
 )
@@ -344,6 +345,15 @@ func toStored(d Device) store.ScannedDevice {
 		if sd.NVMe != nil {
 			wear := float64(sd.NVMe.PercentageUsed)
 			out.WearPct = &wear
+		}
+		// ATA wear counters are vendor-specific enough that guessing at one would be
+		// worse than reporting none, so an ATA drive falls back to the sector trend.
+		// Nil rather than zero for a drive that reports no attributes at all: "no sector
+		// problems" and "does not report sectors" are different claims, and only the
+		// first one is a clean bill of health.
+		if len(sd.Attributes) > 0 {
+			sectors := interp.SectorIssues(sd.Attributes)
+			out.Sectors = &sectors
 		}
 		out.AttributesJSON = marshalAttributes(sd)
 	}

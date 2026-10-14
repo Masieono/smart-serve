@@ -6,6 +6,126 @@ import (
 	"time"
 )
 
+// The dashboard needs to know which drives are getting worse, and it needs it for every
+// drive at once — one query, not one per card.
+func TestSectorTrendReportsGrowthBetweenTheEnds(t *testing.T) {
+	ctx := context.Background()
+	s := newTestStore(t)
+
+	base := time.Date(2026, 1, 1, 3, 0, 0, 0, time.UTC)
+	save := func(day int, serial string, sectors *int64) {
+		t.Helper()
+		at := base.AddDate(0, 0, day)
+		if _, err := s.SaveScan(ctx, "manual", at, at.Add(time.Second), []ScannedDevice{
+			{Serial: serial, Model: "m", DevicePath: "/dev/sda", Health: "good", Score: 100,
+				Sectors: sectors},
+		}); err != nil {
+			t.Fatalf("SaveScan: %v", err)
+		}
+	}
+
+	zero, four, five := int64(0), int64(4), int64(5)
+	save(0, "growing", &zero)
+	save(10, "growing", &five)
+	save(0, "stable", &five)
+	save(10, "stable", &five)
+	save(0, "once", &four)
+	// A drive that reports no sector counts at all — every NVMe — must not appear.
+	save(0, "nvme", nil)
+	save(10, "nvme", nil)
+
+	trend, err := s.SectorTrend(ctx, base.Add(-time.Hour))
+	if err != nil {
+		t.Fatalf("SectorTrend: %v", err)
+	}
+	if got := trend["growing"]; got != 5 {
+		t.Errorf("growing = %d, want 5", got)
+	}
+	// A stable count is a present zero, which is different from absent: it means "we
+	// looked and nothing changed".
+	if got, ok := trend["stable"]; !ok || got != 0 {
+		t.Errorf("stable = %d (present=%v), want a present 0", got, ok)
+	}
+	// One snapshot is not a trend, and saying "flat" would be inventing history.
+	if _, ok := trend["once"]; ok {
+		t.Error("a device with a single snapshot must be absent, not reported as flat")
+	}
+	if _, ok := trend["nvme"]; ok {
+		t.Error("a drive that reports no sector counts must be absent")
+	}
+}
+
+// The window has to be honoured, or a drive that was repaired a year ago would look like
+// it is still getting worse.
+func TestSectorTrendIgnoresRowsBeforeTheWindow(t *testing.T) {
+	ctx := context.Background()
+	s := newTestStore(t)
+
+	base := time.Date(2026, 1, 1, 3, 0, 0, 0, time.UTC)
+	high, low := int64(9), int64(2)
+	for _, c := range []struct {
+		at      time.Time
+		sectors *int64
+	}{{base.AddDate(0, 0, -400), &high}, {base, &low}} {
+		if _, err := s.SaveScan(ctx, "manual", c.at, c.at.Add(time.Second), []ScannedDevice{
+			{Serial: "A", Model: "m", DevicePath: "/dev/sda", Health: "good", Score: 100,
+				Sectors: c.sectors},
+		}); err != nil {
+			t.Fatalf("SaveScan: %v", err)
+		}
+	}
+
+	trend, err := s.SectorTrend(ctx, base.AddDate(0, 0, -30))
+	if err != nil {
+		t.Fatalf("SectorTrend: %v", err)
+	}
+	if _, ok := trend["A"]; ok {
+		t.Error("the old row is outside the window and leaves no trend to report")
+	}
+}
+
+// The trend and longevity code reads history through SnapshotSeries, which deliberately
+// skips the heavy attributes blob — so `sectors` has to survive the round trip on its own.
+// It did not: the column was selected and scanned and then dropped on the floor, and
+// nothing noticed until an end-to-end run, because SectorTrend uses its own query.
+func TestSnapshotSeriesCarriesSectors(t *testing.T) {
+	ctx := context.Background()
+	s := newTestStore(t)
+
+	base := time.Date(2026, 1, 1, 3, 0, 0, 0, time.UTC)
+	zero, seven := int64(0), int64(7)
+	for _, c := range []struct {
+		day     int
+		sectors *int64
+	}{{0, &zero}, {30, &seven}, {31, nil}} {
+		at := base.AddDate(0, 0, c.day)
+		if _, err := s.SaveScan(ctx, "manual", at, at.Add(time.Second), []ScannedDevice{
+			{Serial: "A", Model: "m", DevicePath: "/dev/sda", Health: "good", Score: 100,
+				Sectors: c.sectors},
+		}); err != nil {
+			t.Fatalf("SaveScan: %v", err)
+		}
+	}
+
+	series, err := s.SnapshotSeries(ctx, "A", base.Add(-time.Hour), base.AddDate(0, 0, 60))
+	if err != nil {
+		t.Fatalf("SnapshotSeries: %v", err)
+	}
+	if len(series) != 3 {
+		t.Fatalf("got %d snapshots, want 3", len(series))
+	}
+	if series[0].Sectors == nil || *series[0].Sectors != 0 {
+		t.Errorf("first snapshot sectors = %v, want 0", series[0].Sectors)
+	}
+	if series[1].Sectors == nil || *series[1].Sectors != 7 {
+		t.Errorf("second snapshot sectors = %v, want 7", series[1].Sectors)
+	}
+	// Absent stays absent: a drive that reports no sector counts must not read as zero.
+	if series[2].Sectors != nil {
+		t.Errorf("third snapshot sectors = %v, want nil", series[2].Sectors)
+	}
+}
+
 func TestSaveScanUpdatesAndMarksMissing(t *testing.T) {
 	ctx := context.Background()
 	s := newTestStore(t)

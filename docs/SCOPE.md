@@ -75,11 +75,15 @@ than what was planned.
   power-on hours, health score) in a trend card on the device page, with a
   7 / 30 / 90 day / all range selector. Sector-count charts wait on the longevity
   work below.
-2. **Remaining-longevity estimates** — NVMe: percentage-used + available-spare
-  projection. SSD: wear-leveling/media-wear indicators. HDD: degradation-rate
-  projection from reallocated/pending sector growth. Always presented as an
-  estimate with explicit confidence caveats (`docs/SMART_INTERPRETATION.md`).
-  **Not started.**
+2. **Remaining-longevity estimates** — **done**, with one deliberate departure from the
+  plan. Wear is projected from the drive's own counter (NVMe `percentage_used`) as a
+  horizon whose confidence reflects how long the drive was actually watched, with its
+  caveat shown inline. Sector growth is reported as a **rate over the window, not as a
+  date**: sector counts arrive in bursts, and a date extrapolated through two of them
+  would look precise and mean nothing. ATA wear counters are left alone for the same
+  reason — they are vendor-specific enough that guessing at one is worse than reporting
+  none — so an ATA drive falls back to the sector trend. Computed in
+  `internal/interp/longevity.go`, exposed as `projection` on the device detail endpoint.
 3. **Notification adapters** — Gotify, Telegram, Discord, SMTP email. **Done.**
 4. **SMART self-test triggering** (offline/short/extended) — the first
    hardware-affecting feature. **Deferred, and deliberately last:** it is opt-in and
@@ -90,9 +94,11 @@ than what was planned.
 6. **In-app knowledge-base refresh** — an opt-in, user-pressed action to update the
    drive knowledge base without waiting for a release (`ADR-011`). **Not started.**
 
-7. **Degradation trend detection** — a "worsening" early-warning badge plus history
-   charts / sparklines (`FEATURES.md` A14/A15). **Partial:** the charts and sparklines
-   (`A15`) are done; the badge is not.
+7. **Degradation trend detection** — **done.** A *Worsening* badge on the dashboard card
+   and the device page fires when bad sectors are accumulating over the recent window
+   (`FEATURES.md` A14/A15), and the charts and sparklines (`A15`) are done. The badge is
+   deliberately about direction rather than verdict: a drive can be green today and still
+   be the one worth replacing first.
 8. **Trend-aware health score** — refines the MVP score using history
    (`FEATURES.md` A17). **Not started.**
 9. **Self-test scheduling + self-test log**, and **SMART error log** display

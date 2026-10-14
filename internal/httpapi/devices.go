@@ -37,6 +37,10 @@ type deviceJSON struct {
 	SmartCause  string   `json:"smart_cause,omitempty"`
 	Mountpoints []string `json:"mountpoints"`
 	Fstype      string   `json:"fstype,omitempty"`
+	// Worsening is how many bad sectors appeared over the recent window, present only
+	// when the count is moving. A drive whose count is moving is worth replacing before
+	// it stops moving at all, so this is the dashboard's early warning.
+	Worsening *int64 `json:"worsening,omitempty"`
 	// Removable and FsVersion come from lsblk. For a drive that reports no S.M.A.R.T.
 	// they are often the only description there is.
 	Removable *bool  `json:"removable,omitempty"`
@@ -110,8 +114,19 @@ func (s *Server) handleListDevices(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	out := make([]deviceJSON, 0, len(devices))
+	// Bad-sector growth per device, so the dashboard can flag a drive that is getting
+	// worse without the user having to open each one. A failure here is not worth failing
+	// the list for: the flag is a nicety and the list is not.
+	trend, err := s.store.SectorTrend(r.Context(), time.Now().Add(-projectionWindow))
+	if err != nil {
+		trend = nil
+	}
 	for _, d := range devices {
-		out = append(out, toDeviceJSON(d))
+		dj := toDeviceJSON(d)
+		if delta, ok := trend[d.Serial]; ok && delta > 0 {
+			dj.Worsening = &delta
+		}
+		out = append(out, dj)
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"devices":      out,
@@ -139,7 +154,10 @@ func (s *Server) handleGetDevice(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resp := map[string]any{"device": toDeviceJSON(*rec)}
+	resp := map[string]any{
+		"device":     toDeviceJSON(*rec),
+		"projection": s.deviceProjection(r.Context(), serial),
+	}
 	if snap, err := s.store.LatestSnapshot(r.Context(), serial); err == nil && snap != nil {
 		resp["snapshot"] = map[string]any{
 			"ts":             rfc3339(snap.TS),
@@ -154,6 +172,34 @@ func (s *Server) handleGetDevice(w http.ResponseWriter, r *http.Request) {
 		resp["metrics"] = snapshotMetrics(snap)
 	}
 	writeJSON(w, http.StatusOK, resp)
+}
+
+// projectionWindow is how far back the longevity estimate looks. Long enough for a wear
+// counter to have moved for a reason other than rounding, bounded so that opening a
+// device page stays cheap even on a long-lived install.
+const projectionWindow = 180 * 24 * time.Hour
+
+// deviceProjection builds the longevity estimate and the worsening flag from stored
+// history.
+//
+// A failure here is not worth failing the page for: an absent projection renders as "not
+// enough history yet", which is what a young install would show anyway.
+func (s *Server) deviceProjection(ctx context.Context, serial string) interp.Projection {
+	now := time.Now()
+	series, err := s.store.SnapshotSeries(ctx, serial, now.Add(-projectionWindow), now)
+	if err != nil {
+		return interp.Projection{}
+	}
+	obs := make([]interp.Observation, 0, len(series))
+	for _, snap := range series {
+		obs = append(obs, interp.Observation{
+			TS:      snap.TS,
+			WearPct: snap.WearPct,
+			Hours:   snap.PowerOnHours,
+			Sectors: snap.Sectors,
+		})
+	}
+	return interp.Project(obs)
 }
 
 // snapshotPayload is the decoded form of the attributes blob stored with each

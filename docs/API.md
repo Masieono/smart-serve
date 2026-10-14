@@ -80,6 +80,12 @@ The first two are the container's problem rather than the drive's, which is why 
 distinguished: telling a container user their drive "does not report S.M.A.R.T." when it
 was simply not allowed to be read sends them looking in the wrong place.
 
+`worsening` appears on the **list** endpoint only, and only when it is non-zero: it is
+the number of bad sectors that appeared over the recent window, computed for every drive
+in one query so the dashboard can flag a drive that is going bad without the user having
+to open each one. A drive with fewer than two snapshots in the window is absent rather
+than reported as flat — no history is not the same finding as a clean bill of health.
+
 ### `GET /api/devices/{serial}` — full device detail
 
 Everything above plus the normalized SMART payload for the last scan: ATA attribute
@@ -109,6 +115,12 @@ warning_temp_time, critical_comp_time`).
     "data_written_bytes": 1200660480000,
     "life_left_pct": 94,
     "rotation_rate": 0
+  },
+  "projection": {
+    "basis": "wear",
+    "summary": "94% of rated life left, about 2.5 years at the current rate",
+    "confidence": "medium",
+    "caveat": "Extrapolated from the observed rate over this window. Wear is rarely linear, and the rating is the manufacturer's, not a measurement."
   }
 }
 ```
@@ -117,6 +129,24 @@ warning_temp_time, critical_comp_time`).
 understand ATA/NVMe layouts (see SMART_INTERPRETATION.md §9). Fields are omitted when
 the drive does not report them; a drive with no S.M.A.R.T. data yields `{}`, and its
 verdict stays `unknown`.
+
+`projection` is what the drive's **history** says about where it is heading, over a
+180-day window (`internal/interp/longevity.go`, `SCOPE.md` §2.2):
+
+| Field | Meaning |
+|---|---|
+| `basis` | `wear` (the drive's own life counter), `sectors` (bad-sector growth), or `none` |
+| `summary` | the one-line answer |
+| `confidence` | `low`, `medium`, or absent when there is no basis |
+| `caveat` | what the number is not — always present with a summary |
+| `worsening` | present only when something is measurably getting worse, and says what |
+
+Two deliberate limits. A sector **rate is never turned into a date**: sector counts
+arrive in bursts, and a date extrapolated through two of them looks precise and means
+nothing. And ATA wear counters are not interpreted at all — they are vendor-specific
+enough that guessing is worse than reporting none — so an ATA drive falls back to the
+sector basis. A drive with less than a day of history gets `basis: "none"` and
+"Not enough history yet", because two scans an hour apart carry no rate worth having.
 
 ## User metadata
 
