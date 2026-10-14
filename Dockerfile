@@ -9,7 +9,13 @@ WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
-RUN CGO_ENABLED=0 go build -trimpath -ldflags "-s -w" -o /out/smart-serve ./cmd/smartserve
+
+# Stamped so the running container can say which revision it is on. The .git directory
+# is not in the build context, so the caller supplies it — `make docker` passes
+# `git describe` automatically, and a plain `docker build` gets the honest "dev".
+ARG VERSION=dev
+RUN CGO_ENABLED=0 go build -trimpath -ldflags "-s -w -X main.version=${VERSION}" \
+      -o /out/smart-serve ./cmd/smartserve
 
 # --- runtime stage -----------------------------------------------------------
 # smartmontools (GPLv2) is bundled here; see docs/DECISIONS.md ADR-012.

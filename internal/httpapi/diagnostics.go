@@ -13,22 +13,30 @@ import (
 	"github.com/masieono/smart-serve/internal/store"
 )
 
+// handleRaw serves the raw smartctl output for one drive.
+//
+// It reads from the store, not from the scanner's in-memory result. That result is
+// empty before the first scan of a process — so every drive 404'd after a restart, with
+// a populated database sitting right there — and a single-drive rescan replaces it with
+// a one-device result, so rescanning one drive broke the raw view for all the others.
 func (s *Server) handleRaw(w http.ResponseWriter, r *http.Request) {
 	serial := r.PathValue("serial")
-	for _, d := range s.scanner.Last().Devices {
-		if d.Serial() != serial {
-			continue
-		}
-		w.Header().Set("Content-Type", "application/json; charset=utf-8")
-		w.WriteHeader(http.StatusOK)
-		if len(d.Raw) == 0 {
-			_, _ = w.Write([]byte("{}\n"))
-			return
-		}
-		_, _ = w.Write(d.Raw)
+	rec, err := s.store.GetDevice(r.Context(), serial)
+	if err != nil {
+		s.fail(w, "raw output", err)
 		return
 	}
-	writeError(w, http.StatusNotFound, "no raw smartctl output available for this device")
+	if rec == nil {
+		writeError(w, http.StatusNotFound, "unknown device")
+		return
+	}
+	if strings.TrimSpace(rec.RawOutput) == "" {
+		writeError(w, http.StatusNotFound,
+			"no raw smartctl output stored for this device yet — rescan it")
+		return
+	}
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	_, _ = w.Write([]byte(rec.RawOutput))
 }
 
 func (s *Server) handleHistory(w http.ResponseWriter, r *http.Request) {

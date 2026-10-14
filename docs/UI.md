@@ -207,7 +207,11 @@ picker offers exactly `ThemeNames`.
   spare, percentage used, data units read/written (count **and** humanised size),
   host read/write commands, controller busy time, power cycles/hours, unsafe
   shutdowns, media errors, error-log entries, warning/critical temperature time.
-  A "show raw `smartctl` output" toggle sits alongside it.
+  A "show raw `smartctl` output" toggle sits alongside it. It shows the output stored
+  for the drive from the last scan — including when the read *failed*, where smartctl's
+  own complaint is the most useful thing on the page — so it is a reliable way to see
+  whether a drive is unsupported, mis-addressed, or blocked by container capabilities
+  (`DEPLOYMENT.md`).
 - **Actions:** scan this device, export report (formats from settings), edit
   notes/tags, per-device transport override, hide.
 - **Notes editor:** free-form notes + tags; optimistic save with rollback.
@@ -256,11 +260,14 @@ picker offers exactly `ThemeNames`.
   Switching the unit re-renders the row, carrying unsaved values across in Celsius so
   nothing typed is silently reinterpreted.
 - Alert text follows the same unit, so a notification and the UI never disagree.
-- There is deliberately **no About card**. The version, the freshness note and the
-  "never writes to a drive" note sit in the sidebar footer under **Scan now**, one per
-  line: version first, then the two tidbits. That is where a reader already looks to
-  check how current the numbers are, and on their own in a card on the settings page
-  they read as an afterthought — and they are not settings.
+- There is deliberately **no About card**, and no version in the sidebar footer: the
+  version appears once, in the brand mark at the top of the sidebar, and repeating it
+  below **Scan now** was noise. The footer carries the two facts that are not already
+  on screen — the freshness note ("Data reflects the last scan.") and the provenance
+  note ("S.M.A.R.T. via smartmontools — the app never writes to a drive.").
+- The version shown is stamped at build time (`-X main.version`), so it identifies the
+  revision a container is actually running rather than a constant. An unstamped build
+  says `0.0.0-dev`, which is the honest answer.
 
 ## 8. Interaction & feedback
 

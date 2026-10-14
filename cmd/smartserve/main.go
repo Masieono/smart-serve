@@ -26,7 +26,14 @@ import (
 	"github.com/masieono/smart-serve/internal/webui"
 )
 
-const version = "0.0.0-dev"
+// version is stamped at build time:
+//
+//	go build -ldflags "-X main.version=v1.2.3"
+//
+// It must stay a var, not a const, or the linker has nothing to overwrite. The fallback
+// is what a plain `go build`, `go run` or `go test` produces, so the binary is always
+// honest about being unstamped rather than claiming a release it is not.
+var version = "0.0.0-dev"
 
 func main() {
 	if len(os.Args) < 2 {

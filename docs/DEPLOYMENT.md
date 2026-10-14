@@ -25,15 +25,41 @@ services:
     volumes:
       - smartserve-data:/data
       - /dev:/dev:ro            # read-only mount of host /dev
+    cap_add:
+      - SYS_ADMIN               # required for NVMe S.M.A.R.T. — see below
     restart: unless-stopped
 
 volumes:
   smartserve-data:
 ```
 
-Read-only `/dev` is sufficient for `smartctl` reads. Caveat: device nodes appear and
-disappear with hotplug (a node opened mid-scan after removal can error — handled per
-scan, retried next scan).
+Read-only `/dev` is sufficient for the *file access*. It is **not** sufficient for the
+*ioctls*, and that distinction is the usual reason a container sees a drive but gets no
+S.M.A.R.T. from it:
+
+- **NVMe** reads go through `NVME_IOCTL_ADMIN_CMD`, which the kernel guards with
+  `capable(CAP_SYS_ADMIN)`. Docker drops that capability by default, so every NVMe read
+  fails with `EPERM` **even though the container runs as root** — the node is visible,
+  the command runs, and it comes back "Operation not permitted". Since the boot drive on
+  most modern machines is NVMe, this is the first thing to check when a container
+  "doesn't see" a drive it plainly has mounted.
+- **SATA/ATA** reads go through `SG_IO`. Read-only passthrough is normally allowed
+  without extra capabilities, but some controllers and USB bridges need
+  `CAP_SYS_RAWIO` as well. If your SATA drives misbehave, add it:
+  `cap_add: [SYS_ADMIN, SYS_RAWIO]`.
+
+Diagnosing it: open the drive in the UI and use **Show raw output** — it prints exactly
+what `smartctl` said, verbatim. From the host:
+
+```bash
+docker exec smart-serve smartctl -x /dev/nvme0n1
+```
+
+A node that is missing entirely (`No such file or directory`) is a mount problem. A node
+that exists but answers `Operation not permitted` is a capability problem.
+
+Caveat: device nodes appear and disappear with hotplug (a node opened mid-scan after
+removal can error — handled per scan, retried next scan).
 
 ### Option B — enumerated `--device` passthrough (least privilege)
 
@@ -41,17 +67,22 @@ scan, retried next scan).
 docker run -d \
   -p 8080:8080 \
   -v smartserve-data:/data \
-  --device=/dev/sda --device=/dev/sdb --device=/dev/nvme0 \
+  --device=/dev/sda --device=/dev/sdb --device=/dev/nvme0 --device=/dev/nvme0n1 \
+  --cap-add SYS_ADMIN \
   ghcr.io/masieono/smart-serve:latest
 ```
 
 Most secure, but device letters shift across reboots and USB plugs — only practical
 for stable internal disks. Not recommended for the USB use case.
 
+`--device` grants the node, not the capability, so the `SYS_ADMIN` note above applies
+here too — enumerate the NVMe *controller* as well as its namespace.
+
 ### Option C — `--privileged` (works, but unnecessary)
 
-The app never writes to devices, so the extra capabilities buy nothing over
-Option A. Listed for completeness; discouraged.
+`--privileged` grants every capability, including the `SYS_ADMIN` that Option A adds
+explicitly. Since that is the only one the app needs, the rest buy nothing. Listed for
+completeness; discouraged.
 
 > **Security note:** any process with read access to raw disks can read the entire
 > contents of those disks. Smart-Serve performs only `smartctl` reads via a
@@ -178,6 +209,27 @@ the build context. Without it, `COPY . .` ships the entire working tree — incl
 developer's database — into the builder. It is scoped so that `internal/webui/assets/**`
 and `internal/store/migrations/**`, the only things the build actually embeds, are never
 dropped.
+
+### Which revision is this container running?
+
+The version is stamped into the binary at build time (`-X main.version`) and shown once,
+in the sidebar's brand mark. It is **not** a constant, so it can answer the question the
+version display exists for.
+
+Because `.git` is deliberately not in the build context, the caller supplies the value:
+
+```bash
+make docker                                    # stamps `git describe` automatically
+# or, without make:
+docker build --build-arg VERSION=$(git describe --tags --always --dirty) -t smart-serve:dev .
+# or via compose:
+SMARTSERVE_VERSION=$(git describe --tags --always --dirty) \
+  docker compose -f docker-compose.dev.yml up --build
+```
+
+`git describe` yields a tag (`v1.2.0`) once tags exist and a bare commit id before then —
+either way it identifies the build. A build with no `VERSION` says `0.0.0-dev`, which is
+the honest answer rather than a release it is not.
 
 ## Local development & live preview
 

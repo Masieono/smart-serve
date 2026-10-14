@@ -35,6 +35,9 @@ type ScannedDevice struct {
 	PowerOnHours    *int64
 	WearPct         *float64
 	AttributesJSON  string
+	// RawOutput is smartctl's own output for this drive, kept verbatim: when a bridge
+	// misbehaves it is the only thing that explains why.
+	RawOutput string
 	// Error is non-empty when S.M.A.R.T. could not be read for this device.
 	Error string
 }
@@ -57,6 +60,10 @@ type DeviceRecord struct {
 	// available for a drive that reports no S.M.A.R.T.
 	Removable *bool
 	FsVersion string
+	// RawOutput is the last raw smartctl output for this drive. It lives here rather
+	// than only in the scanner's memory, so it survives a restart and a single-drive
+	// rescan of a different drive.
+	RawOutput string
 	// TransportOverride is the remembered `smartctl -d` for a stubborn USB bridge.
 	TransportOverride string
 	SmartAvailable    bool
@@ -194,8 +201,8 @@ func upsertDevice(ctx context.Context, tx *sql.Tx, d ScannedDevice, lastScan any
 		INSERT INTO devices (serial, model, model_family, firmware, device_path, transport,
 			smart_bus, interface_speed, capacity_bytes, rotation, wwn, smart_available,
 			smart_error, health, health_rationale, score, temperature_c, first_seen, last_seen,
-			last_scan, mountpoints, fstype, removable, fs_version, is_missing)
-		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,0)
+			last_scan, mountpoints, fstype, removable, fs_version, raw_output, is_missing)
+		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,0)
 		ON CONFLICT(serial) DO UPDATE SET
 			model=excluded.model,
 			model_family=excluded.model_family,
@@ -219,12 +226,14 @@ func upsertDevice(ctx context.Context, tx *sql.Tx, d ScannedDevice, lastScan any
 			fstype=excluded.fstype,
 			removable=excluded.removable,
 			fs_version=excluded.fs_version,
+			raw_output=excluded.raw_output,
 			is_missing=0`,
 		d.Serial, d.Model, d.ModelFamily, d.Firmware, d.DevicePath, d.Transport, d.SmartBus,
 		d.InterfaceSpeed, nullUint(d.CapacityBytes), nullInt(d.Rotation), d.WWN, available,
 		d.Error, d.Health, d.HealthRationale, d.Score, nullInt(d.TemperatureC),
 		started.UnixMilli(), ended.UnixMilli(), lastScan,
-		encodeMountpoints(d.Mountpoints), d.Fstype, nullBool(d.Removable), d.FsVersion)
+		encodeMountpoints(d.Mountpoints), d.Fstype, nullBool(d.Removable), d.FsVersion,
+		d.RawOutput)
 	if err != nil {
 		return fmt.Errorf("upsert device %s: %w", d.Serial, err)
 	}
@@ -254,7 +263,7 @@ SELECT d.serial, d.model, d.model_family, d.firmware, d.device_path, d.transport
        d.interface_speed, d.rotation, d.capacity_bytes, d.wwn, d.smart_available,
        d.smart_error, d.health, d.health_rationale, d.score, d.temperature_c,
        d.first_seen, d.last_seen, d.last_scan, d.is_missing,
-       d.mountpoints, d.fstype, d.removable, d.fs_version,
+       d.mountpoints, d.fstype, d.removable, d.fs_version, d.raw_output,
        COALESCE(t.smart_d, ''),
        COALESCE(n.name, ''), COALESCE(n.notes, ''), COALESCE(n.tags, ''), COALESCE(n.hidden, 0)
 FROM devices d
@@ -310,7 +319,7 @@ func scanDevice(r rowScanner) (DeviceRecord, error) {
 		&rec.SmartBus, &rec.InterfaceSpeed, &rotation, &capacity, &rec.WWN, &smartAvailable,
 		&rec.SmartError, &rec.Health, &rec.HealthRationale, &rec.Score, &temperature,
 		&firstSeen, &lastSeen, &lastScan, &isMissing,
-		&mountpoints, &rec.Fstype, &removable, &rec.FsVersion,
+		&mountpoints, &rec.Fstype, &removable, &rec.FsVersion, &rec.RawOutput,
 		&rec.TransportOverride,
 		&rec.Name, &rec.Notes, &rec.Tags, &hidden,
 	)

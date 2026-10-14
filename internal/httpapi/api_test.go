@@ -4,9 +4,14 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/masieono/smart-serve/internal/events"
+	"github.com/masieono/smart-serve/internal/scan"
+	"github.com/masieono/smart-serve/internal/store"
 )
 
 func TestHealthz(t *testing.T) {
@@ -388,5 +393,88 @@ func TestRawOutput(t *testing.T) {
 	}
 	if !strings.Contains(rec.Body.String(), "/dev/sda") {
 		t.Errorf("raw body = %s", rec.Body.String())
+	}
+}
+
+// Raw output used to live only in the scanner's in-memory result. After a restart that
+// result is empty while the database is full, so every drive 404'd — which is exactly
+// the state a container is in when it comes back up against a persisted volume.
+func TestRawOutputSurvivesARestart(t *testing.T) {
+	ctx := context.Background()
+	st, err := store.Open(ctx, filepath.Join(t.TempDir(), "restart.db"))
+	if err != nil {
+		t.Fatalf("store.Open: %v", err)
+	}
+	t.Cleanup(func() { st.Close() })
+
+	runner := &fakeRunner{devices: sampleDevices()}
+	hub := events.NewHub()
+
+	before := New(st, scan.NewManager(runner, st, hub), hub, Options{})
+	do(t, before, http.MethodPost, "/api/scan?wait=1", "", nil)
+	if rec := do(t, before, http.MethodGet, "/api/devices/S1/raw", "", nil); rec.Code != http.StatusOK {
+		t.Fatalf("raw before restart = %d", rec.Code)
+	}
+
+	// A new process: fresh manager, same database, no scan run in it yet.
+	after := New(st, scan.NewManager(runner, st, hub), hub, Options{})
+	rec := do(t, after, http.MethodGet, "/api/devices/S1/raw", "", nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("raw after restart = %d, want 200 — it has to come from the store", rec.Code)
+	}
+	if !strings.Contains(rec.Body.String(), "/dev/sda") {
+		t.Errorf("raw body = %s", rec.Body.String())
+	}
+}
+
+// A single-drive rescan used to replace the in-memory result with a one-device one,
+// which broke the raw view for every drive that was not just rescanned.
+func TestRawOutputSurvivesASingleDriveRescan(t *testing.T) {
+	ctx := context.Background()
+	st, err := store.Open(ctx, filepath.Join(t.TempDir(), "rescan.db"))
+	if err != nil {
+		t.Fatalf("store.Open: %v", err)
+	}
+	t.Cleanup(func() { st.Close() })
+
+	// Two independent devices: sampleDevices builds fresh values on every call.
+	first := sampleDevices()[0]
+	second := sampleDevices()[0]
+	second.Discovered.Serial = "S2"
+	second.Discovered.Path = "/dev/sdb"
+	second.Data.Serial = "S2"
+	second.Raw = []byte(`{"device":{"name":"/dev/sdb"}}`)
+
+	runner := &fakeRunner{devices: []scan.Device{first, second}}
+	hub := events.NewHub()
+	srv := New(st, scan.NewManager(runner, st, hub), hub, Options{})
+
+	do(t, srv, http.MethodPost, "/api/scan?wait=1", "", nil)
+	do(t, srv, http.MethodPost, "/api/devices/S2/scan", "", nil)
+
+	rec := do(t, srv, http.MethodGet, "/api/devices/S1/raw", "", nil)
+	if rec.Code != http.StatusOK {
+		t.Errorf("raw for the drive that was not rescanned = %d, want 200", rec.Code)
+	}
+}
+
+// A drive with nothing stored says so usefully, rather than 404ing with no explanation.
+func TestRawOutputExplainsItselfWhenEmpty(t *testing.T) {
+	srv, st, _, _ := newTestServer(t, Options{})
+	do(t, srv, http.MethodPost, "/api/scan?wait=1", "", nil)
+
+	// A device row with no raw output, as one recorded before this was persisted.
+	now := time.Now()
+	if _, err := st.SaveScan(context.Background(), "manual", now, now,
+		[]store.ScannedDevice{{Serial: "NORAW", Health: "good", Score: 100}}); err != nil {
+		t.Fatalf("SaveScan: %v", err)
+	}
+
+	rec := do(t, srv, http.MethodGet, "/api/devices/NORAW/raw", "", nil)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("status = %d, want 404", rec.Code)
+	}
+	if !strings.Contains(rec.Body.String(), "rescan") {
+		t.Errorf("body = %s, want it to suggest a rescan", rec.Body.String())
 	}
 }

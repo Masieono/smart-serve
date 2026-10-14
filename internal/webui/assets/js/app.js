@@ -125,7 +125,6 @@ function renderSidebar(path) {
       el('button', { class: 'btn btn-primary', type: 'button', onclick: () => ctx.scan() },
         [icon('scan'), 'Scan now']),
       el('div', { class: 'sidebar-note' }, [
-        el('div', { text: `Smart-Serve ${root.dataset.version || 'dev'}` }),
         el('div', { text: 'Data reflects the last scan.' }),
         el('div', { text: 'S.M.A.R.T. via smartmontools — the app never writes to a drive.' }),
       ]),

@@ -7,6 +7,11 @@ services:
     volumes:
       - smartserve-data:/data
       - /dev:/dev:ro
+    # NVMe S.M.A.R.T. goes through an ioctl the kernel guards with CAP_SYS_ADMIN, which
+    # Docker drops by default — without this, the boot drive is visible but every read
+    # comes back "Operation not permitted". See docs/DEPLOYMENT.md.
+    cap_add:
+      - SYS_ADMIN
     environment:
       TZ: "Etc/UTC"
     restart: unless-stopped

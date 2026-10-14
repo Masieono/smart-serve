@@ -188,8 +188,10 @@ checkboxes and type picker cannot drift from the server.
 - `GET /api/scans` — scan-history log (`FEATURES.md` A13): id, trigger
   (`manual`/`schedule`), start/end, duration, per-device ok/fail counts, error.
 - `GET /api/devices/{serial}/raw` — raw `smartctl --json` (and the exact command
-  line used) for the last scan; the diagnostics escape hatch for USB bridges
-  (`FEATURES.md` A10).
+  line used) from the last scan; the diagnostics escape hatch for USB bridges
+  (`FEATURES.md` A10). Served from the stored per-device output, so it survives a
+  restart and is unaffected by rescanning a different drive; `404` when nothing has
+  been stored yet, with a message saying to rescan.
 - `PUT /api/devices/{serial}/transport` — set a per-device `-d` transport override
   (`{ "smart_d": "sat" }`), persisted in `device_transport_overrides`
   (`FEATURES.md` A11).

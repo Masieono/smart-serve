@@ -30,6 +30,7 @@ history — is one file that can be backed up with `cp` while the app is stopped
 | `fs_version` | TEXT NULL | filesystem versions (`1.0`, `FAT32`…), aggregated the same way (migration 0004) |
 | `removable` | INTEGER NULL | lsblk's `rm` (migration 0004). **Nullable on purpose**: `0` is "fixed media" and `NULL` is "nobody said", and a flash drive is a different thing from a fixed disk |
 | `smart_available` | INTEGER | 0 when device present in lsblk but SMART unreadable |
+| `raw_output` | TEXT | verbatim `smartctl --json` output from the last scan (migration 0005). On `devices` (latest only) rather than per-snapshot, so it cannot grow without bound. It lives here and not in the scanner's memory because the raw view has to survive a restart and a single-drive rescan of a *different* drive |
 | `smart_error` | TEXT NULL | capture failure reason |
 | `health` | TEXT | `good` / `caution` / `bad` / `unknown` (see SMART_INTERPRETATION.md) |
 | `health_rationale` | TEXT | human-readable why (e.g. "5 pending sectors") |

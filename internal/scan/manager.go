@@ -151,12 +151,10 @@ func (m *Manager) start(ctx context.Context, t Trigger, o only) (res Result, joi
 	return res, false, err
 }
 
-// Last returns the most recent scan result (zero value before the first scan).
-func (m *Manager) Last() Result {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	return m.last
-}
+// There is deliberately no accessor for the last result. The raw-output view used to
+// read one, and depending on a value that only exists in the current process is what
+// made it 404 after a restart. The result is still kept on the Manager for the
+// joined-scan return above, but nothing outside should reach for it.
 
 func (m *Manager) run(ctx context.Context, t Trigger, o only) (Result, error) {
 	started := time.Now().UTC()
@@ -316,6 +314,9 @@ func toStored(d Device) store.ScannedDevice {
 		HealthRationale: d.Health.Rationale,
 		Score:           d.Health.Score,
 		Error:           d.Error,
+		// Kept verbatim even when the read failed: smartctl's own complaint is the most
+		// useful thing to have in front of you when a bridge is misbehaving.
+		RawOutput: string(d.Raw),
 	}
 	size := d.Discovered.SizeBytes
 	if sd := d.Data; sd != nil {

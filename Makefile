@@ -6,12 +6,19 @@ BINARY  ?= smart-serve
 # module and fails with MODULE_NOT_FOUND.
 JSTEST  ?= internal/webui/jstest/*.test.mjs
 
+# Stamped into the binary so a running container can say which revision it is on.
+# `git describe` gives a tag (v1.2.0) once tags exist, and degrades to a bare commit id
+# before then — either way it identifies the build, which "0.0.0-dev" never did.
+# Override it for a release: make build VERSION=v1.0.0
+VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
+LDFLAGS  = -s -w -X main.version=$(VERSION)
+
 .PHONY: all build test test-js vet fmt run clean docker ci
 
 all: fmt vet test build
 
 build:
-	$(GO) build -trimpath -ldflags "-s -w" -o bin/$(BINARY) ./cmd/smartserve
+	$(GO) build -trimpath -ldflags "$(LDFLAGS)" -o bin/$(BINARY) ./cmd/smartserve
 
 test:
 	$(GO) test ./...
@@ -41,4 +48,4 @@ clean:
 	rm -rf bin
 
 docker:
-	docker build -t smart-serve:dev .
+	docker build --build-arg VERSION=$(VERSION) -t smart-serve:dev .
