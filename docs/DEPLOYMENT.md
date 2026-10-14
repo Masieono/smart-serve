@@ -25,20 +25,21 @@ services:
     volumes:
       - smartserve-data:/data
       - /dev:/dev:ro            # read-only mount of host /dev
-    # Both of these are required, and the /dev mount above provides neither.
+    # All three are required, and the /dev mount above provides none of them.
     device_cgroup_rules:
       - 'a *:* rwm'             # 1. permission to open the nodes
     cap_add:
-      - SYS_ADMIN               # 2. the NVMe ioctl capability
+      - SYS_ADMIN               # 2. native NVMe reads
+      - SYS_RAWIO               # 3. USB-bridge passthrough
     restart: unless-stopped
 
 volumes:
   smartserve-data:
 ```
 
-**Mounting `/dev` is necessary but not sufficient.** There are two independent gates
-between the container and a S.M.A.R.T. read, and a bind mount opens neither. Both
-produce the same `EPERM`, which is why this is worth reading before experimenting.
+**Mounting `/dev` is necessary but not sufficient.** There are three independent gates
+between the container and a S.M.A.R.T. read, and a bind mount opens none of them. All
+three produce the same `EPERM`, which is why this is worth reading before experimenting.
 
 **1. The device cgroup — the one that bites first.** Docker's default allow-list is
 `null`, `zero`, `full`, `tty`, `random`, `urandom` and the ptys; every other device is
@@ -55,14 +56,25 @@ it and, unlike enumerating `devices:`, keeps working when a USB drive appears at
 letter. The exposure is the same as the mount you already have: `/dev` was never hidden,
 only unopenable.
 
-**2. `CAP_SYS_ADMIN` — needed only once `open()` succeeds.** NVMe reads go through
+**2. `CAP_SYS_ADMIN` — needed once `open()` succeeds.** A native NVMe read goes through
 `NVME_IOCTL_ADMIN_CMD`, which the kernel guards with `capable(CAP_SYS_ADMIN)`, and Docker
-drops it by default — so an NVMe drive fails with `EPERM` even as root. SATA and USB
-devices use `SG_IO` and normally need no capability at all; if yours do, add `SYS_RAWIO`
-(`cap_add: [SYS_ADMIN, SYS_RAWIO]`).
+drops it by default — so an NVMe drive fails with `EPERM` even as root.
 
-Because gate 1 masks gate 2, fix them together. Adding only the capability changes
-nothing, which is the confusing part.
+**3. `CAP_SYS_RAWIO` — for anything behind a USB bridge.** Those are driven with `SG_IO`
+passthrough, and the kernel refuses a passthrough command that is not on its read-only
+allow-list unless the caller holds `CAP_SYS_RAWIO` — again surfacing as `EPERM`:
+
+```
+Read NVMe Identify Controller failed: Operation not permitted
+```
+
+The signature of this one is a **USB enclosure failing while an internal disk reads
+fine**. The internal disk uses the NVMe ioctl (gate 2) and the USB one uses passthrough
+(gate 3), so they need *different* capabilities — which is genuinely counter-intuitive
+and the reason a single-drive test can mislead you.
+
+Each gate masks the ones after it, so fix them together. Adding capabilities one at a
+time produces no visible change until the cgroup is open, which is the confusing part.
 
 To confirm which gate you are on, bypass smartctl entirely:
 
@@ -71,7 +83,9 @@ docker exec smart-serve-dev dd if=/dev/nvme0n1 of=/dev/null bs=512 count=1
 ```
 
 `Operation not permitted` from `dd` is the cgroup. `dd` succeeding while `smartctl` fails
-is the capability.
+is a capability — and *which* capability depends on the transport: `smartctl -i` failing
+on `/dev/nvme0n1` is gate 2, while a USB device failing with the internal disk reading
+fine is gate 3.
 
 The UI reports this too: open the drive and use **Show raw output** — it prints what
 `smartctl` said, verbatim.
@@ -94,13 +108,14 @@ Most secure, but device letters shift across reboots and USB plugs — only prac
 for stable internal disks. Not recommended for the USB use case.
 
 `--device` adds the device cgroup rule for you, so no `device_cgroup_rules` is needed
-here. It does **not** grant a capability, so `SYS_ADMIN` is still required for NVMe —
-and enumerate the NVMe *controller* as well as its namespace.
+here. It does **not** grant capabilities, so `SYS_ADMIN` (native NVMe) and `SYS_RAWIO`
+(USB bridges) are still required — and enumerate the NVMe *controller* as well as its
+namespace.
 
 ### Option C — `--privileged` (works, but unnecessary)
 
-`--privileged` grants every capability, including the `SYS_ADMIN` that Option A adds
-explicitly. Since that is the only one the app needs, the rest buy nothing. Listed for
+`--privileged` grants every capability, including the two that Option A adds explicitly.
+Since those are the only ones the app needs, the rest buy nothing. Listed for
 completeness; discouraged.
 
 > **Security note:** any process with read access to raw disks can read the entire
