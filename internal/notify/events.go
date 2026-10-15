@@ -98,6 +98,28 @@ func Collect(rep scan.PostScan, opts CollectOptions) []Event {
 		}
 	}
 
+	// The heartbeat fires only when the scan found nothing to say — no verdict changed, no
+	// drive vanished or appeared, nothing ran hot. It is the *complement* of the alert
+	// stream rather than an addition to it: you hear from a scheduled scan either way, and
+	// "3 drives scanned in 4.2s" means all quiet.
+	//
+	// Gating on an empty event list rather than on a health check is what makes that exact.
+	// The alternative — "every drive is good" — would never fire for a drive with no
+	// S.M.A.R.T. (verdict unknown) or one that has been failing for a week (no transition,
+	// so no alert), and both of those are precisely when a reassuring heartbeat is wanted.
+	//
+	// A manual scan never gets one: whoever pressed the button is watching the screen.
+	if rep.Trigger.Kind == "schedule" && len(events) == 0 {
+		events = append(events, Event{
+			Type: EventScanSuccess, Priority: PriorityLow,
+			ScheduleID:   rep.Trigger.ScheduleID,
+			DevicesTotal: len(rep.Current),
+			DurationMS:   rep.Ended.Sub(rep.Started).Milliseconds(),
+			ScanTS:       ts, Version: opts.Version,
+			key: fmt.Sprintf("%s:%d", EventScanSuccess, rep.Trigger.ScheduleID),
+		})
+	}
+
 	// Map iteration order is random; sort by serial then type so the output (and
 	// the tests) are stable.
 	sort.Slice(events, func(i, j int) bool {

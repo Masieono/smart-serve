@@ -6,7 +6,7 @@ import { icon } from '../icons.js';
 
 // Fallback for the event catalog; the API is the source of truth so a new event
 // type shows up in the subscription checkboxes without a UI change.
-const EVENT_TYPES = ['health_change', 'temperature_high', 'device_disappeared', 'device_appeared', 'scan_failure'];
+const EVENT_TYPES = ['health_change', 'temperature_high', 'device_disappeared', 'device_appeared', 'scan_failure', 'scan_success'];
 
 // Human labels for the subscription checkboxes; the event list itself comes from
 // the API so a new event type appears without a UI change.
@@ -16,6 +16,7 @@ const EVENT_LABELS = {
   device_disappeared: 'A drive disappears',
   device_appeared: 'A drive appears',
   scan_failure: 'A scheduled scan fails',
+  scan_success: 'A scheduled scan completes successfully',
 };
 
 export async function render(container, ctx) {
@@ -678,6 +679,11 @@ function editChannel(ctx, existing, eventTypes = EVENT_TYPES, serverTypes = null
       el('div', { class: 'field' }, [
         el('label', { text: 'Send me an alert when…' }),
         el('div', { class: 'stack', style: 'gap:var(--space-1)' }, eventRows),
+        // "Everything" is the default subscription, and it is about exceptions. The
+        // heartbeat is not one — it fires on every scheduled scan — so it has to be asked
+        // for, and the user needs to know that rather than wondering why it never arrives.
+        hint('Leaving every box unchecked means every alert above, except the ' +
+          'scheduled-scan heartbeat: that one fires on every scan, so it has to be ticked.'),
       ]),
       el('label', { class: 'field-row' }, [enabled, el('span', { text: 'Enabled' })]),
       hint('“Test” sends one event through these settings without saving them, so a bad ' +

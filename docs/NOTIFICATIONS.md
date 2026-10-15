@@ -21,9 +21,41 @@ notifier bus.
 | `device_disappeared` | Device in DB, absent from lsblk in this scan (fired once per disappearance) | medium |
 | `device_appeared` | Device seen for the first time, or reappearing after `disappeared` | low |
 | `scan_failure` | A scheduled scan (not a manual one) failed entirely (lsblk/smartctl errors) | medium |
+| `scan_success` | A scheduled scan completed **and found nothing to report**. A heartbeat, not an alert — **opt-in**, see below | low |
 
 Priority influences formatting (ntfy priority header, webhook payload field) and
 squelch defaults — not delivery: every channel subscribed to the event gets it.
+
+### "Everything" and the one exception
+
+A channel with no subscriptions ticked receives **every** event. That default is about
+exceptions — a verdict changed, a drive vanished, a scan failed — and each of those is
+news precisely because it is not what normally happens.
+
+`scan_success` is not that. It is a periodic all-clear, so on a 15-minute schedule it would
+mean 96 messages a day. Adding it to the catalog therefore does *not* put it in
+"everything": it has to be ticked explicitly (`optInEvents` in `internal/notify/notify.go`).
+Otherwise the first thing a user would experience after an upgrade is a burst of messages
+they never asked for, and the second thing they would do is turn notifications off.
+
+An explicit `"*"` subscription still means everything, including the heartbeat.
+
+#### What "found nothing to report" means exactly
+
+The heartbeat fires only when the scan produced **no other events**. It is the complement
+of the alert stream rather than an addition to it: subscribe to it and you hear from every
+scheduled scan exactly once — either the alerts, or *"3 drives scanned in 4.2s"*.
+
+Gating on an empty event list rather than on "every drive is good" is what makes that
+exact. A health check would never fire for a drive with no S.M.A.R.T. (verdict `unknown`)
+or for one that has been failing for a week (no transition, so no alert) — and both of
+those are precisely when a reassuring heartbeat is wanted. For the same reason the body
+says nothing about per-device state: it reports how much was looked at and how long it
+took, and the alerts do the rest.
+
+A manual scan never produces a heartbeat: whoever pressed the button is watching the
+screen, and telling them the thing they just did happened is noise. Same reasoning as
+`scan_failure`, which is also scheduled-only.
 
 ## Channels
 

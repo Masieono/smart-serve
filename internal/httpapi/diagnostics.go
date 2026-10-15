@@ -101,7 +101,7 @@ func (s *Server) handleReport(w http.ResponseWriter, r *http.Request) {
 				"scan_id":    snap.ScanID,
 				"attributes": rawOrNull(snap.Attributes),
 			}
-			body["metrics"] = snapshotMetrics(snap)
+			body["metrics"] = snapshotMetrics(snap, rec.ModelFamily)
 		}
 		writeJSON(w, http.StatusOK, body)
 	case "html":

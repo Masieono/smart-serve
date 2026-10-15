@@ -8,8 +8,26 @@ the interpreter; the goal is CrystalDiskInfo-grade clarity.
 
 | Family | Detected by | Health source | Wear source |
 |---|---|---|---|
-| ATA/SATA/USB (SAT) | `device.type == "ata"` (or sat transport) | `ata_smart_status` + attribute table (below) | SSD: attribute 231 (SSD Life Left) / 174 (Host/Dev Sleep?) vendor-specific |
+| ATA/SATA/USB (SAT) | `device.type == "ata"` (or sat transport) | `ata_smart_status` + attribute table (below) | attributes 231 / 233 / 202 / 169 (normalised value = % remaining), plus 177 **on Samsung only** — see §1.1 |
 | NVMe (incl. USB NVMe) | `device.type == "nvme"` | `nvme_smart_health_information_log` | `percentage_used`, `available_spare` |
+
+### 1.1 Which ATA attribute reports wear
+
+There is no single id for this, and the risk is asymmetric: a missing figure costs a
+missing row, and a wrong one is displayed as a measurement. So the reader tries the four
+ids whose normalised `Value` is the percentage remaining — **231** `SSD_Life_Left` (the
+closest thing to a standard), **233** `Media_Wearout_Indicator`, **202** `Percentage_Used`
+and **169** `Remaining_Life_Percentage` — and rejects anything outside 1–100.
+
+**177** `Wear_Leveling_Count` is read **only when the model family says Samsung**, because
+that is where its normalised value is the wear indicator (100 = new, counting down). On
+other vendors the same id is a raw average erase count, and the two cannot be told apart
+from the attribute alone. A Samsung 850 EVO reports 177 and no 231, which is the case this
+gate exists for.
+
+Percentage *used* is what gets stored in `snapshots.wear_pct`, as `100 − life left` — the
+same unit as NVMe's `percentage_used`, so one longevity projection covers both transports
+(`DATA_MODEL.md`).
 
 ## 2. ATA attribute table (the CrystalDiskInfo set)
 

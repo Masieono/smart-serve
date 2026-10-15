@@ -521,19 +521,23 @@ type Snapshot struct {
 	Attributes string
 }
 
-// SectorTrend returns, per serial, how many bad sectors appeared between the first and
-// last snapshot in the window.
+// SectorTrend returns, per serial, how many bad sectors appeared over the *recent*
+// comparison window — not over the whole range.
+//
+// The recent window is what makes the dashboard's warning decay. A drive that gained
+// sectors five months ago and has been stable since is not getting worse, and a badge that
+// says otherwise for six months is a badge people learn to ignore. The rule matches
+// interp.worsening exactly, including its fallback: when the whole history is younger than
+// `recent`, the comparison is against the oldest reading, so a fresh install that is
+// already shedding sectors still gets flagged.
 //
 // One query rather than one per device, because the dashboard needs this for every drive
-// at once. Rows are ordered and folded in Go instead of using a correlated subquery per
-// device: the fold is trivially correct, and the row set is bounded by the window and
-// small — the heavy attributes blob is deliberately not selected.
-//
-// A device with fewer than two rows in the window is absent from the map, which is the
-// honest answer: no history means no trend, not a flat one.
-func (s *Store) SectorTrend(ctx context.Context, from time.Time) (map[string]int64, error) {
+// at once. Rows are folded in Go rather than using a correlated subquery per device, and
+// the fold keeps only two rows per device: the newest, and the newest that is old enough
+// to compare against. Rows arrive oldest-first, so nothing that qualifies can arrive later.
+func (s *Store) SectorTrend(ctx context.Context, from time.Time, recent time.Duration) (map[string]int64, error) {
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT serial, sectors FROM snapshots
+		SELECT serial, ts, sectors FROM snapshots
 		WHERE sectors IS NOT NULL AND ts >= ?
 		ORDER BY serial, ts`, from.UnixMilli())
 	if err != nil {
@@ -541,33 +545,55 @@ func (s *Store) SectorTrend(ctx context.Context, from time.Time) (map[string]int
 	}
 	defer rows.Close()
 
-	first := map[string]int64{}
-	last := map[string]int64{}
-	count := map[string]int{}
+	type point struct {
+		ts      int64
+		sectors int64
+	}
+	type state struct {
+		first   point
+		base    point
+		last    point
+		hasBase bool
+		seen    int
+	}
+
+	recentMS := recent.Milliseconds()
+	states := map[string]*state{}
 	for rows.Next() {
 		var (
-			serial  string
-			sectors int64
+			serial string
+			pt     point
 		)
-		if err := rows.Scan(&serial, &sectors); err != nil {
+		if err := rows.Scan(&serial, &pt.ts, &pt.sectors); err != nil {
 			return nil, err
 		}
-		if count[serial] == 0 {
-			first[serial] = sectors
+		st, ok := states[serial]
+		if !ok {
+			st = &state{first: pt}
+			states[serial] = st
+		} else if pt.ts-st.last.ts >= recentMS {
+			// The row we saw before becomes the base: it is the newest row at least
+			// `recent` older than the row arriving now, which is the newest we have.
+			st.base, st.hasBase = st.last, true
 		}
-		last[serial] = sectors
-		count[serial]++
+		st.last = pt
+		st.seen++
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
 
-	out := make(map[string]int64, len(first))
-	for serial, n := range count {
-		if n < 2 {
+	out := make(map[string]int64, len(states))
+	for serial, st := range states {
+		if st.seen < 2 {
+			// One reading is not a trend, and saying "flat" would be inventing history.
 			continue
 		}
-		out[serial] = last[serial] - first[serial]
+		base := st.first
+		if st.hasBase {
+			base = st.base
+		}
+		out[serial] = st.last.sectors - base.sectors
 	}
 	return out, nil
 }

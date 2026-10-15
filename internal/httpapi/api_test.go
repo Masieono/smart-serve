@@ -26,6 +26,27 @@ func TestHealthz(t *testing.T) {
 	}
 }
 
+// Whether an ATA drive's attribute 177 means "life remaining" depends on who made the drive
+// (SMART_INTERPRETATION.md §1.1), and the model family is stored on the device rather than
+// per snapshot. Rebuilding the payload without it silently loses the figure for exactly the
+// drives the rule was added for — which is what happened, and only an end-to-end run against
+// a real drive's attributes caught it.
+func TestSnapshotMetricsCarriesTheModelFamily(t *testing.T) {
+	snap := &store.Snapshot{
+		Attributes: `{"attributes":[{"id":177,"name":"Wear_Leveling_Count","value":95,"raw_value":95}]}`,
+	}
+
+	samsung := snapshotMetrics(snap, "Samsung based SSDs")
+	if samsung.LifeLeftPct == nil || *samsung.LifeLeftPct != 95 {
+		t.Errorf("life left = %v, want 95 for a Samsung", samsung.LifeLeftPct)
+	}
+
+	other := snapshotMetrics(snap, "Crucial/Micron Client SSDs")
+	if other.LifeLeftPct != nil {
+		t.Errorf("life left = %v, want none for a vendor whose 177 means something else", other.LifeLeftPct)
+	}
+}
+
 func TestScanThenListDevices(t *testing.T) {
 	srv, _, runner, _ := newTestServer(t, Options{})
 

@@ -42,6 +42,10 @@ Persistent global elements: **Scan button** (primary action, always reachable),
 - Desktop (≥1024px): fixed left sidebar navigation + content area.
 - Tablet (640–1023px): collapsible sidebar (hamburger).
 - Mobile (<640px): single column, sticky top bar with the Scan button.
+- The sidebar's **wordmark is the way home**, as a wordmark in a corner is expected to be.
+  It is a `<button>` rather than an `<a>` because every navigation in this shell goes
+  through `ctx.navigate`, which owns the base path — a raw `href` would have to interpolate
+  it and would get it wrong behind a proxy (`ADR-015`).
 
 URL routing uses hash or path segments (`/`, `/device/{serial}`, `/schedules`, …) so
 views are bookmarkable and the browser back button works.

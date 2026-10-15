@@ -54,6 +54,8 @@ type Projection struct {
 	// Caveat says what the number is not. Always set when there is a summary.
 	Caveat string `json:"caveat,omitempty"`
 	// Worsening is non-empty when something is measurably getting worse, and says what.
+	// It looks only at the recent window (WorsenWindow), not at the whole history: a
+	// drive that got worse months ago and has been stable since is not getting worse.
 	Worsening string `json:"worsening,omitempty"`
 }
 
@@ -185,18 +187,47 @@ func sectorProjection(obs []Observation) (Projection, bool) {
 	}, true
 }
 
-// worsening is the early-warning flag: something is measurably getting worse.
+// WorsenWindow is how far back the worsening badge looks, and it is deliberately not the
+// whole observation window.
+//
+// A badge that stays lit for months after a single burst of bad sectors trains people to
+// ignore it, so the comparison is against the newest reading at least this old: once a
+// drive stops getting worse, the badge clears itself. A drive can be worse than it was six
+// months ago and still not be getting worse today, and only the second one is an alarm.
+//
+// The summary keeps describing the whole window — "7 new sector problems in 180 days" is a
+// true statement about the history. The badge answers the narrower question "is this
+// getting worse now", which is why the two can disagree, and should.
+const WorsenWindow = 30 * 24 * time.Hour
+
+// worsening is the early-warning flag: something is measurably getting worse *now*.
+//
+// It compares the latest reading against the newest one at least WorsenWindow older,
+// falling back to the oldest reading when the whole history is younger than that — a fresh
+// install whose drive is already shedding sectors has to be told, even though there is not
+// yet a month of history to compare against.
 func worsening(obs []Observation) string {
 	points := withSectors(obs)
 	if len(points) < 2 {
 		return ""
 	}
-	first, last := points[0], points[len(points)-1]
-	delta := *last.Sectors - *first.Sectors
+	last := points[len(points)-1]
+
+	// Points are oldest-first, so scanning backwards finds the *newest* reading that is
+	// old enough to compare against.
+	base := points[0]
+	for i := len(points) - 2; i >= 0; i-- {
+		if last.TS.Sub(points[i].TS) >= WorsenWindow {
+			base = points[i]
+			break
+		}
+	}
+
+	delta := *last.Sectors - *base.Sectors
 	if delta <= 0 {
 		return ""
 	}
-	days := last.TS.Sub(first.TS).Hours() / 24
+	days := last.TS.Sub(base.TS).Hours() / 24
 	return fmt.Sprintf("%d new sector problems in %s", delta, humanDays(days))
 }
 

@@ -102,9 +102,11 @@ Deferred, but the constraints are worth recording before anyone builds it.
   surface the drive's own progress figure (the ATA self-test polling minutes, or the
   NVMe self-test log's percent-complete) and say so plainly when a drive reports
   none.
-- **It lands last.** Docker device access has to be validated on real hardware first
-  (`DEPLOYMENT.md`): a self-test is the one operation where getting the device
-  plumbing wrong actually matters.
+- **It lands last.** Docker device access had to be validated on real hardware first
+  (`DEPLOYMENT.md`), because a self-test is the one operation where getting the device
+  plumbing wrong actually matters. **That is now done** — native NVMe, USB-attached NVMe
+  and USB-attached SATA SSD all read correctly — so this item is unblocked and waiting
+  only on itself.
 
 ## B. Alerts & notification
 

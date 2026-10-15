@@ -63,8 +63,16 @@ The application is useful and shippable with only these:
 - Notes attached to the USB drive reattach to it after replug with a changed device
   letter.
 
-**Status:** all fourteen items above are implemented. The one MVP item not yet
-validated end-to-end is Docker device access on real hardware (`DEPLOYMENT.md`).
+**Status:** all fourteen items above are implemented, and the one open question — Docker
+device access — is settled. It was validated end-to-end on real hardware against a native
+NVMe, a USB-attached NVMe, and a USB-attached SATA SSD, plus a USB flash drive that
+reports no S.M.A.R.T. at all and is now reported as such rather than as a failure
+(`DEPLOYMENT.md`).
+
+One path remains unexercised: a **native AHCI/SATA controller**. The validated SATA disk
+was reached through a USB bridge, which uses the same `SG_IO` ioctl and the same
+`CAP_SYS_RAWIO` requirement, so the capability story is unchanged — but the claim is
+recorded precisely rather than rounded up.
 
 ## Phase 2 — "insight"
 

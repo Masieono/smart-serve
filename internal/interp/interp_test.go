@@ -181,6 +181,104 @@ func TestDeriveMetricsATA(t *testing.T) {
 	}
 }
 
+// There is no single wear attribute, so the reader has to try several ids — and be willing
+// to return nothing, which is the safe failure. A wrong figure here is presented as a
+// measurement.
+func TestATALifeLeftPct(t *testing.T) {
+	cases := []struct {
+		name   string
+		data   *model.SmartData
+		want   int
+		wantOK bool
+	}{
+		{
+			name:   "231 is the standard spelling",
+			data:   &model.SmartData{Attributes: []model.Attribute{{ID: 231, Value: 94}}},
+			want:   94,
+			wantOK: true,
+		},
+		{
+			name:   "233 media wearout indicator",
+			data:   &model.SmartData{Attributes: []model.Attribute{{ID: 233, Value: 88}}},
+			want:   88,
+			wantOK: true,
+		},
+		{
+			name:   "202 percentage used",
+			data:   &model.SmartData{Attributes: []model.Attribute{{ID: 202, Value: 7}}},
+			want:   7,
+			wantOK: true,
+		},
+		{
+			name:   "169 remaining life percentage",
+			data:   &model.SmartData{Attributes: []model.Attribute{{ID: 169, Value: 60}}},
+			want:   60,
+			wantOK: true,
+		},
+		{
+			// The drive that prompted this: an 850 EVO with 177 = 95 and no 231.
+			name: "177 counts for a Samsung",
+			data: &model.SmartData{
+				ModelFamily: "Samsung based SSDs",
+				Attributes:  []model.Attribute{{ID: 177, Value: 95}},
+			},
+			want:   95,
+			wantOK: true,
+		},
+		{
+			// 177 elsewhere is a raw erase count wearing the same id, and guessing would
+			// put a confident wrong number on the screen.
+			name: "177 is ignored for anyone else",
+			data: &model.SmartData{
+				ModelFamily: "Crucial/Micron Client SSDs",
+				Attributes:  []model.Attribute{{ID: 177, Value: 95}},
+			},
+			wantOK: false,
+		},
+		{
+			name:   "a value that cannot be a percentage is rejected",
+			data:   &model.SmartData{Attributes: []model.Attribute{{ID: 231, Value: 253}}},
+			wantOK: false,
+		},
+		{
+			name:   "zero means not reported",
+			data:   &model.SmartData{Attributes: []model.Attribute{{ID: 231, Value: 0}}},
+			wantOK: false,
+		},
+		{
+			name:   "a drive with no wear attribute at all",
+			data:   &model.SmartData{Attributes: []model.Attribute{attr(5, 0), attr(197, 0)}},
+			wantOK: false,
+		},
+		{
+			name:   "nil payload",
+			data:   nil,
+			wantOK: false,
+		},
+	}
+	for _, c := range cases {
+		got, ok := ATALifeLeftPct(c.data)
+		if ok != c.wantOK || (ok && got != c.want) {
+			t.Errorf("%s: ATALifeLeftPct = (%d, %v), want (%d, %v)", c.name, got, ok, c.want, c.wantOK)
+		}
+	}
+}
+
+// The order matters when a drive reports more than one, because the standard spelling is
+// the one a vendor is most likely to keep honest.
+func TestATALifeLeftPctPrefersTheStandardAttribute(t *testing.T) {
+	sd := &model.SmartData{
+		ModelFamily: "Samsung based SSDs",
+		Attributes: []model.Attribute{
+			{ID: 177, Value: 95},
+			{ID: 231, Value: 80},
+		},
+	}
+	if got, ok := ATALifeLeftPct(sd); !ok || got != 80 {
+		t.Errorf("ATALifeLeftPct = (%d, %v), want the 231 value 80", got, ok)
+	}
+}
+
 func TestDeriveMetricsHandlesMissingData(t *testing.T) {
 	if m := DeriveMetrics(nil); m.PowerOnHours != nil || m.DataReadBytes != nil {
 		t.Errorf("nil payload should yield empty metrics, got %+v", m)

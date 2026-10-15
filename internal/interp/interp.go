@@ -318,6 +318,60 @@ func finalize(verdict model.Verdict, why []string, pen []Penalty) Result {
 // Metrics are derived figures the UI wants but that are not stored as their own
 // columns: media throughput, power cycles, and so on. They are computed from the
 // raw S.M.A.R.T. payload so both ATA and NVMe devices are covered.
+// wearAttributeIDs are the ATA attributes that report remaining life, in preference order.
+//
+// There is no single id for this. 231 (SSD_Life_Left) is the closest thing to a standard;
+// 233 (Media_Wearout_Indicator) and 202 (Percentage_Used) are vendor spellings of the same
+// idea; 169 (Remaining_Life_Percentage) is a minority one. In all four the *normalised*
+// Value is the percentage remaining, which is why they can be read the same way.
+var wearAttributeIDs = []int{231, 233, 202, 169}
+
+// samsungWearAttributeID is 177 Wear_Leveling_Count. On Samsung SSDs its normalised value
+// is the wear indicator (100 = new, counting down), which is how a drive such as the 850
+// EVO reports life at all — it has no 231.
+const samsungWearAttributeID = 177
+
+// ATALifeLeftPct reads the percentage of rated life remaining from an ATA drive's
+// attributes, or reports false when it has nothing we are willing to interpret.
+//
+// The asymmetry is the whole design: a missing figure costs nothing, and a wrong one is
+// presented as a measurement. So 177 is read only when the drive identifies as Samsung,
+// because the same id means something else entirely on other vendors — a raw average erase
+// count, for instance — and there is no way to tell from the attribute alone.
+func ATALifeLeftPct(sd *model.SmartData) (int, bool) {
+	if sd == nil {
+		return 0, false
+	}
+	for _, id := range wearAttributeIDs {
+		if a := sd.AttributeByID(id); a != nil && plausibleLifeLeft(a.Value) {
+			return a.Value, true
+		}
+	}
+	if isSamsung(sd) {
+		if a := sd.AttributeByID(samsungWearAttributeID); a != nil && plausibleLifeLeft(a.Value) {
+			return a.Value, true
+		}
+	}
+	return 0, false
+}
+
+// plausibleLifeLeft rejects values that cannot be a percentage of remaining life.
+//
+// A normalised S.M.A.R.T. value runs 1-100 by convention (occasionally to 253), so a 0
+// means "not reported" and anything over 100 is a different quantity wearing the same
+// attribute id. Rejecting a real figure costs a missing row; accepting a wrong one puts a
+// confident number on the screen.
+func plausibleLifeLeft(v int) bool {
+	return v > 0 && v <= 100
+}
+
+// isSamsung matches the model family smartctl reports — "Samsung based SSDs" on an 850 EVO.
+// It gates exactly one attribute and is deliberately not a general vendor classifier.
+func isSamsung(sd *model.SmartData) bool {
+	return strings.Contains(strings.ToLower(sd.ModelFamily), "samsung")
+}
+
+// Metrics are the extra figures the UI shows but the verdict does not use.
 type Metrics struct {
 	PowerOnHours     *int64  `json:"power_on_hours,omitempty"`
 	PowerCycles      *int64  `json:"power_cycles,omitempty"`
@@ -360,7 +414,7 @@ func DeriveMetrics(sd *model.SmartData) Metrics {
 	}
 
 	// ATA: 9 power-on hours, 12 power cycles, 241/242 LBAs written/read (512-byte
-	// sectors), 231 SSD life left (value is the percentage remaining).
+	// sectors), and a wear attribute read by ATALifeLeftPct.
 	count := func(id int) (uint64, bool) {
 		if a := sd.AttributeByID(id); a != nil {
 			return effectiveCount(a.RawValue), true
@@ -387,8 +441,7 @@ func DeriveMetrics(sd *model.SmartData) Metrics {
 		b := v * 512
 		m.DataWrittenBytes = &b
 	}
-	if a := sd.AttributeByID(231); a != nil && a.Value > 0 {
-		left := a.Value
+	if left, ok := ATALifeLeftPct(sd); ok {
 		m.LifeLeftPct = &left
 	}
 	return m

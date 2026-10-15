@@ -113,7 +113,15 @@ function renderSidebar(path) {
 
   clear(sidebar);
   sidebar.append(
-    el('div', { class: 'brand' }, [
+    // The wordmark is the way home, which is what a wordmark in a corner is for. It is a
+    // button rather than an <a> because every navigation in this shell goes through
+    // ctx.navigate, which owns the base path — a raw href would have to interpolate it and
+    // get it wrong behind a proxy (ADR-015).
+    el('button', {
+      class: 'brand', type: 'button', title: 'Back to devices',
+      'aria-label': 'Smart-Serve — back to devices',
+      onclick: () => ctx.navigate('/'),
+    }, [
       icon('device', 'brand-mark'),
       el('div', {}, [
         el('div', { class: 'brand-name', text: 'Smart-Serve' }),

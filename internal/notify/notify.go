@@ -27,6 +27,10 @@ const (
 	EventDeviceDisappeared = "device_disappeared"
 	EventDeviceAppeared    = "device_appeared"
 	EventScanFailure       = "scan_failure"
+	// EventScanSuccess is a heartbeat, not an alert: it says the scheduled scan ran. It is
+	// opt-in (see optInEvents) because it fires on every scheduled scan rather than on a
+	// change, and "everything" was never meant to include a periodic all-clear.
+	EventScanSuccess = "scan_success"
 )
 
 // EventTypes lists every subscribable event, in catalog order.
@@ -36,7 +40,19 @@ var EventTypes = []string{
 	EventDeviceDisappeared,
 	EventDeviceAppeared,
 	EventScanFailure,
+	EventScanSuccess,
 }
+
+// optInEvents are the events a channel has to ask for by name.
+//
+// An empty subscription list means "everything", which is right for exceptions — a
+// transition, a failure, a drive vanishing — and wrong for a heartbeat. Adding one to the
+// catalog must not start sending it to every channel that never asked, least of all on
+// upgrade: on a 15-minute schedule that would turn a quiet install into 96 messages a day,
+// and the first thing a user would do is turn notifications off altogether.
+//
+// An explicit "*" still means everything, including these.
+var optInEvents = map[string]bool{EventScanSuccess: true}
 
 // Priority influences formatting (the ntfy priority header, a payload field) and
 // squelch defaults — never whether a subscribed channel receives the event.
@@ -62,8 +78,11 @@ type Event struct {
 	TemperatureC *int     `json:"temperature_c,omitempty"`
 	ScheduleID   int64    `json:"schedule_id,omitempty"`
 	Error        string   `json:"error,omitempty"`
-	ScanTS       int64    `json:"scan_ts"`
-	Version      string   `json:"smartserve_version,omitempty"`
+	// Scan-summary fields, used by the scheduled-scan heartbeat.
+	DevicesTotal int    `json:"devices_total,omitempty"`
+	DurationMS   int64  `json:"duration_ms,omitempty"`
+	ScanTS       int64  `json:"scan_ts"`
+	Version      string `json:"smartserve_version,omitempty"`
 	// Test marks a synthetic event from the "send test" button. It is on the wire on
 	// purpose: an automation watching a webhook has to be able to tell a test from a
 	// real alert and decline to act on it.
@@ -101,6 +120,8 @@ func (e Event) Title() string {
 		return "Drive detected: " + e.label()
 	case EventScanFailure:
 		return "Scheduled scan failed"
+	case EventScanSuccess:
+		return "Scheduled scan completed"
 	}
 	return "Smart-Serve: " + e.Type
 }
@@ -141,6 +162,8 @@ func (e Event) Body() string {
 		if e.Error != "" {
 			lines = append(lines, e.Error)
 		}
+	case EventScanSuccess:
+		lines = append(lines, e.scanSummary())
 	}
 
 	detail := make([]string, 0, 3)
@@ -203,8 +226,25 @@ func (e Event) emoji() string {
 		return "🔌"
 	case EventScanFailure:
 		return "🚨"
+	case EventScanSuccess:
+		return "✅"
 	}
 	return "💾"
+}
+
+// scanSummary is the heartbeat's one line: how much was looked at, and how long it took.
+//
+// It deliberately does not report per-device problems. Those have their own alerts, and a
+// heartbeat that also editorialises would be a second, worse copy of them.
+func (e Event) scanSummary() string {
+	if e.DevicesTotal <= 0 {
+		return "Scan completed"
+	}
+	noun := "drives"
+	if e.DevicesTotal == 1 {
+		noun = "drive"
+	}
+	return fmt.Sprintf("%d %s scanned in %.1fs", e.DevicesTotal, noun, float64(e.DurationMS)/1000)
 }
 
 // Outcome is the result of one delivery attempt, recorded in notification_log.
@@ -480,14 +520,15 @@ func squelchWindow(ev Event, squelch time.Duration) time.Duration {
 }
 
 // subscribed reports whether a channel wants an event type. An empty or absent
-// subscription list means "everything".
+// subscription list means "everything" — except for the opt-in events, which have to be
+// named. An explicit "*" is still everything, including those.
 func subscribed(eventsJSON, typ string) bool {
 	var list []string
 	if err := json.Unmarshal([]byte(eventsJSON), &list); err != nil {
-		return true
+		return !optInEvents[typ]
 	}
 	if len(list) == 0 {
-		return true
+		return !optInEvents[typ]
 	}
 	for _, t := range list {
 		if t == typ || t == "*" {

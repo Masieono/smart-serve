@@ -79,11 +79,10 @@ C1–C24 all confirmed or resolved) and [`docs/DECISIONS.md`](docs/DECISIONS.md)
 `ghcr.io/masieono/smart-serve` (made public at v1). CI: GitHub Actions.
 
 Every `SCOPE.md` MVP item is built, and the Phase 2 work delivered so far is
-history/trending, the notification adapters (Gotify, Telegram, Discord, SMTP),
-maintenance windows, and the theme palettes. The remaining work is Docker deployment
-validation on real hardware, remaining-longevity estimates, and SMART self-tests —
-which are deliberately last, because a self-test is the only feature that writes to a
-drive (`docs/FEATURES.md` A19).
+history/trending, remaining-longevity estimates with a degradation warning, the
+notification adapters (Gotify, Telegram, Discord, SMTP), maintenance windows, and the
+theme palettes. The remaining work is SMART self-tests — deliberately last, because a
+self-test is the only feature that writes to a drive (`docs/FEATURES.md` A19).
 
 ## Implementation status
 
@@ -106,7 +105,9 @@ alert.
       log, channel test — unit-tested
 - [x] Multi-format report export (`txt` / `html` / `csv` / `json`) — unit-tested
 - [x] Dockerfile, docker-compose (prod + dev), GitHub Actions CI
-- [ ] Docker device-access validation on real hardware (`docs/DEPLOYMENT.md`)
+- [x] Docker device-access validation on real hardware — a native NVMe, a USB-attached
+      NVMe, and a USB-attached SATA SSD all read correctly; a drive with no S.M.A.R.T.
+      is reported as such rather than as a failure (`docs/DEPLOYMENT.md`)
 
 ## License
 

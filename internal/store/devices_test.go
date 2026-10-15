@@ -6,38 +6,47 @@ import (
 	"time"
 )
 
+// recent is the comparison window the dashboard uses, matching interp.WorsenWindow. The
+// store takes it as a parameter rather than importing interp, so the two ends of the rule
+// are pinned together by the caller.
+const recent = 30 * 24 * time.Hour
+
+// sectorScan writes one snapshot carrying a bad-sector total, `day` days after base.
+func sectorScan(t *testing.T, s *Store, base time.Time, day int, serial string, sectors *int64) {
+	t.Helper()
+	at := base.AddDate(0, 0, day)
+	if _, err := s.SaveScan(context.Background(), "manual", at, at.Add(time.Second), []ScannedDevice{
+		{Serial: serial, Model: "m", DevicePath: "/dev/sda", Health: "good", Score: 100,
+			Sectors: sectors},
+	}); err != nil {
+		t.Fatalf("SaveScan: %v", err)
+	}
+}
+
 // The dashboard needs to know which drives are getting worse, and it needs it for every
 // drive at once — one query, not one per card.
 func TestSectorTrendReportsGrowthBetweenTheEnds(t *testing.T) {
 	ctx := context.Background()
 	s := newTestStore(t)
-
 	base := time.Date(2026, 1, 1, 3, 0, 0, 0, time.UTC)
-	save := func(day int, serial string, sectors *int64) {
-		t.Helper()
-		at := base.AddDate(0, 0, day)
-		if _, err := s.SaveScan(ctx, "manual", at, at.Add(time.Second), []ScannedDevice{
-			{Serial: serial, Model: "m", DevicePath: "/dev/sda", Health: "good", Score: 100,
-				Sectors: sectors},
-		}); err != nil {
-			t.Fatalf("SaveScan: %v", err)
-		}
-	}
 
 	zero, four, five := int64(0), int64(4), int64(5)
-	save(0, "growing", &zero)
-	save(10, "growing", &five)
-	save(0, "stable", &five)
-	save(10, "stable", &five)
-	save(0, "once", &four)
+	sectorScan(t, s, base, 0, "growing", &zero)
+	sectorScan(t, s, base, 10, "growing", &five)
+	sectorScan(t, s, base, 0, "stable", &five)
+	sectorScan(t, s, base, 10, "stable", &five)
+	sectorScan(t, s, base, 0, "once", &four)
 	// A drive that reports no sector counts at all — every NVMe — must not appear.
-	save(0, "nvme", nil)
-	save(10, "nvme", nil)
+	sectorScan(t, s, base, 0, "nvme", nil)
+	sectorScan(t, s, base, 10, "nvme", nil)
 
-	trend, err := s.SectorTrend(ctx, base.Add(-time.Hour))
+	trend, err := s.SectorTrend(ctx, base.Add(-time.Hour), recent)
 	if err != nil {
 		t.Fatalf("SectorTrend: %v", err)
 	}
+	// Ten days is shorter than the comparison window, so this falls back to the oldest
+	// reading rather than declining to answer: a fresh install shedding sectors has to be
+	// told, even with less than a month of history.
 	if got := trend["growing"]; got != 5 {
 		t.Errorf("growing = %d, want 5", got)
 	}
@@ -55,27 +64,54 @@ func TestSectorTrendReportsGrowthBetweenTheEnds(t *testing.T) {
 	}
 }
 
+// The warning has to clear itself, or it is not a warning. A drive that gained sectors and
+// then stabilised is not getting worse any more, however much worse it is than it was five
+// months ago.
+func TestSectorTrendDecaysOnceGrowthStops(t *testing.T) {
+	ctx := context.Background()
+	s := newTestStore(t)
+	base := time.Date(2026, 1, 1, 3, 0, 0, 0, time.UTC)
+
+	zero, seven, nine := int64(0), int64(7), int64(9)
+	// Gained sectors between day 0 and day 40, then flat.
+	sectorScan(t, s, base, 0, "stopped", &zero)
+	sectorScan(t, s, base, 40, "stopped", &seven)
+	sectorScan(t, s, base, 80, "stopped", &seven)
+	// Still gaining.
+	sectorScan(t, s, base, 0, "growing", &zero)
+	sectorScan(t, s, base, 40, "growing", &seven)
+	sectorScan(t, s, base, 80, "growing", &nine)
+
+	trend, err := s.SectorTrend(ctx, base.Add(-time.Hour), recent)
+	if err != nil {
+		t.Fatalf("SectorTrend: %v", err)
+	}
+	if got := trend["stopped"]; got != 0 {
+		t.Errorf("stopped = %d, want 0 — the badge must clear once growth stops", got)
+	}
+	if got := trend["growing"]; got != 2 {
+		t.Errorf("growing = %d, want 2 — the growth since day 40, not since day 0", got)
+	}
+}
+
 // The window has to be honoured, or a drive that was repaired a year ago would look like
 // it is still getting worse.
 func TestSectorTrendIgnoresRowsBeforeTheWindow(t *testing.T) {
 	ctx := context.Background()
 	s := newTestStore(t)
-
 	base := time.Date(2026, 1, 1, 3, 0, 0, 0, time.UTC)
-	high, low := int64(9), int64(2)
-	for _, c := range []struct {
-		at      time.Time
-		sectors *int64
-	}{{base.AddDate(0, 0, -400), &high}, {base, &low}} {
-		if _, err := s.SaveScan(ctx, "manual", c.at, c.at.Add(time.Second), []ScannedDevice{
-			{Serial: "A", Model: "m", DevicePath: "/dev/sda", Health: "good", Score: 100,
-				Sectors: c.sectors},
-		}); err != nil {
-			t.Fatalf("SaveScan: %v", err)
-		}
-	}
 
-	trend, err := s.SectorTrend(ctx, base.AddDate(0, 0, -30))
+	high, low := int64(9), int64(2)
+	if _, err := s.SaveScan(ctx, "manual", base.AddDate(0, 0, -400),
+		base.AddDate(0, 0, -400).Add(time.Second), []ScannedDevice{
+			{Serial: "A", Model: "m", DevicePath: "/dev/sda", Health: "good", Score: 100,
+				Sectors: &high},
+		}); err != nil {
+		t.Fatalf("SaveScan: %v", err)
+	}
+	sectorScan(t, s, base, 0, "A", &low)
+
+	trend, err := s.SectorTrend(ctx, base.AddDate(0, 0, -30), recent)
 	if err != nil {
 		t.Fatalf("SectorTrend: %v", err)
 	}

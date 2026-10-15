@@ -117,7 +117,7 @@ func (s *Server) handleListDevices(w http.ResponseWriter, r *http.Request) {
 	// Bad-sector growth per device, so the dashboard can flag a drive that is getting
 	// worse without the user having to open each one. A failure here is not worth failing
 	// the list for: the flag is a nicety and the list is not.
-	trend, err := s.store.SectorTrend(r.Context(), time.Now().Add(-projectionWindow))
+	trend, err := s.store.SectorTrend(r.Context(), time.Now().Add(-projectionWindow), interp.WorsenWindow)
 	if err != nil {
 		trend = nil
 	}
@@ -169,7 +169,7 @@ func (s *Server) handleGetDevice(w http.ResponseWriter, r *http.Request) {
 			"wear_pct":       snap.WearPct,
 			"attributes":     rawOrNull(snap.Attributes),
 		}
-		resp["metrics"] = snapshotMetrics(snap)
+		resp["metrics"] = snapshotMetrics(snap, rec.ModelFamily)
 	}
 	writeJSON(w, http.StatusOK, resp)
 }
@@ -227,12 +227,20 @@ func decodeSnapshot(snap *store.Snapshot) snapshotPayload {
 
 // snapshotMetrics derives throughput, power cycles and the like from the stored
 // attributes blob, so the UI does not have to understand S.M.A.R.T. layouts.
-func snapshotMetrics(snap *store.Snapshot) interp.Metrics {
+//
+// modelFamily is passed in rather than read from the snapshot because it is stored on the
+// device, not per snapshot. It is not decoration: whether an ATA drive's attribute 177
+// means "life remaining" depends on who made the drive (SMART_INTERPRETATION.md §1.1), so
+// a payload rebuilt without it silently loses the life figure — which is exactly what
+// happened the first time, and only an end-to-end run against a real drive's attributes
+// caught it.
+func snapshotMetrics(snap *store.Snapshot, modelFamily string) interp.Metrics {
 	if snap == nil {
 		return interp.Metrics{}
 	}
 	payload := decodeSnapshot(snap)
 	return interp.DeriveMetrics(&model.SmartData{
+		ModelFamily:  modelFamily,
 		Attributes:   payload.Attributes,
 		NVMe:         payload.NVMe,
 		PowerOnHours: snap.PowerOnHours,

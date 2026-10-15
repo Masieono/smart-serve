@@ -371,7 +371,9 @@ handling. (−) exposing the port directly without a proxy is unsafe — stated 
    stable `event_key` per alert, already recorded in `notification_log` — is already
    in place.
 3. **SMART self-test — deferred, and last.** It is the only feature that writes to a
-   drive, so it lands after Docker device access has been validated on real hardware.
+   drive, so it lands after Docker device access has been validated on real hardware —
+   which it now has (native NVMe, USB-attached NVMe, USB-attached SATA SSD), so this is
+   unblocked and waiting only on being built.
    Two constraints are recorded in `FEATURES.md` A19: it is **opt-in and never
    automatic**, and a running test must show a **progress reading**, because a long
    test on a 14 TB drive runs for many hours and a spinner with no percentage is

@@ -131,11 +131,25 @@ a:hover {
   height: 100vh;
 }
 
+/* The wordmark doubles as the way home, so it is a button. Reset the button chrome rather
+   than restyling from scratch, so it keeps reading as the same wordmark it always was. */
 .brand {
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  padding: 0 var(--space-2);
+  width: 100%;
+  padding: var(--space-1) var(--space-2);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.brand:hover {
+  background: var(--surface-2);
 }
 
 .brand-mark {

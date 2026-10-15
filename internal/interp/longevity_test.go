@@ -152,6 +152,44 @@ func TestProjectFlagsWorseningEvenWhenWearLeads(t *testing.T) {
 	}
 }
 
+// The badge has to clear itself, or it is not a warning. A drive that gained sectors months
+// ago and has been stable since is not getting worse, however much worse it is than it was.
+func TestWorseningDecaysOnceGrowthStops(t *testing.T) {
+	stopped := Project([]Observation{
+		{TS: atDay(0), Sectors: sectors(0)},
+		{TS: atDay(40), Sectors: sectors(7)},
+		{TS: atDay(80), Sectors: sectors(7)},
+	})
+	if stopped.Worsening != "" {
+		t.Errorf("worsening = %q, want empty once growth has stopped", stopped.Worsening)
+	}
+
+	// Still gaining: the comparison is against the recent reading, not the oldest one, so
+	// the message reports only the growth that is actually recent.
+	growing := Project([]Observation{
+		{TS: atDay(0), Sectors: sectors(0)},
+		{TS: atDay(40), Sectors: sectors(7)},
+		{TS: atDay(80), Sectors: sectors(9)},
+	})
+	if growing.Worsening != "2 new sector problems in 40 days" {
+		t.Errorf("worsening = %q, want the growth since day 40", growing.Worsening)
+	}
+}
+
+// A short history must not hide a drive that is already shedding sectors: with less than
+// the comparison window recorded, the fallback is the oldest reading. Otherwise the feature
+// would be silent for its first month, which is exactly when a new install is watched most
+// closely.
+func TestWorseningFallsBackWhenHistoryIsShort(t *testing.T) {
+	got := Project([]Observation{
+		{TS: atDay(0), Sectors: sectors(0)},
+		{TS: atDay(5), Sectors: sectors(4)},
+	})
+	if got.Worsening != "4 new sector problems in 5 days" {
+		t.Errorf("worsening = %q, want the whole-history fallback", got.Worsening)
+	}
+}
+
 // A drive that reports neither must not be told it is healthy.
 func TestProjectWithoutWearOrSectors(t *testing.T) {
 	got := Project([]Observation{

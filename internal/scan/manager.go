@@ -345,6 +345,15 @@ func toStored(d Device) store.ScannedDevice {
 		if sd.NVMe != nil {
 			wear := float64(sd.NVMe.PercentageUsed)
 			out.WearPct = &wear
+		} else if left, ok := interp.ATALifeLeftPct(sd); ok {
+			// Stored as percentage *used*, the same unit as NVMe's percentage_used, so one
+			// longevity projection covers both transports.
+			//
+			// Before this, an ATA SSD had no wear figure at all — not because it lacked
+			// one, but because only attribute 231 was read and most drives report the wear
+			// somewhere else (177 on Samsung, 233 or 202 on others).
+			wear := float64(100 - left)
+			out.WearPct = &wear
 		}
 		// ATA wear counters are vendor-specific enough that guessing at one would be
 		// worse than reporting none, so an ATA drive falls back to the sector trend.

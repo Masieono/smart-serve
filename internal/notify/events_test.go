@@ -43,16 +43,109 @@ func states(list ...store.DeviceState) map[string]store.DeviceState {
 	return out
 }
 
-// report builds a successful scheduled scan over the two given state maps.
+// report builds a successful *manual* scan over the two given state maps.
+//
+// Manual rather than scheduled so the device-event tests below are not also handed the
+// scheduled-scan heartbeat. The trigger does not affect device-event generation, and mixing
+// the two would make every assertion in this file a two-event assertion; the heartbeat has
+// its own tests.
 func report(previous, current map[string]store.DeviceState) scan.PostScan {
 	return scan.PostScan{
-		Trigger:  scan.Trigger{Kind: "schedule", ScheduleID: 7},
+		Trigger:  scan.Manual,
 		ScanID:   1,
 		Started:  scanTime,
 		Ended:    scanTime,
 		OK:       true,
 		Previous: previous,
 		Current:  current,
+	}
+}
+
+// scheduledReport is report() for a scheduled scan, which is what the heartbeat keys off.
+func scheduledReport(previous, current map[string]store.DeviceState) scan.PostScan {
+	rep := report(previous, current)
+	rep.Trigger = scan.Trigger{Kind: "schedule", ScheduleID: 7}
+	return rep
+}
+
+// A scheduled scan that ran and found nothing to say is the only proof that monitoring is
+// alive — and its *absence* is the thing you would want to notice.
+func TestCollectScheduledScanHeartbeat(t *testing.T) {
+	// No previous state and a healthy device, so the scan produces no other events and the
+	// heartbeat is the only thing to send.
+	rep := scheduledReport(nil, states(state("S1", "good")))
+	rep.Ended = scanTime.Add(4200 * time.Millisecond)
+
+	events := Collect(rep, CollectOptions{Version: "test"})
+	if len(events) != 1 {
+		t.Fatalf("events = %+v, want exactly one", events)
+	}
+	ev := events[0]
+	if ev.Type != EventScanSuccess || ev.Priority != PriorityLow {
+		t.Errorf("event = %+v, want a low-priority scan_success", ev)
+	}
+	if ev.DevicesTotal != 1 || ev.DurationMS != 4200 {
+		t.Errorf("event = %+v, want the device count and the duration", ev)
+	}
+	if ev.Key() != "scan_success:7" {
+		t.Errorf("key = %q, want scan_success:7", ev.Key())
+	}
+	// The body has to read on its own: most clients show it without the title header.
+	if body := ev.Body(); !strings.Contains(body, "1 drive scanned in 4.2s") {
+		t.Errorf("body = %q, want the summary line", body)
+	}
+}
+
+// A scheduled scan that found something to say does not also get a heartbeat: the alert is
+// the message. This is what makes the heartbeat the complement of the alert stream rather
+// than an addition to it — you hear from a scheduled scan either way, and never twice.
+func TestCollectNoHeartbeatWhenTheScanFoundSomething(t *testing.T) {
+	rep := scheduledReport(
+		states(state("S1", "good")),
+		states(state("S1", "caution")),
+	)
+	events := Collect(rep, CollectOptions{Version: "test"})
+	if len(events) != 1 {
+		t.Fatalf("events = %+v, want exactly the health change", events)
+	}
+	if events[0].Type != EventHealthChange {
+		t.Errorf("events[0] = %+v, want the health change and no heartbeat", events[0])
+	}
+}
+
+// A manual scan does not get a heartbeat. Whoever pressed the button is watching the screen,
+// and telling them the thing they just did happened is noise.
+func TestCollectNoHeartbeatForAManualScan(t *testing.T) {
+	rep := report(nil, states(state("S1", "good")))
+	for _, ev := range Collect(rep, CollectOptions{}) {
+		if ev.Type == EventScanSuccess {
+			t.Errorf("manual scan produced a heartbeat: %+v", ev)
+		}
+	}
+}
+
+// The heartbeat is opt-in. "Everything" is the default subscription and it was designed
+// around exceptions; a periodic all-clear must not arrive at every channel that never asked
+// for it, least of all the moment the feature is added.
+func TestHeartbeatIsOptIn(t *testing.T) {
+	cases := map[string]bool{
+		``:                                false,
+		`[]`:                              false,
+		`["health_change"]`:               false,
+		`["scan_success"]`:                true,
+		`["scan_success","scan_failure"]`: true,
+		`["*"]`:                           true,
+	}
+	for events, want := range cases {
+		if got := subscribed(events, EventScanSuccess); got != want {
+			t.Errorf("subscribed(%s, scan_success) = %v, want %v", events, got, want)
+		}
+	}
+	// Every other event keeps the old behaviour: an empty list still means everything.
+	for _, typ := range []string{EventHealthChange, EventScanFailure, EventDeviceAppeared} {
+		if !subscribed("", typ) {
+			t.Errorf("an empty subscription must still mean everything for %s", typ)
+		}
 	}
 }
 
