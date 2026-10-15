@@ -45,3 +45,41 @@ func TestFixtureVerdicts(t *testing.T) {
 		})
 	}
 }
+
+// TestSamsungWearFromAttribute177 is the fixture for a drive that reports wear as attribute
+// 177 and nothing else — no 231, which was the only id the app read.
+//
+// It is kept because the rule that makes it work is a vendor gate, and a gate is exactly
+// the kind of thing that quietly stops matching. This drive's real attribute table is what
+// caught the first version of the rule reading `life_left_pct: null` on the API path while
+// the stored value was a correct 5% used.
+func TestSamsungWearFromAttribute177(t *testing.T) {
+	data, err := os.ReadFile(filepath.Join("testdata", "ata-samsung-850-evo.json"))
+	if err != nil {
+		t.Fatalf("read fixture: %v", err)
+	}
+	sd, err := smart.ParseSMART(data)
+	if err != nil {
+		t.Fatalf("ParseSMART: %v", err)
+	}
+	if sd.ModelFamily != "Samsung based SSDs" {
+		t.Fatalf("model family = %q, want the fixture to carry it", sd.ModelFamily)
+	}
+
+	left, ok := interp.ATALifeLeftPct(sd)
+	if !ok || left != 95 {
+		t.Errorf("life left = (%d, %v), want (95, true) from attribute 177", left, ok)
+	}
+
+	m := interp.DeriveMetrics(sd)
+	if m.LifeLeftPct == nil || *m.LifeLeftPct != 95 {
+		t.Errorf("metrics life left = %v, want 95", m.LifeLeftPct)
+	}
+	if m.PowerOnHours == nil || *m.PowerOnHours != 26193 {
+		t.Errorf("power-on hours = %v, want 26193", m.PowerOnHours)
+	}
+	// 2,575,292,682 LBAs of 512 bytes is the 13.2 TB the app showed for this drive.
+	if m.DataWrittenBytes == nil || *m.DataWrittenBytes != 2575292682*512 {
+		t.Errorf("data written = %v, want %d", m.DataWrittenBytes, int64(2575292682)*512)
+	}
+}
