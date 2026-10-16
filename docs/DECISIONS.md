@@ -393,6 +393,96 @@ the deferred items are recorded with their constraints so they are picked up, no
 rediscovered. (−) acknowledgement stays on the backlog, and the self-test's progress
 requirement now constrains its eventual API shape (`API.md`).
 
+## ADR-018: The NAS fleet tier — what a fleet changes
+
+**Context.** The MVP is sized for a workstation with a handful of drives. The owner also
+runs a NAS, and a review of the two target use cases — a NAS fleet, and a drive-testing
+bench — produced a set of additions that are not "more features" so much as a different
+*shape* of problem. The fleet case needed decisions, not just a list.
+
+**Decision.** Build a **Phase 2.5** tier, recorded in `SCOPE.md` and catalogued in
+`FEATURES.md`, on these judgements:
+
+1. **A fleet wants a list, not a grid** (`D8`). The card grid stays for small hosts;
+   large hosts get a sortable table ordered by risk, with the existing filter/sort work
+   (`D5`) feeding it.
+2. **Grouping by tag is the organising idea** (`D9`), not a filter. It is what turns
+   twenty-four cards into three groups, and it is the precondition for correlated-change
+   detection.
+3. **A drive gets a physical address** (`D10`) — a bay/slot field, shown on the card and in
+   the report. Identity was already solved (serial number, persisted across replug);
+   *location* was not, and location is what you need at 3am.
+4. **Labels must survive a host migration** (`C7`, promoted from P3). Names, notes and tags
+   live in the SQLite volume, which survives a restart but not a move. At fleet scale,
+   re-entering sixteen drives by hand is the real cost, so import/export stops being a P3
+   nicety.
+5. **The projection window follows retention** (`A26`). Retention is configurable and the
+   window is not, so an owner who keeps five years of history to watch a slow trend has it
+   discarded at 180 days. `API.md` documents the window as a deliberate match to the
+   *default* `retention_days`, already bounded by available history — so the one remaining
+   asymmetry is the upper bound. This resolves it in favour of the user's own setting.
+6. **Correlated-change detection is the fleet-only insight** (`A25`), and deliberately P3.
+   Eight drives in one enclosure share a temperature, so a failing fan reads as eight
+   unrelated alerts — exactly the noise that teaches people to ignore alerts. It needs
+   grouping and history first, and it needs a high bar, because a RAID rebuild legitimately
+   heats everything: a *false* "your enclosure is overheating" alert is worse than eight
+   true per-drive ones.
+7. **"Replace first" is the ranking a fleet asks for** (`A24`), combining verdict, direction
+   (`A14`) and remaining life (`A16`), with the reasoning shown. It is the action-shaped
+   form of work the app already does.
+8. **Evidence is a first-class output** (`A23`/`A27`). The report export already exists;
+   saying on it that it is warranty/RMA evidence costs almost nothing, and it is the whole
+   reason some people run a scan at all.
+
+**Alternatives.**
+- *Ship a Grafana/InfluxDB-shaped graph stack* — the approach Scrutiny takes. Rejected: it
+  is a second service to run, and it answers "what did this drive do" rather than "what
+  should I do about it".
+- *Make the fleet view the only view* — rejected. Four drives on a workstation is the other
+  half of the audience, and a table is worse for it.
+- *Build correlated detection first, since it is the differentiator* — rejected. It is the
+  one item here that can produce a **wrong** alert, and it depends on grouping and history
+  that do not exist yet.
+- *Add grouping as a filter on the existing grid* — rejected. Grouping is structural: it
+  changes the layout and feeds `A25`, so a filter would have to be redone.
+
+**Consequences.** (+) the app scales to a fleet without abandoning the workstation case;
+every item is a view over data already stored, so the zero-idle-cost invariant
+(`FEATURES.md` §E) is untouched. (±) `A26` changes existing behaviour — the window stops
+being a constant and starts tracking a setting, which the longevity tests must cover.
+(−) `A25` carries genuine false-positive risk and will need a deliberately conservative
+threshold plus a way to see *why* it fired.
+
+## ADR-019: Working order — documentation, then implementation, then UI polish
+
+**Context.** Feature ideas were arriving faster than they were being built, and the project
+has a stated character ("sleek and minimal") that a UI growing feature-by-feature will
+erode. Ideas were also at risk of being forgotten or re-litigated between sessions.
+
+**Decision.** Every batch of work runs in three moves:
+
+1. **Documentation first.** The idea is written into `FEATURES.md` (and `SCOPE.md`, plus an
+   ADR when it carries a real trade-off) *before* any code. The catalogue is the memory.
+2. **Implementation**, with the test discipline the rest of the project already carries.
+3. **UI spot-cleaning.** After the batch, the interface is reviewed as a whole — grouping,
+   hierarchy, what to demote into a secondary surface — and the outcome recorded in
+   `UI.md`. This is a pass, not a feature.
+
+**Alternatives.** *Document as you go* — how the project drifted; it produced some
+catalogued items and some uncatalogued ones, and the uncatalogued ones were the ones that
+got lost. *Clean the UI only when it feels bad* — reactive, and it makes the cleanup a
+rewrite rather than a pass.
+
+**Consequences.** (+) ideas survive between sessions, and the UI never accumulates a batch
+of unreviewed controls. (−) one extra step before code and a deliberate pause after each
+batch — which is the point.
+
+**Note (status, not a rewrite).** `ADR-017` deferred the S.M.A.R.T. self-test "and last".
+That ordering is now overtaken: device plumbing is validated on real hardware, so the
+self-test is the next build item after the read-only work, and `SCOPE.md` Phase 2 says so.
+`ADR-017`'s constraints on it — opt-in, never automatic, and it must show a progress
+reading — are unchanged and still binding.
+
 
 
 

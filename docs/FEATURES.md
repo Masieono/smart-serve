@@ -35,6 +35,11 @@ avoid idle cost.
 | A20 | SMART error log display | P2 | 🔌 | ATA error log / NVMe error log |
 | A21 | Drive knowledge base (rated TBW, known firmware advisories) | P3 | 💤 | bundled static table; opt-in in-app refresh |
 | A22 | Usable support for drives with no S.M.A.R.T. (USB flash drives, card readers) | P2 | 💤 | **done** — see below |
+| A23 | Fleet-wide export (every drive in one CSV or page) | P2 | 💤 | NAS: what you paste into a spreadsheet when planning a purchase |
+| A24 | "Replace first" ranking (verdict + direction + remaining life, ordered, with reasons) | P2 | 💤 | the dashboard sorts by *today's* severity; this answers "which one do I buy this month?" |
+| A25 | Correlated-change detection (N drives in a group moving together → one alert about the enclosure) | P3 | 💤 | needs grouping + history first, and a high bar — a RAID rebuild legitimately heats everything |
+| A26 | Projection window follows retention (or becomes a setting) | P2 | 💤 | today it is fixed at 180 d, so a NAS that keeps 5 years discards the history it deliberately kept |
+| A27 | Warranty / RMA evidence pack (the exported report says what it is for) | P2 | 💤 | cheap — the export already exists (`A8`) |
 
 ### A14/A16 — Longevity and the worsening badge
 
@@ -88,6 +93,47 @@ Deliberately **not** done: filesystem-usage graphs, write/read benchmarks, or a 
 health score for a drive that reports nothing. Those would be inventing data the drive
 never provided, which is exactly the failure mode this app exists to avoid.
 
+### A23–A27 / C7 / D8–D11 — The NAS fleet
+
+The MVP is sized for a workstation with a handful of drives. A NAS changes the *shape*
+of the problem, and the reason each item exists is worth recording rather than leaving
+as a bare list entry.
+
+- **The dashboard has to scale.** A card grid is right for four drives and wrong for
+  twenty-four; what a fleet owner wants is one list ordered by risk (`D8`), which the
+  existing filter/sort work (`D5`) feeds.
+- **Grouping is the organising idea** (`D9`). Tag drives by pool — `tank`, `backup`,
+  `media` — and the fleet reads as three groups instead of twenty-four cards. Grouping
+  is also the precondition for `A25`.
+- **A drive needs a physical address** (`D10`). A serial number identifies a drive; a
+  bay number *finds* it. Cheapest NAS feature, largest payoff at the moment something
+  actually fails.
+- **Labels must outlive the container** (`C7`, promoted from P3). Names, notes and tags
+  live in the SQLite volume, so they survive a restart but not a host migration. For a
+  fleet, re-labelling sixteen drives is the difference between a five-minute move and an
+  evening's work.
+- **Correlated change is the fleet-only insight** (`A25`). Eight drives in one enclosure
+  share a temperature: a dying fan presents as *all eight* running hot, which per-drive
+  monitoring reports as eight unrelated alerts — precisely the noise that teaches people
+  to ignore alerts. One alert naming the group and the shared delta points at the
+  enclosure instead of the drives. It is deliberately P3: it needs grouping and history
+  first, and it needs a high bar, because a RAID rebuild legitimately heats everything.
+- **The projection window is too short for a NAS** (`A26`). Retention is configurable;
+  the projection window is fixed at 180 days. An owner who raises retention to five years
+  is doing so precisely to watch a slow trend — and the app then discards it. The tension
+  was flagged when `A16` was built; a NAS is the case that resolves it.
+- **"Replace first" is the question a fleet asks** (`A24`). The verdict says how a drive
+  looks *now*; the ranking says which one to buy a replacement for this month, combining
+  verdict, direction (`A14`) and remaining life (`A16`), with the reasoning shown.
+- **Bench work is the second use case** (`D11`). Testing a batch of drives you do not want
+  in your permanent fleet: label them, test them, export the reports, forget them.
+- **Evidence is cheap** (`A27`). The report export already exists; saying on it that it is
+  warranty/RMA evidence costs almost nothing and is the whole reason some people run a
+  scan at all.
+
+None of these adds idle cost. They are views over data the app already stores, plus one
+setting (`A26`).
+
 ### A19 — SMART self-test: how it should behave when it lands
 
 Deferred, but the constraints are worth recording before anyone builds it.
@@ -136,7 +182,7 @@ Deferred, but the constraints are worth recording before anyone builds it.
 | C4 | Reverse-proxy auth documented (nginx/Caddy) | MVP | 💤 | |
 | C5 | ~~Built-in single-user basic auth~~ **Not planned** — auth delegated to a reverse proxy (D23) | — | 💤 | |
 | C6 | Prometheus `/metrics` exporter | P3 | ⚠ | **off by default** — scraping invites polling |
-| C7 | Import/export config & notes (JSON) | P3 | 💤 | migrate between hosts |
+| C7 | Import/export config, notes & labels (JSON) | P2 | 💤 | **promoted from P3** — for a NAS this is not a nice-to-have: it is the difference between restoring a file and re-labelling 16 drives |
 | C8 | Multi-arch image (amd64 / arm64) | MVP | 💤 | home NAS / Raspberry Pi |
 | C9 | Configurable base path for subpath hosting | MVP | 💤 | `SMARTSERVE_BASE_PATH` (`ADR-015`) |
 
@@ -151,6 +197,10 @@ Deferred, but the constraints are worth recording before anyone builds it.
 | D5 | Filter & sort devices (health, name, transport) | P2 | 💤 | |
 | D6 | Side-by-side multi-device comparison | P3 | 💤 | |
 | D7 | Localization (multi-language) | P3 | 💤 | CDI parity |
+| D8 | Dense fleet table view (one row per drive, sortable by risk) | P2 | 💤 | the dashboard is a card grid; at 24 drives that is a lot of scrolling |
+| D9 | Device grouping by tag/pool, dashboard grouped | P2 | 💤 | turns 24 cards into 3 readable groups; also the precondition for `A25` |
+| D10 | Bay/slot field (physical location on the card and in the report) | P2 | 💤 | at 3am you need the bay number, not the serial |
+| D11 | Testing session (label, test and report a batch of bench drives without polluting the fleet) | P3 | 💤 | `D4`'s *forget* already covers the single-drive version of this |
 
 ## E. Idle-cost guardrails (rules for accepting any new feature)
 
@@ -198,4 +248,29 @@ The strategy minimises that cost:
   device is ever hidden or downgraded for lacking KB data.
 - **Cadence.** Best-effort quarterly-ish updates tied to releases; contributions via
   pull request.
+
+## H. Tabled (recorded, not planned)
+
+Kept here so a good idea is neither silently dropped nor accidentally rebuilt. Nothing in
+this section has a tier or a date.
+
+| # | Feature | Why it is tabled |
+|---|---|---|
+| H1 | Batch self-test ("test all N drives overnight") | `A19` gives the primitive; the batch form is a thin layer on top and is not worth designing before the primitive exists. Revisit once `A19` ships. |
+
+## I. Sequencing: documentation → implementation → UI polish
+
+Feature work lands in three moves, and the third is not optional:
+
+1. **Documentation.** An idea is written into this catalog (and `SCOPE.md`, plus an ADR
+   when it carries a real trade-off) *before* it is built, so it is recorded rather than
+   rediscovered.
+2. **Implementation**, with the test discipline the rest of the project already carries.
+3. **UI spot-cleaning.** Every tier of features adds controls, and an interface that grows
+   feature-by-feature without a consolidation pass stops being sleek. After each batch the
+   UI is reviewed as a whole — grouping, hierarchy, what to demote into a secondary
+   surface — and the result recorded in `UI.md`.
+
+This is a working agreement rather than a phase: it repeats for every batch
+(`ADR-019`).
 

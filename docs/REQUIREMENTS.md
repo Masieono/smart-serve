@@ -39,7 +39,7 @@ is listed for a decision before implementation begins.
 
 | ID | Decision | Recorded in |
 |---|---|---|
-| D10 (was Q9) | **Self-test** — a UI trigger offering **short/long**, defaulting to **short**; the default is changeable in Settings; scheduled self-tests also supported. Phase 2, **and last** — opt-in only, never automatic, and it must show a progress reading (a long test on a large drive runs for hours). | `SCOPE.md` P2#9, `API.md`, `FEATURES.md` A19, `ADR-017` |
+| D10 (was Q9) | **Self-test** — a UI trigger offering **short/long**, defaulting to **short**; the default is changeable in Settings; scheduled self-tests also supported. Phase 2, **next to be built** — opt-in only, never automatic, and it must show a progress reading (a long test on a large drive runs for hours). Device plumbing is validated, which was the gate; the earlier "and last" ordering is overtaken (`ADR-019` note). | `SCOPE.md` P2#4/#9, `API.md`, `FEATURES.md` A19, `ADR-017` |
 | D11 (was Q10) | **Report export** — four formats (plain text, self-contained web page, spreadsheet, JSON) chosen from an Export dialog. A per-format enable list and a zip bundle are **not** implemented; the formats are all always offered. | `API.md`, `DATA_MODEL.md`, `FEATURES.md` A8 |
 | D12 (was Q11) | **Alert acknowledgement + maintenance/silence windows** — maintenance windows **implemented** as a `maintenance_windows` setting (no table, no endpoints). Acknowledgement **deferred**: wanted, but its state costs more than the noise it removes at single-host scale. | `SCOPE.md` P2#10, `NOTIFICATIONS.md`, `ADR-017` |
 | D13 (was Q12) | **Both** a 0–100 health score **and** Good/Caution/Bad. Basic score ships in MVP; the trend-aware refinement lands in Phase 2. | `SCOPE.md` MVP#14 + P2#8, `FEATURES.md` A17 |
@@ -55,6 +55,8 @@ is listed for a decision before implementation begins.
 | D23 (was C1) | **Authentication is out of scope** — no login, no user management; rely on reverse-proxy auth (Nginx). CSRF still enforced (`ADR-015`). | `ADR-016`, `DEPLOYMENT.md` |
 | D24 (was C17) | **Versioning** — semantic versioning + changelog; image tags `latest` and `x.y.z`. | `DEPLOYMENT.md` |
 | D25 (was C19) | **Base path** — default `/`; `SMARTSERVE_BASE_PATH` for subpath hosting. | `ADR-015` |
+| D26 | **The NAS fleet tier** — accepted after a review of the fleet use case: dense fleet table (`D8`), grouping by tag (`D9`), bay/slot field (`D10`), import/export of labels & notes promoted to P2 (`C7`), projection window follows retention (`A26`), "replace first" ranking (`A24`), fleet-wide export (`A23`), warranty/RMA evidence pack (`A27`), testing session (`D11`), and correlated-change detection (`A25`, P3). Batch self-test **tabled**. | `SCOPE.md` Phase 2.5, `FEATURES.md` §A23–A27 / C7 / D8–D11 / §H, `ADR-018` |
+| D27 | **Working order** — documentation → implementation → UI spot-cleaning, for every batch. | `FEATURES.md` §I, `SCOPE.md` "UI consolidation passes", `ADR-019` |
 
 ## 4. Considerations — status
 
@@ -104,11 +106,17 @@ open ones or change them as you read through.
 
 ## 6. Definition of done — design phase
 
-- All ten design documents reviewed and merged.
-- Decisions D1–D14 accepted; considerations C1–C18 confirmed by the project owner.
-- MVP acceptance criteria agreed (`SCOPE.md`).
-- ADR-001 through ADR-011 accepted (`DECISIONS.md`).
+**Met, and the project has moved past it.** The design phase is closed:
 
-Implementation then proceeds in the `SCOPE.md` MVP order: project skeleton →
-SQLite migrations → scan pipeline (`lsblk` + `smartctl` + interpreter) → JSON/SSE
-API → embedded frontend → notifications → container image.
+- All design documents reviewed and merged.
+- Decisions D1–D25 accepted and considerations C1–C24 confirmed by the project owner.
+- MVP acceptance criteria agreed (`SCOPE.md`) and met — all fourteen MVP items shipped.
+- `ADR-001` through `ADR-017` accepted.
+
+The MVP was built in the `SCOPE.md` MVP order: project skeleton → SQLite migrations → scan
+pipeline (`lsblk` + `smartctl` + interpreter) → JSON/SSE API → embedded frontend →
+notifications → container image. It is tagged `v0.1.0`.
+
+Decisions continue past the design phase: `D26`/`D27` and `ADR-018`/`ADR-019` were added
+after a review of the NAS fleet use case, which is where the open work now lives
+(`SCOPE.md` Phase 2.5).

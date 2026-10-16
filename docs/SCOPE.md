@@ -94,9 +94,10 @@ than what was planned.
   `internal/interp/longevity.go`, exposed as `projection` on the device detail endpoint.
 3. **Notification adapters** — Gotify, Telegram, Discord, SMTP email. **Done.**
 4. **SMART self-test triggering** (offline/short/extended) — the first
-   hardware-affecting feature. **Deferred, and deliberately last:** it is opt-in and
-   never automatic, and a running test must show a progress reading, because a long
-   test on a large drive runs for hours (`FEATURES.md` A19, `ADR-017`).
+   hardware-affecting feature. **Unblocked and next to be built:** Docker device access is
+   validated on real hardware (`DEPLOYMENT.md`), which was the gate. It is opt-in and
+   never automatic, and a running test must show a progress reading, because a long test
+   on a large drive runs for hours (`FEATURES.md` A19, `ADR-017`).
 5. **Squelch configuration** — user-tunable dedupe window. **Done** — the
    `squelch_seconds` setting.
 6. **In-app knowledge-base refresh** — an opt-in, user-pressed action to update the
@@ -110,26 +111,60 @@ than what was planned.
 8. **Trend-aware health score** — refines the MVP score using history
    (`FEATURES.md` A17). **Not started.**
 9. **Self-test scheduling + self-test log**, and **SMART error log** display
-   (`FEATURES.md` A19/A20). **Not started.**
+   (`FEATURES.md` A19/A20). **Not started — `A20` (the error log) comes first**, because
+   it is read-only and it is the missing half of "why is this drive unhappy?".
 10. **Alert acknowledgement & maintenance/silence windows** (`FEATURES.md` B7/B8).
     Maintenance windows **done**; acknowledgement **deferred** (`ADR-017`).
 11. **ntfy action buttons / priority / tags** and a per-channel event-subscription UI
     (`FEATURES.md` B10/B12). Subscription UI **done**; ntfy action buttons **not
     started**.
 
+## Phase 2.5 — "the NAS fleet"
+
+Added after a review of what a NAS owner actually needs, which the MVP's
+workstation-with-four-drives sizing does not cover. Every item is a view over data the app
+already stores, so none of them adds idle cost. Per-item rationale is in `FEATURES.md`;
+the trade-offs are in `ADR-018`.
+
+1. **Dense fleet table** (`D8`) — one sortable row per drive, ordered by risk, with the
+   existing filter/sort work (`D5`) feeding it. The card grid stays for small hosts.
+2. **Grouping by tag/pool** (`D9`) — the organising idea for a fleet, and the precondition
+   for correlated-change detection.
+3. **Bay/slot field** (`D10`) — the physical address of a drive, on the card and in the
+   report. A serial identifies a drive; a bay *finds* it.
+4. **Import/export labels, notes & config** (`C7`, promoted from Phase 3) — so names,
+   notes and tags survive a host migration instead of being re-entered by hand.
+5. **Projection window follows retention** (`A26`) — stop discarding the long history a
+   fleet owner deliberately kept.
+6. **"Replace first" ranking** (`A24`) — verdict + direction + remaining life, ordered,
+   with the reasons shown.
+7. **Fleet-wide export** (`A23`) and the **warranty/RMA evidence pack** (`A27`).
+8. **Testing session** (`D11`) — the bench workflow for drives that are not part of the
+   fleet.
+9. **Correlated-change detection** (`A25`) — P3, and last here: it needs grouping and
+   history first, and a high bar, so that it cannot fire on a legitimate RAID rebuild.
+
 ## Phase 3 — backlog (nice-to-have, no commitments)
 
 - Multi-user accounts / roles.
 - Prometheus exporter endpoint (`/metrics`) — opt-in, since it invites scraping
   (tension with the idle-cost philosophy; would be disabled by default).
-- Device groups/tags with group-level notification routing.
+- Group-level notification routing — grouping itself moved up to Phase 2.5 (`D9`);
+  routing notifications *by* group is still here.
 - Side-by-side multi-device comparison view.
-- Import/export of notes & settings (JSON) for migration between hosts.
 - Custom attribute thresholds per device/model.
 - Localization (CrystalDiskInfo parity includes non-English communities).
 - Drive knowledge base — rated TBW, known firmware advisories (`FEATURES.md` A21).
 - Weekly digest notifications — one scheduled summary instead of per-event
   (`FEATURES.md` B13).
+
+## UI consolidation passes
+
+Each feature batch is followed by a **UI spot-cleaning pass** rather than more features:
+the interface is reviewed as a whole — grouping, hierarchy, what to demote into a
+secondary surface — and the outcome recorded in `UI.md`. An interface that grows
+feature-by-feature without one stops being sleek, which is the product's stated
+character. See `FEATURES.md` §I and `ADR-019`.
 
 ## Explicit non-goals (never planned)
 
