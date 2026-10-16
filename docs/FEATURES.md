@@ -24,7 +24,7 @@ avoid idle cost.
 | A9 | Health summary bar (n good / n caution / n bad) | MVP | 💤 | **done** — folded into the Devices header as a compact clickable list beside the title and search box |
 | A10 | Raw `smartctl` output viewer (diagnostics toggle) | MVP | 💤 | vital for USB bridge quirks |
 | A11 | Per-device transport override (`-d sat`, …) | MVP | 💤 | **done** — offered on the device page for any drive whose S.M.A.R.T. cannot be read, and shown as currently set |
-| A12 | Attribute help tooltips ("what is Reallocated Sectors?") | MVP | 💤 | educational, CDI-like |
+| A12 | Attribute help tooltips ("what is Reallocated Sectors?") | MVP | 💤 | **done** — a curated `?` per attribute and per NVMe counter, plus a marker for attributes the *drive itself* reports at threshold; see below |
 | A13 | Scan history log (durations, per-device errors) | MVP | 💤 | |
 | A14 | Degradation trend detection ("worsening" early-warning badge) | P2 | 💤 | **done** — see below |
 | A15 | History charts (temp, sectors, wear) + sparklines | P2 | 💤 | **done** — per-metric sparkline card on the device page, with a 7/30/90-day/all range selector |
@@ -92,6 +92,39 @@ right bridge protocol.
 Deliberately **not** done: filesystem-usage graphs, write/read benchmarks, or a synthetic
 health score for a drive that reports nothing. Those would be inventing data the drive
 never provided, which is exactly the failure mode this app exists to avoid.
+
+### A12 — Attribute help
+
+An attribute table is the densest thing this app shows, and it is unreadable to anyone who
+has not already spent time with CrystalDiskInfo: *"Reallocated Sector Count 100 100 10 0"*
+is four numbers and no meaning.
+
+So each row carries a **`?` that opens a short explanation** — what the field is, and how to
+read it. The "how to read it" half is the part that matters, because it is what stops a
+benign vendor counter from looking like a failure: attribute 199 is nearly always a SATA
+cable rather than a dying drive, and the raw figure for attribute 1 is not comparable
+between manufacturers at all. The affordance is a **button, not a `title` attribute**,
+because hover-only help is unusable on the mobile layout.
+
+The table is **curated, not exhaustive**, and it mirrors the fields the interpreter actually
+acts on (`SMART_INTERPRETATION.md` §1.1 and §2). Explaining a row the verdict ignores is
+noise, and a description that disagreed with the verdict would be worse than none — so a
+test asserts that every interpreted attribute has help text, and the two lists cannot drift
+apart silently. An attribute with no entry still renders exactly as before; it simply has no
+`?`.
+
+One attribute-level judgement *is* made in the UI, and deliberately only one: a row is
+marked when the **drive itself** reports the attribute at or below the threshold the drive
+publishes for itself. That is the drive's own alarm condition rather than a threshold this
+app invented, and it is the only such judgement because the verdict and the score are
+computed server-side — re-deriving "is this bad?" in the table would let the two disagree
+about the same drive. A threshold of 0 means *no threshold*, not *fails at zero*, so
+informational attributes are never flagged.
+
+**Not done, and worth doing:** the score breakdown (`interp.Penalty`) carries a free-text
+reason but no attribute id, so a row cannot yet be marked *because the verdict blamed it*.
+Adding an optional attribute id to `Penalty` would make that exact and would retire the
+threshold check above as the only UI-side judgement.
 
 ### A23–A27 / C7 / D8–D11 — The NAS fleet
 

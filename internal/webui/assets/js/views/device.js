@@ -4,7 +4,8 @@ import {
   scoreGrade, convertTemp, convertTempDelta, temperatureUnitName,
 } from '../dom.js';
 import { api } from '../api.js';
-import { verdictBadge, healthGauge, attributeTable, errorBox, openDialog, toast, transportLabel, trendRow } from '../components.js';
+import { verdictBadge, healthGauge, attributeTable, errorBox, openDialog, toast, transportLabel, trendRow, helpButton } from '../components.js';
+import { nvmeHelp } from '../attributes.js';
 import { icon } from '../icons.js';
 
 // Trend windows. The history endpoint takes an absolute `from`, so the window is
@@ -432,30 +433,33 @@ export function nvmeTable(n) {
   // Grouped rather than one flat list of sixteen rows. The log mixes counters that
   // describe the drive's health, its lifetime, its workload and its errors, and in a flat
   // list all four read alike — which is what made this the densest panel on the page.
+  // Each row carries the API field name alongside its label: the label is for reading,
+  // the field name is the key into the help table (`attributes.js`), so rewording a label
+  // cannot silently detach its explanation.
   const sections = [
     ['Health', [
-      ['Critical warning', fmtInt(n.critical_warning)],
-      ['Available spare', percent(n.available_spare)],
-      ['Spare threshold', percent(n.available_spare_threshold)],
-      ['Percentage used', percent(n.percentage_used)],
+      ['critical_warning', 'Critical warning', fmtInt(n.critical_warning)],
+      ['available_spare', 'Available spare', percent(n.available_spare)],
+      ['available_spare_threshold', 'Spare threshold', percent(n.available_spare_threshold)],
+      ['percentage_used', 'Percentage used', percent(n.percentage_used)],
     ]],
     ['Lifetime', [
-      ['Power-on hours', fmtInt(n.power_on_hours)],
-      ['Power cycles', fmtInt(n.power_cycles)],
-      ['Unsafe shutdowns', fmtInt(n.unsafe_shutdowns)],
-      ['Controller busy time', `${fmtInt(n.controller_busy_time)} min`],
-      ['Warning temp time', `${fmtInt(n.warning_temp_time)} min`],
-      ['Critical comp time', `${fmtInt(n.critical_comp_time)} min`],
+      ['power_on_hours', 'Power-on hours', fmtInt(n.power_on_hours)],
+      ['power_cycles', 'Power cycles', fmtInt(n.power_cycles)],
+      ['unsafe_shutdowns', 'Unsafe shutdowns', fmtInt(n.unsafe_shutdowns)],
+      ['controller_busy_time', 'Controller busy time', `${fmtInt(n.controller_busy_time)} min`],
+      ['warning_temp_time', 'Warning temp time', `${fmtInt(n.warning_temp_time)} min`],
+      ['critical_comp_time', 'Critical comp time', `${fmtInt(n.critical_comp_time)} min`],
     ]],
     ['Workload', [
-      ['Data units read', dataUnits(n.data_units_read)],
-      ['Data units written', dataUnits(n.data_units_written)],
-      ['Host read commands', fmtInt(n.host_reads)],
-      ['Host write commands', fmtInt(n.host_writes)],
+      ['data_units_read', 'Data units read', dataUnits(n.data_units_read)],
+      ['data_units_written', 'Data units written', dataUnits(n.data_units_written)],
+      ['host_reads', 'Host read commands', fmtInt(n.host_reads)],
+      ['host_writes', 'Host write commands', fmtInt(n.host_writes)],
     ]],
     ['Errors', [
-      ['Media errors', fmtInt(n.media_errors)],
-      ['Error log entries', fmtInt(n.num_err_log_entries)],
+      ['media_errors', 'Media errors', fmtInt(n.media_errors)],
+      ['num_err_log_entries', 'Error log entries', fmtInt(n.num_err_log_entries)],
     ]],
   ];
 
@@ -464,10 +468,14 @@ export function nvmeTable(n) {
     body.push(el('tr', { class: 'section' }, [
       el('th', { colspan: '2', text: title }),
     ]));
-    for (const [k, v] of rows) {
+    for (const [key, label, value] of rows) {
+      const help = nvmeHelp(key);
       body.push(el('tr', {}, [
-        el('td', { text: k }),
-        el('td', { class: 'num', text: String(v) }),
+        el('td', {}, [
+          el('span', { text: label }),
+          help ? helpButton(label, help) : null,
+        ]),
+        el('td', { class: 'num', text: String(value) }),
       ]));
     }
   }

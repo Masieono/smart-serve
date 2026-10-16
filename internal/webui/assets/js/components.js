@@ -1,6 +1,7 @@
 // Shared UI components (docs/UI.md §6).
 import { el, svg, fmtBytes, fmtTemp, fmtScore, fmtAgo, fmtDate, fmtTime, scoreGrade, scoreBand, verdictClass } from './dom.js';
 import { icon } from './icons.js';
+import { attributeHelp, attributeFlagged } from './attributes.js';
 
 const VERDICT_LABEL = { good: 'Good', caution: 'Caution', bad: 'Bad', unknown: 'Unknown' };
 
@@ -346,18 +347,66 @@ export function attributeTable(attributes) {
       el('thead', {}, [
         el('tr', {}, head.map((h, i) => el('th', { text: h, class: i === 0 || i > 1 ? 'num' : '' }))),
       ]),
-      el('tbody', {}, attributes.map((a) =>
-        el('tr', {}, [
-          el('td', { class: 'num', text: String(a.id) }),
-          el('td', { text: a.name }),
-          el('td', { class: 'num', text: String(a.value) }),
-          el('td', { class: 'num', text: String(a.worst) }),
-          el('td', { class: 'num', text: String(a.threshold) }),
-          el('td', { class: 'num', text: a.raw_string || String(a.raw_value) }),
-        ]),
-      )),
+      el('tbody', {}, attributes.map(attributeRow)),
     ]),
   ]);
+}
+
+/**
+ * One attribute row.
+ *
+ * Two additions to the plain CrystalDiskInfo layout, both of which exist to answer "why
+ * is this drive unhappy?" without leaving the page: a `?` explaining what the attribute
+ * means, and a marker for attributes the *drive itself* reports as failing.
+ */
+function attributeRow(a) {
+  const help = attributeHelp(a.id);
+  const flagged = attributeFlagged(a);
+  return el('tr', { class: flagged ? 'attr-flagged' : null }, [
+    el('td', { class: 'num', text: String(a.id) }),
+    el('td', {}, [
+      el('span', { text: a.name }),
+      help ? helpButton(a.name, help) : null,
+      flagged
+        ? el('span', {
+            class: 'badge badge-caution attr-flag',
+            title: 'The drive reports this attribute at or below its own threshold',
+          }, [icon('alert'), 'At threshold'])
+        : null,
+    ]),
+    el('td', { class: 'num', text: String(a.value) }),
+    el('td', { class: 'num', text: String(a.worst) }),
+    el('td', { class: 'num', text: String(a.threshold) }),
+    el('td', { class: 'num', text: a.raw_string || String(a.raw_value) }),
+  ]);
+}
+
+/**
+ * The `?` that opens an attribute's explanation.
+ *
+ * A button rather than a bare `title` attribute: hover-only help is unusable on the
+ * mobile layout, and this is the feature's whole point. Labelled with the attribute name
+ * so it reads as "what is Reallocated Sector Count?" rather than as a bare question mark.
+ */
+export function helpButton(name, help) {
+  return el('button', {
+    class: 'attr-help',
+    type: 'button',
+    'aria-label': `What is ${name}?`,
+    title: help.what,
+    onclick: () => showHelp(name, help),
+  }, ['?']);
+}
+
+/** Explain one field: what it is, and how to read it. */
+export function showHelp(name, help) {
+  openDialog(name, (body, close, foot) => {
+    body.append(
+      el('p', { text: help.what }),
+      help.watch ? el('p', { class: 'muted', text: help.watch }) : null,
+    );
+    foot.append(el('button', { class: 'btn', type: 'button', text: 'Close', onclick: close }));
+  });
 }
 
 export function emptyState(title, body, action) {

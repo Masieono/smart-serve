@@ -134,7 +134,7 @@ picker offers exactly `ThemeNames`.
 | **Health gauge** | Circular SVG ring, 0–100 + grade. Colour = band. Sized from the `size` argument, never from CSS — a bare `svg` rule would override its width/height attributes. |
 | **Device card** | Name (user), model, capacity, verdict badge, small gauge, temperature, transport icon (USB vs internal), mountpoint(s), "last scanned". Actions: open, scan-this, hide. A card whose drive is absent from the latest scan shows a *Not connected* badge and is dimmed; a drive we were not allowed to read shows *Blocked*; a drive that cannot report S.M.A.R.T. shows *No S.M.A.R.T.* — and neither draws a gauge. |
 | **Devices header** | One card holding the page title, the clickable verdict counts and the search box. The counts are a filter for the grid below, so they sit beside the thing they filter instead of in a row of their own. |
-| **Attribute table** | Sortable, zebra rows; ID / name / value / worst / threshold / interpreted raw / status dot; per-attribute help tooltip ("what is this?"). |
+| **Attribute table** | Zebra rows; ID / name / value / worst / threshold / interpreted raw. Every row the interpreter acts on carries a `?` that opens an explanation of what the field is and how to read it, and a row is tinted and badged *At threshold* when the drive reports it at or below its own threshold (`FEATURES.md` A12). Not sortable — the table is short enough to read, and sorting it is not worth a control. |
 | **Sparkline / trend card** | Inline SVG per metric (health score, temperature, power-on hours, wear) with the current value and the change across the window, plus a 7 / 30 / 90 day / all range selector. Hovering (or arrowing, when focused) shows a marker and a three-line readout — value, date, time — for that reading. A row with fewer than two readings is dropped — one point is not a trend. |
 | **Notice** | A neutral panel for an explanation that is not a fault. Two of them: "this drive does not report S.M.A.R.T." (with the transport-override control), and — added later — "the container was not allowed to read this drive", which names which of the three access gates is closed and prints the compose fragment that opens it. Deliberately not an error box in either case: neither is the drive failing. |
 | **Export dialog** | One row per format (plain text / web page / spreadsheet / JSON) with what each is for, rather than a single button that silently picks one. |
@@ -246,6 +246,12 @@ picker offers exactly `ThemeNames`.
   own complaint is the most useful thing on the page — so it is a reliable way to see
   whether a drive is unsupported, mis-addressed, or blocked by container capabilities
   (`DEPLOYMENT.md`).
+- **Attribute help** (`FEATURES.md` A12) — a `?` beside each interpreted attribute and each
+  NVMe counter, opening a short dialog: what the field is, and how to read it. The second
+  half is the part that earns its place, because it is what stops attribute 199 (usually a
+  SATA cable) or attribute 1 (not comparable between vendors) from reading as a drive in
+  trouble. A row the drive *itself* reports at or below its own threshold is tinted and
+  badged *At threshold* — the drive's own alarm, never a threshold this app invented.
 - **Actions:** scan this device, export report (formats from settings), edit
   notes/tags, per-device transport override, hide.
 - **Notes editor:** free-form notes + tags; optimistic save with rollback.

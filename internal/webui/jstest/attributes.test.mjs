@@ -1,0 +1,134 @@
+// Attribute help (FEATURES.md A12).
+//
+// Two things are worth pinning. The first is that the curated table stays in step with the
+// interpreter: a description that disagreed with the verdict, or a missing one for a field
+// the verdict acts on, would be worse than no help at all. The second is that the help is
+// reachable without a mouse — the affordance is a button, not a `title`, and that is the
+// whole reason it works on the mobile layout.
+
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { installStubDom, StubNode } from './stub-dom.mjs';
+
+installStubDom();
+
+const { ATTRIBUTE_HELP, NVME_HELP, attributeHelp, nvmeHelp, attributeFlagged } =
+  await import('../assets/js/attributes.js');
+const { attributeTable } = await import('../assets/js/components.js');
+const { nvmeTable } = await import('../assets/js/views/device.js');
+
+// The ids the interpreter acts on: SMART_INTERPRETATION.md §1.1 (wear) and §2 (the
+// CrystalDiskInfo set). If the interpreter grows a new interpreted attribute, this list
+// and the help table should grow together — which is the point of asserting on it.
+const INTERPRETED_ATA = [5, 9, 10, 12, 187, 190, 194, 196, 197, 198, 199, 169, 177, 202, 231, 233];
+
+/** Every string in a subtree, in document order. */
+function textOf(node) {
+  const out = [];
+  const walk = (n) => {
+    for (const child of n.childNodes) {
+      if (!(child instanceof StubNode)) continue;
+      if (child.tagName === '#TEXT') out.push(child.data);
+      else if (child.textContent) out.push(child.textContent);
+      walk(child);
+    }
+  };
+  walk(node);
+  return out.join(' ');
+}
+
+const helpButtons = (node) =>
+  node.all('button').filter((b) => String(b.className).includes('attr-help'));
+
+const attr = (id, name, value, worst, threshold) => ({
+  id, name, value, worst, threshold, raw_value: 0, raw_string: '0',
+});
+
+test('every attribute the interpreter acts on has an explanation', () => {
+  for (const id of INTERPRETED_ATA) {
+    const help = attributeHelp(id);
+    assert.ok(help, `attribute ${id} is interpreted but has no help text`);
+    assert.ok(help.what && help.what.length > 20, `attribute ${id} has a thin explanation`);
+  }
+});
+
+test('no help entry is empty or placeholder text', () => {
+  for (const [id, help] of Object.entries(ATTRIBUTE_HELP)) {
+    assert.ok(help.what && help.what.trim().length > 0, `attribute ${id} has no \`what\``);
+    if (help.watch !== undefined) {
+      assert.ok(help.watch.trim().length > 0, `attribute ${id} has an empty \`watch\``);
+    }
+  }
+  for (const [field, help] of Object.entries(NVME_HELP)) {
+    assert.ok(help.what && help.what.trim().length > 0, `NVMe field ${field} has no \`what\``);
+  }
+});
+
+test('lookup is by numeric id, and unknown ids get nothing', () => {
+  assert.equal(attributeHelp('5').what, ATTRIBUTE_HELP[5].what);
+  assert.equal(attributeHelp(250), null);
+  assert.equal(attributeHelp(undefined), null);
+  assert.equal(nvmeHelp('media_errors').what, NVME_HELP.media_errors.what);
+  assert.equal(nvmeHelp('not_a_field'), null);
+});
+
+test('the attribute table offers help only where there is something to say', () => {
+  const table = attributeTable([
+    attr(5, 'Reallocated Sector Count', 100, 100, 10),
+    attr(250, 'Vendor Mystery', 100, 100, 0),
+  ]);
+  const buttons = helpButtons(table);
+  assert.equal(buttons.length, 1, 'only the known attribute should carry a ?');
+  assert.equal(buttons[0].getAttribute('aria-label'), 'What is Reallocated Sector Count?');
+  assert.equal(textOf(buttons[0]), '?');
+});
+
+test('pressing ? explains the attribute', () => {
+  const table = attributeTable([attr(197, 'Current Pending Sector Count', 100, 100, 0)]);
+  helpButtons(table)[0].click();
+
+  const dialogs = document.body.all('dialog');
+  const shown = dialogs[dialogs.length - 1];
+  assert.ok(shown, 'pressing ? should open a dialog');
+  const text = textOf(shown);
+  assert.match(text, /has not yet given up on/, 'the definition is shown');
+  assert.match(text, /retried on the next write/, 'so is how to read it');
+});
+
+test('a row the drive reports at its own threshold is marked', () => {
+  const table = attributeTable([attr(5, 'Reallocated Sector Count', 10, 10, 10)]);
+  const flagged = table.all('tr').filter((r) => String(r.className).includes('attr-flagged'));
+  assert.equal(flagged.length, 1);
+  assert.match(textOf(flagged[0]), /At threshold/);
+});
+
+test('a clean attribute table marks nothing', () => {
+  const table = attributeTable([attr(5, 'Reallocated Sector Count', 100, 100, 10)]);
+  const flagged = table.all('tr').filter((r) => String(r.className).includes('attr-flagged'));
+  assert.equal(flagged.length, 0);
+});
+
+// The marker is the drive's own alarm, never a threshold this app invented: a threshold
+// of 0 means the attribute has no threshold, not that it fails at zero. Most informational
+// attributes report 0, so getting this wrong would flag half of a healthy table.
+test('attributeFlagged follows the drive threshold, not a guessed one', () => {
+  assert.equal(attributeFlagged(attr(5, 'x', 10, 10, 10)), true, 'at threshold');
+  assert.equal(attributeFlagged(attr(5, 'x', 4, 10, 10)), true, 'below threshold');
+  assert.equal(attributeFlagged(attr(5, 'x', 11, 10, 10)), false, 'above threshold');
+  assert.equal(attributeFlagged(attr(5, 'x', 0, 0, 0)), false, 'no threshold');
+  assert.equal(attributeFlagged(null), false, 'no attribute');
+});
+
+const NVME_HEALTH = {
+  critical_warning: 0, available_spare: 100, available_spare_threshold: 10,
+  percentage_used: 4, data_units_read: 1000, data_units_written: 2000,
+  host_reads: 10, host_writes: 20, controller_busy_time: 5, power_cycles: 30,
+  power_on_hours: 40, unsafe_shutdowns: 2, media_errors: 0, num_err_log_entries: 0,
+  warning_temp_time: 0, critical_comp_time: 0,
+};
+
+test('every NVMe counter in the table carries a ?', () => {
+  const table = nvmeTable(NVME_HEALTH);
+  assert.equal(helpButtons(table).length, 16, 'all sixteen counters should be explained');
+});
+

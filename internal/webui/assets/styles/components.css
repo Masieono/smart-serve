@@ -1441,4 +1441,44 @@ dialog::backdrop {
   }
 }
 
+/* Attribute help (FEATURES.md A12).
+   The `?` sits beside the attribute name rather than being a `title` on it, so the
+   explanation is reachable without a pointer that hovers — which is what makes it usable
+   on the mobile layout. */
+.attr-help {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  margin-left: var(--space-1);
+  padding: 0;
+  border: 1px solid color-mix(in srgb, var(--muted) 45%, transparent);
+  border-radius: 50%;
+  background: none;
+  color: var(--muted);
+  font-family: var(--font-sans);
+  font-size: 11px;
+  line-height: 1;
+  cursor: pointer;
+  vertical-align: middle;
+}
+
+.attr-help:hover,
+.attr-help:focus-visible {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* A row the drive itself reports at or below its own threshold. The tint is a hint; the
+   badge beside the name carries the meaning, so colour is never the only signal. */
+tr.attr-flagged > td {
+  background: var(--caution-soft);
+}
+
+.attr-flag {
+  margin-left: var(--space-2);
+  vertical-align: middle;
+}
+
 

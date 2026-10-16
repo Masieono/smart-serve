@@ -46,6 +46,12 @@ Interpreted attributes — anything not listed is displayed raw, without verdict
 | 198 | Offline Uncorrectable | count-type | >0 ⇒ caution; ≥10 ⇒ bad |
 | 199 | UDMA CRC Error Count | count-type | >0 ⇒ caution (usually cable, not drive — rationale says so) |
 
+The UI's attribute help (`FEATURES.md` A12, `internal/webui/assets/js/attributes.js`) is
+keyed to this table and to §1.1. Adding an interpreted attribute means adding help text for
+it, and a test enforces that — a description that disagreed with the verdict would be worse
+than no description at all, so the two lists are kept in step deliberately rather than by
+memory.
+
 ## 3. Raw-value packed-word rule (the classic CrystalDiskInfo gotcha)
 
 Many vendors (Maxtor, Samsung, HGST, etc.) pack **three 16-bit counters** into the
