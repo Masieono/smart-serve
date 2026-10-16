@@ -69,6 +69,38 @@ Then open `http://<host>:8080` and press **Scan**.
 | [`docs/FEATURES.md`](docs/FEATURES.md) | Full feature catalog & suggestions (tiers, idle-cost impact) |
 | [`docs/UI.md`](docs/UI.md) | UI/UX design: navigation, components, theming, screen specs, accessibility |
 
+## Development
+
+`make ci` runs exactly what CI runs, in the same order, so a green run locally means a
+green run there:
+
+```bash
+make ci
+```
+
+That target is four steps and nothing else. On a machine without `make` — a server, a
+container — run them directly; they are identical:
+
+```bash
+gofmt -l .                                 # prints anything unformatted; must be empty
+go vet ./...
+go test -count=1 ./...
+node --test internal/webui/jstest/*.test.mjs
+```
+
+You need Go (the version in `go.mod`) and Node 24. Nothing else.
+
+| Target | Does |
+|---|---|
+| `make ci` | the four checks above |
+| `make build` | builds `bin/smart-serve`, stamped with `git describe` |
+| `make docker` | builds the image locally as `smart-serve:dev` |
+| `make test-js` | JavaScript tests only |
+
+**These checks are not how you deploy.** Running the app is `docker compose up -d --build`
+or the `docker run` above (`docs/DEPLOYMENT.md`). The checks are for changing the code, and
+they run in CI on every push whether or not you run them yourself.
+
 ## Project status
 
 **MVP complete.** The documents in `docs/` define the planning, scope, and design of
