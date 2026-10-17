@@ -132,3 +132,23 @@ test('every NVMe counter in the table carries a ?', () => {
   assert.equal(helpButtons(table).length, 16, 'all sixteen counters should be explained');
 });
 
+// A missing field must render as a gap, never as the literal word "undefined" — which is
+// what a bare `String(value)` produces. The Raw column did exactly that for an attribute
+// whose raw value the drive never reported, which reads as data rather than as a gap.
+test('a sparse attribute row renders a gap, not "undefined"', () => {
+  // Attribute 9 as a vendor that reports no raw value at all.
+  const text = textOf(attributeTable([{ id: 9, name: 'Power_On_Hours', value: 95, worst: 95, threshold: 0 }]));
+  assert.doesNotMatch(text, /undefined/);
+  assert.doesNotMatch(text, /null/);
+  assert.doesNotMatch(text, /NaN/);
+  assert.match(text, /—/, 'the gap should be visible');
+});
+
+// "— min" reads as a measurement of zero minutes. A bare dash is the honest answer.
+test('an absent minute counter does not render as "— min"', () => {
+  const text = textOf(nvmeTable({ critical_warning: 0, available_spare: 100 }));
+  assert.doesNotMatch(text, /undefined|null|NaN/);
+  assert.doesNotMatch(text, /— min/);
+});
+
+

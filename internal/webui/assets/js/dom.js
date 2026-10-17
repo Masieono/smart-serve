@@ -176,6 +176,31 @@ export function fmtInt(value) {
   return Number(value).toLocaleString();
 }
 
+/**
+ * A table cell value: the value as text, or an em dash when it is absent.
+ *
+ * A bare `String(value)` renders a missing field as the literal "undefined" — or "null",
+ * if the API sent JSON null — which reads as data. "The drive did not report this" and
+ * "this value is the word undefined" must never look the same, which is the same rule
+ * `percent` and `dataUnits` already follow.
+ */
+export function fmtCell(value) {
+  if (value === null || value === undefined) return '—';
+  if (typeof value === 'string' && value.trim() === '') return '—';
+  return String(value);
+}
+
+/**
+ * A counter that is a number of minutes, or an em dash when the drive did not report it.
+ *
+ * Interpolating straight into a template turned an absent value into "— min", which reads
+ * as a measurement rather than as a gap.
+ */
+export function fmtMinutes(value) {
+  if (value === null || value === undefined) return '—';
+  return `${fmtInt(value)} min`;
+}
+
 /** Colour band for a 0–100 score, used by gauges and sparklines. */
 export function scoreBand(score) {
   if (score === null || score === undefined || score < 0) return 'unknown';

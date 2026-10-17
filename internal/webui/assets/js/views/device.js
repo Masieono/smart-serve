@@ -1,6 +1,6 @@
 // Device detail (docs/UI.md §7.2).
 import {
-  el, mount, clear, fmtBytes, fmtDateTime, fmtAgo, fmtTemp, fmtHours, fmtInt, fmtScore,
+  el, mount, clear, fmtBytes, fmtDateTime, fmtAgo, fmtTemp, fmtHours, fmtInt, fmtScore, fmtCell, fmtMinutes,
   scoreGrade, convertTemp, convertTempDelta, temperatureUnitName,
 } from '../dom.js';
 import { api } from '../api.js';
@@ -447,9 +447,9 @@ export function nvmeTable(n) {
       ['power_on_hours', 'Power-on hours', fmtInt(n.power_on_hours)],
       ['power_cycles', 'Power cycles', fmtInt(n.power_cycles)],
       ['unsafe_shutdowns', 'Unsafe shutdowns', fmtInt(n.unsafe_shutdowns)],
-      ['controller_busy_time', 'Controller busy time', `${fmtInt(n.controller_busy_time)} min`],
-      ['warning_temp_time', 'Warning temp time', `${fmtInt(n.warning_temp_time)} min`],
-      ['critical_comp_time', 'Critical comp time', `${fmtInt(n.critical_comp_time)} min`],
+      ['controller_busy_time', 'Controller busy time', fmtMinutes(n.controller_busy_time)],
+      ['warning_temp_time', 'Warning temp time', fmtMinutes(n.warning_temp_time)],
+      ['critical_comp_time', 'Critical comp time', fmtMinutes(n.critical_comp_time)],
     ]],
     ['Workload', [
       ['data_units_read', 'Data units read', dataUnits(n.data_units_read)],
@@ -475,7 +475,7 @@ export function nvmeTable(n) {
           el('span', { text: label }),
           help ? helpButton(label, help) : null,
         ]),
-        el('td', { class: 'num', text: String(value) }),
+        el('td', { class: 'num', text: fmtCell(value) }),
       ]));
     }
   }

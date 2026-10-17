@@ -1,5 +1,5 @@
 // Shared UI components (docs/UI.md §6).
-import { el, svg, fmtBytes, fmtTemp, fmtScore, fmtAgo, fmtDate, fmtTime, scoreGrade, scoreBand, verdictClass } from './dom.js';
+import { el, svg, fmtBytes, fmtTemp, fmtScore, fmtAgo, fmtDate, fmtTime, fmtCell, scoreGrade, scoreBand, verdictClass } from './dom.js';
 import { icon } from './icons.js';
 import { attributeHelp, attributeFlagged } from './attributes.js';
 
@@ -363,7 +363,7 @@ function attributeRow(a) {
   const help = attributeHelp(a.id);
   const flagged = attributeFlagged(a);
   return el('tr', { class: flagged ? 'attr-flagged' : null }, [
-    el('td', { class: 'num', text: String(a.id) }),
+    el('td', { class: 'num', text: fmtCell(a.id) }),
     el('td', {}, [
       el('span', { text: a.name }),
       help ? helpButton(a.name, help) : null,
@@ -374,10 +374,10 @@ function attributeRow(a) {
           }, [icon('alert'), 'At threshold'])
         : null,
     ]),
-    el('td', { class: 'num', text: String(a.value) }),
-    el('td', { class: 'num', text: String(a.worst) }),
-    el('td', { class: 'num', text: String(a.threshold) }),
-    el('td', { class: 'num', text: a.raw_string || String(a.raw_value) }),
+    el('td', { class: 'num', text: fmtCell(a.value) }),
+    el('td', { class: 'num', text: fmtCell(a.worst) }),
+    el('td', { class: 'num', text: fmtCell(a.threshold) }),
+    el('td', { class: 'num', text: fmtCell(a.raw_string || a.raw_value) }),
   ]);
 }
 
