@@ -30,7 +30,8 @@ database daemon.
   events with squelching so a failing drive doesn't spam you on every scan, and
   maintenance windows for planned work.
 - **Tiny footprint** — single static Go binary, embedded frontend, SQLite storage in
-  one file, and a small Alpine-based image (`ADR-020`).
+  one file, and a small Alpine-based image: about **15 MB compressed**, 54 MB on disk
+  (`ADR-020`).
 - **Clean, themable UI** — a sleek, navigable interface designed as a first-class
   requirement: dark / light / auto, Catppuccin, Dracula, Nord, Gruvbox, Synthwave,
   Hacker, Solarized, Tokyo Night and One Dark palettes, plus a custom accent colour —

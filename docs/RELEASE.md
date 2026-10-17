@@ -28,7 +28,9 @@ each one. Written for v1.0.0; reusable afterwards.
       visibility: **Package settings → Danger Zone → Change visibility**. Until it is done,
       `docker compose pull` fails for everyone who has not authenticated, which includes
       everyone reading the README for the first time.
-- [ ] Measure and publish the image size (below).
+- [x] Image size measured and published: **14.8 MB content, 53.5 MB on disk**
+      (`docker image ls` on the homelab host, 2026-10-17). Recorded in `README.md`,
+      `DEPLOYMENT.md` and `ADR-020`.
 - [ ] Add screenshots (below).
 - [ ] Tag `v1.0.0` and create the Release.
 
@@ -49,18 +51,20 @@ width and theme; the dark theme shows the palettes off best.
 
 ## Image size
 
-Not yet measured, and deliberately not claimed anywhere until it is (`ADR-020`). Once the
-package is public:
+Measured for v1.0.0: **14.8 MB content, 53.5 MB on disk** (`docker image ls` on a homelab
+host). Published in `README.md`, `DEPLOYMENT.md` and `ADR-020`.
+
+Re-measure for any release that changes the base image or adds a runtime dependency:
 
 ```sh
 docker compose pull
-docker image ls ghcr.io/masieono/smart-serve                                  # what Docker reports
-docker image inspect ghcr.io/masieono/smart-serve:latest --format '{{.Size}}' # bytes, on disk
+docker image ls ghcr.io/masieono/smart-serve
 ```
 
-Publish **both** the compressed (registry) and on-disk (uncompressed) figures, and say which
-is which. The two differ by roughly a factor of three, which is exactly how a "well under
-20 MB" claim survived unchallenged for the life of the project.
+Publish **both** figures and say which is which: the compressed one is what a user downloads,
+the on-disk one is what their server stores. They differ by more than a factor of three, which
+is exactly how a "well under 20 MB" claim survived unchallenged for the life of the project —
+it was true of one of them.
 
 ## Verifying a release
 

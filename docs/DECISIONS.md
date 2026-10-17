@@ -520,6 +520,12 @@ it is measured and published; when it is, it belongs in the README and `DEPLOYME
 together. `ADR-003`'s passing mention of "static distroless builds" is about why the pure-Go
 SQLite driver was chosen and is unaffected — pure-Go still means a static binary either way.
 
+**Measured (v1.0.0).** `docker image ls` on a homelab host reports **14.8 MB content size**
+and **53.5 MB disk usage** — so the withdrawn claim of "well under 20 MB" was true of the
+compressed figure and wrong about everything else. That is precisely why the two numbers are
+now published together and labelled: a single figure is what let the original claim survive
+unchallenged for the life of the project.
+
 ## ADR-021: Notification secrets are database-only, and the docs now say so
 
 **Context.** `ADR-013` decided that notification secrets would come from three sources with

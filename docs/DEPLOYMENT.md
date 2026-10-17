@@ -6,6 +6,9 @@
 - `smartmontools` ships **inside the image** — nothing to install on the host.
 - **Multi-arch image**: `linux/amd64` and `linux/arm64` — x86-64 servers, ARM NAS
   boxes, Raspberry Pi, and Apple Silicon all pull the same tag (`ADR-010`, D14).
+- **Image size**: about **15 MB compressed** to pull and **54 MB on disk** once extracted
+  (`docker image ls` reports both, as *content size* and *disk usage*). The bundled
+  `smartmontools` and `util-linux` are most of it (`ADR-020`).
 - Host kernel with device nodes visible to the container (options below).
 
 ## The device-access problem (read this first)
