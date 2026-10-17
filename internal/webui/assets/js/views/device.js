@@ -176,6 +176,7 @@ function draw(container, ctx, data, history) {
             onclick: (e) => toggleRaw(d, e.currentTarget) }, ['Show raw output']),
         ]),
         nvme ? nvmeTable(nvme) : attributeTable(attrs),
+        logSummary(d.logs),
         el('div', { id: 'raw-holder' }),
       ]),
     ]),
@@ -486,6 +487,61 @@ export function nvmeTable(n) {
       el('tbody', {}, body),
     ]),
   ]);
+}
+
+/**
+ * What the drive's own logs hold (`FEATURES.md` A20).
+ *
+ * The counts, not the entries — and that limit is deliberate. Neither drive available to
+ * this project has ever logged an error, and smartctl emits no entry list at all when a log
+ * is empty, so the shape of a populated one has never been observed. A panel that rendered
+ * nothing when a drive *does* have something to say would be worse than one that admits the
+ * limit and points at the raw output, which holds the whole document verbatim.
+ *
+ * A count of zero is worth showing: "this drive has never complained" is the answer to the
+ * question that sent someone looking, and leaving it out would leave them wondering.
+ */
+export function logSummary(logs) {
+  if (!logs) return null;
+
+  const rows = [];
+  if (logs.error_count !== undefined) {
+    rows.push(['Error log', logged(logs.error_count, 'entry', 'entries')]);
+  }
+  if (logs.self_test_count !== undefined) {
+    rows.push(['Self-test log', logged(logs.self_test_count, 'result', 'results')]);
+  }
+  if (logs.self_test_supported === false) {
+    rows.push(['Self-test', 'not supported by this drive']);
+  }
+  const timings = [];
+  if (logs.short_minutes !== undefined) timings.push(`short ≈ ${fmtInt(logs.short_minutes)} min`);
+  if (logs.extended_minutes !== undefined) timings.push(`extended ≈ ${fmtInt(logs.extended_minutes)} min`);
+  if (timings.length) rows.push(['Self-test timing', timings.join(' · ')]);
+
+  if (!rows.length && !logs.note) return null;
+
+  return el('div', { class: 'smart-logs' }, [
+    el('h3', { text: 'Drive logs' }),
+    el('div', { class: 'table-wrap' }, [
+      el('table', { class: 'data data-log' }, [
+        el('tbody', {}, rows.map(([k, v]) => el('tr', {}, [
+          el('td', { text: k }),
+          el('td', { class: 'num', text: v }),
+        ]))),
+      ]),
+    ]),
+    // smartctl's own words, quoted rather than paraphrased: when a log could not be read,
+    // its message is usually the whole explanation.
+    logs.note ? el('p', { class: 'muted', text: `smartctl: ${logs.note}` }) : null,
+    el('p', { class: 'muted', text: 'Log entries themselves are in the raw output.' }),
+  ]);
+}
+
+/** "none logged", or "3 entries logged" — a count of zero is a finding, not an absence. */
+function logged(n, singular, plural) {
+  if (n === 0) return 'none logged';
+  return `${fmtInt(n)} ${n === 1 ? singular : plural} logged`;
 }
 
 // NVMe reports volume in "data units" of 1,000 × 512-byte sectors, so the raw

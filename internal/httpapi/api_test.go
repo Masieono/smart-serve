@@ -499,3 +499,24 @@ func TestRawOutputExplainsItselfWhenEmpty(t *testing.T) {
 		t.Errorf("body = %s, want it to suggest a rescan", rec.Body.String())
 	}
 }
+
+// The logs panel is derived from the stored raw document rather than stored separately, so
+// this pins the two things that go wrong with derived values: inventing a summary when there
+// is nothing to derive from, and dropping one when the answer is a legitimate zero.
+func TestLogsFromRawOutput(t *testing.T) {
+	if got := logsFrom(""); got != nil {
+		t.Errorf("logsFrom(empty) = %+v, want nil", got)
+	}
+	// A document that parsed but carries no logs — the shape most drives produce.
+	if got := logsFrom(`{"model_name":"Samsung SSD 850 EVO 250GB"}`); got != nil {
+		t.Errorf("logsFrom(no log sections) = %+v, want nil", got)
+	}
+	// A count of zero is a finding ("this drive has never complained"), not an absence.
+	got := logsFrom(`{"ata_smart_error_log":{"extended":{"count":0}}}`)
+	if got == nil {
+		t.Fatal("logsFrom(count 0) = nil, want a summary — zero is an answer")
+	}
+	if got.ErrorCount == nil || *got.ErrorCount != 0 {
+		t.Errorf("ErrorCount = %v, want 0", got.ErrorCount)
+	}
+}

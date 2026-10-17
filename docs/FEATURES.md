@@ -32,7 +32,7 @@ avoid idle cost.
 | A17 | Health score 0–100 + letter grade | MVP/P2 | 💤 | basic in MVP; trend-aware in P2 |
 | A18 | Snapshot diff ("what changed since last scan") | P2 | 💤 | |
 | A19 | SMART self-test (manual short/long + scheduled) + self-test log | P2 | ⚠ | **eventually — opt-in only, see below** |
-| A20 | SMART error log display | P2 | 🔌 | ATA error log / NVMe error log |
+| A20 | SMART error log display | P2 | 💤 | **done, to a stated limit** — the error and self-test log *counts*, the drive's own self-test timings, and smartctl's words when a log cannot be read. Entry lists are not parsed; see below |
 | A21 | Drive knowledge base (rated TBW, known firmware advisories) | P3 | 💤 | bundled static table; opt-in in-app refresh |
 | A22 | Usable support for drives with no S.M.A.R.T. (USB flash drives, card readers) | P2 | 💤 | **done** — see below |
 | A23 | Fleet-wide export (every drive in one CSV or page) | P2 | 💤 | NAS: what you paste into a spreadsheet when planning a purchase |
@@ -125,6 +125,43 @@ informational attributes are never flagged.
 reason but no attribute id, so a row cannot yet be marked *because the verdict blamed it*.
 Adding an optional attribute id to `Penalty` would make that exact and would retire the
 threshold check above as the only UI-side judgement.
+
+### A20 — The drive's own logs
+
+The question this answers is *"has this drive ever complained?"*, and the honest answer turns
+out to be a **count** rather than a list.
+
+**What is shown.** How many entries the drive's error log and self-test log hold, the drive's
+own estimate of how long its tests run (`short ≈ 2 min · extended ≈ 133 min` on an 850 EVO),
+whether the drive supports self-tests at all, and smartctl's own words when a log could not be
+read. A count of **zero is shown rather than hidden**: *"this drive has never complained"* is
+the answer someone came looking for, and omitting it leaves them wondering.
+
+**What is not shown, and why.** The entry lists. Neither drive available to this project has
+ever logged an error, and smartctl emits no entry list at all when a log is empty — so the
+populated shape has never been observed. Guessing it would produce a panel that renders
+nothing precisely when a drive has something to say, which is the one moment it matters. The
+raw document is stored verbatim for every drive (`A10`) and the panel says so, so the entries
+stay reachable; entry rendering lands when a populated log is captured.
+
+**What the real hardware taught us** — both fixtures are captures, not fabrications:
+
+- `-x` already reads the ATA **extended** comprehensive error log. The summary log is often
+  reported as supported while being permanently empty, so the extended one is preferred.
+- NVMe has no equivalent. The SMART/Health log carries a count (`num_err_log_entries`) and the
+  Error Information log emits only `{size, read, unread}` — a real SN730 reports **one** entry
+  and prints none, with or without `-l error`. For NVMe the count is all there is.
+- A drive with no self-test log says so **only** through smartctl's message
+  (`Read Self-test Log failed: Invalid Field in Command`). Nothing else in the document
+  reports it, which is why a message match carries that one fact.
+- `self_test.polling_minutes` is the drive's own progress basis — exactly what `A19` needs in
+  order to show a percentage instead of a spinner.
+
+**Derived on read, not stored.** A log summary describes the drive's *current* state rather
+than a point in a series, so it is parsed from the stored raw document when the device page
+asks for it: no migration, no snapshot column. It is omitted from the device *list* response
+so a dashboard refresh does not parse every drive's document for data the dashboard does not
+show.
 
 ### A23–A27 / C7 / D8–D11 — The NAS fleet
 

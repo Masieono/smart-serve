@@ -1,0 +1,50 @@
+{
+  "json_format_version": [1, 0],
+  "smartctl": {
+    "version": [7, 4],
+    "svn_revision": "5530",
+    "platform_info": "x86_64-linux-6.12.101+deb13-amd64",
+    "argv": ["smartctl", "-x", "--json", "/dev/nvme0n1"],
+    "messages": [
+      {
+        "string": "Read Self-test Log failed: Invalid Field in Command (0x4002)",
+        "severity": "error"
+      }
+    ],
+    "exit_status": 4
+  },
+  "device": {
+    "name": "/dev/nvme0n1",
+    "info_name": "/dev/nvme0n1",
+    "type": "nvme",
+    "protocol": "NVMe"
+  },
+  "model_name": "WDC PC SN730 SDBQNTY-256G-1001",
+  "serial_number": "21163K803835",
+  "firmware_version": "11170101",
+  "user_capacity": { "blocks": 500118192, "bytes": 256060514304 },
+  "smart_status": { "passed": true, "nvme": { "value": 0 } },
+  "nvme_smart_health_information_log": {
+    "critical_warning": 0,
+    "temperature": 47,
+    "available_spare": 100,
+    "available_spare_threshold": 10,
+    "percentage_used": 8,
+    "data_units_read": 49862230,
+    "data_units_written": 63326145,
+    "host_reads": 700190342,
+    "host_writes": 1301087824,
+    "controller_busy_time": 2027,
+    "power_cycles": 657,
+    "power_on_hours": 29509,
+    "unsafe_shutdowns": 67,
+    "media_errors": 0,
+    "num_err_log_entries": 1,
+    "warning_temp_time": 0,
+    "critical_comp_time": 0
+  },
+  "temperature": { "current": 47 },
+  "power_cycle_count": 657,
+  "power_on_time": { "hours": 29509 },
+  "nvme_error_information_log": { "size": 256, "read": 16, "unread": 0 }
+}

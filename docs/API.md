@@ -130,6 +130,29 @@ understand ATA/NVMe layouts (see SMART_INTERPRETATION.md §9). Fields are omitte
 the drive does not report them; a drive with no S.M.A.R.T. data yields `{}`, and its
 verdict stays `unknown`.
 
+`device.logs` summarises the drive's **own** logs (`FEATURES.md` A20). It appears only on this
+endpoint — the list response omits it, so a dashboard refresh does not parse every drive's
+stored document — and only when the drive reported something. An **absent** field means the
+drive said nothing, which is a different finding from an empty log:
+
+```json
+"logs": {
+  "error_count": 0,
+  "self_test_count": 0,
+  "self_test_supported": true,
+  "short_minutes": 2,
+  "extended_minutes": 133
+}
+```
+
+Counts rather than entry lists, deliberately: smartctl emits no entry list at all when a log is
+empty, so the populated shape has not been observed and is not guessed at. A count of `0` is a
+finding and is present. `note` carries smartctl's own words when a log could not be read — an
+NVMe drive with no self-test log answers the request with an error and reports nothing else
+about it. `self_test_supported: false` means the drive cannot run self-tests, or cannot have
+its self-test log read. The values are parsed from the raw document already stored for the
+device, so no extra device access happens and the idle-cost invariant is untouched.
+
 `projection` is what the drive's **history** says about where it is heading, over a
 180-day window (`internal/interp/longevity.go`, `SCOPE.md` §2.2). The window matches the
 default `retention_days` setting, since snapshots older than that have been pruned; lowering

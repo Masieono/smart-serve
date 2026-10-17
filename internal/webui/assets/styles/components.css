@@ -1481,4 +1481,17 @@ tr.attr-flagged > td {
   vertical-align: middle;
 }
 
+/* What the drive's own logs hold (FEATURES.md A20). It sits inside the S.M.A.R.T. card,
+   below the attribute table, so it needs a heading level of its own rather than a second
+   h2 in the same card. */
+.smart-logs h3 {
+  margin: var(--space-4) 0 var(--space-2);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+.smart-logs p {
+  margin-top: var(--space-2);
+}
+
 

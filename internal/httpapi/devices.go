@@ -56,6 +56,11 @@ type deviceJSON struct {
 	LastSeen  string  `json:"last_seen"`
 	LastScan  *string `json:"last_scan"`
 	IsMissing bool    `json:"is_missing"`
+	// Logs summarises what the drive's own error and self-test logs hold. Present only on
+	// the detail endpoint, and only when the drive reported something: parsing the stored
+	// raw document for every device on every list request would be work for data the
+	// dashboard does not show.
+	Logs *model.LogSummary `json:"logs,omitempty"`
 }
 
 func toDeviceJSON(d store.DeviceRecord) deviceJSON {
@@ -101,6 +106,19 @@ func toDeviceJSON(d store.DeviceRecord) deviceJSON {
 }
 
 func rfc3339(t time.Time) string { return t.UTC().Format(time.RFC3339) }
+
+// logsFrom summarises the drive's own logs out of the raw document stored with it.
+//
+// Nil when the drive reported nothing, so the UI renders no panel rather than an empty one:
+// "we did not look" and "there is nothing there" are different findings, and an empty panel
+// reads as the first.
+func logsFrom(raw string) *model.LogSummary {
+	summary := smart.ParseLogs([]byte(raw))
+	if summary == (model.LogSummary{}) {
+		return nil
+	}
+	return &summary
+}
 
 func (s *Server) handleHealthz(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
@@ -154,8 +172,11 @@ func (s *Server) handleGetDevice(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	device := toDeviceJSON(*rec)
+	device.Logs = logsFrom(rec.RawOutput)
+
 	resp := map[string]any{
-		"device":     toDeviceJSON(*rec),
+		"device":     device,
 		"projection": s.deviceProjection(r.Context(), serial),
 	}
 	if snap, err := s.store.LatestSnapshot(r.Context(), serial); err == nil && snap != nil {
