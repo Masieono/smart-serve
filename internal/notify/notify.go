@@ -408,7 +408,17 @@ func (d *Dispatcher) Dispatch(ctx context.Context, events []Event) {
 			d.log.Warn("unknown notification channel type", "type", ch.Type, "channel", ch.ID)
 			continue
 		}
-		cfg := decodeConfig(ch.Config)
+		cfg, cfgErr := decodeConfig(ch.Label, ch.Config)
+		if cfgErr != nil {
+			// The channel's configuration is unusable, so every event it subscribes to would
+			// fail. Record that per event rather than sending nothing and saying nothing.
+			for _, ev := range events {
+				if subscribed(ch.Events, ev.Type) {
+					d.record(ctx, ch.ID, ev, OutcomeFailed, cfgErr.Error())
+				}
+			}
+			continue
+		}
 		for _, ev := range events {
 			if !subscribed(ch.Events, ev.Type) {
 				continue
@@ -454,7 +464,14 @@ func (d *Dispatcher) SendTest(ctx context.Context, ch store.Channel, ev Event) (
 	ctx, cancel := context.WithTimeout(ctx, d.budget)
 	defer cancel()
 
-	if err := sender.Send(ctx, decodeConfig(ch.Config), ev); err != nil {
+	cfg, err := decodeConfig(ch.Label, ch.Config)
+	if err != nil {
+		if ch.ID != 0 {
+			d.record(ctx, ch.ID, ev, OutcomeFailed, err.Error())
+		}
+		return OutcomeFailed, err
+	}
+	if err := sender.Send(ctx, cfg, ev); err != nil {
 		if ch.ID != 0 {
 			d.record(ctx, ch.ID, ev, OutcomeFailed, err.Error())
 		}
@@ -538,14 +555,22 @@ func subscribed(eventsJSON, typ string) bool {
 	return false
 }
 
-// decodeConfig turns a stored channel config into a map, tolerating garbage.
-func decodeConfig(raw string) map[string]any {
+// decodeConfig turns a stored channel config into a map, tolerating garbage, with any
+// environment or `*_FILE` overrides applied (`secrets.go`).
+//
+// Garbage in the stored JSON is still tolerated: a corrupt row must not break delivery for
+// every other channel. A broken *override* is not tolerated. An unreadable mounted secret is
+// a deployment mistake, and quietly falling back to the stored value would send the wrong
+// credential while the operator believed they had rotated it.
+func decodeConfig(label, raw string) (map[string]any, error) {
 	out := map[string]any{}
-	if strings.TrimSpace(raw) == "" {
-		return out
+	if strings.TrimSpace(raw) != "" {
+		if err := json.Unmarshal([]byte(raw), &out); err != nil {
+			return map[string]any{}, nil
+		}
 	}
-	if err := json.Unmarshal([]byte(raw), &out); err != nil {
-		return map[string]any{}
+	if err := ApplyOverrides(label, out); err != nil {
+		return out, err
 	}
-	return out
+	return out, nil
 }

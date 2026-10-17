@@ -223,6 +223,33 @@ takes effect immediately instead of at the next sleep boundary.
   persisted, and because the draft has no id it is not written to the delivery log
   either.
 
+### Channel objects and environment overrides
+
+A channel object carries two fields beyond its stored configuration (`ADR-022`):
+
+```json
+{
+  "id": 1, "type": "ntfy", "label": "Critical alerts",
+  "config": { "server": "https://ntfy.sh", "topic": "alerts" },
+  "enabled": true, "events": ["health_change"],
+  "env_prefix": "SMARTSERVE_CHANNEL_CRITICAL_ALERTS",
+  "sources": { "token": "environment" }
+}
+```
+
+- `env_prefix` is the prefix this channel's fields are overridden by, derived from its label.
+  It is returned so the editor can *show* the variable names instead of leaving them to be
+  guessed, and so renaming a channel reads as a rename.
+- `sources` names, per field, where the effective value comes from: `environment`, `file` or
+  `database`. Fields with nothing to report are absent.
+
+`sources` deliberately carries **provenance and never values**. Handing a resolved secret to a
+browser would leak it into the page, and the next `PUT` would write it into the database —
+promoting a secret that was meant to stay out of it.
+
+Validation uses the *resolved* config, not the submitted one, so a channel whose token comes
+from the environment can be saved with the token field left blank.
+
 ### `GET /api/notifications` — delivery log
 
 ```json
@@ -234,14 +261,18 @@ takes effect immediately instead of at the next sleep boundary.
   ],
   "event_types": ["health_change", "temperature_high", "device_disappeared",
                   "device_appeared", "scan_failure"],
-  "channel_types": ["discord", "gotify", "ntfy", "smtp", "telegram", "webhook"]
+  "channel_types": ["discord", "gotify", "ntfy", "smtp", "telegram", "webhook"],
+  "channel_env_vars": ["SMARTSERVE_CHANNEL_CRITICAL_ALERTS_TOKEN"]
 }
 ```
 
 `status` is `sent`, `failed` or `squelched`. The log is the only record of an alert
 that fired while a channel was down, so it is the recovery path described in
 ADR-008. `event_types` and `channel_types` are served here so the UI's subscription
-checkboxes and type picker cannot drift from the server.
+checkboxes and type picker cannot drift from the server. `channel_env_vars` lists the names of
+the `SMARTSERVE_CHANNEL_*` variables this deployment has set — **names only, never values** —
+so the editor can badge a field the deployment supplies rather than showing it blank, and can
+stop demanding a value that is never going to be typed into the form (`ADR-022`).
 
 ## Settings
 

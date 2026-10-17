@@ -328,13 +328,19 @@ func TestSubscribed(t *testing.T) {
 }
 
 func TestDecodeConfigToleratesGarbage(t *testing.T) {
-	if cfg := decodeConfig(""); len(cfg) != 0 {
-		t.Errorf("decodeConfig(\"\") = %v, want empty", cfg)
+	for _, raw := range []string{"", "not json"} {
+		cfg, err := decodeConfig("alerts", raw)
+		if err != nil {
+			t.Errorf("decodeConfig(%q) errored: %v", raw, err)
+		}
+		if len(cfg) != 0 {
+			t.Errorf("decodeConfig(%q) = %v, want empty", raw, cfg)
+		}
 	}
-	if cfg := decodeConfig("not json"); len(cfg) != 0 {
-		t.Errorf("decodeConfig(garbage) = %v, want empty", cfg)
+	cfg, err := decodeConfig("alerts", `{"topic":"alerts"}`)
+	if err != nil {
+		t.Fatalf("decodeConfig: %v", err)
 	}
-	cfg := decodeConfig(`{"topic":"alerts"}`)
 	if cfg["topic"] != "alerts" {
 		t.Errorf("decodeConfig = %v", cfg)
 	}

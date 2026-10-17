@@ -50,6 +50,8 @@ function draw(container, ctx, data, log, settings, deviceData) {
   // The server owns the list of channel types it can actually deliver to, so a
   // build without a provider never offers it (docs/NOTIFICATIONS.md).
   const typeList = (log && log.channel_types) || null;
+  // Names only — the server never sends a resolved secret to the browser (ADR-022).
+  const envVarList = (log && log.channel_env_vars) || null;
   const windows = parseWindows(settings && settings.settings && settings.settings.maintenance_windows);
   const devices = ((deviceData && deviceData.devices) || []).filter((d) => d.serial);
   const head = el('div', { class: 'page-head' }, [
@@ -58,7 +60,7 @@ function draw(container, ctx, data, log, settings, deviceData) {
       el('div', { class: 'sub', text: 'Alerts fire on health transitions — never on every scan.' }),
     ]),
     el('span', { class: 'spacer' }),
-    el('button', { class: 'btn btn-primary', type: 'button', onclick: () => editChannel(ctx, null, eventTypes, typeList) },
+    el('button', { class: 'btn btn-primary', type: 'button', onclick: () => editChannel(ctx, null, eventTypes, typeList, envVarList) },
       [icon('plus'), 'New channel']),
   ]);
 
@@ -103,7 +105,7 @@ function draw(container, ctx, data, log, settings, deviceData) {
             }
           } }, ['Test']),
         el('button', { class: 'btn btn-sm btn-ghost', type: 'button', title: 'Edit',
-          onclick: () => editChannel(ctx, c, eventTypes, typeList) }, [icon('settings')]),
+          onclick: () => editChannel(ctx, c, eventTypes, typeList, envVarList) }, [icon('settings')]),
         el('button', { class: 'btn btn-sm btn-ghost', type: 'button', title: 'Delete',
           onclick: async () => {
             if (!(await confirmDialog('Delete channel', `Delete "${c.label || c.type}"?`, 'Delete'))) return;
@@ -475,7 +477,7 @@ const CHANNEL_TYPES = [
       { key: 'topic', label: 'Topic', required: true, placeholder: 'my-smart-alerts',
         help: 'Subscribe to this topic in the ntfy app to receive the alerts.' },
       { key: 'token', label: 'Access token', secret: true,
-        help: 'Can also come from the SMARTSERVE_NTFY_TOKEN environment variable (ADR-013).' },
+        help: 'Can also be supplied by the environment — the variable name is shown below the label.' },
     ],
   },
   {
@@ -574,13 +576,70 @@ export function configFromValues(type, values) {
  * spec that builds the form, so a new required field cannot be added without also
  * being enforced.
  */
-export function missingRequired(type, values) {
+export function missingRequired(type, values, supplied = {}) {
   for (const field of specFor(type).fields) {
+    // A field the deployment supplies is never typed into the form, so demanding it here
+    // would make the override impossible to use — the editor would refuse to save the very
+    // configuration that makes it work.
+    if (supplied[field.key]) continue;
     if (field.required && !String(values[field.key] ?? '').trim()) {
       return `${field.label} is required.`;
     }
   }
   return null;
+}
+
+// --- per-channel environment overrides (ADR-022) -------------------------------------
+//
+// The server resolves `SMARTSERVE_CHANNEL_<LABEL>_<FIELD>` — and its `_FILE` form — over the
+// value stored in the database, so a token can live in a Docker secret rather than in the
+// `/data` volume. The editor has to know the same naming rule: it shows the operator which
+// variable to set, and it must stop demanding a value the deployment already provides.
+//
+// This mirrors `slug()` in `internal/notify/secrets.go`. The rule is duplicated because the
+// name has to appear while the label is being typed, before anything has been saved; both
+// sides are pinned by a test using the same cases, so they cannot drift apart unnoticed.
+
+/** Uppercase, with any run of non-alphanumerics reduced to a single underscore. */
+export function channelSlug(label) {
+  return String(label || '')
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '');
+}
+
+/** The environment prefix for one channel, or '' when the label has no usable characters. */
+export function channelEnvPrefix(label) {
+  const slug = channelSlug(label);
+  return slug ? `SMARTSERVE_CHANNEL_${slug}` : '';
+}
+
+/** Both variables that can override one field: the plain form and the `_FILE` form. */
+export function channelEnvVars(label, key) {
+  const prefix = channelEnvPrefix(label);
+  if (!prefix) return [];
+  const name = `${prefix}_${channelSlug(key)}`;
+  return [name, `${name}_FILE`];
+}
+
+/**
+ * The fields the deployment supplies, as a `key → "environment" | "file"` map.
+ *
+ * `set` is the list of variable names the server reports as present. A field counts as
+ * supplied only when the exact variable is set, not when it merely *could* be — so a typo in
+ * the label shows up as a field that still asks for a value, rather than as a save that
+ * quietly does nothing.
+ */
+export function suppliedFields(label, spec, set) {
+  const names = new Set(set || []);
+  const out = {};
+  for (const field of (spec && spec.fields) || []) {
+    const [plain, file] = channelEnvVars(label, field.key);
+    if (!plain) continue;
+    if (names.has(plain)) out[field.key] = 'environment';
+    else if (names.has(file)) out[field.key] = 'file';
+  }
+  return out;
 }
 
 /** The channel types the editor offers, in order. */
@@ -589,7 +648,7 @@ export function channelTypes() {
 }
 
 
-function editChannel(ctx, existing, eventTypes = EVENT_TYPES, serverTypes = null) {
+function editChannel(ctx, existing, eventTypes = EVENT_TYPES, serverTypes = null, envVarList = null) {
   const saved = parseConfig(existing && existing.config);
   const offered = availableTypes(serverTypes);
 
@@ -605,14 +664,19 @@ function editChannel(ctx, existing, eventTypes = EVENT_TYPES, serverTypes = null
       value: (existing && existing.label) || '',
       placeholder: 'e.g. server alerts',
     });
+    const envHint = hint('');
 
     // Controls are built once per type and kept, so flicking through the type list
     // does not discard what has already been typed.
     const groups = new Map();
     const controls = new Map();
+    // Per-field badges saying the deployment supplies this value (`ADR-022`). Collected in
+    // the same shape as `controls` so they can be refreshed whenever the label changes.
+    const badges = new Map();
 
     for (const spec of offered) {
       const map = {};
+      const badgeMap = {};
       const fields = spec.fields.map((field) => {
         let control;
         if (field.options) {
@@ -631,13 +695,18 @@ function editChannel(ctx, existing, eventTypes = EVENT_TYPES, serverTypes = null
         if (field.placeholder) control.placeholder = field.placeholder;
 
         map[field.key] = control;
+        const badge = el('span', { class: 'badge badge-good env-supplied' });
+        badge.hidden = true;
+        badgeMap[field.key] = badge;
         return el('div', { class: 'field' }, [
           el('label', { text: field.label }),
           control,
+          badge,
           field.help ? hint(field.help) : null,
         ]);
       });
       controls.set(spec.type, map);
+      badges.set(spec.type, badgeMap);
       groups.set(spec.type, el('div', { class: 'stack', style: 'gap:var(--space-3)' }, fields));
     }
 
@@ -646,6 +715,34 @@ function editChannel(ctx, existing, eventTypes = EVENT_TYPES, serverTypes = null
     };
     type.addEventListener('change', syncType);
     syncType();
+
+    /**
+     * Refresh the environment-override badges and the variable-name hint.
+     *
+     * Recomputed from the label as it is typed, because the variable name is derived from the
+     * label: renaming a channel changes which variables it reads, and seeing that immediately
+     * is far better than discovering it because alerts quietly stopped arriving.
+     */
+    const syncSupplied = () => {
+      const spec = specFor(type.value);
+      const supplied = suppliedFields(label.value, spec, envVarList);
+      const badgeMap = badges.get(spec.type) || {};
+      for (const field of spec.fields) {
+        const badge = badgeMap[field.key];
+        if (!badge) continue;
+        const source = supplied[field.key];
+        badge.hidden = !source;
+        badge.textContent = source === 'file' ? 'from file' : 'from environment';
+      }
+      const prefix = channelEnvPrefix(label.value);
+      envHint.hidden = !prefix;
+      envHint.textContent = prefix
+        ? `Environment overrides: ${prefix}_<FIELD>, or …_<FIELD>_FILE for a mounted secret file.`
+        : '';
+    };
+    label.addEventListener('input', syncSupplied);
+    type.addEventListener('change', syncSupplied);
+    syncSupplied();
 
     const enabled = el('input', { type: 'checkbox', checked: existing ? existing.enabled : true });
 
@@ -669,12 +766,13 @@ function editChannel(ctx, existing, eventTypes = EVENT_TYPES, serverTypes = null
       const map = controls.get(spec.type);
       const values = {};
       for (const field of spec.fields) values[field.key] = map[field.key].value;
-      return missingRequired(type.value, values);
+      // A field the deployment supplies is never typed here, so it must not be demanded.
+      return missingRequired(type.value, values, suppliedFields(label.value, spec, envVarList));
     };
 
     body.append(
       el('div', { class: 'field' }, [el('label', { text: 'Type' }), type]),
-      el('div', { class: 'field' }, [el('label', { text: 'Label' }), label]),
+      el('div', { class: 'field' }, [el('label', { text: 'Label' }), label, envHint]),
       ...groups.values(),
       el('div', { class: 'field' }, [
         el('label', { text: 'Send me an alert when…' }),

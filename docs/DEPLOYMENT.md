@@ -188,23 +188,77 @@ retention, squelch windows) are configured **in the UI**, never via env vars.
 
 ### Secrets
 
-Notification secrets — ntfy tokens, webhook auth headers, bot tokens, SMTP passwords — are
-set **per channel in the web UI** and stored in the database, because they belong to a
-channel rather than to the process.
+Smart-Serve itself needs **no credentials** — no login, no database password, no API key. The
+only secrets it handles are **notification channel credentials**: ntfy access tokens, Gotify
+app tokens, Telegram bot tokens, Discord webhook URLs, SMTP passwords, and any authorisation
+header a generic webhook needs. Use no notification channels and there are none.
 
-`ADR-013` decided on three sources with precedence **environment > mounted secret file >
-database**, so a token could be kept out of both the compose file and the `/data` volume.
-**Only the database source exists today.** Environment and `*_FILE` resolution are deferred
-and recorded as wanted (`ADR-021`).
+A channel's fields come from three places, with precedence **environment > mounted file >
+database** (`ADR-013`, `ADR-022`):
 
-> **Setting `SMARTSERVE_NTFY_TOKEN_FILE`, or any other `*_FILE` variable, does nothing.**
-> The app reads no `*_FILE` variable at all. A channel configured that way simply has no
-> token, and its notifications fail silently. Configure channels in the UI.
+1. **The environment**, including a Compose `env_file:` or `.env` file. Note that *Docker
+   Compose* reads `.env` and injects it; the app never parses `.env` itself.
+2. **A mounted file**, through the `_FILE` form of the same variable — the Docker-secrets
+   convention, which keeps the value out of the compose file, out of the process environment,
+   and out of `docker inspect` output.
+3. **The database**, set in the web UI. Convenient, no restart needed, and where a value lands
+   when neither of the above supplies it.
 
-The practical consequence: the token lives in `/data/smartserve.db`, and therefore in
-whatever you back that volume up with. Treat that volume as sensitive. If you manage
-configuration as code, this is the one place where the app does not yet meet you — prefer a
-UI-set secret you can rotate, and see `ADR-021` for the plan.
+#### Naming
+
+Variables are named after the channel's **label**, because a label is the only identifier a
+compose file can know — an id is assigned on insert, and changes if a channel is deleted and
+recreated:
+
+```
+SMARTSERVE_CHANNEL_<LABEL>_<FIELD>
+SMARTSERVE_CHANNEL_<LABEL>_<FIELD>_FILE
+```
+
+`<LABEL>` and `<FIELD>` are uppercased with each run of non-alphanumerics reduced to a single
+underscore. So a channel labelled `Critical alerts` with a `token` field reads
+`SMARTSERVE_CHANNEL_CRITICAL_ALERTS_TOKEN`:
+
+```yaml
+# Straight from the environment, or from a gitignored .env beside this file:
+environment:
+  SMARTSERVE_CHANNEL_CRITICAL_ALERTS_TOKEN: tk_abc123
+
+# ...or from a mounted file, so the value never appears in the compose file at all:
+environment:
+  SMARTSERVE_CHANNEL_WEEKLY_DIGEST_TOKEN_FILE: /run/secrets/ntfy_digest
+secrets:
+  - ntfy_digest
+
+secrets:
+  ntfy_digest:
+    file: ./ntfy_digest_token        # this file contains the token and nothing else
+```
+
+**Every string field is overridable, not only the secret ones.** One mechanism therefore
+covers both "keep the token in a Docker secret" and "point this channel at a different ntfy
+server per environment".
+
+**The editor shows the variable names.** Open a channel and the expected prefix is printed
+beneath the label; any field the deployment supplies is badged *from environment* or *from
+file* rather than looking blank. This matters because the name is derived from the label:
+**renaming a channel changes which variables it reads**, and the badge makes that visible
+instead of leaving you to discover it when alerts stop arriving.
+
+**A broken secret file is an error, never a fallback.** If a `..._FILE` variable points at a
+missing or empty file, the send fails and the delivery log records why. It does not quietly
+fall back to the stored value — that would send a stale token while you believed you had
+rotated it.
+
+**Values are never sent to the browser.** The API reports which variables are *set*, not what
+they hold. A resolved secret handed to the page would leak into it, and the next Save would
+write it into the database — promoting a secret that was meant to stay out of it.
+
+#### What this means for your data volume
+
+Anything not supplied by the environment or a file lives in `/data/smartserve.db`, and
+therefore in whatever you back that volume up with. If that includes a NAS or a cloud target,
+use the environment or a mounted file for the tokens. See `.env.example` and `ADR-022`.
 
 ### Licensing
 

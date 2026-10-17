@@ -560,6 +560,79 @@ volume is backed up with — which is precisely the outcome `ADR-013` was writte
 `DEPLOYMENT.md` now says so where a reader will see it. (±) implementing `ADR-013` later
 supersedes this ADR rather than contradicting it.
 
+**Superseded by `ADR-022`.** The deferral lasted one session: the mechanism was built for v1
+rather than shipped as a documented absence, and the per-channel form was chosen over the
+global variables this ADR left open. What remains true here is the finding — that a
+documentation defect which produces no error is worse than a missing feature.
+
+## ADR-022: Per-channel environment overrides, keyed by the channel label
+
+**Context.** `ADR-021` corrected the documentation to admit that `ADR-013`'s three secret
+sources had never been built, and deferred the work. The owner chose to build it for v1 rather
+than ship with the gap, and specifically chose the per-channel form over a global
+`SMARTSERVE_NTFY_TOKEN`-style variable.
+
+That choice follows from the reason `ADR-013` put secrets in the database at all: a secret
+belongs to a **channel**, not to the process. Two ntfy channels — a noisy one and a quiet one —
+need two tokens, and a variable named after the channel *type* cannot express that. It is also
+a trap rather than a simplification: it works for exactly one channel of each type, and the
+migration to something that works for more is the same work later.
+
+**Decision.** Every string field of every channel is overridable from the environment, named
+after the channel's **label**:
+
+```
+SMARTSERVE_CHANNEL_<LABEL>_<FIELD>            # the value
+SMARTSERVE_CHANNEL_<LABEL>_<FIELD>_FILE       # a file to read the value from
+```
+
+where `<LABEL>` and `<FIELD>` are uppercased with each run of non-alphanumerics reduced to a
+single underscore. A channel labelled `Critical alerts` with a `token` field therefore reads
+`SMARTSERVE_CHANNEL_CRITICAL_ALERTS_TOKEN`. Precedence stays **environment > file > database**,
+as `ADR-013` decided.
+
+Four judgements sit inside that:
+
+1. **Keyed by label, not by id.** An id is assigned on insert, differs between a fresh database
+   and a restored one, and changes when a channel is recreated — none of which a compose file
+   can know. A label is what the operator writes. The cost is that renaming a channel changes
+   its variable names, which is why the editor displays the name and recomputes it as the label
+   is typed: a rename is then *visible* rather than silently falling back to the database.
+2. **Every string field, not only the ones marked secret.** One mechanism then covers both
+   "keep the bot token in a Docker secret" and "point this channel at a different ntfy server
+   per environment", and there is no second list of secret field names to keep in step with the
+   adapters as they change.
+3. **A broken `_FILE` is an error, never a fallback.** A missing or empty mounted secret reports
+   itself and the delivery is recorded as failed. Falling back to the stored value would send a
+   stale token while the operator believed they had rotated it — the same silent failure that
+   made the undocumented version of this feature so damaging.
+4. **The API returns provenance, never values.** The editor needs to know *that* a field is
+   supplied, not what it holds. Handing a resolved secret to the browser would leak an
+   environment secret into the page, and the next Save would write it into the database —
+   quietly promoting a secret that was meant to stay out of it. The server reports the *names*
+   of the variables it has set and the editor derives its badges from them; those names come
+   from labels the operator chose, so nothing is disclosed that the interface did not already
+   show.
+
+**Alternatives.**
+- *`SMARTSERVE_NTFY_TOKEN`-style globals* — rejected, per the context above.
+- *Keying by channel id* — rejected: not knowable from a compose file, and unstable across a
+  restore.
+- *`*_FILE` for secrets only, leaving other fields alone* — rejected as two mechanisms for one
+  idea, and as a list that would need maintaining alongside the adapters.
+- *Returning resolved values so the form shows what will be sent* — rejected: it leaks the
+  secret and then writes it back.
+
+**Consequences.** (+) a token can live in a Docker secret, so backups of `/data` stop carrying
+it; the same mechanism configures a channel entirely from the environment; and a mismatch
+between a label and its environment is visible in the editor rather than silent. (−) the naming
+rule now exists twice — in `internal/notify/secrets.go` and in
+`internal/webui/assets/js/views/notifications.js` — because the name has to appear while the
+label is being typed, before anything is saved. Both are pinned by tests using the same table of
+cases, which is the only thing keeping two implementations of one rule honest. (±) `ADR-021` is
+superseded, not contradicted: it remains the record of how the gap was found and why the
+documentation was corrected in the meantime.
+
 
 
 

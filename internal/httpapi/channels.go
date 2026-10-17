@@ -16,13 +16,31 @@ type channelJSON struct {
 	Config  json.RawMessage `json:"config"`
 	Enabled bool            `json:"enabled"`
 	Events  json.RawMessage `json:"events"`
+	// EnvPrefix is the prefix a deployment uses to override this channel's fields, derived
+	// from the label (`ADR-022`). The UI shows it so the variable name never has to be
+	// guessed, and so renaming a channel is visible rather than silently breaking the
+	// override.
+	EnvPrefix string `json:"env_prefix"`
+	// Sources names where each overridden field's effective value comes from — "environment"
+	// or "file". Fields with no override are absent.
+	//
+	// Provenance only, never the resolved values: handing a secret to a browser would leak an
+	// environment secret into the page, and the next Save would write it into the database,
+	// quietly promoting a secret that was meant to stay out of it.
+	Sources map[string]notify.SecretSource `json:"sources,omitempty"`
 }
 
 func toChannelJSON(c store.Channel) channelJSON {
-	return channelJSON{
+	out := channelJSON{
 		ID: c.ID, Type: c.Type, Label: c.Label,
 		Config: rawOrNull(c.Config), Enabled: c.Enabled, Events: rawOrNull(c.Events),
+		EnvPrefix: notify.EnvPrefix(c.Label),
 	}
+	cfg := map[string]any{}
+	if err := json.Unmarshal([]byte(c.Config), &cfg); err == nil {
+		out.Sources = notify.Sources(c.Label, cfg)
+	}
+	return out
 }
 
 type channelBody struct {
@@ -72,7 +90,7 @@ func (s *Server) handleCreateChannel(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "type is required")
 		return
 	}
-	if msg := s.validateChannelConfig(body.Type, body.Config); msg != "" {
+	if msg := s.validateChannelConfig(body.Type, body.Label, body.Config); msg != "" {
 		writeError(w, http.StatusBadRequest, msg)
 		return
 	}
@@ -124,7 +142,7 @@ func (s *Server) handleUpdateChannel(w http.ResponseWriter, r *http.Request) {
 	if body.Enabled == nil {
 		merged.Enabled = existing.Enabled
 	}
-	if msg := s.validateChannelConfig(merged.Type, json.RawMessage(merged.Config)); msg != "" {
+	if msg := s.validateChannelConfig(merged.Type, merged.Label, json.RawMessage(merged.Config)); msg != "" {
 		writeError(w, http.StatusBadRequest, msg)
 		return
 	}
@@ -184,13 +202,19 @@ func (s *Server) handleTestChannel(w http.ResponseWriter, r *http.Request) {
 // or a malformed URL is rejected at the point of editing rather than at 3 a.m.
 // It returns a message, or "" when the config is acceptable (or unverifiable
 // because notification delivery is not wired in).
-func (s *Server) validateChannelConfig(typ string, raw json.RawMessage) string {
+func (s *Server) validateChannelConfig(typ, label string, raw json.RawMessage) string {
 	if s.notifier == nil || len(raw) == 0 {
 		return ""
 	}
 	cfg := map[string]any{}
 	if err := json.Unmarshal(raw, &cfg); err != nil {
 		return "config must be a JSON object"
+	}
+	// Validate what will actually be *sent*, not what is on screen. A token supplied by the
+	// environment or a mounted file is absent from the editor's form, so validating the form
+	// alone would reject the very save that makes the override usable.
+	if err := notify.ApplyOverrides(label, cfg); err != nil {
+		return err.Error()
 	}
 	if err := s.notifier.ValidateConfig(typ, cfg); err != nil {
 		return err.Error()
@@ -216,7 +240,7 @@ func (s *Server) handleTestChannelConfig(w http.ResponseWriter, r *http.Request)
 		writeError(w, http.StatusBadRequest, "type is required")
 		return
 	}
-	if msg := s.validateChannelConfig(body.Type, body.Config); msg != "" {
+	if msg := s.validateChannelConfig(body.Type, body.Label, body.Config); msg != "" {
 		writeError(w, http.StatusBadRequest, msg)
 		return
 	}
@@ -267,5 +291,9 @@ func (s *Server) handleNotifications(w http.ResponseWriter, r *http.Request) {
 		"notifications": out,
 		"event_types":   notify.EventTypes,
 		"channel_types": channelTypes,
+		// The names of the channel override variables this deployment has set, so the editor
+		// can mark a field as supplied rather than showing it empty — and can stop demanding
+		// a value that is never going to be typed into the form. Names only: `secrets.go`.
+		"channel_env_vars": notify.ChannelEnvVars(),
 	})
 }

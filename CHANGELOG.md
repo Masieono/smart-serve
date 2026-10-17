@@ -30,6 +30,10 @@ First public release.
 - **Notifications** — ntfy, Gotify, Telegram, Discord, SMTP email and generic webhooks, with
   health-transition events, squelching, maintenance windows, and per-channel event
   subscriptions.
+- **Per-channel environment overrides** — any channel field can be supplied from the
+  environment or a mounted file (`SMARTSERVE_CHANNEL_<LABEL>_<FIELD>`, with a `_FILE` form), so
+  a notification token can stay out of the data volume and out of its backups. The editor shows
+  the variable names and badges the fields the deployment supplies.
 - **Export** — plain text (the format to attach to a warranty claim), a self-contained web
   page, a spreadsheet, or JSON.
 - **Interface** — dark, light and auto themes, a custom accent, eleven community palettes,
@@ -44,9 +48,10 @@ First public release.
 - The container needs read access to raw device nodes, which requires `CAP_SYS_ADMIN` and
   `CAP_SYS_RAWIO`. That is a real privilege grant — read `docs/DEPLOYMENT.md` before
   deploying, and prefer the least-privilege option that works for your host.
-- Notification secrets are stored in the SQLite database and therefore in the `/data` volume.
-  Environment and `*_FILE` secret resolution is deferred (`ADR-021`); treat the volume as
-  sensitive.
+- Notification channel credentials can be supplied from the environment or a mounted file
+  (`SMARTSERVE_CHANNEL_<LABEL>_<FIELD>`, with a `_FILE` form), so a token need not live in the
+  `/data` volume or in whatever backs it up. A `_FILE` that cannot be read fails the send and
+  records why, rather than falling back to a stored value (`ADR-022`).
 
 ### Known limitations
 

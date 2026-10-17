@@ -21,6 +21,9 @@ each one. Written for v1.0.0; reusable afterwards.
 ## Before the first public release (v1.0.0)
 
 - [x] Repository renamed to `masieono/smart-serve`.
+- [x] Documentation reconciled with the code: the image base (`ADR-020`), and notification
+      secret handling — `ADR-021` recorded the gap, and `ADR-022` built the mechanism rather
+      than shipping a description of its absence.
 - [ ] **Flip the GHCR package to public.** This is a *separate* switch from repository
       visibility: **Package settings → Danger Zone → Change visibility**. Until it is done,
       `docker compose pull` fails for everyone who has not authenticated, which includes

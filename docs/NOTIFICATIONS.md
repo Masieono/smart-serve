@@ -65,6 +65,33 @@ pipeline. `GET /api/notifications` reports the registered set as `channel_types`
 and the UI's editor offers exactly that list — a build without a provider cannot
 offer it.
 
+### Supplying fields from the environment
+
+Every string field of a channel can come from the environment instead of the stored config,
+named after the channel's **label**:
+
+```
+SMARTSERVE_CHANNEL_<LABEL>_<FIELD>            # the value
+SMARTSERVE_CHANNEL_<LABEL>_<FIELD>_FILE       # a file to read the value from
+```
+
+Precedence is **environment > file > database**, resolved in `internal/notify/secrets.go` at the
+moment a config is decoded — so a dispatch and a **Test** see the same values. This is how a
+token stays out of the `/data` volume, and it is deliberately *not* limited to the fields the
+editor marks as secret: the same mechanism points a channel at a different server per
+environment.
+
+Two things worth knowing when editing a channel:
+
+- **Renaming a channel changes which variables it reads.** The editor prints the expected
+  prefix and badges every field the deployment supplies, so the mismatch is visible rather
+  than silent.
+- **A `_FILE` that cannot be read is an error, not a fallback.** The delivery is recorded as
+  failed with the reason. It never quietly uses the stored value, which would send a stale
+  token while you believed you had rotated it.
+
+`DEPLOYMENT.md` §Secrets has the compose examples; `ADR-022` has the reasoning.
+
 ### ntfy (first-class)
 
 Config schema:
