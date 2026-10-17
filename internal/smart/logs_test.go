@@ -32,6 +32,33 @@ func TestParseLogsATA(t *testing.T) {
 	}
 }
 
+// The BTO-1TB fixture is the only drive available to this project with a **populated** error
+// log, and it is what settled the counts-only decision. On a drive smartctl does not recognise
+// (`in_smartctl_database: false`), a logged error carries an error number and an index and
+// nothing else — no LBA, no timestamp, no status — so a row per entry would be a row of dashes.
+//
+// Its self-test log is fully populated by contrast: type, status including the percentage
+// remaining for a test in progress, and lifetime hours. That is the shape `A19` will render.
+func TestParseLogsATAWithPopulatedLogs(t *testing.T) {
+	got := ParseLogs(loadFixture(t, "ata-bto-1tb-logs.json"))
+
+	if got.ErrorCount == nil || *got.ErrorCount != 1 {
+		t.Errorf("ErrorCount = %v, want 1 — this drive has logged an error", got.ErrorCount)
+	}
+	if got.SelfTestCount == nil || *got.SelfTestCount != 2 {
+		t.Errorf("SelfTestCount = %v, want 2", got.SelfTestCount)
+	}
+	if got.SelfTestSupported == nil || !*got.SelfTestSupported {
+		t.Errorf("SelfTestSupported = %v, want true", got.SelfTestSupported)
+	}
+	if got.ShortMinutes == nil || *got.ShortMinutes != 2 {
+		t.Errorf("ShortMinutes = %v, want 2", got.ShortMinutes)
+	}
+	if got.ExtendedMinutes == nil || *got.ExtendedMinutes != 10 {
+		t.Errorf("ExtendedMinutes = %v, want 10", got.ExtendedMinutes)
+	}
+}
+
 // The NVMe fixture is a real WDC SN730. Two things about it matter:
 //
 //   - its SMART/Health log counts one error entry while the Error Information log emits no

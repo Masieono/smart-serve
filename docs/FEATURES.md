@@ -163,24 +163,25 @@ asks for it: no migration, no snapshot column. It is omitted from the device *li
 so a dashboard refresh does not parse every drive's document for data the dashboard does not
 show.
 
-**Outstanding verification — entry rendering.** This is the one part of `A20` that cannot be
-tested yet, and it is recorded here so it is picked up rather than rediscovered. No drive
-available to this project has ever logged an error, so there is no captured sample of a
-populated log `table`, and smartctl emits no entry list at all when a log is empty. The parser
-therefore reads counts only.
+**Entry rendering — sampled, and the sample justifies the limit.** A populated ATA error log
+was finally captured, from a second host (`ata-bto-1tb-logs.json`), and it settles the question
+the counts-only decision was hedging against:
 
-To close the gap, capture **one** drive that has logged something and add it as a fixture:
-
-```sh
-docker compose exec smart-serve smartctl -x --json /dev/sdX                    # ATA
-docker compose exec smart-serve smartctl -l error --json /dev/nvme0n1          # NVMe
+```json
+"ata_smart_error_log": {
+  "extended": { "revision": 1, "sectors": 1, "count": 1, "logged_count": 1,
+                "table": [ { "error_number": 1, "log_index": 0 } ] }
+}
 ```
 
-For ATA, check `ata_smart_error_log.extended.count` is non-zero; a drive pulled from a NAS
-after a few years of service is the likeliest source. When a sample exists the work is
-contained: `internal/smart/logs.go` gains the entry fields, `internal/model/logs.go` gains the
-entry type, and `logSummary()` in `internal/webui/assets/js/views/device.js` gains the rows.
-The panel already has a place for them and the counts stay as they are.
+On a drive smartctl does not recognise (`in_smartctl_database: false`), a logged error carries
+**an error number and an index, and nothing else** — no LBA, no timestamp, no status. Rendering
+that as a row would be a row of dashes, and it would look broken. The count is the finding and
+the raw output holds the rest, so the panel stays as it is.
+
+The **self-test log is a different shape entirely**: its entries carry `type`, `status`
+(including `remaining_percent` for a test in progress) and `lifetime_hours`. So `A19` can render
+those properly, and this fixture is what it will be built against.
 
 ### A23–A27 / C7 / D8–D11 — The NAS fleet
 

@@ -1,5 +1,5 @@
 // Shared UI components (docs/UI.md §6).
-import { el, svg, fmtBytes, fmtTemp, fmtScore, fmtAgo, fmtDate, fmtTime, fmtCell, scoreGrade, scoreBand, verdictClass } from './dom.js';
+import { el, svg, fmtBytes, fmtTemp, fmtScore, fmtAgo, fmtDate, fmtTime, fmtCell, append, scoreGrade, scoreBand, verdictClass } from './dom.js';
 import { icon } from './icons.js';
 import { attributeHelp, attributeFlagged } from './attributes.js';
 
@@ -401,10 +401,14 @@ export function helpButton(name, help) {
 /** Explain one field: what it is, and how to read it. */
 export function showHelp(name, help) {
   openDialog(name, (body, close, foot) => {
-    body.append(
+    // `append` from dom.js, *not* the native method. The native `Element.append` stringifies
+    // anything that is not a Node — including `null` — into a text node, so an attribute with
+    // no `watch` line rendered the literal word "null" under its explanation. The helper
+    // drops nulls instead, which is the whole reason it exists.
+    append(body, [
       el('p', { text: help.what }),
       help.watch ? el('p', { class: 'muted', text: help.watch }) : null,
-    );
+    ]);
     foot.append(el('button', { class: 'btn', type: 'button', text: 'Close', onclick: close }));
   });
 }

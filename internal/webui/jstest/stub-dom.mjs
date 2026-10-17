@@ -49,13 +49,21 @@ export class StubNode {
     this.style = new StubStyle();
   }
 
-  // Element.append takes any number of nodes; a stub that accepted only the first
-  // would silently drop siblings and make a two-button footer look like a one-button
-  // footer.
+  // Mimics the native `Element.append`: anything that is not a Node is stringified into a
+  // text node, *including* `null` and `undefined`.
+  //
+  // The project's own `append` helper filters those out before they reach here, so a null
+  // arriving at this method means a call site bypassed the helper — which is exactly how the
+  // attribute `?` dialog came to render the literal word "null". An earlier version of this
+  // stub dropped such arguments silently, so the entire test suite was blind to it.
   append(...children) {
     for (const child of children) {
-      if (child && typeof child === 'object') child.parent = this;
-      this.childNodes.push(child);
+      if (child instanceof StubNode) {
+        child.parent = this;
+        this.childNodes.push(child);
+      } else {
+        this.childNodes.push(new StubText(String(child)));
+      }
     }
   }
 

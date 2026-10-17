@@ -151,4 +151,49 @@ test('an absent minute counter does not render as "— min"', () => {
   assert.doesNotMatch(text, /— min/);
 });
 
+// The precondition that makes the two tests below meaningful: the stub must stringify what
+// the browser stringifies. If it quietly dropped a null, a dialog could render the word
+// "null" and every assertion here would still pass.
+test('the DOM stub stringifies non-node arguments, as the browser does', () => {
+  const node = new StubNode('div');
+  node.append('a', null, undefined, 7);
+  assert.equal(textOf(node), 'a null undefined 7');
+});
+
+// Every help dialog is opened and checked for the literal word "null".
+//
+// The bug this guards against was not a wrong value but a wrong *absence*: an entry with no
+// `watch` line passed a null to the native `Element.append`, which stringifies whatever it is
+// given, so the dialog read "…replace worn-out blocks. null" underneath the explanation. It
+// reached a real deployment because the DOM stub dropped null arguments silently — so this
+// test only works because the stub was fixed to behave like the real thing first.
+test('no attribute help dialog renders null or undefined', () => {
+  const ids = Object.keys(ATTRIBUTE_HELP);
+  assert.ok(ids.length > 20, 'expected a curated table, not a handful of entries');
+
+  for (const id of ids) {
+    const table = attributeTable([attr(Number(id), 'Probe', 100, 100, 0)]);
+    const button = helpButtons(table)[0];
+    assert.ok(button, `attribute ${id} has help text but no ? button`);
+    button.click();
+
+    const dialogs = document.body.all('dialog');
+    const text = textOf(dialogs[dialogs.length - 1]);
+    assert.doesNotMatch(text, /null/, `attribute ${id} dialog: ${text}`);
+    assert.doesNotMatch(text, /undefined/, `attribute ${id} dialog: ${text}`);
+  }
+});
+
+test('no NVMe help dialog renders null or undefined', () => {
+  const buttons = helpButtons(nvmeTable(NVME_HEALTH));
+  assert.equal(buttons.length, 16, 'expected one ? per NVMe counter');
+
+  for (const button of buttons) {
+    button.click();
+    const dialogs = document.body.all('dialog');
+    const text = textOf(dialogs[dialogs.length - 1]);
+    assert.doesNotMatch(text, /null|undefined/, `NVMe dialog: ${text}`);
+  }
+});
+
 

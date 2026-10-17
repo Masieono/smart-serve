@@ -1,0 +1,101 @@
+{
+  "json_format_version": [1, 0],
+  "smartctl": {
+    "version": [7, 4],
+    "svn_revision": "5530",
+    "platform_info": "x86_64-linux-6.12.101+deb13-amd64",
+    "drive_database_version": { "string": "7.3/5528" },
+    "argv": ["smartctl", "-x", "--json", "/dev/sda"],
+    "exit_status": 64
+  },
+  "device": {
+    "name": "/dev/sda",
+    "info_name": "/dev/sda [SAT]",
+    "type": "sat",
+    "protocol": "ATA"
+  },
+  "model_name": "BTO-1TB",
+  "serial_number": "AA000000000000000073",
+  "firmware_version": "S1022A0",
+  "user_capacity": { "blocks": 2000409264, "bytes": 1024209543168 },
+  "logical_block_size": 512,
+  "rotation_rate": 0,
+  "form_factor": { "ata_value": 3, "name": "2.5 inches" },
+  "in_smartctl_database": false,
+  "smart_status": { "passed": true },
+  "ata_smart_data": {
+    "offline_data_collection": {
+      "status": { "value": 0, "string": "was never started" },
+      "completion_seconds": 120
+    },
+    "self_test": {
+      "status": { "value": 0, "string": "completed without error", "passed": true },
+      "polling_minutes": { "short": 2, "extended": 10 }
+    },
+    "capabilities": {
+      "values": [17, 2],
+      "exec_offline_immediate_supported": true,
+      "offline_surface_scan_supported": false,
+      "self_tests_supported": true,
+      "conveyance_self_test_supported": false,
+      "selective_self_test_supported": false,
+      "attribute_autosave_enabled": false,
+      "error_logging_supported": true,
+      "gp_logging_supported": true
+    }
+  },
+  "ata_smart_attributes": {
+    "revision": 1,
+    "table": [
+      { "id": 1, "name": "Raw_Read_Error_Rate", "value": 100, "worst": 100, "thresh": 50, "raw": { "value": 0, "string": "0" } },
+      { "id": 5, "name": "Reallocated_Sector_Ct", "value": 100, "worst": 100, "thresh": 50, "raw": { "value": 0, "string": "0" } },
+      { "id": 9, "name": "Power_On_Hours", "value": 100, "worst": 100, "thresh": 50, "raw": { "value": 3505, "string": "3505" } },
+      { "id": 12, "name": "Power_Cycle_Count", "value": 100, "worst": 100, "thresh": 50, "raw": { "value": 872, "string": "872" } },
+      { "id": 169, "name": "Unknown_Attribute", "value": 100, "worst": 100, "thresh": 50, "raw": { "value": 100, "string": "100" } },
+      { "id": 177, "name": "Wear_Leveling_Count", "value": 100, "worst": 100, "thresh": 50, "raw": { "value": 0, "string": "0" } },
+      { "id": 194, "name": "Temperature_Celsius", "value": 100, "worst": 100, "thresh": 50, "raw": { "value": 45, "string": "45" } },
+      { "id": 241, "name": "Total_LBAs_Written", "value": 100, "worst": 100, "thresh": 50, "raw": { "value": 109527, "string": "109527" } }
+    ]
+  },
+  "power_on_time": { "hours": 3505 },
+  "power_cycle_count": 872,
+  "temperature": { "current": 45 },
+  "ata_smart_error_log": {
+    "extended": {
+      "revision": 1,
+      "sectors": 1,
+      "count": 1,
+      "logged_count": 1,
+      "table": [
+        { "error_number": 1, "log_index": 0 }
+      ]
+    }
+  },
+  "ata_smart_self_test_log": {
+    "extended": {
+      "revision": 1,
+      "sectors": 1,
+      "table": [
+        {
+          "type": { "value": 1, "string": "Short offline" },
+          "status": { "value": 0, "string": "Completed without error", "passed": true },
+          "lifetime_hours": 2116
+        },
+        {
+          "type": { "value": 1, "string": "Short offline" },
+          "status": {
+            "value": 245,
+            "string": "Self-test routine in progress",
+            "remaining_percent": 50,
+            "passed": true
+          },
+          "lifetime_hours": 2116
+        }
+      ],
+      "count": 2,
+      "error_count_total": 0,
+      "error_count_outdated": 0
+    }
+  },
+  "seagate_farm_log": { "supported": false }
+}

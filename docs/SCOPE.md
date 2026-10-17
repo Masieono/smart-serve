@@ -69,16 +69,15 @@ NVMe, a USB-attached NVMe, and a USB-attached SATA SSD, plus a USB flash drive t
 reports no S.M.A.R.T. at all and is now reported as such rather than as a failure
 (`DEPLOYMENT.md`).
 
-One path remains unexercised: a **native AHCI/SATA controller**. The validated SATA disk
-was reached through a USB bridge, which uses the same `SG_IO` ioctl and the same
-`CAP_SYS_RAWIO` requirement, so the capability story is unchanged — but the claim is
-recorded precisely rather than rounded up.
+**Native SATA is now verified.** A second host (Debian, `dende`) exposed a SATA SSD on a
+native controller — `lsblk` reports `TRAN=sata` and `smartctl` reads it as `sat` — and it reads
+cleanly through the same three gates the reference compose file opens. The earlier caveat, that
+the validated SATA disk had only ever been reached through a USB bridge, no longer applies.
 
-**Not yet measured.** The two resource criteria above — idle CPU near zero, and RSS under
-20 MB — are **targets that have never been measured on real hardware**. `DEPLOYMENT.md` tells
-an operator how to check them, but no figure has been recorded for this project, so they are
-design intent rather than a verified claim. They are to be measured and published once a
-long-running public instance exists to measure, which is the honest order to do it in.
+**Measured.** The two resource criteria above are now verified on real hardware. On a
+long-running instance with no browser open, `docker stats` reports **0.00% CPU** and
+**13.36 MiB** RSS — inside the "near zero" and "under 20 MB" the MVP was written against. See
+`RELEASE.md` for how to re-measure.
 
 **Documentation corrected for the public release.** Three claims did not match the code and
 were fixed rather than carried into a release: the image is Alpine, not distroless
