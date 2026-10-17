@@ -59,4 +59,4 @@ First public release.
 - The idle-footprint figures are targets, not measurements, pending a run on a public
   instance.
 
-[1.0.0]: https://github.com/Masieono/Smart-Serve/releases/tag/v1.0.0
+[1.0.0]: https://github.com/masieono/smart-serve/releases/tag/v1.0.0

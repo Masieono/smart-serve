@@ -78,6 +78,8 @@ Then open `http://<host>:8080` and press **Scan**.
 | [`docs/REQUIREMENTS.md`](docs/REQUIREMENTS.md) | Requirements traceability, decisions, considerations, assumptions |
 | [`docs/FEATURES.md`](docs/FEATURES.md) | Full feature catalog & suggestions (tiers, idle-cost impact) |
 | [`docs/UI.md`](docs/UI.md) | UI/UX design: navigation, components, theming, screen specs, accessibility |
+| [`docs/RELEASE.md`](docs/RELEASE.md) | Release checklist, screenshot list, image-size and arm64 verification notes |
+| [`CHANGELOG.md`](CHANGELOG.md) | What changed in each release |
 
 ## Development
 
