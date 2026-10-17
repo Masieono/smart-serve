@@ -188,18 +188,23 @@ retention, squelch windows) are configured **in the UI**, never via env vars.
 
 ### Secrets
 
-Notification secrets (ntfy tokens, webhook auth headers) can be supplied three ways,
-with precedence **environment > mounted file > database** (`ADR-013`):
+Notification secrets — ntfy tokens, webhook auth headers, bot tokens, SMTP passwords — are
+set **per channel in the web UI** and stored in the database, because they belong to a
+channel rather than to the process.
 
-1. **Env vars**, including a Compose `env_file:` / `.env` file — note that **Docker
-   Compose** reads `.env` and injects the variables; the container/app does not parse
-   `.env` itself.
-2. **`*_FILE` variables** pointing at mounted secret files, e.g.
-   `SMARTSERVE_NTFY_TOKEN_FILE=/run/secrets/ntfy_token` (Docker-secrets convention).
-3. **Stored in the database** via the web UI (convenient; no restart needed).
+`ADR-013` decided on three sources with precedence **environment > mounted secret file >
+database**, so a token could be kept out of both the compose file and the `/data` volume.
+**Only the database source exists today.** Environment and `*_FILE` resolution are deferred
+and recorded as wanted (`ADR-021`).
 
-The UI shows each secret's effective source. Prefer (1) or (2) when you already
-manage config as code; use (3) if you just want to paste a token into the UI.
+> **Setting `SMARTSERVE_NTFY_TOKEN_FILE`, or any other `*_FILE` variable, does nothing.**
+> The app reads no `*_FILE` variable at all. A channel configured that way simply has no
+> token, and its notifications fail silently. Configure channels in the UI.
+
+The practical consequence: the token lives in `/data/smartserve.db`, and therefore in
+whatever you back that volume up with. Treat that volume as sensitive. If you manage
+configuration as code, this is the one place where the app does not yet meet you — prefer a
+UI-set secret you can rotate, and see `ADR-021` for the plan.
 
 ### Licensing
 

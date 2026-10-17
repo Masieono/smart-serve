@@ -74,6 +74,18 @@ was reached through a USB bridge, which uses the same `SG_IO` ioctl and the same
 `CAP_SYS_RAWIO` requirement, so the capability story is unchanged — but the claim is
 recorded precisely rather than rounded up.
 
+**Not yet measured.** The two resource criteria above — idle CPU near zero, and RSS under
+20 MB — are **targets that have never been measured on real hardware**. `DEPLOYMENT.md` tells
+an operator how to check them, but no figure has been recorded for this project, so they are
+design intent rather than a verified claim. They are to be measured and published once a
+long-running public instance exists to measure, which is the honest order to do it in.
+
+**Documentation corrected for the public release.** Three claims did not match the code and
+were fixed rather than carried into a release: the image is Alpine, not distroless
+(`ADR-020`); notification secrets are database-only, because the environment and `*_FILE`
+sources `ADR-013` described were never built (`ADR-021`); and the README quick start omitted
+the device-access flags it needs.
+
 ## Phase 2 — "insight"
 
 Status is recorded per item, so the roadmap reflects what is actually shipped rather

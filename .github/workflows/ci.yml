@@ -47,11 +47,19 @@ jobs:
       - uses: actions/checkout@v7
       - uses: docker/setup-qemu-action@v4
       - uses: docker/setup-buildx-action@v4
-      - name: Build (amd64)
+      - name: Build (both release platforms)
+        # Both platforms, not just amd64. The release job builds amd64 and arm64 together, so
+        # an arm64-only breakage — a package missing for the architecture, or a build that
+        # needs emulation — would otherwise be found by a user rather than by CI. That is
+        # exactly how the image would first reach a Raspberry Pi or an ARM NAS.
+        #
+        # `push: false`, so this costs build time and nothing else. It is slower than the
+        # amd64-only build it replaces, which is the price of vetting the architecture that
+        # is otherwise only exercised at release.
         uses: docker/build-push-action@v7
         with:
           context: .
-          platforms: linux/amd64
+          platforms: linux/amd64,linux/arm64
           push: false
 
   release:
@@ -68,6 +76,19 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Decide image tags
+        id: meta
+        # `latest` is published only for a stable tag. A pre-release tag (v1.1.0-rc1) must not
+        # move it: everyone following the default tag would be handed a build that is not the
+        # newest stable release, and then silently downgraded again when the real release
+        # landed. `type=semver` also strips the `v`, so the tag is `1.0.0` rather than
+        # `v1.0.0` — which is what D24 specifies.
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/masieono/smart-serve
+          tags: |
+            type=semver,pattern={{version}}
+            type=raw,value=latest,enable=${{ !contains(github.ref_name, '-') }}
       - name: Build and push (multi-arch)
         uses: docker/build-push-action@v7
         with:
@@ -78,6 +99,4 @@ jobs:
           # Without this the Dockerfile's ARG falls back to "dev" and every image ever
           # published reports 0.0.0-dev in the sidebar.
           build-args: VERSION=${{ github.ref_name }}
-          tags: |
-            ghcr.io/masieono/smart-serve:latest
-            ghcr.io/masieono/smart-serve:${{ github.ref_name }}
+          tags: ${{ steps.meta.outputs.tags }}

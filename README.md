@@ -30,7 +30,7 @@ database daemon.
   events with squelching so a failing drive doesn't spam you on every scan, and
   maintenance windows for planned work.
 - **Tiny footprint** — single static Go binary, embedded frontend, SQLite storage in
-  one file, distroless+smartmontools image well under 20 MB.
+  one file, and a small Alpine-based image (`ADR-020`).
 - **Clean, themable UI** — a sleek, navigable interface designed as a first-class
   requirement: dark / light / auto, Catppuccin, Dracula, Nord, Gruvbox, Synthwave,
   Hacker, Solarized, Tokyo Night and One Dark palettes, plus a custom accent colour —
@@ -44,12 +44,22 @@ docker run -d \
   -v /dev:/dev:ro \
   -v smartserve-data:/data \
   -p 8080:8080 \
+  --device-cgroup-rule='a *:* rwm' \
+  --cap-add SYS_ADMIN \
+  --cap-add SYS_RAWIO \
+  --restart unless-stopped \
   ghcr.io/masieono/smart-serve:latest
 ```
 
-> Device access is required for S.M.A.R.T. queries. See
-> [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) for least-privilege options and USB
-> specifics before running in production.
+> The three device flags are **not optional**. Mounting `/dev` only makes the nodes
+> *visible*; without the cgroup rule every `open()` returns `EPERM`, and without the two
+> capabilities a native NVMe read and a USB-bridge read each fail separately. All three
+> fail identically, which is why they are listed together — see
+> [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) for least-privilege options and USB specifics.
+
+> **Smart-Serve ships no authentication, by design** (`ADR-016`). It expects a reverse
+> proxy to provide it. Publishing port 8080 as above is appropriate on a trusted LAN and
+> nowhere else.
 
 Then open `http://<host>:8080` and press **Scan**.
 
@@ -105,10 +115,9 @@ they run in CI on every push whether or not you run them yourself.
 
 **MVP complete.** The documents in `docs/` define the planning, scope, and design of
 the application. All decisions are recorded in
-[`docs/REQUIREMENTS.md`](docs/REQUIREMENTS.md) (decisions D1–D25; considerations
+[`docs/REQUIREMENTS.md`](docs/REQUIREMENTS.md) (decisions D1–D27; considerations
 C1–C24 all confirmed or resolved) and [`docs/DECISIONS.md`](docs/DECISIONS.md)
-(ADR-001–ADR-016). Repository: private under GitHub user **Masieono**, image
-`ghcr.io/masieono/smart-serve` (made public at v1). CI: GitHub Actions.
+(ADR-001–ADR-020). Image: `ghcr.io/masieono/smart-serve`. CI: GitHub Actions.
 
 Every `SCOPE.md` MVP item is built, and the Phase 2 work delivered so far is
 history/trending, remaining-longevity estimates with a degradation warning, the

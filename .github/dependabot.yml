@@ -1,0 +1,28 @@
+# Keep the things that rot quietly up to date. Monthly rather than weekly: this project has
+# a small dependency surface, and a steady trickle of PRs is easier to review than a flood.
+version: 2
+updates:
+  - package-ecosystem: gomod
+    directory: /
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore(deps)"
+
+  # Pinned action versions are a supply-chain decision, so they should be bumped
+  # deliberately rather than by hand at random.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    commit-message:
+      prefix: "chore(ci)"
+
+  # The Dockerfile pins both the Go toolchain image and the Alpine runtime.
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: monthly
+    commit-message:
+      prefix: "chore(docker)"

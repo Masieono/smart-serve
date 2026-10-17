@@ -157,8 +157,12 @@ USB drives are a first-class concern (the original motivation for this project):
 
 ## 6. Packaging & configuration
 
-- **Image**: multi-stage build — Go build stage → distroless/static base +
-  statically-compiled `smartctl` binary copied in. Target: <20 MB compressed.
+- **Image**: multi-stage build — Go build stage → `alpine:3.20` runtime with
+  `smartmontools` and `util-linux` installed from apk (`ADR-020`). Alpine rather than
+  `distroless/static` because both tools are packaged and maintained there, whereas a
+  distroless base would mean statically compiling them and copying them in — and
+  `smartctl`'s vendor quirk database is the product's core (`ADR-002`), so it is worth
+  taking the maintained package.
 - **Config**: everything through the web UI (persisted in SQLite) plus a small set
   of environment variables for bootstrapping (`SMARTSERVE_ADDR` default
   `:8080`, `SMARTSERVE_DB` default `/data/smartserve.db`).

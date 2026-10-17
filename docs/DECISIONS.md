@@ -25,6 +25,11 @@ CPU, stdlib HTTP keeps the dependency list tiny. (−) slower initial developmen
 interpreter/fixtures need Go test discipline. (±) contributors need Go
 familiarity.
 
+**Note (status, not a rewrite).** The "distroless image <20 MB" consequence above is
+**superseded**: the shipped runtime image has always been Alpine, and the size figure was
+never measured. The decision itself — one static Go binary with the frontend embedded — is
+unchanged. See `ADR-020`.
+
 ## ADR-002: SMART data source — shell out to smartctl
 
 **Context.** Need S.M.A.R.T. data for ATA, NVMe, and USB bridges; correctness
@@ -482,6 +487,78 @@ That ordering is now overtaken: device plumbing is validated on real hardware, s
 self-test is the next build item after the read-only work, and `SCOPE.md` Phase 2 says so.
 `ADR-017`'s constraints on it — opt-in, never automatic, and it must show a progress
 reading — are unchanged and still binding.
+
+## ADR-020: The runtime image is Alpine, not distroless
+
+**Context.** `ADR-001` recorded "distroless image <20 MB" as a consequence of choosing Go,
+`DESIGN.md` repeated it as a build target, and the README turned it into a feature bullet.
+The image has in fact always been `alpine:3.20` (`Dockerfile`), because the runtime needs
+`smartctl` and `lsblk` and both are packaged there. Nothing ever reconciled the two, so for
+the life of the project the documentation described an image that was not the one being
+built — found while preparing for a public release, which is exactly when it would have
+started to matter.
+
+**Decision.** The runtime image is **`alpine:3.20`**, with `smartmontools` and `util-linux`
+installed from apk. `ADR-001`'s actual decision — one static Go binary, frontend embedded —
+is unchanged. Only its claim about the base image is corrected, and the stale size figure is
+**withdrawn rather than replaced with another estimate**, because an unverified number is
+what caused this in the first place.
+
+**Alternatives.**
+- *`distroless/static` with a statically-linked `smartctl` copied in* — smaller, and a smaller
+  attack surface. Rejected: `smartctl`'s vendor quirk database is the product's core
+  (`ADR-002`), so it is worth taking the maintained Alpine package rather than building,
+  pinning and updating a static binary ourselves. `lsblk` comes along with it.
+- *Keep the distroless claim and change the Dockerfile to match it* — rejected as the wrong
+  direction: it would trade a maintained dependency for a self-built one in order to satisfy a
+  sentence written before the tooling had been chosen.
+
+**Consequences.** (+) the documented image is the built image, and the runtime tools are
+updated by apk rather than by us. (−) the image is larger than the distroless target `ADR-001`
+imagined, and the runtime libc is musl rather than glibc. (±) no size is stated anywhere until
+it is measured and published; when it is, it belongs in the README and `DEPLOYMENT.md`
+together. `ADR-003`'s passing mention of "static distroless builds" is about why the pure-Go
+SQLite driver was chosen and is unaffected — pure-Go still means a static binary either way.
+
+## ADR-021: Notification secrets are database-only, and the docs now say so
+
+**Context.** `ADR-013` decided that notification secrets would come from three sources with
+precedence **environment > mounted secret file > database**, and that "the UI displays each
+secret's source". `DEPLOYMENT.md` documented all three, including a worked
+`SMARTSERVE_NTFY_TOKEN_FILE=/run/secrets/ntfy_token` example, and told the reader to prefer
+the env or file source when managing configuration as code.
+
+None of that was ever built. Channel secrets are read only from the channel's stored config
+in SQLite; the app's only environment reads are the six operational `SMARTSERVE_*` variables
+in `internal/config/config.go`. There is no `*_FILE` handling anywhere, no env override for a
+channel secret, and no secret-source display in the UI.
+
+This is the most damaging kind of documentation defect: a reader who follows it gets no error
+at all. The variable is simply ignored, the channel has no token, and notifications fail
+silently at the moment they were supposed to matter.
+
+**Decision.** For v1, the documentation is corrected to describe what exists: notification
+secrets are set **per channel in the web UI** and stored in the database.
+`DEPLOYMENT.md` §Secrets says so, and states plainly that setting a `*_FILE` variable today
+does nothing. `ADR-013`'s decision is not withdrawn — it is **deferred, and recorded as
+wanted**, which is the same treatment `B7` (alert acknowledgement) received in `ADR-017`.
+Environment and `*_FILE` resolution is a v1.1 candidate, and the shape is already decided.
+
+**Alternatives.**
+- *Implement `ADR-013` before v1* — the most complete answer, and the one that makes the
+  original document true. Rejected for now on scope: it is a security feature with a UI
+  surface (showing each secret's effective source) and its own tests, and v1 is the MVP plus
+  corrections rather than new features. It is the first thing to build afterwards.
+- *Leave the docs alone and implement it later* — rejected outright. The gap is not that a
+  feature is missing; it is that the docs assert it exists, so a reader is actively misled.
+- *Quietly delete the section* — rejected: a reader who found the old text in a cached copy
+  deserves to learn it was wrong, and the deferral is a real commitment worth recording.
+
+**Consequences.** (+) the documentation is true, and the gap is recorded rather than
+rediscovered. (−) secrets live in `/data/smartserve.db`, and therefore in whatever that
+volume is backed up with — which is precisely the outcome `ADR-013` was written to avoid, so
+`DEPLOYMENT.md` now says so where a reader will see it. (±) implementing `ADR-013` later
+supersedes this ADR rather than contradicting it.
 
 
 
