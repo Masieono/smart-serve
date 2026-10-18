@@ -20,7 +20,7 @@ RUN CGO_ENABLED=0 go build -trimpath -ldflags "-s -w -X main.version=${VERSION}"
 # --- runtime stage -----------------------------------------------------------
 # smartmontools (GPLv2) is bundled here; see docs/DECISIONS.md ADR-012.
 # util-linux provides lsblk.
-FROM alpine:3.20
+FROM alpine:3.24
 RUN apk add --no-cache smartmontools util-linux ca-certificates tzdata
 
 COPY --from=build /out/smart-serve /usr/local/bin/smart-serve
