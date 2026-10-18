@@ -575,6 +575,92 @@ rather than shipped as a documented absence, and the per-channel form was chosen
 global variables this ADR left open. What remains true here is the finding — that a
 documentation defect which produces no error is worse than a missing feature.
 
+## ADR-023: Committing to the rest of the roadmap, and the decisions that unblock it
+
+**Context.** With v1.0.1 public and the first round of real-use fixes out, the deferred work was
+reviewed in full. The owner committed to **all** of it — the large features (`A19`, `D8`, `D9`,
+`D10`, `A21`, `A25`), the medium ones (`A20` entries, `A18`, `A17`, `B7`, `C7`, `A24`, `A26`) and
+the small ones (`B9`, `B10`, `A23`, `A27`, `D11`, `D5`) — plus `C6` (Prometheus) and a rework of
+the trend section. Nothing was tabled.
+
+That is a lot of surface to hold in a conversation, so the commitment and its order are recorded
+here rather than remembered.
+
+**Decision — the order.** Each round is a shipping unit, and a UI consolidation pass follows each
+(`ADR-019`).
+
+1. **`A20` entries, then `A19` self-test.** They are the same data: the self-test log *is* the
+   result record. Everything `A19` needs already exists — validated device plumbing, the drive's
+   own `polling_minutes` as the progress basis, a captured self-test log, and
+   `self_test_supported` to disable the control. `B9` (self-test result notifications) rides on
+   it.
+2. **`D5` → `D8` → `D9` → `D10`.** The fleet tier's foundation, in that order: `D8` depends on
+   `D5`, and `D9` is the precondition for `A25`.
+3. **`A18` + `A17`.** The insight pair, both over history that is already stored.
+4. **`C7` + `A26` + `A24`.** The rest of the fleet tier.
+5. **`A21` knowledge base.** Needs data collection rather than code, so it starts whenever the
+   owner wants a break from implementation.
+6. **Notifications polish:** `B7`, `B10`, `B13`.
+7. **`C6` Prometheus** and the trend-section rework, fitted in where they suit.
+
+**Decision — the five questions the owner left open.**
+
+1. **`A19` surface: the button first, scheduling second.** A user-created schedule is not the same
+   thing as an automatic test. `A19`'s constraint is that nothing fires a self-test because the
+   app started, a scan ran, or a drive appeared, and a schedule the user wrote satisfies that. So
+   both are wanted. The button ships first because it is the primitive, and because scheduling
+   carries a problem the button does not: **a fleet**. Twenty-four long tests starting together is
+   an I/O meltdown, so a scheduled self-test must run **one drive at a time**, in a defined order.
+   That is worth designing deliberately rather than bolting on, and the default must be *short* —
+   a long test on a 14 TB drive runs for hours.
+2. **`A25` threshold: configurable, with a documented default.** The owner's fleet is four to six
+   drives; other people run twenty-four. A fixed number would be wrong for one of them, so the
+   grouping size and the temperature delta that counts as "moving together" become settings, with
+   defaults chosen for a small enclosure and a note about what raising them means.
+3. **`A21` data: community pull requests.** The curated layer needs rated TBW per model family,
+   which is published data but not machine-readable. The owner's drives are Western Digital,
+   Seagate and Samsung consumer/prosumer parts, which seeds the first entries and gives
+   contributors a shape to copy.
+4. **`D7` localization: deferred, and this ADR is where that is decided rather than assumed.**
+   See below.
+5. **`C6` Prometheus: build it, off by default.** The owner does not run Prometheus but recognises
+   that plenty do. A scrape endpoint does not violate the zero-idle-cost invariant, since nothing
+   on this side polls; it is still opt-in, because enabling it invites someone else's scraper to
+   poll this app, and that is the owner's decision rather than a default.
+
+**`D7` — why localization is deferred.** `D7` is translating the interface into other languages.
+CrystalDiskInfo is popular partly because it is translated, so the case is real. It is deferred for
+one reason: the expensive part is not the translations, it is **extracting every string** from the
+interface into a locale file, and then keeping every locale in step as features land. That refactor
+touches every file in the UI, and a single maintainer who cannot review a translation cannot
+maintain one either. Recording it as *deferred* rather than *dropped* means the mechanism can be
+built when there is a translator who wants it — the work is only worth doing for someone who will
+maintain the result.
+
+**The trend-section rework, decided in the same breath.** The owner asked for three things, and
+they turn out to be one change: the x-axis becomes **time rather than reading index**. That single
+change gives all three — a 30-day window spans 30 days whether or not anything was recorded, a
+series that began five days ago starts a sixth of the way across instead of at the left edge, and a
+date axis under the card can show the span without hovering. Per-metric y-scaling stays automatic.
+One shared date axis under the card is preferred to a label under each sparkline: four sparklines
+share one window, so they need one axis, and four would be noise.
+
+**Alternatives.**
+- *Pick a subset and ship it sooner* — rejected. The owner reviewed each item and wants all of
+  them, and the order above already front-loads the two with the most value.
+- *Schedule self-tests through the scan scheduler* — rejected for now. Scans take seconds and
+  self-tests take hours, and the staggering requirement means the two want different machinery.
+- *Hard-code `A25`'s threshold* — rejected: the fleet size it has to suit spans an order of
+  magnitude.
+- *Do `D7` now with machine translation* — rejected. An unreviewed translation is worse than
+  English, because a wrong word in a health warning is a wrong warning.
+
+**Consequences.** (+) nothing on the roadmap is ambiguous about whether it is wanted, and the order
+is fixed, so a future session resumes rather than re-decides. (−) the project is committed to a long
+tail of work, and `D7` is the one item deliberately left out. (±) the trend rework touches
+`sparkLine`, which is pure and well tested — the change is contained, but its tests assert
+index-based coordinates and have to be rewritten alongside it.
+
 ## ADR-022: Per-channel environment overrides, keyed by the channel label
 
 **Context.** `ADR-021` corrected the documentation to admit that `ADR-013`'s three secret

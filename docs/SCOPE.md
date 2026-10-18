@@ -160,19 +160,40 @@ the trade-offs are in `ADR-018`.
 9. **Correlated-change detection** (`A25`) — P3, and last here: it needs grouping and
    history first, and a high bar, so that it cannot fire on a legitimate RAID rebuild.
 
+## Phase 4 — committed, in implementation order
+
+Everything below is wanted. This is the order it lands in, recorded in `ADR-023` so a later session
+resumes rather than re-decides. Each round is a shipping unit, and a UI consolidation pass follows
+each (`ADR-019`).
+
+1. **The drive's own data, finished.** `A20` entry rendering, then `A19` self-test: the opt-in
+   button first, scheduling after, staggered **one drive at a time** so a fleet does not start
+   twenty-four long tests together. `B9` (self-test result notifications) rides on `A19`.
+2. **The fleet foundation.** `D5` filter & sort, `D8` dense fleet table, `D9` grouping by pool,
+   `D10` bay/slot field.
+3. **Insight and the trend display.** `A18` snapshot diff, `A17` trend-aware health score, and the
+   **trend-section rework**: a time-based x-axis with a shared date axis, so a 30-day window spans
+   30 days whether or not anything was recorded, and the span is readable without hovering.
+4. **The rest of the fleet tier.** `C7` import/export, `A26` projection window follows retention,
+   `A24` "replace first" ranking, `A23` fleet export, `A27` warranty evidence, `D11` testing
+   session, and `A25` correlated-change detection with **configurable** thresholds.
+5. **Knowledge base.** `A21`, seeded from the owner's Western Digital, Seagate and Samsung drives
+   and grown by community pull requests.
+6. **Notifications polish.** `B7` acknowledgement, `B10` ntfy action buttons, `B13` weekly digest,
+   group-level routing.
+7. **Interfaces and last mile.** `C6` Prometheus `/metrics` (off by default), `D6` side-by-side
+   comparison, custom per-model attribute thresholds.
+
+**Deferred, and the one item deliberately left out of the above:** `D7` localization. The expensive
+part is not the translations but extracting every string and keeping every locale in step, and that
+work is only worth doing for a translator who will maintain the result (`ADR-023`).
+
+
 ## Phase 3 — backlog (nice-to-have, no commitments)
 
-- Multi-user accounts / roles.
-- Prometheus exporter endpoint (`/metrics`) — opt-in, since it invites scraping
-  (tension with the idle-cost philosophy; would be disabled by default).
-- Group-level notification routing — grouping itself moved up to Phase 2.5 (`D9`);
-  routing notifications *by* group is still here.
-- Side-by-side multi-device comparison view.
-- Custom attribute thresholds per device/model.
-- Localization (CrystalDiskInfo parity includes non-English communities).
-- Drive knowledge base — rated TBW, known firmware advisories (`FEATURES.md` A21).
-- Weekly digest notifications — one scheduled summary instead of per-event
-  (`FEATURES.md` B13).
+- Multi-user accounts / roles. **Conflicts with `D23`** (authentication is delegated to a reverse
+  proxy), so this needs that decision revisited rather than simply built.
+- Anything not covered by Phase 4, added as it comes up.
 
 ## UI consolidation passes
 
