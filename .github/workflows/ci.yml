@@ -83,7 +83,7 @@ jobs:
         # newest stable release, and then silently downgraded again when the real release
         # landed. `type=semver` also strips the `v`, so the tag is `1.0.0` rather than
         # `v1.0.0` — which is what D24 specifies.
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v6
         with:
           images: ghcr.io/masieono/smart-serve
           tags: |
