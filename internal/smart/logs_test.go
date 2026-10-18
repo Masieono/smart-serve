@@ -59,6 +59,74 @@ func TestParseLogsATAWithPopulatedLogs(t *testing.T) {
 	}
 }
 
+// The error log's single entry is the finding that justified waiting for a sample: a number and
+// an index, with nothing else to show.
+func TestParseLogsATAErrorEntries(t *testing.T) {
+	got := ParseLogs(loadFixture(t, "ata-bto-1tb-logs.json"))
+
+	if len(got.ErrorEntries) != 1 {
+		t.Fatalf("ErrorEntries = %d, want 1", len(got.ErrorEntries))
+	}
+	e := got.ErrorEntries[0]
+	if e.Number == nil || *e.Number != 1 {
+		t.Errorf("Number = %v, want 1", e.Number)
+	}
+	if e.Index == nil || *e.Index != 0 {
+		t.Errorf("Index = %v, want 0", e.Index)
+	}
+	if e.HasDetail() {
+		t.Errorf("HasDetail = true for %+v; this drive reports nothing but a number", e)
+	}
+}
+
+// The self-test log is the one worth rendering: it carries the test, its outcome, and the
+// percentage remaining for a test still running — which is the progress reading A19 needs.
+func TestParseLogsATASelfTestEntries(t *testing.T) {
+	got := ParseLogs(loadFixture(t, "ata-bto-1tb-logs.json"))
+
+	if len(got.SelfTestEntries) != 2 {
+		t.Fatalf("SelfTestEntries = %d, want 2", len(got.SelfTestEntries))
+	}
+
+	done := got.SelfTestEntries[0]
+	if done.Type != "Short offline" {
+		t.Errorf("Type = %q, want %q", done.Type, "Short offline")
+	}
+	if done.Status != "Completed without error" {
+		t.Errorf("Status = %q", done.Status)
+	}
+	if done.Passed == nil || !*done.Passed {
+		t.Errorf("Passed = %v, want true", done.Passed)
+	}
+	if done.Remaining != nil {
+		t.Errorf("Remaining = %v, want nil for a finished test", done.Remaining)
+	}
+	if done.Hours == nil || *done.Hours != 2116 {
+		t.Errorf("Hours = %v, want 2116", done.Hours)
+	}
+
+	// A test in progress has a percentage and no verdict. An absent `passed` is not a failure,
+	// which is why it stays nil rather than defaulting to false.
+	running := got.SelfTestEntries[1]
+	if running.Status != "Self-test routine in progress" {
+		t.Errorf("Status = %q", running.Status)
+	}
+	if running.Remaining == nil || *running.Remaining != 50 {
+		t.Errorf("Remaining = %v, want 50", running.Remaining)
+	}
+}
+
+// An empty log must produce no entries rather than an empty table to render.
+func TestParseLogsEmptyLogsProduceNoEntries(t *testing.T) {
+	for _, fixture := range []string{"ata-850-evo-logs.json", "nvme-sn730-logs.json"} {
+		got := ParseLogs(loadFixture(t, fixture))
+		if len(got.ErrorEntries) != 0 || len(got.SelfTestEntries) != 0 {
+			t.Errorf("%s: got %d error and %d self-test entries, want none",
+				fixture, len(got.ErrorEntries), len(got.SelfTestEntries))
+		}
+	}
+}
+
 // The NVMe fixture is a real WDC SN730. Two things about it matter:
 //
 //   - its SMART/Health log counts one error entry while the Error Information log emits no

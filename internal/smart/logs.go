@@ -49,6 +49,35 @@ func ParseLogs(raw []byte) model.LogSummary {
 		out.SelfTestCount = c
 	}
 
+	// The entries themselves. The two logs share smartctl's nesting but not their contents: a
+	// self-test entry carries the test, its outcome and when it ran, while an error entry on a
+	// drive smartctl does not recognise carries a number and an index and nothing else.
+	for _, e := range ataLogTable(r.ATAErrorLog) {
+		out.ErrorEntries = append(out.ErrorEntries, model.ErrorLogEntry{
+			Number: e.ErrorNumber,
+			Index:  e.LogIndex,
+			Hours:  e.LifetimeHours,
+			LBA:    e.LBA,
+			Status: enumString(e.Status),
+		})
+	}
+	for _, e := range ataLogTable(r.ATASelfTestLog) {
+		// `status` carries two fields the self-test log needs and nothing else does: whether
+		// the test passed, and how much is left when one is still running.
+		var passed *bool
+		var remaining *int
+		if e.Status != nil {
+			passed, remaining = e.Status.Passed, e.Status.RemainingPercent
+		}
+		out.SelfTestEntries = append(out.SelfTestEntries, model.SelfTestEntry{
+			Type:      enumString(e.Type),
+			Status:    enumString(e.Status),
+			Passed:    passed,
+			Remaining: remaining,
+			Hours:     e.LifetimeHours,
+		})
+	}
+
 	if r.ATASmartData != nil {
 		if caps := r.ATASmartData.Capabilities; caps != nil {
 			supported := caps.SelfTestsSupported
@@ -132,4 +161,47 @@ type rawATALogs struct {
 
 type rawATALog struct {
 	Count *int64 `json:"count"`
+	// Table holds the entries. smartctl omits it entirely when the log is empty, which is the
+	// case the counts-only version of this panel was built around.
+	Table []rawATAEntry `json:"table"`
+}
+
+// rawATAEntry is one row of either ATA log. Both logs share this shape; the fields are simply
+// absent where the drive does not supply them.
+type rawATAEntry struct {
+	ErrorNumber   *int64   `json:"error_number"`
+	LogIndex      *int64   `json:"log_index"`
+	LifetimeHours *int64   `json:"lifetime_hours"`
+	LBA           *uint64  `json:"lba"`
+	Type          *rawEnum `json:"type"`
+	Status        *rawEnum `json:"status"`
+}
+
+// rawEnum is smartctl's shape for anything with a machine value and a human string. A status
+// carries two extra fields that only the self-test log needs.
+type rawEnum struct {
+	String           string `json:"string"`
+	Passed           *bool  `json:"passed"`
+	RemainingPercent *int   `json:"remaining_percent"`
+}
+
+// ataLogTable returns the entries from whichever variant of an ATA log the drive answered with.
+func ataLogTable(logs *rawATALogs) []rawATAEntry {
+	if logs == nil {
+		return nil
+	}
+	if logs.Extended != nil && len(logs.Extended.Table) > 0 {
+		return logs.Extended.Table
+	}
+	if logs.Summary != nil && len(logs.Summary.Table) > 0 {
+		return logs.Summary.Table
+	}
+	return nil
+}
+
+func enumString(e *rawEnum) string {
+	if e == nil {
+		return ""
+	}
+	return strings.TrimSpace(e.String)
 }

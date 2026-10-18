@@ -122,13 +122,11 @@ than what was planned.
 8. **Trend-aware health score** — refines the MVP score using history
    (`FEATURES.md` A17). **Not started.**
 9. **Self-test scheduling + self-test log**, and **SMART error log** display
-   (`FEATURES.md` A19/A20). `A20` **partly done**: the log counts, the drive's own self-test
-   timings, and smartctl's message when a log cannot be read are all shown, and the panel names
-   the raw-output sections that hold the entries. The entries themselves are not rendered yet.
-   A populated error log was finally captured from a second host, and it justifies the delay: on
-   a drive smartctl does not recognise, a logged error carries an error number and an index and
-   nothing else. The **self-test log is fully populated**, so rendering those is worthwhile and
-   is the natural companion to `A19`, which remains the only feature that writes to a drive.
+   (`FEATURES.md` A19/A20). `A20` **done**: the counts, the entries, the drive's own self-test
+   timings, and smartctl's message when a log cannot be read. The error log renders a table only
+   when its entries say something beyond which entry they are — on a drive smartctl does not
+   recognise they say nothing else, and the count says it better. `A19` is next, and remains the
+   only feature that writes to a drive.
 10. **Alert acknowledgement & maintenance/silence windows** (`FEATURES.md` B7/B8).
     Maintenance windows **done**; acknowledgement **deferred** (`ADR-017`).
 11. **ntfy action buttons / priority / tags** and a per-channel event-subscription UI

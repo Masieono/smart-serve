@@ -176,14 +176,13 @@ test('a fully named table carries no vendor-specific note', () => {
   assert.doesNotMatch(text, /vendor specific/);
 });
 
-// The panel used to say the entries "are in the raw output" without saying where, which is not
-// findable in several hundred lines of JSON. It names the sections now.
-test('the log panel names the raw-output sections to look in', () => {
-  const text = textOf(logSummary({ error_count: 1, self_test_count: 2 }));
-  assert.match(text, /ata_smart_error_log/);
-  assert.match(text, /ata_smart_self_test_log/);
-  assert.match(text, /nvme_error_information_log/);
-  assert.doesNotMatch(text, /Log entries themselves are in the raw output/);
+// The panel renders what the logs hold, so it no longer sends the reader into several hundred
+// lines of JSON to find it. The raw document is still named, for the parts that are not shown.
+test('the log panel renders entries rather than pointing at the raw output', () => {
+  const text = textOf(logSummary({ error_count: 0, self_test_count: 0 }));
+  assert.match(text, /none logged/);
+  assert.match(text, /full smartctl document is in the raw output/);
+  assert.doesNotMatch(text, /Entries are not listed here/);
 });
 
 test('the DOM stub stringifies non-node arguments, as the browser does', () => {

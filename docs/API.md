@@ -137,21 +137,34 @@ drive said nothing, which is a different finding from an empty log:
 
 ```json
 "logs": {
-  "error_count": 0,
-  "self_test_count": 0,
+  "error_count": 1,
+  "self_test_count": 2,
   "self_test_supported": true,
   "short_minutes": 2,
-  "extended_minutes": 133
+  "extended_minutes": 10,
+  "error_entries": [ { "number": 1, "index": 0 } ],
+  "self_test_entries": [
+    { "type": "Short offline", "status": "Completed without error", "passed": true, "hours": 2116 },
+    { "type": "Short offline", "status": "Self-test routine in progress", "remaining": 50, "hours": 2116 }
+  ]
 }
 ```
 
-Counts rather than entry lists, deliberately: smartctl emits no entry list at all when a log is
-empty, so the populated shape has not been observed and is not guessed at. A count of `0` is a
-finding and is present. `note` carries smartctl's own words when a log could not be read — an
-NVMe drive with no self-test log answers the request with an error and reports nothing else
-about it. `self_test_supported: false` means the drive cannot run self-tests, or cannot have
-its self-test log read. The values are parsed from the raw document already stored for the
-device, so no extra device access happens and the idle-cost invariant is untouched.
+A count of `0` is a finding and is present. `note` carries smartctl's own words when a log could
+not be read — an NVMe drive with no self-test log answers the request with an error and reports
+nothing else about it. `self_test_supported: false` means the drive cannot run self-tests, or
+cannot have its self-test log read.
+
+The two entry lists differ because the two logs do. A **self-test** entry carries the test, its
+outcome, and `remaining` while one is running — the progress figure a running test has to show,
+since a spinner with no percentage is indistinguishable from a hang. Its `passed` field is absent
+while a test is in progress, and that is deliberately not `false`: an absent verdict is not a
+failure. An **error** entry may carry nothing but `number` and `index`, because on a drive smartctl
+does not recognise that is all the drive reports, and the panel shows a table only when an entry
+has more to say than that.
+
+Everything here is parsed from the raw document already stored for the device, so no extra device
+access happens and the idle-cost invariant is untouched.
 
 `projection` is what the drive's **history** says about where it is heading, over a
 180-day window (`internal/interp/longevity.go`, `SCOPE.md` §2.2). The window matches the

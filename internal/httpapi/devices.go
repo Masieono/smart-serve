@@ -114,7 +114,7 @@ func rfc3339(t time.Time) string { return t.UTC().Format(time.RFC3339) }
 // reads as the first.
 func logsFrom(raw string) *model.LogSummary {
 	summary := smart.ParseLogs([]byte(raw))
-	if summary == (model.LogSummary{}) {
+	if summary.IsEmpty() {
 		return nil
 	}
 	return &summary

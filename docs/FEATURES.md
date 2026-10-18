@@ -32,7 +32,7 @@ avoid idle cost.
 | A17 | Health score 0–100 + letter grade | MVP/P2 | 💤 | basic in MVP; trend-aware in P2 |
 | A18 | Snapshot diff ("what changed since last scan") | P2 | 💤 | |
 | A19 | SMART self-test (manual short/long + scheduled) + self-test log | P2 | ⚠ | **eventually — opt-in only, see below** |
-| A20 | SMART error log display | P2 | 💤 | **done, to a stated limit** — the error and self-test log *counts*, the drive's own self-test timings, and smartctl's words when a log cannot be read. Entry lists are not parsed; see below |
+| A20 | SMART error log display | P2 | 💤 | **done** — the error and self-test log *counts* and *entries*, the drive's own self-test timings, and smartctl's words when a log cannot be read. See below |
 | A21 | Drive knowledge base (rated TBW, known firmware advisories) | P3 | 💤 | bundled static table; opt-in in-app refresh |
 | A22 | Usable support for drives with no S.M.A.R.T. (USB flash drives, card readers) | P2 | 💤 | **done** — see below |
 | A23 | Fleet-wide export (every drive in one CSV or page) | P2 | 💤 | NAS: what you paste into a spreadsheet when planning a purchase |
@@ -163,9 +163,9 @@ asks for it: no migration, no snapshot column. It is omitted from the device *li
 so a dashboard refresh does not parse every drive's document for data the dashboard does not
 show.
 
-**Entry rendering — sampled, and the sample justifies the limit.** A populated ATA error log
-was finally captured, from a second host (`ata-bto-1tb-logs.json`), and it settles the question
-the counts-only decision was hedging against:
+**Entry rendering, and why the two logs are shown differently.** A populated ATA error log was
+finally captured from a second host (`ata-bto-1tb-logs.json`), and it decided how each log is
+presented:
 
 ```json
 "ata_smart_error_log": {
@@ -175,13 +175,19 @@ the counts-only decision was hedging against:
 ```
 
 On a drive smartctl does not recognise (`in_smartctl_database: false`), a logged error carries
-**an error number and an index, and nothing else** — no LBA, no timestamp, no status. Rendering
-that as a row would be a row of dashes, and it would look broken. The count is the finding and
-the raw output holds the rest, so the panel stays as it is.
+**an error number and an index and nothing else** — no LBA, no timestamp, no status. So the error
+log renders a **table only when its entries carry something beyond which entry they are**; when
+they do not, the count stands alone with a sentence saying the drive reported no detail. A table
+of dashes would look broken, and it would say less than the count already did.
 
-The **self-test log is a different shape entirely**: its entries carry `type`, `status`
-(including `remaining_percent` for a test in progress) and `lifetime_hours`. So `A19` can render
-those properly, and this fixture is what it will be built against.
+The **self-test log is a different shape entirely**: `type`, `status` (including
+`remaining_percent` while a test runs) and `lifetime_hours`. It is rendered in full, and it is the
+record `A19` writes to.
+
+**A test in progress is not a failure.** The drive reports no `passed` field while a test is
+running, and treating an absent verdict as `false` would put a red cross beside a drive that is
+merely busy. The three cases — passed, failed, in progress — are distinct in the model rather than
+collapsed into a boolean.
 
 ### A23–A27 / C7 / D8–D11 — The NAS fleet
 

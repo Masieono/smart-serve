@@ -1509,4 +1509,14 @@ tr.attr-flagged > td {
   max-width: 70ch;
 }
 
+/* A self-test verdict (`FEATURES.md` A20). Colour is never the only signal: the icon and the
+   drive's own words carry the meaning, which matters for a log people scan rather than read. */
+.log-pass {
+  color: var(--good);
+}
+
+.log-fail {
+  color: var(--bad);
+}
+
 

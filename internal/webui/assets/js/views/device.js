@@ -541,7 +541,15 @@ export function logSummary(logs) {
   if (logs.extended_minutes !== undefined) timings.push(`extended ≈ ${fmtInt(logs.extended_minutes)} min`);
   if (timings.length) rows.push(['Self-test timing', timings.join(' · ')]);
 
-  if (!rows.length && !logs.note) return null;
+  const errorEntries = Array.isArray(logs.error_entries) ? logs.error_entries : [];
+  const selfTestEntries = Array.isArray(logs.self_test_entries) ? logs.self_test_entries : [];
+  // An error entry that says nothing but *which* entry it is gets a sentence rather than a
+  // table: a table of nothing but numbers adds nothing the count has not already said.
+  const detailed = errorEntries.filter(
+    (e) => e.hours !== undefined || e.lba !== undefined || (e.status || '') !== '',
+  );
+
+  if (!rows.length && !logs.note && !selfTestEntries.length && !errorEntries.length) return null;
 
   return el('div', { class: 'smart-logs' }, [
     el('h3', { text: 'Drive logs' }),
@@ -553,13 +561,72 @@ export function logSummary(logs) {
         ]))),
       ]),
     ]),
+    selfTestEntries.length ? selfTestTable(selfTestEntries) : null,
+    detailed.length
+      ? errorTable(detailed)
+      : (errorEntries.length
+        ? el('p', { class: 'muted', text: 'The drive records that an error happened but reports '
+            + 'nothing about it beyond which entry it is.' })
+        : null),
     // smartctl's own words, quoted rather than paraphrased: when a log could not be read,
     // its message is usually the whole explanation.
     logs.note ? el('p', { class: 'muted', text: `smartctl: ${logs.note}` }) : null,
-    // Named precisely, because "the raw output" is several hundred lines of JSON and the
-    // section is not findable by eye. The entries themselves are not rendered here yet.
-    el('p', { class: 'muted', text: 'Entries are not listed here. Search the raw output for '
-      + 'ata_smart_error_log, ata_smart_self_test_log or nvme_error_information_log.' }),
+    el('p', { class: 'muted', text: 'The full smartctl document is in the raw output.' }),
+  ]);
+}
+
+/** The self-test log: what was run, how it ended, and when. */
+function selfTestTable(entries) {
+  return el('div', { class: 'table-wrap' }, [
+    el('table', { class: 'data data-log' }, [
+      el('thead', {}, [el('tr', {}, [
+        el('th', { text: 'Self-test' }),
+        el('th', { text: 'Result' }),
+        el('th', { class: 'num', text: 'At' }),
+      ])]),
+      el('tbody', {}, entries.map((e) => el('tr', {}, [
+        el('td', { text: e.type || '—' }),
+        el('td', {}, [selfTestResult(e)]),
+        el('td', { class: 'num', text: e.hours === undefined ? '—' : `${fmtInt(e.hours)} h` }),
+      ]))),
+    ]),
+  ]);
+}
+
+/**
+ * One self-test result.
+ *
+ * Three cases, not a boolean. A test in progress has a percentage and no verdict, and an absent
+ * verdict is not a failure — rendering it as one would be the worst possible reading of the log.
+ */
+function selfTestResult(e) {
+  if (e.remaining !== undefined) {
+    return el('span', {}, [icon('scan'), `In progress, ${e.remaining}% left`]);
+  }
+  if (e.passed === true) {
+    return el('span', { class: 'log-pass' }, [icon('check'), e.status || 'Passed']);
+  }
+  if (e.passed === false) {
+    return el('span', { class: 'log-fail' }, [icon('x'), e.status || 'Failed']);
+  }
+  return el('span', { class: 'muted', text: e.status || '—' });
+}
+
+/** The error log, for the drives that report more than which entry it was. */
+function errorTable(entries) {
+  return el('div', { class: 'table-wrap' }, [
+    el('table', { class: 'data data-log' }, [
+      el('thead', {}, [el('tr', {}, [
+        el('th', { class: 'num', text: '#' }),
+        el('th', { text: 'Detail' }),
+        el('th', { class: 'num', text: 'At' }),
+      ])]),
+      el('tbody', {}, entries.map((e) => el('tr', {}, [
+        el('td', { class: 'num', text: fmtCell(e.number) }),
+        el('td', { text: e.status || (e.lba === undefined ? '—' : `LBA ${fmtInt(e.lba)}`) }),
+        el('td', { class: 'num', text: e.hours === undefined ? '—' : `${fmtInt(e.hours)} h` }),
+      ]))),
+    ]),
   ]);
 }
 

@@ -70,3 +70,56 @@ test('a note alone is enough to render', () => {
   const text = textOf(logSummary({ note: 'Read Self-test Log failed' }));
   assert.match(text, /smartctl: Read Self-test Log failed/);
 });
+
+// The self-test log, rendered. It is the one worth showing: the entries carry the test, its
+// outcome, and the percentage remaining for a test still running.
+test('the self-test log renders its entries', () => {
+  const text = textOf(logSummary({
+    self_test_count: 2,
+    self_test_entries: [
+      { type: 'Short offline', status: 'Completed without error', passed: true, hours: 2116 },
+      { type: 'Short offline', status: 'Self-test routine in progress', remaining: 50, hours: 2116 },
+    ],
+  }));
+  assert.match(text, /Short offline/);
+  assert.match(text, /Completed without error/);
+  assert.match(text, /2,116 h/);
+  assert.match(text, /In progress, 50% left/);
+});
+
+// An absent verdict is not a failure. A test still running reports no `passed` at all, and
+// defaulting that to false would put a red cross beside a drive that is merely busy.
+test('a test in progress is not rendered as a failure', () => {
+  const text = textOf(logSummary({
+    self_test_entries: [{ type: 'Extended offline', status: 'in progress', remaining: 12 }],
+  }));
+  assert.match(text, /In progress, 12% left/);
+  assert.doesNotMatch(text, /Failed/);
+});
+
+test('a finished self-test shows the drive\'s own verdict', () => {
+  const text = textOf(logSummary({
+    self_test_entries: [
+      { type: 'Short offline', status: 'Completed: read failure', passed: false, hours: 42 },
+    ],
+  }));
+  assert.match(text, /Completed: read failure/);
+});
+
+// The error log's populated entries carry a number and an index and nothing else, so a table of
+// them would be a table of dashes. The count already says it better.
+test('an error log with no detail gets a sentence, not a table', () => {
+  const text = textOf(logSummary({ error_count: 1, error_entries: [{ number: 1, index: 0 }] }));
+  assert.match(text, /records that an error happened/);
+  assert.doesNotMatch(text, /Detail/, 'no table header for an entry with nothing in it');
+});
+
+test('an error log with detail gets a table', () => {
+  const text = textOf(logSummary({
+    error_count: 1,
+    error_entries: [{ number: 3, hours: 1200, lba: 12345678, status: 'Uncorrectable' }],
+  }));
+  assert.match(text, /Detail/);
+  assert.match(text, /Uncorrectable/);
+  assert.match(text, /1,200 h/);
+});
