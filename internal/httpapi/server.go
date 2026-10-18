@@ -10,10 +10,12 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/masieono/smart-serve/internal/events"
 	"github.com/masieono/smart-serve/internal/notify"
 	"github.com/masieono/smart-serve/internal/scan"
+	"github.com/masieono/smart-serve/internal/smart"
 	"github.com/masieono/smart-serve/internal/store"
 )
 
@@ -47,6 +49,10 @@ type Options struct {
 	// Notifier, when set, delivers notifications. Without it, channel configs are
 	// not validated and test sends report 501.
 	Notifier Notifier
+	// CommandTimeout, when set, supplies the per-command timeout for the smartctl calls the API
+	// makes itself — the self-test ones. Without it the shipped default is used, which would
+	// quietly ignore SMARTSERVE_COMMAND_TIMEOUT for exactly those calls.
+	CommandTimeout func(ctx context.Context) time.Duration
 }
 
 // Server is the HTTP API.
@@ -59,6 +65,24 @@ type Server struct {
 	scheduler Scheduler
 	notifier  Notifier
 	handler   http.Handler
+
+	// commandTimeoutFn resolves the per-command timeout for the smartctl calls this package
+	// makes directly, so they honour the same setting the scans do.
+	commandTimeoutFn func(ctx context.Context) time.Duration
+}
+
+// commandTimeout returns the per-command timeout for the smartctl calls this package makes.
+//
+// It falls back to the shipped default rather than to zero, because a zero timeout means "no
+// limit" to exec: a drive that has stopped answering would then hang the request for as long as
+// the kernel allows instead of failing in fifteen seconds.
+func (s *Server) commandTimeout(ctx context.Context) time.Duration {
+	if s.commandTimeoutFn != nil {
+		if v := s.commandTimeoutFn(ctx); v > 0 {
+			return v
+		}
+	}
+	return smart.DefaultTimeout
 }
 
 // New builds the API handler.
@@ -70,6 +94,7 @@ func New(st *store.Store, sc *scan.Manager, hub *events.Hub, opts Options) *Serv
 	s := &Server{
 		store: st, scanner: sc, hub: hub, log: logger, version: opts.Version,
 		scheduler: opts.Scheduler, notifier: opts.Notifier,
+		commandTimeoutFn: opts.CommandTimeout,
 	}
 
 	mux := http.NewServeMux()
@@ -104,6 +129,13 @@ func (s *Server) routes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/devices/{serial}/raw", s.handleRaw)
 	mux.HandleFunc("GET /api/devices/{serial}/report", s.handleReport)
 	mux.HandleFunc("GET /api/devices/{serial}/history", s.handleHistory)
+
+	// The self-test endpoints. `GET` reads the drive live rather than from the stored document,
+	// because progress cannot come from a document that is only written by a scan; `POST` is the
+	// only thing in this API that changes a drive.
+	mux.HandleFunc("GET /api/devices/{serial}/selftest", s.handleGetSelfTest)
+	mux.HandleFunc("POST /api/devices/{serial}/selftest", s.handleStartSelfTest)
+	mux.HandleFunc("POST /api/devices/{serial}/selftest/abort", s.handleAbortSelfTest)
 
 	mux.HandleFunc("POST /api/scan", s.handleScan)
 	mux.HandleFunc("POST /api/devices/{serial}/scan", s.handleScanDevice)

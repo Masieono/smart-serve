@@ -118,6 +118,16 @@ func (s *Scanner) RunDevice(ctx context.Context, serial, path string) (Device, e
 	return Device{}, fmt.Errorf("%s: %w", serial, ErrDeviceNotConnected)
 }
 
+// CommandTimeout reports the per-command timeout in force, for callers outside a scan.
+//
+// The API makes smartctl calls of its own — reading a self-test log for progress, and starting
+// or aborting a test — and they should honour the same `SMARTSERVE_COMMAND_TIMEOUT` the scans
+// do. Exposing the resolution rather than repeating it means the two cannot drift apart.
+func (s *Scanner) CommandTimeout(ctx context.Context) time.Duration {
+	t, _ := s.resolve(ctx)
+	return t
+}
+
 // resolve returns the timeout and thresholds to use for one scan, consulting the
 // per-scan Funcs when they are set. Keeping this separate from Run means the
 // resolution can be tested without shelling out to lsblk and smartctl.

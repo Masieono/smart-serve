@@ -127,6 +127,34 @@ func TestParseLogsEmptyLogsProduceNoEntries(t *testing.T) {
 	}
 }
 
+// The BTO-1TB fixture carries a test *in progress* alongside a finished one, which makes it the
+// only place this rule can be checked against real data. It also pins the trap: the running test
+// reports `passed: true`, so a rule built on `passed` would call it finished and hide it.
+func TestRunningSelfTest(t *testing.T) {
+	got := ParseLogs(loadFixture(t, "ata-bto-1tb-logs.json"))
+
+	running := got.Running()
+	if running == nil {
+		t.Fatal("Running() = nil, but this drive has a test in progress")
+	}
+	if running.Remaining == nil || *running.Remaining != 50 {
+		t.Errorf("Remaining = %v, want 50", running.Remaining)
+	}
+	if running.Status != "Self-test routine in progress" {
+		t.Errorf("Status = %q", running.Status)
+	}
+	if running.Passed == nil || !*running.Passed {
+		t.Fatalf("Passed = %v; this fixture exists to pin the trap that a running test passes",
+			running.Passed)
+	}
+
+	for _, fixture := range []string{"ata-850-evo-logs.json", "nvme-sn730-logs.json"} {
+		if r := ParseLogs(loadFixture(t, fixture)).Running(); r != nil {
+			t.Errorf("%s: Running() = %+v, want nil", fixture, r)
+		}
+	}
+}
+
 // The NVMe fixture is a real WDC SN730. Two things about it matter:
 //
 //   - its SMART/Health log counts one error entry while the Error Information log emits no

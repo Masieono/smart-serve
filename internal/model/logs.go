@@ -78,7 +78,6 @@ func (e ErrorLogEntry) HasDetail() bool {
 }
 
 // IsEmpty reports whether a summary holds nothing worth showing.
-//
 // A method rather than a comparison against the zero value, because the summary contains slices
 // and is no longer comparable. It exists so a caller can tell "the drive reported nothing" from
 // "the drive reported that it has nothing" — the two look identical in an empty panel, and only
@@ -92,4 +91,19 @@ func (s LogSummary) IsEmpty() bool {
 		s.Note == "" &&
 		len(s.ErrorEntries) == 0 &&
 		len(s.SelfTestEntries) == 0
+}
+
+// Running returns the self-test currently in progress, or nil.
+//
+// A test in progress is identified by the drive reporting a **percentage remaining**, because
+// that field appears only while one runs. Its `passed` field is deliberately not the signal: a
+// real drive reports `passed: true` for a test that is still going, so treating that as
+// "finished" would hide a running test behind a green tick.
+func (s LogSummary) Running() *SelfTestEntry {
+	for i := range s.SelfTestEntries {
+		if s.SelfTestEntries[i].Remaining != nil {
+			return &s.SelfTestEntries[i]
+		}
+	}
+	return nil
 }

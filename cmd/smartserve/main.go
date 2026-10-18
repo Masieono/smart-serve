@@ -198,6 +198,9 @@ func runServe() error {
 		UI:        ui,
 		Scheduler: scheduler,
 		Notifier:  dispatcher,
+		// The self-test endpoints call smartctl directly, so they resolve the same timeout the
+		// scans do rather than falling back to the default and ignoring the setting.
+		CommandTimeout: scanner.CommandTimeout,
 	})
 
 	srv := &http.Server{
