@@ -110,7 +110,7 @@ export function describeCron(expression) {
 export function cronFieldError(expression) {
   const count = String(expression || '').trim().split(/\s+/).filter(Boolean).length;
   if (count === 0) return 'Enter a cron expression.';
-  if (count !== 5) return `Cron needs five fields (minute hour day month weekday) — got ${count}.`;
+  if (count !== 5) return `Cron needs five fields (minute hour day month weekday), got ${count}.`;
   return null;
 }
 

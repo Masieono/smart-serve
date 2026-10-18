@@ -25,7 +25,7 @@ export const ATTRIBUTE_HELP = {
   },
   4: {
     what: 'How many times the drive has spun up and down.',
-    watch: 'Informational — it describes age and duty cycle, not health.',
+    watch: 'Informational. It describes age and duty cycle, not health.',
   },
   5: {
     what: 'Sectors the drive found unreadable and moved out of the way into its spare pool.',
@@ -45,7 +45,7 @@ export const ATTRIBUTE_HELP = {
   },
   12: {
     what: 'How many times the drive has been switched on.',
-    watch: 'Informational — describes duty cycle rather than condition.',
+    watch: 'Informational. It describes duty cycle rather than condition.',
   },
   169: {
     what: "A vendor's remaining-life figure for a solid-state drive.",
@@ -61,7 +61,7 @@ export const ATTRIBUTE_HELP = {
   },
   184: {
     what: "Errors in the path between the drive's controller and its memory.",
-    watch: 'Any non-zero value is serious — this counter involves data integrity.',
+    watch: 'Any non-zero value is serious, because this counter involves data integrity.',
   },
   187: {
     what: 'Errors the drive could not correct by itself.',
@@ -81,7 +81,7 @@ export const ATTRIBUTE_HELP = {
   },
   192: {
     what: 'How many times the heads were parked.',
-    watch: 'Informational — related to power-off events rather than to failure.',
+    watch: 'Informational. It relates to power-off events rather than to failure.',
   },
   193: {
     what: 'How many times the heads have been loaded onto and unloaded from the platters.',
@@ -93,7 +93,7 @@ export const ATTRIBUTE_HELP = {
   },
   196: {
     what: 'How many times the drive has remapped sectors.',
-    watch: 'This counts events, not sectors — one event can move many. Any non-zero value is worth watching alongside attribute 5.',
+    watch: 'This counts events, not sectors, because one event can move many. Any non-zero value is worth watching alongside attribute 5.',
   },
   197: {
     what: 'Sectors the drive could not read but has not yet given up on.',
@@ -105,7 +105,7 @@ export const ATTRIBUTE_HELP = {
   },
   199: {
     what: 'Errors on the link between the drive and its controller.',
-    watch: 'This is usually the SATA cable or the USB bridge rather than the drive — reseat or replace it. The count never decreases, so it keeps showing after the cause is fixed.',
+    watch: 'This is usually the SATA cable or the USB bridge rather than the drive, so reseat or replace it. The count never decreases, so it keeps showing after the cause is fixed.',
   },
   200: {
     what: 'Errors while writing across the drive’s recording zones.',
@@ -116,7 +116,7 @@ export const ATTRIBUTE_HELP = {
     watch: 'Some SSDs report remaining life here instead of life used; the app reads it as the percentage left, and rejects anything outside 1–100.',
   },
   231: {
-    what: 'Remaining life — the closest thing to a standard SSD wear figure.',
+    what: 'Remaining life, and the closest thing to a standard SSD wear figure.',
     watch: 'The normalised value is the percentage of life left, counting down from 100.',
   },
   233: {
@@ -133,7 +133,7 @@ export const ATTRIBUTE_HELP = {
   },
   242: {
     what: 'Lifetime data read, counted in 512-byte sectors.',
-    watch: 'Informational — reads do not wear flash the way writes do.',
+    watch: 'Informational. Reads do not wear flash the way writes do.',
   },
 };
 

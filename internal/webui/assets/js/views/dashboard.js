@@ -77,7 +77,7 @@ function draw(container, ctx, data) {
   if (!all.length) {
     mount(container, head, emptyState(
       'No drives discovered yet',
-      'Press Scan to enumerate every device visible to the host — internal and USB.',
+      'Press Scan to enumerate every device visible to the host, internal and USB.',
       el('button', { class: 'btn btn-primary', type: 'button',
         onclick: () => ctx.scan() }, [icon('scan'), 'Scan now']),
     ));

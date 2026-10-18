@@ -57,7 +57,7 @@ function draw(container, ctx, data, log, settings, deviceData) {
   const head = el('div', { class: 'page-head' }, [
     el('div', {}, [
       el('h1', { text: 'Notifications' }),
-      el('div', { class: 'sub', text: 'Alerts fire on health transitions — never on every scan.' }),
+      el('div', { class: 'sub', text: 'Alerts fire on health transitions, never on every scan.' }),
     ]),
     el('span', { class: 'spacer' }),
     el('button', { class: 'btn btn-primary', type: 'button', onclick: () => editChannel(ctx, null, eventTypes, typeList, envVarList) },
@@ -66,7 +66,7 @@ function draw(container, ctx, data, log, settings, deviceData) {
 
   if (!channels.length) {
     mount(container, head, emptyState('No channels yet',
-      'Add a channel — ntfy, Gotify, Telegram, Discord, email or a webhook — to be told when a drive starts failing.'),
+      'Add a channel (ntfy, Gotify, Telegram, Discord, email or a webhook) to be told when a drive starts failing.'),
       maintenanceCard(ctx, windows, devices));
     return;
   }
@@ -273,7 +273,7 @@ function maintenanceCard(ctx, windows, devices) {
         onclick: () => editWindow(ctx, windows, devices) },
         [icon('plus'), 'Add window']),
     ]),
-    el('p', { class: 'muted', text: 'Alerts are silenced for the drives a window covers — an array ' +
+    el('p', { class: 'muted', text: 'Alerts are silenced for the drives a window covers. An array ' +
       'rebuild, a migration, a chassis being moved. Windows expire on their own, so there is nothing ' +
       'to remember to switch back on.' }),
     sorted.length
@@ -316,7 +316,7 @@ function editWindow(ctx, windows, devices) {
     const now = Date.now();
     const label = el('input', { type: 'text', placeholder: 'e.g. array rebuild' });
     const recurrence = el('select', {}, [
-      el('option', { value: 'once', text: 'Once — a start and end date' }),
+      el('option', { value: 'once', text: 'Once, with a start and end date' }),
       el('option', { value: 'daily', text: 'Every day' }),
       el('option', { value: 'weekly', text: 'Certain days of the week' }),
     ]);
@@ -346,7 +346,7 @@ function editWindow(ctx, windows, devices) {
         el('div', { class: 'field' }, [el('label', { text: 'To' }), endTime]),
       ]),
       daysField,
-      hint('Recurring times are read on the server’s clock — the same one scheduled scans use.'),
+      hint('Recurring times are read on the server’s clock, the same one scheduled scans use.'),
     ]);
 
     const syncRecurrence = () => {
@@ -369,7 +369,7 @@ function editWindow(ctx, windows, devices) {
       el('div', { class: 'field' }, [el('label', { text: 'Drives' }), drives.element,
         hint(devices.length
           ? 'Nothing selected means every drive, including ones not connected yet.'
-          : 'No drives discovered yet — the window will cover every drive.')]),
+          : 'No drives discovered yet, so the window will cover every drive.')]),
     );
 
     foot.append(
@@ -477,7 +477,7 @@ const CHANNEL_TYPES = [
       { key: 'topic', label: 'Topic', required: true, placeholder: 'my-smart-alerts',
         help: 'Subscribe to this topic in the ntfy app to receive the alerts.' },
       { key: 'token', label: 'Access token', secret: true,
-        help: 'Can also be supplied by the environment — the variable name is shown below the label.' },
+        help: 'Can also be supplied by the environment. The variable name is shown below the label.' },
     ],
   },
   {
@@ -535,7 +535,7 @@ const CHANNEL_TYPES = [
       { key: 'headers', label: 'Headers', multiline: true,
         placeholder: 'Authorization: Bearer abc123',
         parse: textToHeaders, format: headersToText,
-        help: 'One "Name: value" per line — for example an Authorization header.' },
+        help: 'One "Name: value" per line, for example an Authorization header.' },
     ],
   },
 ];

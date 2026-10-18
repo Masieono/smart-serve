@@ -20,16 +20,36 @@ const TREND_RANGES = [
 // Module-level so the choice survives navigating between drives.
 let trendRange = '30';
 
-export async function render(container, ctx, serial) {
-  mount(container, el('div', { class: 'skeleton', style: 'width:40%;height:24px' }));
+export async function render(container, ctx, serial, opts = {}) {
+  // A range change re-renders the same page, and mounting the one-line skeleton collapses the
+  // page height: the browser clamps the scroll position to the top, so changing the window
+  // throws you out of the section you were reading. Keep what is on screen until the new data
+  // arrives, and put the scroll back afterwards.
+  const keepScroll = opts.keepScroll === true;
+  const y = keepScroll ? currentScrollY() : 0;
+  if (!keepScroll) {
+    mount(container, el('div', { class: 'skeleton', style: 'width:40%;height:24px' }));
+  }
   try {
     const [device, history] = await Promise.all([
       api.device(serial),
       api.history(serial, historyFrom()),
     ]);
     draw(container, ctx, device, history);
+    if (keepScroll) restoreScrollY(y);
   } catch (err) {
     mount(container, errorBox(`Could not load device: ${err.message}`));
+  }
+}
+
+/** The current scroll offset, or 0 where there is no window (the unit tests). */
+function currentScrollY() {
+  return typeof window === 'undefined' ? 0 : window.scrollY || 0;
+}
+
+function restoreScrollY(y) {
+  if (typeof window !== 'undefined' && typeof window.scrollTo === 'function') {
+    window.scrollTo(0, y);
   }
 }
 
@@ -163,9 +183,11 @@ function draw(container, ctx, data, history) {
         el('p', { text: d.notes }),
       ]) : null,
 
-      trendCard(series, (next) => {
+      trendCard(series, async (next) => {
         trendRange = next;
-        render(container, ctx, d.serial);
+        // Re-render in place: a window change is not a navigation, so it must not move the
+        // page under the pointer.
+        await render(container, ctx, d.serial, { keepScroll: true });
       }),
 
       el('div', { class: 'card stack' }, [
@@ -210,7 +232,7 @@ const BLOCKED_FIXES = {
   },
   query_blocked: {
     title: 'The S.M.A.R.T. query was refused',
-    body: 'The device opened, but the query itself was denied — a missing capability. ' +
+    body: 'The device opened, but the query itself was denied by a missing capability. ' +
       'Which one depends on the drive: a native NVMe needs CAP_SYS_ADMIN, and a drive ' +
       'behind a USB bridge needs CAP_SYS_RAWIO for its passthrough.',
     fix: 'cap_add:\n  - SYS_ADMIN\n  - SYS_RAWIO',
@@ -236,7 +258,7 @@ function smartProblemNotice(ctx, d) {
           'compose file, then recreate the container:' }),
         el('pre', { class: 'notice-fix', text: blocked.fix }),
         el('p', { class: 'muted', text: 'All three gates have to be open, and each one ' +
-          'masks the next — see docs/DEPLOYMENT.md.' }),
+          'masks the next. See docs/DEPLOYMENT.md.' }),
       ]),
       d.smart_error ? el('p', { class: 'mono muted', text: d.smart_error }) : null,
     ]);
@@ -251,7 +273,7 @@ function smartProblemNotice(ctx, d) {
   return el('div', { class: 'notice' }, [
     el('div', { class: 'notice-title' }, [icon('help'), 'This drive does not report S.M.A.R.T.']),
     el('p', { class: 'muted', text: 'Most USB flash drives and card readers do not implement it, ' +
-      'and some USB bridges do not pass it through. There is no health reading to give — but the ' +
+      'and some USB bridges do not pass it through. There is no health reading to give, but the ' +
       'identity, capacity and filesystem above come from the operating system, not from the drive.' }),
     el('div', { class: 'notice-action' }, [
       el('p', { class: 'muted', text: 'If this is a hard drive or SSD inside a USB enclosure, the ' +
@@ -369,7 +391,7 @@ function trendCard(series, onRange) {
     rows.length
       ? el('div', {}, rows)
       : el('p', { class: 'muted', text: series.length
-        ? 'Not enough readings in this window yet — a trend needs at least two scans.'
+        ? 'Not enough readings in this window yet. A trend needs at least two scans.'
         : 'No history yet. Trends appear once this drive has been scanned a few times.' }),
   ]);
 }
@@ -400,7 +422,7 @@ function usageRate(points) {
 // Exports a report in any of the formats the API renders. A single "Report" link
 // silently picked one of four, which is a choice the user should be making.
 const EXPORT_FORMATS = [
-  ['txt', 'Plain text', 'CrystalDiskInfo-style summary — the format to attach to a warranty claim.'],
+  ['txt', 'Plain text', 'CrystalDiskInfo-style summary, and the format to attach to a warranty claim.'],
   ['html', 'Web page', 'A self-contained page you can print or email. Opens without the app.'],
   ['csv', 'Spreadsheet', 'Every field and attribute as name/value rows.'],
   ['json', 'JSON', 'The full structure, for scripting.'],
@@ -534,7 +556,10 @@ export function logSummary(logs) {
     // smartctl's own words, quoted rather than paraphrased: when a log could not be read,
     // its message is usually the whole explanation.
     logs.note ? el('p', { class: 'muted', text: `smartctl: ${logs.note}` }) : null,
-    el('p', { class: 'muted', text: 'Log entries themselves are in the raw output.' }),
+    // Named precisely, because "the raw output" is several hundred lines of JSON and the
+    // section is not findable by eye. The entries themselves are not rendered here yet.
+    el('p', { class: 'muted', text: 'Entries are not listed here. Search the raw output for '
+      + 'ata_smart_error_log, ata_smart_self_test_log or nvme_error_information_log.' }),
   ]);
 }
 

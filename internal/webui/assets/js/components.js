@@ -262,7 +262,7 @@ function statusBadge(device) {
     }
     return el('span', {
       class: 'badge badge-unknown',
-      title: 'This drive does not report S.M.A.R.T. — most USB flash drives cannot.',
+      title: 'This drive does not report S.M.A.R.T. Most USB flash drives cannot.',
     }, [icon('help'), 'No S.M.A.R.T.']);
   }
   return verdictBadge(device.health);
@@ -342,6 +342,7 @@ export function attributeTable(attributes) {
     return el('p', { class: 'muted', text: 'No ATA attribute table was reported for this device.' });
   }
   const head = ['ID', 'Attribute', 'Value', 'Worst', 'Thresh', 'Raw'];
+  const unnamed = attributes.filter((a) => attributeName(a) === null).length;
   return el('div', { class: 'table-wrap' }, [
     el('table', { class: 'data' }, [
       el('thead', {}, [
@@ -349,7 +350,28 @@ export function attributeTable(attributes) {
       ]),
       el('tbody', {}, attributes.map(attributeRow)),
     ]),
+    // Said out loud rather than left to be inferred. A dozen rows reading "Unknown_Attribute"
+    // looks like the app failed to read them. It is the drive reporting vendor counters that
+    // nobody has published a meaning for, and smartctl declining to invent one either.
+    unnamed
+      ? el('p', { class: 'muted attr-note', text:
+          `${unnamed} of these attributes are vendor specific. smartctl does not recognise this `
+          + 'drive model, so it has no name for them and the app cannot say what they mean. Their '
+          + 'values are shown exactly as the drive reports them.' })
+      : null,
   ]);
+}
+
+/**
+ * The name to show for an attribute, or null when the drive's is a placeholder.
+ *
+ * smartctl names anything it cannot identify `Unknown_Attribute`. On a drive it does not
+ * recognise that is a dozen rows, and the placeholder reads as a fault in the app rather than
+ * as a property of the drive.
+ */
+function attributeName(a) {
+  const name = String((a && a.name) || '').trim();
+  return !name || name === 'Unknown_Attribute' ? null : name;
 }
 
 /**
@@ -362,11 +384,14 @@ export function attributeTable(attributes) {
 function attributeRow(a) {
   const help = attributeHelp(a.id);
   const flagged = attributeFlagged(a);
+  const name = attributeName(a);
   return el('tr', { class: flagged ? 'attr-flagged' : null }, [
     el('td', { class: 'num', text: fmtCell(a.id) }),
     el('td', {}, [
-      el('span', { text: a.name }),
-      help ? helpButton(a.name, help) : null,
+      name
+        ? el('span', { text: name })
+        : el('span', { class: 'muted', text: 'Vendor specific' }),
+      help ? helpButton(name || `attribute ${a.id}`, help) : null,
       flagged
         ? el('span', {
             class: 'badge badge-caution attr-flag',

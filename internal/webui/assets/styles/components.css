@@ -1501,4 +1501,12 @@ tr.attr-flagged > td {
   vertical-align: middle;
 }
 
+/* Why a table has rows the drive could not name (`FEATURES.md` A20). A footnote to the table
+   it explains, rather than a banner above it. */
+.attr-note {
+  margin-top: var(--space-3);
+  font-size: var(--text-xs);
+  max-width: 70ch;
+}
+
 

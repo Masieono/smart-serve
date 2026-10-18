@@ -33,7 +33,7 @@ function draw(container, ctx, data) {
   const head = el('div', { class: 'page-head' }, [
     el('div', {}, [
       el('h1', { text: 'Schedules' }),
-      el('div', { class: 'sub', text: 'Recurring scans run inside the container — no host cron needed.' }),
+      el('div', { class: 'sub', text: 'Recurring scans run inside the container, so no host cron is needed.' }),
     ]),
     el('span', { class: 'spacer' }),
     el('button', { class: 'btn btn-primary', type: 'button', onclick: () => editSchedule(ctx, null) },
@@ -42,7 +42,7 @@ function draw(container, ctx, data) {
 
   if (!schedules.length) {
     mount(container, head, emptyState('No schedules yet',
-      'Create one to scan automatically — for example every night at 03:00.'));
+      'Create one to scan automatically, for example every night at 03:00.'));
     return;
   }
 
@@ -179,7 +179,7 @@ function editSchedule(ctx, existing) {
         preview.textContent = `Runs ${text.charAt(0).toLowerCase()}${text.slice(1)}.`;
       } else {
         preview.className = 'error-box';
-        preview.textContent = 'Could not interpret that expression — check the five fields.';
+        preview.textContent = 'Could not interpret that expression. Check the five fields.';
       }
     }
 

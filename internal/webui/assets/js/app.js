@@ -119,7 +119,7 @@ function renderSidebar(path) {
     // get it wrong behind a proxy (ADR-015).
     el('button', {
       class: 'brand', type: 'button', title: 'Back to devices',
-      'aria-label': 'Smart-Serve — back to devices',
+      'aria-label': 'Smart-Serve, back to devices',
       onclick: () => ctx.navigate('/'),
     }, [
       icon('device', 'brand-mark'),
@@ -134,7 +134,7 @@ function renderSidebar(path) {
         [icon('scan'), 'Scan now']),
       el('div', { class: 'sidebar-note' }, [
         el('div', { text: 'Data reflects the last scan.' }),
-        el('div', { text: 'S.M.A.R.T. via smartmontools — the app never writes to a drive.' }),
+        el('div', { text: 'S.M.A.R.T. via smartmontools. The app never writes to a drive.' }),
       ]),
     ]),
   );

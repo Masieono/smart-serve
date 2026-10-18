@@ -230,7 +230,7 @@ function draw(container, ctx, data, { carried = {}, unit: unitOverride } = {}) {
     el('div', { class: 'page-head' }, [
       el('div', {}, [
         el('h1', { text: 'Settings' }),
-        el('div', { class: 'sub', text: 'Stored in the database and applied immediately — no restart needed.' }),
+        el('div', { class: 'sub', text: 'Stored in the database and applied immediately, so no restart is needed.' }),
       ]),
       el('span', { class: 'spacer' }),
       save,
@@ -259,7 +259,7 @@ function draw(container, ctx, data, { carried = {}, unit: unitOverride } = {}) {
         el('h2', { text: 'Appearance' }),
         el('div', {}, [
           settingRow('Temperature unit',
-            'How drive temperatures are displayed. The threshold above follows this too — the stored value stays Celsius, which is what the drives report.',
+            'How drive temperatures are displayed. The threshold above follows this too. The stored value stays Celsius, which is what the drives report.',
             unit),
           themeRow,
           ...customRows,

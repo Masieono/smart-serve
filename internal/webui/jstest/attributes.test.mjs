@@ -15,7 +15,7 @@ installStubDom();
 const { ATTRIBUTE_HELP, NVME_HELP, attributeHelp, nvmeHelp, attributeFlagged } =
   await import('../assets/js/attributes.js');
 const { attributeTable } = await import('../assets/js/components.js');
-const { nvmeTable } = await import('../assets/js/views/device.js');
+const { nvmeTable, logSummary } = await import('../assets/js/views/device.js');
 
 // The ids the interpreter acts on: SMART_INTERPRETATION.md §1.1 (wear) and §2 (the
 // CrystalDiskInfo set). If the interpreter grows a new interpreted attribute, this list
@@ -154,6 +154,38 @@ test('an absent minute counter does not render as "— min"', () => {
 // The precondition that makes the two tests below meaningful: the stub must stringify what
 // the browser stringifies. If it quietly dropped a null, a dialog could render the word
 // "null" and every assertion here would still pass.
+// smartctl calls anything it cannot identify "Unknown_Attribute", and on a drive it does not
+// recognise that is a dozen rows. Shown verbatim it reads as the app having failed to read
+// them, so the row is labelled as vendor specific and the table says why.
+test('an attribute smartctl cannot name is labelled vendor specific', () => {
+  const table = attributeTable([
+    attr(5, 'Reallocated_Sector_Ct', 100, 100, 10),
+    attr(169, 'Unknown_Attribute', 100, 100, 50),
+    attr(170, '', 100, 100, 50),
+  ]);
+  const text = textOf(table);
+  assert.doesNotMatch(text, /Unknown_Attribute/, 'the placeholder must not reach the table');
+  assert.equal((text.match(/Vendor specific/g) || []).length, 2, 'both unnamed rows');
+  assert.match(text, /2 of these attributes are vendor specific/);
+  // The drive's own name still wins where there is one.
+  assert.match(text, /Reallocated_Sector_Ct/);
+});
+
+test('a fully named table carries no vendor-specific note', () => {
+  const text = textOf(attributeTable([attr(5, 'Reallocated_Sector_Ct', 100, 100, 10)]));
+  assert.doesNotMatch(text, /vendor specific/);
+});
+
+// The panel used to say the entries "are in the raw output" without saying where, which is not
+// findable in several hundred lines of JSON. It names the sections now.
+test('the log panel names the raw-output sections to look in', () => {
+  const text = textOf(logSummary({ error_count: 1, self_test_count: 2 }));
+  assert.match(text, /ata_smart_error_log/);
+  assert.match(text, /ata_smart_self_test_log/);
+  assert.match(text, /nvme_error_information_log/);
+  assert.doesNotMatch(text, /Log entries themselves are in the raw output/);
+});
+
 test('the DOM stub stringifies non-node arguments, as the browser does', () => {
   const node = new StubNode('div');
   node.append('a', null, undefined, 7);
