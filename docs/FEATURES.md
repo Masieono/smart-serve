@@ -259,7 +259,7 @@ Deferred, but the constraints are worth recording before anyone builds it.
 | B9 | Self-test result notifications (pass/fail) | P2 | 💤 | |
 | B10 | ntfy action buttons ("Open dashboard"), priority, tags | P2 | 💤 | |
 | B11 | Gotify / Telegram / Discord / SMTP adapters | P2 | 💤 | **done** — each a small `Sender`; the editor is data-driven, so adding another is a data change |
-| B12 | Per-channel event subscription UI | P2 | 💤 | |
+| B12 | Per-channel event subscription UI | P2 | 💤 | **done** — checkboxes per channel, served from the server's event list so the two cannot drift |
 | B13 | Weekly digest (one summary instead of per-event) | P3 | 💤 | |
 
 ## C. Operations & deployment
