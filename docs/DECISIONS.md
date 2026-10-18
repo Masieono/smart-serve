@@ -492,13 +492,13 @@ reading — are unchanged and still binding.
 
 **Context.** `ADR-001` recorded "distroless image <20 MB" as a consequence of choosing Go,
 `DESIGN.md` repeated it as a build target, and the README turned it into a feature bullet.
-The image has in fact always been `alpine:3.20` (`Dockerfile`), because the runtime needs
+The image has in fact always been an `alpine` base (`Dockerfile`), because the runtime needs
 `smartctl` and `lsblk` and both are packaged there. Nothing ever reconciled the two, so for
 the life of the project the documentation described an image that was not the one being
 built — found while preparing for a public release, which is exactly when it would have
 started to matter.
 
-**Decision.** The runtime image is **`alpine:3.20`**, with `smartmontools` and `util-linux`
+**Decision.** The runtime image is **`alpine`**, with `smartmontools` and `util-linux`
 installed from apk. `ADR-001`'s actual decision — one static Go binary, frontend embedded —
 is unchanged. Only its claim about the base image is corrected, and the stale size figure is
 **withdrawn rather than replaced with another estimate**, because an unverified number is
@@ -525,6 +525,10 @@ and **53.5 MB disk usage** — so the withdrawn claim of "well under 20 MB" was 
 compressed figure and wrong about everything else. That is precisely why the two numbers are
 now published together and labelled: a single figure is what let the original claim survive
 unchallenged for the life of the project.
+
+Both figures were measured on the `alpine:3.20` image v1.0.0 shipped. Dependabot has since
+moved the base to 3.24, so a re-measure belongs with the next release (`RELEASE.md`) — which is
+also the reason the version is no longer written into prose anywhere.
 
 ## ADR-021: Notification secrets are database-only, and the docs now say so
 
