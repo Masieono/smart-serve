@@ -4,7 +4,47 @@ Notable changes per release. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project uses
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.0.0] — unreleased
+## [1.0.1] — 2026-10-18
+
+Four fixes found by using the first release in anger, plus the documentation corrections that
+came out of deploying it.
+
+### Fixed
+
+- **The attribute `?` dialog rendered the literal word "null"** on every field with no "how to
+  read it" line. The native `Element.append` stringifies a `null` argument into a text node, and
+  one call site had bypassed the project's own helper that filters them out.
+- **Changing the trend window threw the page back to the top.** The re-render mounted a one-line
+  skeleton first, which collapsed the page height, so the browser clamped the scroll position to
+  zero.
+- **Rows smartctl cannot name** read `Unknown_Attribute`, which looks like a read failure. They
+  are labelled "Vendor specific" now, with a note under the table explaining that smartctl does
+  not recognise the drive model and the counters are vendor-private.
+- **The drive-logs panel** said the entries were "in the raw output" without saying where. It
+  names the sections: `ata_smart_error_log`, `ata_smart_self_test_log`,
+  `nvme_error_information_log`.
+
+### Changed
+
+- Em dashes removed from 31 user-facing strings, every attribute tooltip included.
+- The Alpine base tag is no longer named in prose. Dependabot bumps it, and a version written
+  into documentation goes stale on the next bump.
+- Dependencies: `alpine` 3.20 → 3.24, `docker/metadata-action` v5 → v6.
+
+### Documentation
+
+- **The idle footprint is measured, not a target**: 0.00% CPU and 13.36 MiB RSS on a
+  long-running instance with no browser open, inside the "near zero" and "under 20 MB" the MVP
+  was written against.
+- **Native AHCI/SATA is verified.** A second host exposes a SATA SSD on a native controller,
+  closing the caveat that SATA had only ever been reached through a USB bridge.
+- **Image size published**: 14.8 MB content, 53.5 MB on disk. The withdrawn "well under 20 MB"
+  claim was true of the compressed figure and wrong about everything else.
+- A drive with a populated error log was finally captured, and it justifies the counts-only
+  decision in the drive-logs panel: on a drive smartctl does not recognise, a logged error
+  carries an error number and an index and nothing else.
+
+## [1.0.0] — 2026-10-17
 
 First public release.
 
@@ -64,4 +104,5 @@ First public release.
 - The idle-footprint figures are targets, not measurements, pending a run on a public
   instance.
 
+[1.0.1]: https://github.com/masieono/smart-serve/releases/tag/v1.0.1
 [1.0.0]: https://github.com/masieono/smart-serve/releases/tag/v1.0.0
