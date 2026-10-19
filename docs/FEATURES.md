@@ -314,7 +314,7 @@ and all of them still hold.
 | D5 | Filter & sort devices (health, name, transport) | P2 | 💤 | **done** — a sort field with a direction toggle, a transport filter built from the transports actually present, and search that covers the bay. See `UI.md` §7.1 |
 | D6 | Side-by-side multi-device comparison | P3 | 💤 | |
 | D7 | Localization (multi-language) | P3 | 💤 | CDI parity |
-| D8 | Dense fleet table view (one row per drive, sortable by risk) | P2 | 💤 | the dashboard is a card grid; at 24 drives that is a lot of scrolling |
+| D8 | Dense fleet table view (one row per drive, sortable by risk) | P2 | 💤 | **done** — a Cards/Table switch on the dashboard; the table carries bay, verdict, score, transport, model, capacity, temperature, age and last scan, with sortable headers. See `UI.md` §7.1 |
 | D9 | Device grouping by tag/pool, dashboard grouped | P2 | 💤 | turns 24 cards into 3 readable groups; also the precondition for `A25` |
 | D10 | Bay/slot field (physical location on the card and in the report) | P2 | 💤 | **done** — a free-text `bay` in the device's notes, shown first on the card and in the report. See below |
 | D11 | Testing session (label, test and report a batch of bench drives without polluting the fleet) | P3 | 💤 | `D4`'s *forget* already covers the single-drive version of this |

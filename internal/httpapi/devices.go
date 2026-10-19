@@ -41,6 +41,11 @@ type deviceJSON struct {
 	// when the count is moving. A drive whose count is moving is worth replacing before
 	// it stops moving at all, so this is the dashboard's early warning.
 	Worsening *int64 `json:"worsening,omitempty"`
+	// PowerOnHours and WearPct come from the newest snapshot rather than from `devices`, because
+	// they are readings rather than current state. Present on the list so a fleet table can show
+	// each drive's age per row, without opening every drive to find it.
+	PowerOnHours *int64   `json:"power_on_hours,omitempty"`
+	WearPct      *float64 `json:"wear_pct,omitempty"`
 	// Removable and FsVersion come from lsblk. For a drive that reports no S.M.A.R.T.
 	// they are often the only description there is.
 	Removable *bool  `json:"removable,omitempty"`
@@ -143,10 +148,19 @@ func (s *Server) handleListDevices(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		trend = nil
 	}
+	// Power-on hours and wear, for the same reason: a fleet table wants a drive's age per row, and
+	// one query for the list beats one per row.
+	facts, ferr := s.store.LatestSnapshotFacts(r.Context())
+	if ferr != nil {
+		facts = nil
+	}
 	for _, d := range devices {
 		dj := toDeviceJSON(d)
 		if delta, ok := trend[d.Serial]; ok && delta > 0 {
 			dj.Worsening = &delta
+		}
+		if f, ok := facts[d.Serial]; ok {
+			dj.PowerOnHours, dj.WearPct = f.PowerOnHours, f.WearPct
 		}
 		out = append(out, dj)
 	}

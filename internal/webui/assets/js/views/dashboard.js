@@ -1,7 +1,7 @@
 // Dashboard: device cards, health summary, scan button (docs/UI.md §7.1).
 import { el, mount, fmtAgo } from '../dom.js';
 import { api } from '../api.js';
-import { deviceCard, healthFilter, emptyState, skeletonCards, errorBox, transportLabel } from '../components.js';
+import { deviceCard, fleetTable, deviceTitle, healthFilter, emptyState, skeletonCards, errorBox, transportLabel } from '../components.js';
 import { icon } from '../icons.js';
 
 // Module-level so the choices survive navigating into a drive and back.
@@ -11,6 +11,7 @@ let showMissing = false;
 let transportFilter = '';
 let sortKey = 'health';
 let ascending = true;
+let view = 'cards';
 
 // Worst first. The rank is what makes "sort by risk" mean something: the server's own ORDER BY
 // uses the same order, and this is the client's copy of it for the sorts below.
@@ -27,16 +28,22 @@ const HEALTH_RANK = { bad: 0, caution: 1, unknown: 2, good: 3 };
 const SORTS = [
   { key: 'health', label: 'Risk', ascending: true,
     value: (d) => HEALTH_RANK[d.health] ?? 9 },
-  { key: 'name', label: 'Name', ascending: true, value: nameOf },
+  { key: 'name', label: 'Name', ascending: true, value: deviceTitle },
   { key: 'bay', label: 'Bay', ascending: true, value: (d) => d.bay || '' },
   { key: 'model', label: 'Model', ascending: true, value: (d) => d.model || '' },
   { key: 'capacity', label: 'Capacity', ascending: false, value: (d) => d.capacity_bytes ?? -1 },
   { key: 'temperature', label: 'Temperature', ascending: false, value: (d) => d.temperature_c ?? -1 },
+  { key: 'power_on_hours', label: 'Age', ascending: false, value: (d) => d.power_on_hours ?? -1 },
   { key: 'last_scan', label: 'Last scan', ascending: false, value: (d) => d.last_scan || '' },
+  { key: 'score', label: 'Score', ascending: true,
+    // A drive with no score is not the best-scoring drive in the fleet. -1 means "not scored",
+    // so it sorts last rather than first.
+    value: (d) => (typeof d.score === 'number' && d.score >= 0 ? d.score : 999) },
+  { key: 'transport', label: 'Transport', ascending: true, value: (d) => d.transport || '' },
 ];
 
 function nameOf(d) {
-  return d.name || d.model || d.serial || '';
+  return deviceTitle(d);
 }
 
 /** Compare two sort values: numbers numerically, strings case-insensitively. */
@@ -160,6 +167,19 @@ function draw(container, ctx, data) {
     },
   }, [ascending ? '↑' : '↓']);
 
+  /** One half of the cards/table switch. */
+  function viewButton(key, label) {
+    return el('button', {
+      class: 'btn btn-sm',
+      type: 'button',
+      'aria-pressed': view === key ? 'true' : 'false',
+      onclick: () => {
+        view = key;
+        draw(container, ctx, data);
+      },
+    }, [label]);
+  }
+
   const transportSelect = transportOptions.length > 1
     ? el('select', {
         title: 'Show only one kind of connection',
@@ -210,6 +230,11 @@ function draw(container, ctx, data) {
           sortSelect,
           direction,
           transportSelect,
+          // Cards for a handful of drives, a table for a rack. It sits at the far end because it
+          // changes the shape of the answer rather than what is being asked.
+          el('span', { class: 'spacer' }),
+          viewButton('cards', 'Cards'),
+          viewButton('table', 'Table'),
         ])
       : null,
     el('div', { class: 'devices-head-sub muted', text: `Last scan ${fmtAgo(data.last_scan_ts)}` }),
@@ -233,9 +258,31 @@ function draw(container, ctx, data) {
     const shown = visibleDevices(all, {
       health: filter, query, transport: transportFilter, showMissing, sortKey, ascending,
     });
-    mount(grid, shown.length
-      ? shown.map((d) => deviceCard(d, ctx.openDevice, () => ctx.scanDevice(d.serial)))
-      : [emptyState('Nothing to show', 'No devices match the current filter.')]);
+    // The grid is a card grid or a table holder, never both: a table inside a grid would be laid
+    // out as a single cell and lose its own columns.
+    grid.className = view === 'table' ? 'fleet-holder' : 'card-grid';
+
+    if (!shown.length) {
+      mount(grid, emptyState('Nothing to show', 'No devices match the current filter.'));
+      return;
+    }
+    mount(grid, view === 'table'
+      ? fleetTable(shown, {
+          sortKey,
+          ascending,
+          onOpen: ctx.openDevice,
+          onScan: (serial) => ctx.scanDevice(serial),
+          onSort: (key) => {
+            // Clicking the column already sorted reverses it; clicking another starts from that
+            // field's own idea of "first", the same default the select uses.
+            ascending = key === sortKey
+              ? !ascending
+              : (SORTS.find((s) => s.key === key) || SORTS[0]).ascending;
+            sortKey = key;
+            draw(container, ctx, data);
+          },
+        })
+      : shown.map((d) => deviceCard(d, ctx.openDevice, () => ctx.scanDevice(d.serial))));
   }
   paint();
 

@@ -532,3 +532,53 @@ func TestADeviceWithNoNotesHasAnEmptyBay(t *testing.T) {
 		t.Errorf("Bay = %q, want empty", rec.Bay)
 	}
 }
+
+// The fleet table shows each drive's age per row, so the list endpoint needs power-on hours for
+// every drive at once. "The latest" has to be exactly one row even when two snapshots share a
+// millisecond, which is why this keys on the highest id rather than the highest timestamp.
+func TestLatestSnapshotFactsPicksTheNewestPerDevice(t *testing.T) {
+	ctx := context.Background()
+	s := newTestStore(t)
+	at := time.Date(2026, 6, 1, 9, 0, 0, 0, time.UTC)
+	early, late := int64(100), int64(200)
+	wearEarly, wearLate := 1.0, 2.0
+
+	if _, err := s.SaveScan(ctx, "manual", at, at, []ScannedDevice{
+		{Serial: "A", Health: "good", Score: 100, PowerOnHours: &early, WearPct: &wearEarly},
+		{Serial: "B", Health: "good", Score: 100, PowerOnHours: &late, WearPct: &wearLate},
+	}); err != nil {
+		t.Fatalf("SaveScan: %v", err)
+	}
+	// A second scan of A only, in the same millisecond. B's figures must be untouched.
+	if _, err := s.SaveScan(ctx, "manual", at, at, []ScannedDevice{
+		{Serial: "A", Health: "good", Score: 100, PowerOnHours: &late, WearPct: &wearLate},
+	}); err != nil {
+		t.Fatalf("SaveScan 2: %v", err)
+	}
+
+	got, err := s.LatestSnapshotFacts(ctx)
+	if err != nil {
+		t.Fatalf("LatestSnapshotFacts: %v", err)
+	}
+	if f := got["A"]; f.PowerOnHours == nil || *f.PowerOnHours != 200 {
+		t.Errorf("A hours = %v, want 200 from the newest snapshot", f.PowerOnHours)
+	}
+	if f := got["B"]; f.PowerOnHours == nil || *f.PowerOnHours != 200 {
+		t.Errorf("B hours = %v, want 200", f.PowerOnHours)
+	}
+
+	// A drive whose snapshot reports nothing comes back present but empty, rather than with
+	// zeroes: "no reading" and "zero hours" are different claims.
+	if _, err := s.SaveScan(ctx, "manual", at, at, []ScannedDevice{
+		{Serial: "C", Health: "unknown", Score: -1},
+	}); err != nil {
+		t.Fatalf("SaveScan 3: %v", err)
+	}
+	got, err = s.LatestSnapshotFacts(ctx)
+	if err != nil {
+		t.Fatalf("LatestSnapshotFacts 2: %v", err)
+	}
+	if f, ok := got["C"]; !ok || f.PowerOnHours != nil || f.WearPct != nil {
+		t.Errorf("C = %+v, want present with no readings", f)
+	}
+}

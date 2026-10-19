@@ -11,6 +11,11 @@ stopped from the device page.
 
 ### Added
 
+- **Dense fleet table (`D8`)** — a Cards/Table switch on the dashboard. The table gives one row per
+  drive with bay, verdict, score, transport, model, capacity, temperature, age and last scan, and
+  its headers sort — clicking the sorted column reverses it. A card grid is right for four drives
+  and wrong for twenty-four, so the grid stays for small hosts. The list endpoint now carries
+  `power_on_hours` and `wear_pct` so a row can show a drive's age without opening it.
 - **Filter & sort (`D5`)** — the device list can be ordered by risk, name, bay, model, capacity,
   temperature or last scan, and filtered by transport. Each sort field carries its own direction,
   because "first" means different things per field, and a drive that reports no reading sorts last

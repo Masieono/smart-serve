@@ -1,5 +1,5 @@
 // Shared UI components (docs/UI.md §6).
-import { el, svg, fmtBytes, fmtTemp, fmtScore, fmtAgo, fmtDate, fmtTime, fmtCell, append, scoreGrade, scoreBand, verdictClass } from './dom.js';
+import { el, svg, fmtBytes, fmtTemp, fmtScore, fmtAgo, fmtDate, fmtTime, fmtCell, fmtHours, append, scoreGrade, scoreBand, verdictClass } from './dom.js';
 import { icon } from './icons.js';
 import { attributeHelp, attributeFlagged } from './attributes.js';
 
@@ -268,8 +268,18 @@ function statusBadge(device) {
   return verdictBadge(device.health);
 }
 
+/**
+ * What to call a drive on screen: its user name, falling back to what the drive says about itself.
+ *
+ * One function rather than the same expression in three places, because "the same drive has three
+ * different names on three screens" is the kind of thing nobody notices until a screenshot.
+ */
+export function deviceTitle(device) {
+  return device.name || device.model || device.device_path || device.serial || '';
+}
+
 export function deviceCard(device, onOpen, onScan) {
-  const title = device.name || device.model || device.device_path || device.serial;
+  const title = deviceTitle(device);
   const mounted = device.mountpoints && device.mountpoints.length
     ? device.mountpoints.join(', ')
     : 'not mounted';
@@ -339,6 +349,82 @@ export function deviceCard(device, onOpen, onScan) {
           onScan();
         },
       }, [icon('scan')]),
+    ]),
+  ]);
+}
+
+/**
+ * The dense fleet table (`FEATURES.md` D8).
+ *
+ * A card grid is right for four drives and wrong for twenty-four: what a fleet owner wants is one
+ * line per drive, ordered by risk, carrying the columns they would otherwise open four screens to
+ * collect. The card grid stays for small hosts, and this is the other view of the same list.
+ *
+ * Rows are built from the same payloads the cards are, and the badges are literally the same
+ * functions, so the two views cannot disagree about a drive's state.
+ *
+ * `onSort` is what makes the headers do something. A table header that looks clickable and is not
+ * is worse than a plain label, so a column with no `key` renders as plain text and carries no
+ * cursor.
+ */
+export function fleetTable(devices, opts = {}) {
+  const {
+    sortKey = 'health', ascending = true, onOpen = () => {}, onScan = () => {}, onSort = null,
+  } = opts;
+
+  // In the order someone reads a fleet: where it is, what it is, how it is, how old it is.
+  const columns = [
+    { key: 'bay', label: 'Bay', cell: (d) => d.bay || '' },
+    { key: 'name', label: 'Drive', cell: deviceTitle },
+    { key: 'health', label: 'Verdict', cell: (d) => [statusBadge(d), worseningBadge(d)] },
+    { key: 'score', label: 'Score', numeric: true, cell: (d) => fmtScore(d.score) },
+    { key: 'transport', label: 'Transport', cell: transportLabel },
+    { key: 'model', label: 'Model', cell: (d) => d.model || '' },
+    { key: 'capacity', label: 'Capacity', numeric: true, cell: (d) => fmtBytes(d.capacity_bytes) },
+    { key: 'temperature', label: 'Temp', numeric: true, cell: (d) => fmtTemp(d.temperature_c) },
+    { key: 'power_on_hours', label: 'Age', numeric: true, cell: (d) => fmtHours(d.power_on_hours) },
+    { key: 'last_scan', label: 'Last scan', numeric: true, cell: (d) => fmtAgo(d.last_scan) },
+    { key: null, label: '', cell: (d) => el('button', {
+      class: 'btn btn-sm btn-ghost',
+      type: 'button',
+      title: 'Scan this device',
+      onclick: (e) => {
+        e.stopPropagation();
+        onScan(d.serial);
+      },
+    }, [icon('scan')]) },
+  ];
+
+  const header = el('tr', {}, columns.map((c) => {
+    const sortable = c.key !== null && onSort !== null;
+    const active = sortable && c.key === sortKey;
+    const props = { class: c.numeric ? 'num' : '' };
+    if (sortable) {
+      // The affordance is attached only when the column can actually be sorted. An empty `title`
+      // is still a `title` attribute, and `th[title]` is what the stylesheet hangs the pointer
+      // cursor on — so passing one unconditionally would make every header look clickable.
+      props.title = `Sort by ${c.label.toLowerCase()}`;
+      props['aria-sort'] = active ? (ascending ? 'ascending' : 'descending') : 'none';
+      props.onclick = () => onSort(c.key);
+    }
+    return el('th', props, [c.label, active ? (ascending ? ' ↑' : ' ↓') : '']);
+  }));
+
+  return el('div', { class: 'table-wrap fleet-wrap' }, [
+    el('table', { class: 'data fleet-table' }, [
+      el('thead', {}, [header]),
+      el('tbody', {}, devices.map((d) => el('tr', {
+        class: d.is_missing ? 'fleet-row-missing' : '',
+        tabindex: '0',
+        title: d.is_missing ? 'This device was not present in the last scan' : '',
+        onclick: () => onOpen(d.serial),
+        onkeydown: (e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            onOpen(d.serial);
+          }
+        },
+      }, columns.map((c) => el('td', { class: c.numeric ? 'num' : '' }, [c.cell(d)]))))),
     ]),
   ]);
 }

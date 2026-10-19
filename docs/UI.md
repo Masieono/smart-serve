@@ -168,6 +168,15 @@ picker offers exactly `ThemeNames`.
   picked. Search covers the bay, because hunting a drive by where it physically is is the whole
   point of recording one. A drive with no reading sorts *last*, never first — an absent temperature
   is not 0 °C, and treating it as such would put the least informative drive at the top.
+- **Two views** (`FEATURES.md` D8): Cards and Table, switched from the controls row. The card grid
+  is right for four drives and wrong for twenty-four, so the table gives one row per drive with
+  bay, verdict, score, transport, model, capacity, temperature, age and last scan. Its headers
+  sort: clicking the sorted column reverses it, and clicking another starts from that field's own
+  idea of "first". Only sortable headers carry a `title`, because `th[title]` is what the stylesheet
+  hangs the pointer cursor on — a header that looks clickable and is not is worse than a plain
+  label. The table *replaces* the grid rather than nesting inside it, since a table in a grid cell
+  is laid out as a single column and loses the columns it exists for. Both views are built from the
+  same payloads and the same badge functions, so they cannot disagree about a drive's state.
 - **Bay:** a drive with a recorded physical location leads its card with it. A serial identifies a
   drive; a bay *finds* it, and the person asking that question is standing in front of a machine
   rather than reading a screen carefully. Unset bays get no row at all — a gap in the bookkeeping

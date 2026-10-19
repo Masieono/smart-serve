@@ -571,6 +571,56 @@ type Snapshot struct {
 // at once. Rows are folded in Go rather than using a correlated subquery per device, and
 // the fold keeps only two rows per device: the newest, and the newest that is old enough
 // to compare against. Rows arrive oldest-first, so nothing that qualifies can arrive later.
+// SnapshotFacts is the newest snapshot's per-drive figures.
+//
+// Power-on hours and wear live on snapshots rather than on `devices`, because they are readings
+// rather than current state. A fleet table needs them for every row at once, so they are fetched
+// in one query for the whole list instead of one query per drive.
+type SnapshotFacts struct {
+	PowerOnHours *int64
+	WearPct      *float64
+}
+
+// LatestSnapshotFacts returns the newest snapshot's figures for every drive that has one.
+//
+// Keyed on the highest snapshot id rather than the highest timestamp: two snapshots can share a
+// millisecond when a partial rescan follows a full one, and "the latest" has to be one row.
+func (s *Store) LatestSnapshotFacts(ctx context.Context) (map[string]SnapshotFacts, error) {
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT s.serial, s.power_on_hours, s.wear_pct
+		FROM snapshots s
+		JOIN (SELECT serial, MAX(id) AS id FROM snapshots GROUP BY serial) newest
+		  ON newest.id = s.id`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	out := map[string]SnapshotFacts{}
+	for rows.Next() {
+		var (
+			serial string
+			hours  sql.NullInt64
+			wear   sql.NullFloat64
+		)
+		if err := rows.Scan(&serial, &hours, &wear); err != nil {
+			return nil, err
+		}
+		f := SnapshotFacts{}
+		if hours.Valid {
+			v := hours.Int64
+			f.PowerOnHours = &v
+		}
+		if wear.Valid {
+			v := wear.Float64
+			f.WearPct = &v
+		}
+		out[serial] = f
+	}
+	return out, rows.Err()
+}
+
+// SectorTrend reports how many bad sectors appeared per device over the recent window.
 func (s *Store) SectorTrend(ctx context.Context, from time.Time, recent time.Duration) (map[string]int64, error) {
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT serial, ts, sectors FROM snapshots

@@ -87,6 +87,14 @@ in one query so the dashboard can flag a drive that is going bad without the use
 to open each one. A drive with fewer than two snapshots in the window is absent rather
 than reported as flat — no history is not the same finding as a clean bill of health.
 
+`power_on_hours` and `wear_pct` also appear on the **list** endpoint, taken from each
+drive's newest snapshot. They live on snapshots rather than on `devices` because they are
+readings rather than current state, and they are on the list so the dense fleet table
+(`FEATURES.md` D8) can show a drive's age per row without opening every drive to find it.
+One query for the whole list, keyed on the highest snapshot id rather than the highest
+timestamp — two snapshots can share a millisecond when a partial rescan follows a full
+one, and "the latest" has to be one row.
+
 ### `GET /api/devices/{serial}` — full device detail
 
 Everything above plus the normalized SMART payload for the last scan: ATA attribute

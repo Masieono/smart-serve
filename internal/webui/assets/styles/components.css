@@ -316,6 +316,16 @@ a:hover {
   border-color: var(--accent-hover);
 }
 
+/* A toggle button that is on. `aria-pressed` is the state the markup already carries, so the
+   styling follows it rather than a second class that could disagree with it — and this covers
+   the dashboard's view switch and its "show disconnected" toggle, which were previously
+   indistinguishable from ordinary buttons once pressed. */
+.btn[aria-pressed="true"] {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
 .btn-danger {
   color: var(--bad);
   border-color: color-mix(in srgb, var(--bad) 40%, var(--border));
@@ -1535,6 +1545,41 @@ tr.attr-flagged > td {
   margin-top: var(--space-3);
   font-size: var(--text-xs);
   max-width: 70ch;
+}
+
+/* The fleet table (`FEATURES.md` D8). It *replaces* the card grid rather than sitting inside it:
+   a table in a grid cell is laid out as a single column and loses the columns it exists for. */
+.fleet-holder {
+  min-width: 0;
+}
+
+.fleet-wrap {
+  overflow-x: auto;
+}
+
+.fleet-table {
+  white-space: nowrap;
+}
+
+/* Only a sortable header carries a `title`, so only a sortable header gets the affordance. A
+   header that looks clickable and is not is worse than a plain label. */
+.fleet-table th[title] {
+  cursor: pointer;
+  user-select: none;
+}
+
+.fleet-table tbody tr {
+  cursor: pointer;
+}
+
+.fleet-table tbody tr:hover {
+  background: var(--surface-2);
+}
+
+/* A drive that was not in the last scan keeps its row — its notes and history matter — but is
+   visibly set aside, the same way its card is. */
+.fleet-row-missing {
+  opacity: 0.6;
 }
 
 /* A self-test verdict (`FEATURES.md` A20). Colour is never the only signal: the icon and the
