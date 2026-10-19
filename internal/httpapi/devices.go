@@ -69,6 +69,10 @@ type deviceJSON struct {
 	// raw document for every device on every list request would be work for data the
 	// dashboard does not show.
 	Logs *model.LogSummary `json:"logs,omitempty"`
+	// Changes is what moved between the last two scans (`FEATURES.md` A18). Detail endpoint
+	// only, for the same reason as Logs: it needs two snapshots, and the list has no place to
+	// put the answer.
+	Changes *changesJSON `json:"changes,omitempty"`
 }
 
 func toDeviceJSON(d store.DeviceRecord) deviceJSON {
@@ -192,6 +196,19 @@ func (s *Server) handleGetDevice(w http.ResponseWriter, r *http.Request) {
 
 	device := toDeviceJSON(*rec)
 	device.Logs = logsFrom(rec.RawOutput)
+	// A18: what changed since the previous scan. Two snapshots, newest first, and the diff is
+	// computed here rather than in the UI so the "is this a finding?" rule stays beside the
+	// interpretation that already owns it.
+	if recent, err := s.store.RecentSnapshots(r.Context(), serial, 2); err == nil {
+		var prev, cur *store.Snapshot
+		if len(recent) > 0 {
+			cur = &recent[0]
+		}
+		if len(recent) > 1 {
+			prev = &recent[1]
+		}
+		device.Changes = diffSnapshots(prev, cur)
+	}
 
 	resp := map[string]any{
 		"device":     device,

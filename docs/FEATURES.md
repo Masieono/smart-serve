@@ -30,7 +30,7 @@ avoid idle cost.
 | A15 | History charts (temp, sectors, wear) + sparklines | P2 | 💤 | **done** — per-metric sparkline card on the device page, with a 7/30/90-day/all range selector. The x-axis is **time**, not reading index, with one shared date axis under the card (`ADR-023`) |
 | A16 | Remaining-longevity estimate (NVMe / SSD / HDD) | P2 | 💤 | **done** — see below, with confidence labels |
 | A17 | Health score 0–100 + letter grade | MVP/P2 | 💤 | basic in MVP; trend-aware in P2 |
-| A18 | Snapshot diff ("what changed since last scan") | P2 | 💤 | |
+| A18 | Snapshot diff ("what changed since last scan") | P2 | 💤 | **done** — a "Since the last scan" card on the device page. The server decides which attribute movements are findings, so the diff cannot disagree with the verdict. See below |
 | A19 | SMART self-test (manual short/long + scheduled) + self-test log | P2 | 💤 | **manual done** — short/long, live progress, abort; opt-in only, never automatic. Scheduling still to come. See below |
 | A20 | SMART error log display | P2 | 💤 | **done** — the error and self-test log *counts* and *entries*, the drive's own self-test timings, and smartctl's words when a log cannot be read. See below |
 | A21 | Drive knowledge base (rated TBW, known firmware advisories) | P3 | 💤 | bundled static table; opt-in in-app refresh |
@@ -68,7 +68,31 @@ A drive with too little history says so rather than guessing, and a drive that r
 sector counts is *absent* from the trend rather than reported as flat: no history is not
 the same finding as a clean bill of health.
 
-### A22 — Drives with no S.M.A.R.T.
+### A18 — What changed since the last scan
+
+One card on the device page, answering one question. Three things about it were decisions rather
+than implementation.
+
+**"Nothing changed" is a real answer.** A drive scanned twice and found identical is exactly the
+reassurance someone opened the page for, so the card says so in words. An empty panel would read as
+"we did not look", which is the same distinction the drive-logs panel and the trend card already
+make.
+
+**Absent is not zero.** A drive that reported no temperature last scan has no *from*, and the card
+renders an em dash. Showing 0 °C would invent a reading the drive never gave, and this app exists
+not to do that.
+
+**The server decides what counts as a finding**, and it invents nothing: an attribute movement is
+trouble if the drive's *own* threshold is met, or if it is one of the lost-storage counters the
+interpretation already sums (5, 197, 198). A second opinion in the UI would let this card and the
+verdict disagree about the same drive, which is the one thing an attribute-level judgement must not
+do. Everything else that moved is **counted and named as a count** — "4 other counters moved, which
+is ordinary wear" — rather than dropped, because a silent filter is a lie by omission.
+
+A counter the drive has just started reporting is marked *new*, which is the difference between
+"nothing was wrong before" and "we were not being told".
+
+
 
 Most USB flash drives and card readers do not implement S.M.A.R.T. at all, and some USB
 bridges do not pass it through. `smartctl` fails on them, which used to mean the app

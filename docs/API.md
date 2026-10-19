@@ -175,6 +175,33 @@ has more to say than that.
 Everything here is parsed from the raw document already stored for the device, so no extra device
 access happens and the idle-cost invariant is untouched.
 
+`device.changes` is what moved between the last two scans (`FEATURES.md` A18). Also detail-only,
+for the same reason as `logs`: it needs two snapshots, and the list has no place to put the answer.
+
+```json
+"changes": {
+  "from": "2025-10-12T04:00:00Z",
+  "to": "2025-10-12T10:17:20Z",
+  "health": { "from": "good", "to": "caution" },
+  "score": { "from": 96, "to": 74 },
+  "temperature_c": { "to": 41 },
+  "sectors": { "from": 0, "to": 5 },
+  "attributes": [
+    { "id": 5, "name": "Reallocated_Sector_Ct", "from": 0, "to": 5, "value": 100, "worst": 100,
+      "threshold": 10, "trouble": true }
+  ],
+  "routine": 4,
+  "note": "Only one scan has been recorded for this drive..."
+}
+```
+
+An **absent** end is a reading the drive did not give, not a zero: the example's temperature has no
+`from` because the previous scan did not report one. `attributes` holds only the movements the app
+treats as a finding — the drive's *own* threshold being met, or one of the lost-storage counters —
+and `routine` counts the rest rather than dropping them, because a silent filter would be a lie by
+omission. `appeared` marks a counter the drive has just started reporting. `note` is present when
+there is no diff to make at all, which is a different finding from an empty one.
+
 `projection` is what the drive's **history** says about where it is heading, over a
 180-day window (`internal/interp/longevity.go`, `SCOPE.md` §2.2). The window matches the
 default `retention_days` setting, since snapshots older than that have been pruned; lowering

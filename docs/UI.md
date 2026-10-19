@@ -213,6 +213,13 @@ picker offers exactly `ThemeNames`.
 - **Header:** editable inline name, model, serial, firmware, capacity, drive age.
 - **Health block:** large gauge + verdict badge + plain-language rationale
   ("5 pending sectors").
+- **Since the last scan** (`FEATURES.md` A18): the first card in the grid, because "what changed" is
+  the news and the cards below it are reference material. One `was → now` line per field that moved,
+  with the field name fixed-width so the arrows line up and the list reads as a column. An absent
+  end is an em dash rather than a zero — a reading the drive never gave is not a reading of zero.
+  "Nothing changed" is stated in words, because an empty panel would read as "we did not look". The
+  counters that moved *and* are a finding get a table; the routine ones are counted and said out
+  loud ("4 other counters moved, which is ordinary wear") rather than dropped.
 - **Trend card:** per-metric sparklines with the current value and the change across the series,
   over a 7/30/90-day/all range selector. The x-axis is **time rather than reading index**
   (`ADR-023`): a fixed range is a *calendar* window, so 30 days means the last 30 days whether or

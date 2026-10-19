@@ -1627,6 +1627,39 @@ tr.attr-flagged > td {
   border-bottom: 1px solid var(--border);
 }
 
+/* The snapshot diff (`FEATURES.md` A18). One "was → now" line per field that moved, with the
+   field name fixed-width so the arrows line up down the card and the whole list reads as a
+   column rather than as prose. */
+.change-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.change-row {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+}
+
+.change-label {
+  min-width: 10ch;
+  font-size: var(--text-xs);
+  color: var(--muted);
+}
+
+.change-from {
+  color: var(--muted);
+}
+
+.change-arrow {
+  color: var(--muted);
+}
+
+.change-to {
+  font-weight: 600;
+}
+
 /* A self-test verdict (`FEATURES.md` A20). Colour is never the only signal: the icon and the
    drive's own words carry the meaning, which matters for a log people scan rather than read. */
 .log-pass {

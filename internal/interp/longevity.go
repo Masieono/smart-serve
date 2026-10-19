@@ -7,6 +7,23 @@ import (
 	"github.com/masieono/smart-serve/internal/model"
 )
 
+// sectorAttributeIDs are the attributes whose raw value counts storage the drive has lost and
+// cannot get back: reallocated (5), pending (197) and uncorrectable (198).
+//
+// Named once so a caller can ask about a single attribute — "did one of *these* move?" — without
+// keeping its own copy of the list. A second copy is a second thing to forget to update.
+var sectorAttributeIDs = []int{5, 197, 198}
+
+// IsSectorAttribute reports whether an attribute ID is one of the lost-storage counters.
+func IsSectorAttribute(id int) bool {
+	for _, candidate := range sectorAttributeIDs {
+		if candidate == id {
+			return true
+		}
+	}
+	return false
+}
+
 // SectorIssues totals the three attributes that mean "this drive has lost storage it
 // cannot get back": reallocated (5), pending (197) and uncorrectable (198).
 //
@@ -14,7 +31,7 @@ import (
 // whether the number is *moving*, and all three answer it.
 func SectorIssues(attrs []model.Attribute) int64 {
 	var total int64
-	for _, id := range []int{5, 197, 198} {
+	for _, id := range sectorAttributeIDs {
 		for i := range attrs {
 			if attrs[i].ID == id {
 				total += int64(effectiveCount(attrs[i].RawValue))

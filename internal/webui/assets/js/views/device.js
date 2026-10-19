@@ -169,6 +169,10 @@ function draw(container, ctx, data, history) {
     ]),
 
     el('div', { class: 'panel-grid panel-grid-pair' }, [
+      // A18 first: "what changed" is the news, and the cards below it are the reference material
+      // you read afterwards.
+      changesCard(d.changes),
+
       el('div', { class: 'card stack' }, [
         el('h2', { text: 'Identity' }),
         identity,
@@ -211,6 +215,97 @@ function draw(container, ctx, data, history) {
       selfTestCard(ctx, d, d.logs),
     ]),
   );
+}
+
+/**
+ * What changed since the last scan (`FEATURES.md` A18).
+ *
+ * "Nothing changed" is a real answer rather than an empty panel: a drive scanned twice and found
+ * identical is exactly the reassurance someone opened the page for, so the card says so in words
+ * instead of rendering nothing.
+ *
+ * The *server* decides which attribute movements are findings — the drive's own threshold, or one
+ * of the lost-storage counters — and reports the rest as a count. That is deliberate: a second
+ * opinion here would let this card and the verdict disagree about the same drive.
+ */
+export function changesCard(c) {
+  if (!c) return null;
+
+  const body = [];
+  if (c.note) {
+    body.push(el('p', { class: 'muted', text: c.note }));
+  } else {
+    const lines = [];
+    if (c.health) lines.push(changeLine('Verdict', c.health, { badge: true }));
+    if (c.score) lines.push(changeLine('Score', c.score, { format: (v) => `${fmtScore(v)}/100` }));
+    if (c.temperature_c) lines.push(changeLine('Temperature', c.temperature_c, { format: fmtTemp }));
+    if (c.wear_pct) lines.push(changeLine('Wear', c.wear_pct, { format: (v) => `${Math.round(v)}% used` }));
+    if (c.sectors) lines.push(changeLine('Bad sectors', c.sectors, { format: fmtInt }));
+
+    const attrs = Array.isArray(c.attributes) ? c.attributes : [];
+    if (attrs.length) lines.push(attributeChanges(attrs));
+
+    body.push(lines.length
+      ? el('div', { class: 'change-list' }, lines)
+      : el('p', { class: 'muted', text: 'Nothing changed. Every figure the drive reports is the ' +
+          'same as it was at the previous scan.' }));
+
+    if (c.routine) {
+      body.push(el('p', { class: 'muted', text: `${c.routine === 1 ? '1 other counter' : `${fmtInt(c.routine)} other counters`} ` +
+        'moved, which is ordinary wear rather than a finding. The attribute table below has the detail.' }));
+    }
+  }
+
+  return el('div', { class: 'card stack panel-wide changes' }, [
+    el('div', { class: 'row' }, [
+      el('h2', { text: 'Since the last scan' }),
+      el('span', { class: 'spacer' }),
+      c.from ? el('span', { class: 'muted', text: `previous scan ${fmtAgo(c.from)}` }) : null,
+    ]),
+    ...body,
+  ]);
+}
+
+/** One "was → now" line. An absent end is an em dash: not reported is not zero. */
+function changeLine(label, change, opts = {}) {
+  const show = (value) => {
+    if (value === undefined || value === null) return '—';
+    if (opts.badge) return verdictBadge(value);
+    return opts.format ? opts.format(value) : String(value);
+  };
+  return el('div', { class: 'change-row' }, [
+    el('span', { class: 'change-label', text: label }),
+    el('span', { class: 'change-from' }, [show(change.from)]),
+    el('span', { class: 'change-arrow', text: '→' }),
+    el('span', { class: 'change-to' }, [show(change.to)]),
+  ]);
+}
+
+/** The counters that moved *and* are a finding, worst first. */
+function attributeChanges(attrs) {
+  return el('div', { class: 'table-wrap' }, [
+    el('table', { class: 'data data-log' }, [
+      el('thead', {}, [el('tr', {}, [
+        el('th', { class: 'num', text: '#' }),
+        el('th', { text: 'Counter' }),
+        el('th', { class: 'num', text: 'Was' }),
+        el('th', { class: 'num', text: 'Now' }),
+        el('th', { text: '' }),
+      ])]),
+      el('tbody', {}, attrs.map((a) => el('tr', {}, [
+        el('td', { class: 'num', text: String(a.id) }),
+        el('td', { text: a.name || `Attribute ${a.id}` }),
+        el('td', { class: 'num', text: fmtInt(a.from) }),
+        el('td', { class: 'num', text: fmtInt(a.to) }),
+        el('td', {}, [
+          a.appeared ? el('span', { class: 'badge badge-unknown', text: 'new' }) : null,
+          a.threshold > 0 && a.value <= a.threshold
+            ? el('span', { class: 'badge badge-caution', text: 'at threshold' })
+            : null,
+        ]),
+      ]))),
+    ]),
+  ]);
 }
 
 /** "yes" / "no" for a tri-state flag; undefined (not reported) renders no row. */

@@ -2,6 +2,8 @@ package store
 
 import (
 	"context"
+	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -580,5 +582,46 @@ func TestLatestSnapshotFactsPicksTheNewestPerDevice(t *testing.T) {
 	}
 	if f, ok := got["C"]; !ok || f.PowerOnHours != nil || f.WearPct != nil {
 		t.Errorf("C = %+v, want present with no readings", f)
+	}
+}
+
+// The diff needs two snapshots *with* their attributes blob, which is exactly what SnapshotSeries
+// refuses to load. Newest first, and bounded by the limit.
+func TestRecentSnapshotsLoadsTheAttributesBlob(t *testing.T) {
+	ctx := context.Background()
+	s := newTestStore(t)
+	base := time.Date(2026, 7, 1, 9, 0, 0, 0, time.UTC)
+
+	for i := range 3 {
+		at := base.Add(time.Duration(i) * time.Hour)
+		if _, err := s.SaveScan(ctx, "manual", at, at, []ScannedDevice{{
+			Serial: "S1", Health: "good", Score: 100,
+			AttributesJSON: fmt.Sprintf(
+				`{"attributes":[{"id":9,"name":"Power_On_Hours","raw_value":%d}]}`, i),
+		}}); err != nil {
+			t.Fatalf("SaveScan %d: %v", i, err)
+		}
+	}
+
+	got, err := s.RecentSnapshots(ctx, "S1", 2)
+	if err != nil {
+		t.Fatalf("RecentSnapshots: %v", err)
+	}
+	if len(got) != 2 {
+		t.Fatalf("got %d snapshots, want 2", len(got))
+	}
+	if got[0].TS.Before(got[1].TS) {
+		t.Error("snapshots are not newest first")
+	}
+	if got[0].Attributes == "" {
+		t.Error("the attributes blob is missing, and the diff is the only reason to ask for it")
+	}
+	if !strings.Contains(got[0].Attributes, `"raw_value":2`) {
+		t.Errorf("newest blob = %q, want the third scan's", got[0].Attributes)
+	}
+
+	// A limit of zero is not a request for everything.
+	if empty, err := s.RecentSnapshots(ctx, "S1", 0); err != nil || len(empty) != 0 {
+		t.Errorf("RecentSnapshots(limit 0) = %v, %v; want none", empty, err)
 	}
 }

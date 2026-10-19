@@ -22,6 +22,13 @@ stopped from the device page.
 
 ### Added
 
+- **Snapshot diff (`A18`)** — a "Since the last scan" card on the device page showing what moved
+  between the two most recent scans: verdict, score, temperature, wear, bad sectors, and the
+  counters that moved. The server decides which counter movements are findings, using the drive's
+  *own* threshold and the lost-storage set the interpretation already sums, so the card cannot
+  disagree with the verdict; everything else that moved is counted and named as a count rather than
+  dropped. An absent reading renders as an em dash, never a zero, and "nothing changed" is stated in
+  words rather than left as an empty panel.
 - **Group by tag/pool (`D9`)** — the dashboard can group the list by tag, so a NAS reads as three
   pools instead of twenty-four drives. It is a toggle rather than a filter, offered only when
   something is actually tagged, and a drive with several tags appears under **each** of them —

@@ -723,6 +723,58 @@ func (s *Store) LatestSnapshot(ctx context.Context, serial string) (*Snapshot, e
 	return &snap, nil
 }
 
+// RecentSnapshots returns the newest `limit` snapshots for a device, newest first, including each
+// one's attributes blob.
+//
+// `SnapshotSeries` deliberately omits that blob because the trend chart asks for hundreds of rows;
+// a diff needs exactly two and needs what is inside them, so it gets its own query rather than a
+// flag on that one.
+func (s *Store) RecentSnapshots(ctx context.Context, serial string, limit int) ([]Snapshot, error) {
+	if limit <= 0 {
+		return nil, nil
+	}
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT id, serial, ts, scan_id, health, score, temperature_c, power_on_hours, wear_pct,
+		       sectors, COALESCE(attributes, '')
+		FROM snapshots WHERE serial = ? ORDER BY id DESC LIMIT ?`, serial, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	out := make([]Snapshot, 0, limit)
+	for rows.Next() {
+		var (
+			snap        Snapshot
+			ts          int64
+			temperature sql.NullInt64
+			hours       sql.NullInt64
+			wear        sql.NullFloat64
+			sectors     sql.NullInt64
+		)
+		if err := rows.Scan(&snap.ID, &snap.Serial, &ts, &snap.ScanID, &snap.Health, &snap.Score,
+			&temperature, &hours, &wear, &sectors, &snap.Attributes); err != nil {
+			return nil, err
+		}
+		snap.TS = fromMS(ts)
+		snap.TemperatureC = intPtr(temperature)
+		if hours.Valid {
+			v := hours.Int64
+			snap.PowerOnHours = &v
+		}
+		if wear.Valid {
+			v := wear.Float64
+			snap.WearPct = &v
+		}
+		if sectors.Valid {
+			v := sectors.Int64
+			snap.Sectors = &v
+		}
+		out = append(out, snap)
+	}
+	return out, rows.Err()
+}
+
 // SaveFailedScan records a scan that failed before any device could be read.
 func (s *Store) SaveFailedScan(ctx context.Context, trigger string, started, ended time.Time, errMsg string) (int64, error) {
 	res, err := s.db.ExecContext(ctx, `INSERT INTO scan_history
