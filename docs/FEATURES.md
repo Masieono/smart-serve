@@ -31,7 +31,7 @@ avoid idle cost.
 | A16 | Remaining-longevity estimate (NVMe / SSD / HDD) | P2 | 💤 | **done** — see below, with confidence labels |
 | A17 | Health score 0–100 + letter grade | MVP/P2 | 💤 | basic in MVP; trend-aware in P2 |
 | A18 | Snapshot diff ("what changed since last scan") | P2 | 💤 | |
-| A19 | SMART self-test (manual short/long + scheduled) + self-test log | P2 | ⚠ | **eventually — opt-in only, see below** |
+| A19 | SMART self-test (manual short/long + scheduled) + self-test log | P2 | 💤 | **manual done** — short/long, live progress, abort; opt-in only, never automatic. Scheduling still to come. See below |
 | A20 | SMART error log display | P2 | 💤 | **done** — the error and self-test log *counts* and *entries*, the drive's own self-test timings, and smartctl's words when a log cannot be read. See below |
 | A21 | Drive knowledge base (rated TBW, known firmware advisories) | P3 | 💤 | bundled static table; opt-in in-app refresh |
 | A22 | Usable support for drives with no S.M.A.R.T. (USB flash drives, card readers) | P2 | 💤 | **done** — see below |
@@ -230,25 +230,42 @@ as a bare list entry.
 None of these adds idle cost. They are views over data the app already stores, plus one
 setting (`A26`).
 
-### A19 — SMART self-test: how it should behave when it lands
+### A19 — SMART self-test: what was built, and the constraints it was built to
 
-Deferred, but the constraints are worth recording before anyone builds it.
+The manual half has landed: a short/long button on the device page, a live progress reading
+while a test runs, and an abort. The constraints below were written before anyone built it,
+and all of them still hold.
 
 - **Opt-in, and never automatic.** Nothing fires a self-test because the app started,
   because a scan ran, or because a drive appeared. The user presses a button, or
   creates a schedule they explicitly asked for. This is the only feature that writes
-  to a drive.
+  to a drive, and the API enforces it: the test kind is an allow-list of two strings,
+  so nothing else can ever reach `smartctl -t`.
 - **A running test needs a progress reading.** A long test on a 14 TB drive runs for
   many hours — that is the normal case for the drives this app targets, not an edge
   case. A spinner with no percentage is indistinguishable from a hang, so the UI must
   surface the drive's own progress figure (the ATA self-test polling minutes, or the
   NVMe self-test log's percent-complete) and say so plainly when a drive reports
-  none.
+  none. **Done** — the figure comes from the self-test log's own `remaining_percent`,
+  which smartctl sets only while a test runs. A drive that reports no percentage is
+  never rendered as a test at 0%; a drive that cannot have its log read is told so
+  instead of being offered a button that would fail.
+- **A long test needs a way out.** Added when the manual half was built. A long test
+  runs for hours, so aborting is a first-class action rather than a footnote, and it
+  sits behind a confirmation because stopping one cannot be undone.
+- **A finished test is worth one rescan.** The log the user is looking at is drawn
+  from the last scan, which predates the test, so the card triggers a single rescan
+  when a test it was watching ends. It is guarded per card, and it has to be: the
+  re-rendered card is drawn from stored logs that still show the test running, so an
+  unguarded rescan would poll, rescan, poll, forever.
 - **It lands last.** Docker device access had to be validated on real hardware first
   (`DEPLOYMENT.md`), because a self-test is the one operation where getting the device
-  plumbing wrong actually matters. **That is now done** — native NVMe, USB-attached NVMe
-  and USB-attached SATA SSD all read correctly — so this item is unblocked and waiting
-  only on itself.
+  plumbing wrong actually matters. **That is done** — native NVMe, USB-attached NVMe
+  and USB-attached SATA SSD all read correctly.
+- **Scheduling is not built yet.** A fleet-wide schedule needs one-drive-at-a-time
+  staggering; 24 simultaneous long tests is an I/O meltdown, not a feature. The manual
+  button is the primitive that has to exist first.
+
 
 ## B. Alerts & notification
 
@@ -310,6 +327,15 @@ These rules exist so feature growth cannot erode the product's core promise:
 3. **Any scraper-style endpoint** (Prometheus) ships **disabled by default**.
 4. **UI freshness is always tied to the last scan** — never to live polling. The
    "last scanned" timestamp is visible on every screen.
+
+   There is exactly one exception, and it is narrow: the self-test card (A19) polls
+   the drive every 15 seconds **while a test it started is running and the card is on
+   screen**. A self-test is a live operation with no other source of truth — its
+   progress exists nowhere the app stores — so tying it to the last scan would mean
+   watching a two-hour test through a stale percentage. The poll stops the moment the
+   drive reports no test running, and stops when the card leaves the page, so no drive
+   is ever read for a panel nobody is looking at. Any *other* proposal to poll is
+   still refused by this rule.
 5. **Anything that writes to a drive is opt-in and never automatic** — the user
    presses the button, or sets the schedule (A19).
 

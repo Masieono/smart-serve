@@ -48,14 +48,14 @@ func (s *Server) handleStartSelfTest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var body struct {
-		Type string `json:"type"`
+		Kind string `json:"kind"`
 	}
 	if !decodeJSON(w, r, &body) {
 		return
 	}
-	kind := smart.SelfTestKind(body.Type)
+	kind := smart.SelfTestKind(body.Kind)
 	if !kind.Valid() {
-		writeError(w, http.StatusBadRequest, `type must be "short" or "long"`)
+		writeError(w, http.StatusBadRequest, `kind must be "short" or "long"`)
 		return
 	}
 

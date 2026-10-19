@@ -332,13 +332,33 @@ stop demanding a value that is never going to be typed into the form (`ADR-022`)
   a two-column `field,value` sheet covering identity, health and every attribute.
   A per-format enable list (`report_export_formats`) and a `?bundle=1` zip remain
   unimplemented (`DATA_MODEL.md`).
+- `GET /api/devices/{serial}/selftest` — the drive's self-test state, read **live**
+  rather than from the stored document, because a test's progress exists nowhere the
+  app stores. Returns `{ logs, running }`: `logs` in the same shape the device detail
+  uses, so the UI renders it with the function it already has, and `running` the entry
+  for a test in progress, present only while one is. `running` is computed server-side
+  so the rule for recognising a test lives in one place — and that rule is the
+  percentage remaining, not `passed`, because a real drive reports `passed: true` for a
+  test that is still going. This is the only endpoint that reads a device outside a
+  scan (`FEATURES.md` §E).
+- `POST /api/devices/{serial}/selftest` — body `{ "kind": "short" | "long" }`. Starts a
+  test, and is **the only request in this API that changes a drive.** A `400` for a
+  `kind` that is neither of the two, a `409` when no device path is recorded, and a
+  `502` carrying smartctl's own words when the drive refuses. The response quotes the
+  drive's acknowledgement in `note` rather than paraphrasing it.
+- `POST /api/devices/{serial}/selftest/abort` — stops whichever test is running
+  (`smartctl -X`). A long test runs for hours, so this is a first-class action rather
+  than a footnote.
+
+  For all three, success is decided by smartctl's **exit status**, not by its text, and
+  only the low three bits count: an option it could not parse, a device it could not
+  open, a SMART command the drive refused. The remaining bits describe the *drive* — it
+  is failing, it has a past failure, its logs hold errors — and reading those as a
+  command failure would report a self-test that ran perfectly as broken, on exactly the
+  drives that most need one.
 
 ## Phase 2 endpoints (specified now to freeze direction)
 
-- `POST /api/devices/{serial}/selftest` — body `{ "kind": "short" | "long" }`;
-  defaults to the `selftest_default_kind` setting (`short`); requires
-  `selftest_enabled`. `GET …/selftest` returns the self-test log, including a
-  progress reading while a test is running (`FEATURES.md` A19).
 - `POST /api/acknowledge` — `{ "event_key": "health_change:<serial>:caution" }`
   mutes that event without changing the verdict (`FEATURES.md` B7).
 

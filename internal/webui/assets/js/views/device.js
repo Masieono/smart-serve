@@ -7,6 +7,7 @@ import { api } from '../api.js';
 import { verdictBadge, healthGauge, attributeTable, errorBox, openDialog, toast, transportLabel, trendRow, helpButton } from '../components.js';
 import { nvmeHelp } from '../attributes.js';
 import { icon } from '../icons.js';
+import { selfTestCard } from './selftest.js';
 
 // Trend windows. The history endpoint takes an absolute `from`, so the window is
 // resolved at request time and "30 days" stays 30 days after a reload.
@@ -201,6 +202,10 @@ function draw(container, ctx, data, history) {
         logSummary(d.logs),
         el('div', { id: 'raw-holder' }),
       ]),
+
+      // A19. The only control in the app that changes a drive, so it sits with the log it writes
+      // to rather than up in the header with the read-only actions.
+      selfTestCard(ctx, d, d.logs),
     ]),
   );
 }

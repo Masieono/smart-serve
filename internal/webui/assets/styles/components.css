@@ -1519,4 +1519,40 @@ tr.attr-flagged > td {
   color: var(--bad);
 }
 
+/* Self-test triggering (`FEATURES.md` A19). The only control in the app that changes a drive, so
+   it is set apart from the read-only actions and says what it will cost before it is pressed. */
+.selftest-actions {
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.selftest-note {
+  max-width: 70ch;
+}
+
+.selftest-progress {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.selftest-kind {
+  font-weight: 600;
+}
+
+/* The progress bar. Only ever drawn when the drive reports a percentage: a bar with no figure
+   would be a bar at an unknown position, and a missing figure is not zero. */
+.meter {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--surface-2);
+  overflow: hidden;
+}
+
+.meter-fill {
+  height: 100%;
+  background: var(--accent);
+  transition: width 0.4s ease;
+}
+
 

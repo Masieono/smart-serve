@@ -46,6 +46,7 @@ export class StubNode {
     this.disabled = false;
     this.open = false;
     this.checked = false;
+    this.detached = false;
     this.style = new StubStyle();
   }
 
@@ -120,7 +121,22 @@ export class StubNode {
 
   removeChild(child) {
     this.childNodes = this.childNodes.filter((n) => n !== child);
-    if (child && child.parent === this) child.parent = null;
+    if (child && child.parent === this) {
+      child.parent = null;
+      // Remembered, because a removed node and a never-appended root both have no parent, and
+      // only one of them is connected.
+      child.detached = true;
+    }
+  }
+
+  /**
+   * The slice of `Node.isConnected` the self-test card uses to stop polling a card that has left
+   * the page. Connected means nothing has removed it and every ancestor is connected too; a bare
+   * root with no parent counts, because that is how the tests build a container.
+   */
+  get isConnected() {
+    if (this.detached) return false;
+    return this.parent === null || this.parent.isConnected;
   }
 
   remove() {

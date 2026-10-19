@@ -72,4 +72,13 @@ export const api = {
   notifications: (limit = 25) => request('GET', `/api/notifications?limit=${limit}`),
 
   eventsUrl: () => appPath('/api/events'),
+
+  // Self-tests (FEATURES.md A19). The GET reads the drive live rather than from the stored
+  // document, because progress exists nowhere else; the POSTs are the only requests in this
+  // client that change a drive, so they are named for what they do.
+  selfTest: (serial) => request('GET', `/api/devices/${encodeURIComponent(serial)}/selftest`),
+  startSelfTest: (serial, kind) =>
+    request('POST', `/api/devices/${encodeURIComponent(serial)}/selftest`, { kind }),
+  abortSelfTest: (serial) =>
+    request('POST', `/api/devices/${encodeURIComponent(serial)}/selftest/abort`),
 };

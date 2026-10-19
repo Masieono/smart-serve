@@ -4,6 +4,31 @@ Notable changes per release. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project uses
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+Two Phase 4 items: the drive's own logs are now shown, and a self-test can be started, watched and
+stopped from the device page.
+
+### Added
+
+- **Self-test triggering (`A19`)** — the device page offers a short and a long test, shows the
+  drive's own progress reading while one runs, and can stop it. This is the first and only control
+  in the app that changes a drive, so it is opt-in by construction: nothing starts a test on its
+  own, the test kind is an allow-list of two strings, and both actions sit behind a confirmation.
+  Progress is the drive's own percentage remaining rather than a figure derived from a clock, and a
+  drive that cannot have its self-test log read is told so instead of being offered a button that
+  would only fail. Scheduling is not part of this — a fleet-wide schedule needs
+  one-drive-at-a-time staggering first.
+- **Drive logs (`A20`)** — the error log and the self-test log are rendered, with the drive's own
+  self-test time estimates and smartctl's words when a log cannot be read.
+
+### Changed
+
+- The self-test card is the one place the UI polls a device: every 15 seconds, while a test it
+  started is running and the card is still on screen. `FEATURES.md` §E records this as the single
+  documented exception to "UI freshness is tied to the last scan", with the reasoning, and the poll
+  stops on both ends — when the drive reports no test running, and when the card leaves the page.
+
 ## [1.0.1] — 2026-10-18
 
 Four fixes found by using the first release in anger, plus the documentation corrections that
@@ -104,5 +129,6 @@ First public release.
 - The idle-footprint figures are targets, not measurements, pending a run on a public
   instance.
 
+[Unreleased]: https://github.com/masieono/smart-serve/compare/v1.0.1...HEAD
 [1.0.1]: https://github.com/masieono/smart-serve/releases/tag/v1.0.1
 [1.0.0]: https://github.com/masieono/smart-serve/releases/tag/v1.0.0
