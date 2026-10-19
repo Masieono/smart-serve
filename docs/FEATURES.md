@@ -311,7 +311,7 @@ and all of them still hold.
 | D2 | Theme picker: dark / light / auto / custom accent colour | MVP | 💤 | **done** — plus Catppuccin (4 flavours), Dracula, Nord, Gruvbox, Synthwave, Hacker, Solarized, Tokyo Night and One Dark palettes |
 | D3 | Responsive mobile layout | MVP | 💤 | |
 | D4 | Hide / unhide devices, and forget one entirely | MVP | 💤 | escape hatch for unreadable bridges; **forget** is for the plug-in-once workflow |
-| D5 | Filter & sort devices (health, name, transport) | P2 | 💤 | |
+| D5 | Filter & sort devices (health, name, transport) | P2 | 💤 | **done** — a sort field with a direction toggle, a transport filter built from the transports actually present, and search that covers the bay. See `UI.md` §7.1 |
 | D6 | Side-by-side multi-device comparison | P3 | 💤 | |
 | D7 | Localization (multi-language) | P3 | 💤 | CDI parity |
 | D8 | Dense fleet table view (one row per drive, sortable by risk) | P2 | 💤 | the dashboard is a card grid; at 24 drives that is a lot of scrolling |

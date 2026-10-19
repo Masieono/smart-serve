@@ -11,6 +11,11 @@ stopped from the device page.
 
 ### Added
 
+- **Filter & sort (`D5`)** — the device list can be ordered by risk, name, bay, model, capacity,
+  temperature or last scan, and filtered by transport. Each sort field carries its own direction,
+  because "first" means different things per field, and a drive that reports no reading sorts last
+  rather than first. The transport filter offers only the transports actually present, and search
+  now covers the bay as well as the name, model, serial and mountpoints.
 - **Bay / slot field (`D10`)** — a drive can be given a physical location ("bay 4", "front top"),
   which then leads on its card and appears in every export. A serial identifies a drive; a bay
   *finds* it, which is the question someone standing in front of a machine at 3am actually has.

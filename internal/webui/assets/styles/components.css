@@ -904,6 +904,25 @@ a:hover {
   flex: 1 1 200px;
 }
 
+/* The dashboard's sort and filter row. It sits below the identity row because it is about the
+   list rather than about the page, and it is only drawn when there is more than one drive to
+   order. */
+.devices-controls {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+/* A select in a control row sizes to its content. The global rule is `width: 100%`, which is
+   right for a form field in a column and wrong for a toolbar — it would push every control onto
+   a line of its own. */
+.devices-controls select {
+  width: auto;
+  padding: var(--space-1) var(--space-2);
+  font-size: var(--text-xs);
+}
+
 .health-list {
   display: flex;
   align-items: center;

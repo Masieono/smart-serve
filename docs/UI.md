@@ -158,6 +158,16 @@ picker offers exactly `ThemeNames`.
 - **Scanning:** the sidebar button reflects progress; cards update live via SSE as
   each device completes (no polling — `ADR-006`).
 - **Populated:** cards sorted by severity (bad → caution → good), then by user name.
+- **Sorting and filtering** (`FEATURES.md` D5): a second row beneath the identity row, drawn only
+  when there is more than one drive to order. The sort field carries its own direction — risk and
+  name ascending, capacity and temperature descending — because "first" means different things per
+  field, and one global toggle would make the control feel broken on first use whichever way it was
+  set. Ties break on name, so a rack of identical drives does not reshuffle between renders. The
+  transport filter is built from the transports *actually present*, not from a vocabulary the app
+  invented: a host with no SAS drives should not be offered "SAS" and then show nothing when it is
+  picked. Search covers the bay, because hunting a drive by where it physically is is the whole
+  point of recording one. A drive with no reading sorts *last*, never first — an absent temperature
+  is not 0 °C, and treating it as such would put the least informative drive at the top.
 - **Bay:** a drive with a recorded physical location leads its card with it. A serial identifies a
   drive; a bay *finds* it, and the person asking that question is standing in front of a machine
   rather than reading a screen carefully. Unset bays get no row at all — a gap in the bookkeeping
