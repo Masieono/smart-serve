@@ -686,6 +686,18 @@ a:hover {
   opacity: 0.12;
 }
 
+/* One date axis for the whole trend card (`ADR-023`). Shared rather than repeated under each
+   sparkline: four charts in one window need one axis, and four would be noise. `space-between`
+   puts the marks at the two ends and the middle, which is what makes the span readable without
+   hovering anything. */
+.date-axis {
+  display: flex;
+  justify-content: space-between;
+  margin-top: var(--space-2);
+  font-size: var(--text-xs);
+  color: var(--muted);
+}
+
 .trend-row + .trend-row {
   margin-top: var(--space-4);
 }

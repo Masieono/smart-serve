@@ -213,6 +213,17 @@ picker offers exactly `ThemeNames`.
 - **Header:** editable inline name, model, serial, firmware, capacity, drive age.
 - **Health block:** large gauge + verdict badge + plain-language rationale
   ("5 pending sectors").
+- **Trend card:** per-metric sparklines with the current value and the change across the series,
+  over a 7/30/90-day/all range selector. The x-axis is **time rather than reading index**
+  (`ADR-023`): a fixed range is a *calendar* window, so 30 days means the last 30 days whether or
+  not anything was recorded in them, and a drive that stopped being scanned leaves a visible gap
+  instead of a line that quietly ends at the right edge. A series that began five days ago occupies
+  its own fifth of the window rather than being stretched edge to edge. One shared date axis sits
+  under the card rather than one per sparkline — four charts in one window need one axis, and four
+  would be noise — so the span is readable without hovering. "All" has no calendar to anchor to, so
+  it spans exactly the history that exists. The change figure is measured across the *series*, not
+  the window: a drive watched for five days has five days of change, and reporting 30 would invent
+  a trend. Per-metric y-scaling stays automatic.
 - **Two columns**, from a single `.panel-grid .panel-grid-pair`: **Identity** beside
   **Usage and media**, then the trend card beside the attribute table, with the notes card
   spanning both. One grid for the whole page, not one per row — two separate grids each

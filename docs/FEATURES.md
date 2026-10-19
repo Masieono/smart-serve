@@ -27,7 +27,7 @@ avoid idle cost.
 | A12 | Attribute help tooltips ("what is Reallocated Sectors?") | MVP | 💤 | **done** — a curated `?` per attribute and per NVMe counter, plus a marker for attributes the *drive itself* reports at threshold; see below |
 | A13 | Scan history log (durations, per-device errors) | MVP | 💤 | |
 | A14 | Degradation trend detection ("worsening" early-warning badge) | P2 | 💤 | **done** — see below |
-| A15 | History charts (temp, sectors, wear) + sparklines | P2 | 💤 | **done** — per-metric sparkline card on the device page, with a 7/30/90-day/all range selector |
+| A15 | History charts (temp, sectors, wear) + sparklines | P2 | 💤 | **done** — per-metric sparkline card on the device page, with a 7/30/90-day/all range selector. The x-axis is **time**, not reading index, with one shared date axis under the card (`ADR-023`) |
 | A16 | Remaining-longevity estimate (NVMe / SSD / HDD) | P2 | 💤 | **done** — see below, with confidence labels |
 | A17 | Health score 0–100 + letter grade | MVP/P2 | 💤 | basic in MVP; trend-aware in P2 |
 | A18 | Snapshot diff ("what changed since last scan") | P2 | 💤 | |

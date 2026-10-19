@@ -9,6 +9,17 @@ Notable changes per release. Format follows
 Two Phase 4 items: the drive's own logs are now shown, and a self-test can be started, watched and
 stopped from the device page.
 
+### Changed
+
+- **The trend card's x-axis is time, not reading index** (`ADR-023`). One change gives all three
+  things the rework was for: a 30-day window now spans 30 days whether or not anything was recorded
+  in them, so a drive that stopped being scanned leaves a *visible gap* rather than a line that
+  quietly ends at the right edge; a series that began five days ago occupies its own fifth of the
+  window instead of being stretched edge to edge; and a shared date axis under the card makes the
+  span readable **without hovering**. The hover marker and the readout are positioned on the same
+  time scale as the line, so pointing at a chart now gives the reading nearest the pointer rather
+  than one a fraction of the way through the array. Per-metric y-scaling is unchanged.
+
 ### Added
 
 - **Group by tag/pool (`D9`)** — the dashboard can group the list by tag, so a NAS reads as three

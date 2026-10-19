@@ -4,7 +4,7 @@ import {
   scoreGrade, convertTemp, convertTempDelta, temperatureUnitName,
 } from '../dom.js';
 import { api } from '../api.js';
-import { verdictBadge, healthGauge, attributeTable, errorBox, openDialog, toast, transportLabel, trendRow, helpButton } from '../components.js';
+import { verdictBadge, healthGauge, attributeTable, errorBox, openDialog, toast, transportLabel, trendRow, dateAxis, helpButton } from '../components.js';
 import { nvmeHelp } from '../attributes.js';
 import { icon } from '../icons.js';
 import { selfTestCard } from './selftest.js';
@@ -386,8 +386,10 @@ function trendCard(series, onRange) {
         onclick: () => onRange(value),
       }, [el('span', { class: 'health-label', text: label })])));
 
+  // One window for every row in the card, and one axis under them all.
+  const window = trendWindow(series);
   const rows = TREND_METRICS
-    .map((metric) => trendRow(metric, seriesFor(metric.key, series)))
+    .map((metric) => trendRow(metric, seriesFor(metric.key, series), { window }))
     .filter(Boolean);
 
   return el('div', { class: 'card stack' }, [
@@ -397,11 +399,34 @@ function trendCard(series, onRange) {
       selector,
     ]),
     rows.length
-      ? el('div', {}, rows)
+      ? el('div', {}, [rows, dateAxis(window)])
       : el('p', { class: 'muted', text: series.length
         ? 'Not enough readings in this window yet. A trend needs at least two scans.'
         : 'No history yet. Trends appear once this drive has been scanned a few times.' }),
   ]);
+}
+
+/**
+ * The span every sparkline in the card is drawn against (`ADR-023`).
+ *
+ * A fixed range is a *calendar* window: 30 days means the last 30 days whether or not anything was
+ * recorded in them, so a drive that stopped being scanned leaves a visible gap rather than a line
+ * that quietly ends at the right edge. "All" has no calendar to anchor to, so it spans exactly the
+ * history that exists.
+ */
+function trendWindow(series) {
+  const stamps = series.map((s) => new Date(s.ts).getTime()).filter(Number.isFinite);
+  const now = Date.now();
+
+  if (trendRange === 'all') {
+    // With no history at all there is no span to draw, and an axis needs two ends.
+    if (!stamps.length) return { from: now - 86400000, to: now };
+    return { from: Math.min(...stamps), to: Math.max(...stamps) };
+  }
+
+  const days = Number(trendRange);
+  const span = Number.isFinite(days) && days > 0 ? days : 1;
+  return { from: now - span * 86400000, to: now };
 }
 
 /** One metric's points, dropping snapshots where the drive reported nothing. */
