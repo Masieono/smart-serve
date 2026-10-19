@@ -9,31 +9,16 @@ Notable changes per release. Format follows
 Two Phase 4 items: the drive's own logs are now shown, and a self-test can be started, watched and
 stopped from the device page.
 
-### Changed
-
-- **The projection window follows retention (`A26`).** The longevity estimate, the worsening flag
-  and the trend adjustment all looked at a fixed 180 days, so an owner who raised `retention_days`
-  to five years precisely to watch a slow trend had that history discarded by the projection anyway.
-  All three now use the retention setting itself, so what the user keeps is what the app reads.
-  There is one number rather than two, and it is the same one the pruning uses.
-- **The health score is now trend-aware (`A17`).** A verdict is a statement about *now*; a score is
-  a summary, and a drive whose bad sectors are climbing is worse than one sitting at the same count
-  and going nowhere. Such a drive now loses 3 points for its first new sector and one more per
-  doubling, capped at 10, with the reason appended to the verdict rationale as a rate and a window
-  rather than a date. The cap is what keeps it honest: the trend adjusts the summary, and is too
-  small to overrule the drive's own data or carry it out of its verdict on its own. A drive that
-  could not be read is not adjusted at all.
-- **The trend card's x-axis is time, not reading index** (`ADR-023`). One change gives all three
-  things the rework was for: a 30-day window now spans 30 days whether or not anything was recorded
-  in them, so a drive that stopped being scanned leaves a *visible gap* rather than a line that
-  quietly ends at the right edge; a series that began five days ago occupies its own fifth of the
-  window instead of being stretched edge to edge; and a shared date axis under the card makes the
-  span readable **without hovering**. The hover marker and the readout are positioned on the same
-  time scale as the line, so pointing at a chart now gives the reading nearest the pointer rather
-  than one a fraction of the way through the array. Per-metric y-scaling is unchanged.
-
 ### Added
 
+- **"Replace first" ranking (`A24`)** — the dashboard carries a shortlist ordered by how strongly
+  each drive argues for replacement, answering "which one do I buy this month?" rather than "how
+  does each drive look today". It uses **bands** (replace now / soon / watch) rather than a weighted
+  score, so it can show its reasons — "failing now", "7 new sector problems in 30 days", "94% of its
+  rated write endurance used" — because a reader can disagree with a band and act on it, and cannot
+  do either with an unexplained number. Write endurance can outrank a healthy verdict, since it is a
+  countdown rather than a state. The card is absent when nothing is worth replacing, and capped at
+  five entries. A disconnected drive is left out: its stored verdict is history, not a reading.
 - **Snapshot diff (`A18`)** — a "Since the last scan" card on the device page showing what moved
   between the two most recent scans: verdict, score, temperature, wear, bad sectors, and the
   counters that moved. The server decides which counter movements are findings, using the drive's
@@ -84,6 +69,29 @@ stopped from the device page.
   started is running and the card is still on screen. `FEATURES.md` §E records this as the single
   documented exception to "UI freshness is tied to the last scan", with the reasoning, and the poll
   stops on both ends — when the drive reports no test running, and when the card leaves the page.
+
+### Changed
+
+- **The projection window follows retention (`A26`).** The longevity estimate, the worsening flag
+  and the trend adjustment all looked at a fixed 180 days, so an owner who raised `retention_days`
+  to five years precisely to watch a slow trend had that history discarded by the projection anyway.
+  All three now use the retention setting itself, so what the user keeps is what the app reads.
+  There is one number rather than two, and it is the same one the pruning uses.
+- **The health score is now trend-aware (`A17`).** A verdict is a statement about *now*; a score is
+  a summary, and a drive whose bad sectors are climbing is worse than one sitting at the same count
+  and going nowhere. Such a drive now loses 3 points for its first new sector and one more per
+  doubling, capped at 10, with the reason appended to the verdict rationale as a rate and a window
+  rather than a date. The cap is what keeps it honest: the trend adjusts the summary, and is too
+  small to overrule the drive's own data or carry it out of its verdict on its own. A drive that
+  could not be read is not adjusted at all.
+- **The trend card's x-axis is time, not reading index** (`ADR-023`). One change gives all three
+  things the rework was for: a 30-day window now spans 30 days whether or not anything was recorded
+  in them, so a drive that stopped being scanned leaves a *visible gap* rather than a line that
+  quietly ends at the right edge; a series that began five days ago occupies its own fifth of the
+  window instead of being stretched edge to edge; and a shared date axis under the card makes the
+  span readable **without hovering**. The hover marker and the readout are positioned on the same
+  time scale as the line, so pointing at a chart now gives the reading nearest the pointer rather
+  than one a fraction of the way through the array. Per-metric y-scaling is unchanged.
 
 ## [1.0.1] — 2026-10-18
 

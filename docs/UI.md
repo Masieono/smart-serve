@@ -168,6 +168,14 @@ picker offers exactly `ThemeNames`.
   picked. Search covers the bay, because hunting a drive by where it physically is is the whole
   point of recording one. A drive with no reading sorts *last*, never first — an absent temperature
   is not 0 °C, and treating it as such would put the least informative drive at the top.
+- **Replace first** (`FEATURES.md` A24): a shortlist above the grid, ordered by how strongly each
+  drive argues for replacement. It answers "which one do I buy this month?", which is a different
+  question from the sort row's "how does each drive look today" — and it says so in its own header
+  ("by urgency, not by verdict"). A numbered list, because the order *is* the answer. Each entry
+  carries its band and the reasons that produced it, in the drive's own terms: a reader can disagree
+  with a band and act on it, and cannot do either with an unexplained number. It is absent when
+  nothing is worth replacing, and capped at five — past a handful, "which one first?" stops being an
+  answer. A shortlist, not a list.
 - **Two views** (`FEATURES.md` D8): Cards and Table, switched from the controls row. The card grid
   is right for four drives and wrong for twenty-four, so the table gives one row per drive with
   bay, verdict, score, transport, model, capacity, temperature, age and last scan. Its headers

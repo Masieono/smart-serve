@@ -169,9 +169,43 @@ func (s *Server) handleListDevices(w http.ResponseWriter, r *http.Request) {
 		out = append(out, dj)
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
-		"devices":      out,
+		"devices": out,
+		// A24: "which one do I buy this month?" is a different question from the sort the
+		// dashboard already does, because it is about direction and remaining life as much as
+		// about the verdict. Built from the payloads just assembled, so the ranking and the cards
+		// cannot disagree about a drive.
+		"ranking":      interp.RankForReplacement(replacementCandidates(out)),
 		"last_scan_ts": s.lastScanTime(r.Context()),
 	})
+}
+
+// replacementCandidates maps the list payloads onto the ranking's inputs.
+//
+// A disconnected drive is deliberately left out. It is a finding of its own — the dashboard flags
+// it and has a toggle for it — and its stored verdict is the last one ever *seen* rather than a
+// reading anyone just took. Ranking it would put a backup drive someone unplugged on purpose above
+// a drive that is actually failing.
+func replacementCandidates(devices []deviceJSON) []interp.ReplacementCandidate {
+	out := make([]interp.ReplacementCandidate, 0, len(devices))
+	for _, d := range devices {
+		if d.IsMissing {
+			continue
+		}
+		var worsening int64
+		if d.Worsening != nil {
+			worsening = *d.Worsening
+		}
+		out = append(out, interp.ReplacementCandidate{
+			Serial:    d.Serial,
+			Name:      d.Name,
+			Health:    model.Verdict(d.Health),
+			Rationale: d.HealthRationale,
+			Score:     d.Score,
+			Worsening: worsening,
+			WearPct:   d.WearPct,
+		})
+	}
+	return out
 }
 
 func (s *Server) lastScanTime(ctx context.Context) any {

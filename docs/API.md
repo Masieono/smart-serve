@@ -87,7 +87,26 @@ in one query so the dashboard can flag a drive that is going bad without the use
 to open each one. A drive with fewer than two snapshots in the window is absent rather
 than reported as flat — no history is not the same finding as a clean bill of health.
 
-`power_on_hours` and `wear_pct` also appear on the **list** endpoint, taken from each
+`ranking` is the **"replace first"** order (`FEATURES.md` A24), served alongside `devices` so the
+shortlist and the cards cannot disagree about a drive. It answers a different question from the
+dashboard's own sort: "which one do I buy this month?" is about direction and remaining life as much
+as about today's verdict.
+
+```json
+"ranking": [
+  { "serial": "S1", "name": "parity", "band": "now",
+    "reasons": ["5 reallocated sectors", "94% of its rated write endurance used"] }
+]
+```
+
+`band` is `now`, `soon`, `watch` or `fine`, ordered worst first. It is a **band rather than a
+score**, deliberately: a weighted sum would be a number nobody could argue with or explain, and the
+point of the ranking is that it shows its reasons. Every drive is returned, including the `fine`
+ones, so the caller decides how much to show. A **disconnected** drive is not included — its stored
+verdict is the last one ever *seen* rather than a reading anyone just took, and ranking it would put
+a backup drive someone unplugged on purpose above a drive that is actually failing.
+
+
 drive's newest snapshot. They live on snapshots rather than on `devices` because they are
 readings rather than current state, and they are on the list so the dense fleet table
 (`FEATURES.md` D8) can show a drive's age per row without opening every drive to find it.

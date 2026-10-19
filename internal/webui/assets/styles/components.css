@@ -926,6 +926,37 @@ a:hover {
   flex: 1 1 200px;
 }
 
+/* The replacement ranking (`FEATURES.md` A24). A numbered list because it is a ranking, and the
+   order is the answer to the question it exists for. */
+.replace-list {
+  margin: 0;
+  padding-left: var(--space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.replace-reasons {
+  font-size: var(--text-xs);
+  max-width: 80ch;
+}
+
+/* A button that reads as a link: it navigates rather than acting, but it has to be a button so
+   the keyboard can reach it. */
+.link {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  color: var(--accent);
+  cursor: pointer;
+  text-align: left;
+}
+
+.link:hover {
+  text-decoration: underline;
+}
+
 /* The dashboard's sort and filter row. It sits below the identity row because it is about the
    list rather than about the page, and it is only drawn when there is more than one drive to
    order. */

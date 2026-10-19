@@ -36,7 +36,7 @@ avoid idle cost.
 | A21 | Drive knowledge base (rated TBW, known firmware advisories) | P3 | 💤 | bundled static table; opt-in in-app refresh |
 | A22 | Usable support for drives with no S.M.A.R.T. (USB flash drives, card readers) | P2 | 💤 | **done** — see below |
 | A23 | Fleet-wide export (every drive in one CSV or page) | P2 | 💤 | NAS: what you paste into a spreadsheet when planning a purchase |
-| A24 | "Replace first" ranking (verdict + direction + remaining life, ordered, with reasons) | P2 | 💤 | the dashboard sorts by *today's* severity; this answers "which one do I buy this month?" |
+| A24 | "Replace first" ranking (verdict + direction + remaining life, ordered, with reasons) | P2 | 💤 | **done** — a "Replace first" card, using bands rather than a weighted score so the reasons can be shown. See below |
 | A25 | Correlated-change detection (N drives in a group moving together → one alert about the enclosure) | P3 | 💤 | needs grouping + history first, and a high bar — a RAID rebuild legitimately heats everything |
 | A26 | Projection window follows retention (or becomes a setting) | P2 | 💤 | **done** — the projection, the worsening flag and the trend adjustment all use the `retention_days` setting. See below |
 | A27 | Warranty / RMA evidence pack (the exported report says what it is for) | P2 | 💤 | cheap — the export already exists (`A8`) |
@@ -273,7 +273,14 @@ as a bare list entry.
   reads. It is one number rather than two, and the same one the pruning uses.
 - **"Replace first" is the question a fleet asks** (`A24`). The verdict says how a drive
   looks *now*; the ranking says which one to buy a replacement for this month, combining
-  verdict, direction (`A14`) and remaining life (`A16`), with the reasoning shown.
+  verdict, direction (`A14`) and remaining life (`A16`), with the reasoning shown. **Built**
+  as **bands** — replace now / soon / watch — rather than a weighted sum, and that is the
+  whole design. A weighted sum would be a number nobody could argue with or explain, and
+  the point of the ranking is that it shows its reasons: "failing now", "7 new sector
+  problems in 30 days", "94% of its rated write endurance used". A reader can disagree with
+  a band and act on it; they cannot do either with an unexplained 63.4. A disconnected drive
+  is deliberately left out: it is a finding of its own, and ranking it would put a backup
+  drive someone unplugged on purpose above a drive that is actually failing.
 - **Bench work is the second use case** (`D11`). Testing a batch of drives you do not want
   in your permanent fleet: label them, test them, export the reports, forget them.
 - **Evidence is cheap** (`A27`). The report export already exists; saying on it that it is

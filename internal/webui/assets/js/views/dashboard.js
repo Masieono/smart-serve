@@ -70,6 +70,63 @@ function sortBy(list, key, ascending) {
 }
 
 /**
+ * The replacement ranking (`FEATURES.md` A24).
+ *
+ * The dashboard already sorts by today's severity. This answers a different question — "which one
+ * do I buy this month?" — which is about direction and remaining life as much as about the verdict.
+ *
+ * Only rendered when something is actually worth replacing. A ranking of healthy drives is a
+ * ranking of nothing, and a section that is always present stops being read — the same reasoning as
+ * the disconnected toggle and the sort row.
+ *
+ * The reasons are the point. A reader can disagree with a band and act on it; they cannot do either
+ * with an unexplained number, which is why the server returns bands rather than a score.
+ */
+const REPLACE_BANDS = {
+  now: ['Replace now', 'bad'],
+  soon: ['Replace soon', 'caution'],
+  watch: ['Watch', 'unknown'],
+};
+
+// A shortlist, not a list. Past a handful, the answer to "which one first?" stops being an answer.
+const REPLACE_FIRST_LIMIT = 5;
+
+export function replaceFirstCard(ranking, ctx) {
+  const ranked = (ranking || []).filter((r) => r.band !== 'fine');
+  if (!ranked.length) return null;
+
+  const shown = ranked.slice(0, REPLACE_FIRST_LIMIT);
+  const rest = ranked.length - shown.length;
+
+  return el('div', { class: 'card stack replace-first' }, [
+    el('div', { class: 'row' }, [
+      el('h2', { text: 'Replace first' }),
+      el('span', { class: 'spacer' }),
+      el('span', { class: 'muted', text: 'by urgency, not by verdict' }),
+    ]),
+    el('ol', { class: 'replace-list' }, shown.map((r) => {
+      const [label, tone] = REPLACE_BANDS[r.band] || [r.band, 'unknown'];
+      return el('li', {}, [
+        el('div', { class: 'row' }, [
+          el('span', { class: `badge badge-${tone}`, text: label }),
+          el('button', {
+            class: 'link', type: 'button', onclick: () => ctx.openDevice(r.serial),
+          }, [r.name || r.serial]),
+        ]),
+        // The reasons are the drive's own terms, so they read as an explanation rather than as a
+        // verdict this app invented.
+        el('div', { class: 'muted replace-reasons', text: (r.reasons || []).join(' · ') }),
+      ]);
+    })),
+    rest > 0
+      ? el('p', { class: 'muted', text: rest === 1
+        ? '1 more drive has something against it.'
+        : `${rest} more drives have something against them.` })
+      : null,
+  ]);
+}
+
+/**
  * Split the visible drives into tag groups (`FEATURES.md` D9).
  *
  * A drive appears under **each** of its tags. The alternative — first tag wins — silently drops a
@@ -364,6 +421,6 @@ function draw(container, ctx, data) {
   }
   paint();
 
-  mount(container, head, grid);
+  mount(container, head, replaceFirstCard(data.ranking, ctx), grid);
 }
 
