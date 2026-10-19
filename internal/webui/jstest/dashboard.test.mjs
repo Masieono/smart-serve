@@ -11,7 +11,7 @@ import { installStubDom } from './stub-dom.mjs';
 
 installStubDom();
 
-const { visibleDevices } = await import('../assets/js/views/dashboard.js');
+const { visibleDevices, groupByTag } = await import('../assets/js/views/dashboard.js');
 
 /** A device payload carrying the fields the sort and filter rules read. */
 function drive(overrides = {}) {
@@ -162,4 +162,63 @@ test('sorting leaves the input alone', () => {
 
 test('an empty fleet is not an error', () => {
   assert.deepEqual(visibleDevices([]), []);
+});
+
+// Grouping by tag (FEATURES.md D9).
+//
+// The judgement worth pinning is that a drive with two tags appears under both. First-tag-wins
+// would be tidier — the group counts would add up — but it silently drops a drive from a group it
+// is tagged for, and the whole reason to group a fleet is not to miss one.
+const labels = (groups) => groups.map((g) => g.label);
+const inGroup = (groups, label) => groups.find((g) => g.label === label).devices.map((d) => d.serial);
+
+test('a drive lands in the group for its tag', () => {
+  const groups = groupByTag([
+    drive({ serial: 'a', tags: 'tank' }),
+    drive({ serial: 'b', tags: 'backup' }),
+  ]);
+  assert.deepEqual(labels(groups), ['backup', 'tank']);
+  assert.deepEqual(inGroup(groups, 'tank'), ['a']);
+});
+
+// The decision, stated as a test.
+test('a drive with two tags appears under both', () => {
+  const groups = groupByTag([drive({ serial: 'a', tags: 'tank,critical' })]);
+  assert.deepEqual(labels(groups), ['critical', 'tank']);
+  assert.deepEqual(inGroup(groups, 'tank'), ['a']);
+  assert.deepEqual(inGroup(groups, 'critical'), ['a']);
+});
+
+// Untagged drives are the ones with something left to do to them, so they come last rather than
+// sorting among the pools by the letter U.
+test('untagged drives come last', () => {
+  const groups = groupByTag([
+    drive({ serial: 'z', tags: 'zpool' }),
+    drive({ serial: 'none' }),
+    drive({ serial: 'a', tags: 'apool' }),
+  ]);
+  assert.deepEqual(labels(groups), ['apool', 'zpool', 'Untagged']);
+  assert.deepEqual(inGroup(groups, 'Untagged'), ['none']);
+});
+
+test('tags are trimmed, and a blank tag is not a group', () => {
+  const groups = groupByTag([drive({ serial: 'a', tags: ' tank , , backup ' })]);
+  assert.deepEqual(labels(groups), ['backup', 'tank']);
+});
+
+// An all-untagged fleet is one group, and the function says so. The dashboard is what declines to
+// offer the toggle in that case, because a single "Untagged" heading is the list with a heading on
+// it rather than a grouping.
+test('an all-untagged fleet is one group', () => {
+  assert.deepEqual(labels(groupByTag([drive({ serial: 'a' })])), ['Untagged']);
+  assert.deepEqual(groupByTag([]), []);
+});
+
+test('grouping keeps the order the list arrived in', () => {
+  // Sorting is D5's job and grouping must not undo it: within a group the risk order survives.
+  const sorted = visibleDevices([
+    drive({ serial: 'good', tags: 'tank' }),
+    drive({ serial: 'bad', health: 'bad', tags: 'tank' }),
+  ]);
+  assert.deepEqual(inGroup(groupByTag(sorted), 'tank'), ['bad', 'good']);
 });

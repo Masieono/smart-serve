@@ -1582,6 +1582,39 @@ tr.attr-flagged > td {
   opacity: 0.6;
 }
 
+/* Grouped cards (`FEATURES.md` D9). Each group gets its own grid rather than one grid with
+   spanning headings: a spanning heading inside an auto-fit grid occupies a track and influences
+   the column sizing, which is not what a heading is for. */
+.grouped-holder {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.group-head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+}
+
+.group-head h2 {
+  margin: 0;
+  font-size: var(--text-lg);
+}
+
+/* A group separator inside the fleet table. It spans every column, so the header above stays the
+   only one, and it is not a row you can click into a drive. */
+.fleet-table tr.fleet-group,
+.fleet-table tr.fleet-group:hover {
+  background: none;
+  cursor: default;
+}
+
+.fleet-table tr.fleet-group td {
+  padding-top: var(--space-4);
+  border-bottom: 1px solid var(--border);
+}
+
 /* A self-test verdict (`FEATURES.md` A20). Colour is never the only signal: the icon and the
    drive's own words carry the meaning, which matters for a log people scan rather than read. */
 .log-pass {

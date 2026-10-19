@@ -137,3 +137,31 @@ test('a disconnected drive keeps its row and is marked', () => {
 test('an empty table is not an error', () => {
   assert.equal(bodyRows(table([])).length, 0);
 });
+
+// Grouping (`FEATURES.md` D9). The separator spans every column so the header above stays the only
+// one — a second table per group would repeat an eleven-column header once per pool.
+const separators = (node) => node.all('tr').filter((r) => r.className === 'fleet-group');
+
+test('groups add a separator row with the label and a count', () => {
+  const node = table([], {
+    groups: [
+      { label: 'tank', devices: [drive({ serial: 'a' }), drive({ serial: 'b' })] },
+      { label: 'Untagged', devices: [drive({ serial: 'c' })] },
+    ],
+  });
+  const rows = separators(node);
+  assert.equal(rows.length, 2);
+  assert.match(textOf(rows[0]), /tank/);
+  assert.match(textOf(rows[0]), /2 drives/);
+  assert.match(textOf(rows[1]), /1 drive/, 'one drive is not "1 drives"');
+});
+
+test('a group separator spans every column', () => {
+  const node = table([], { groups: [{ label: 'tank', devices: [] }] });
+  const cell = separators(node)[0].all('td')[0];
+  assert.equal(cell.getAttribute('colspan'), String(headers(node).length));
+});
+
+test('a flat list gets no separator', () => {
+  assert.equal(separators(table([drive({})])).length, 0);
+});

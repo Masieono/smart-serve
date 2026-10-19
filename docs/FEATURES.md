@@ -200,7 +200,15 @@ as a bare list entry.
   existing filter/sort work (`D5`) feeds.
 - **Grouping is the organising idea** (`D9`). Tag drives by pool — `tank`, `backup`,
   `media` — and the fleet reads as three groups instead of twenty-four cards. Grouping
-  is also the precondition for `A25`.
+  is also the precondition for `A25`. **Built**, as a toggle offered only when something
+  is actually tagged, and deliberately *not* a filter: a filter answers "show me only
+  this", which the health chips and the transport select already do, while grouping
+  answers "let me see the shape of the fleet". A drive with more than one tag appears
+  under **each** of them, which means the group counts can add up to more than the fleet
+  size — stated in the header rather than left to be discovered. The alternative,
+  first-tag-wins, is tidier but silently drops a drive from a group it is tagged for, and
+  the whole reason to group a fleet is not to miss one. Untagged drives come last, because
+  they are the ones with something left to do to them.
 - **A drive needs a physical address** (`D10`). A serial number identifies a drive; a
   bay number *finds* it. Cheapest NAS feature, largest payoff at the moment something
   actually fails. **Built** — free text ("bay 4", "front top", "USB port 2"), stored with
@@ -315,7 +323,7 @@ and all of them still hold.
 | D6 | Side-by-side multi-device comparison | P3 | 💤 | |
 | D7 | Localization (multi-language) | P3 | 💤 | CDI parity |
 | D8 | Dense fleet table view (one row per drive, sortable by risk) | P2 | 💤 | **done** — a Cards/Table switch on the dashboard; the table carries bay, verdict, score, transport, model, capacity, temperature, age and last scan, with sortable headers. See `UI.md` §7.1 |
-| D9 | Device grouping by tag/pool, dashboard grouped | P2 | 💤 | turns 24 cards into 3 readable groups; also the precondition for `A25` |
+| D9 | Device grouping by tag/pool, dashboard grouped | P2 | 💤 | **done** — a "Group by tag" toggle, offered only when something is tagged. A drive with several tags appears under each of them. See below |
 | D10 | Bay/slot field (physical location on the card and in the report) | P2 | 💤 | **done** — a free-text `bay` in the device's notes, shown first on the card and in the report. See below |
 | D11 | Testing session (label, test and report a batch of bench drives without polluting the fleet) | P3 | 💤 | `D4`'s *forget* already covers the single-drive version of this |
 

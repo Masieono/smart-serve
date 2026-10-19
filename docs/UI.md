@@ -177,6 +177,12 @@ picker offers exactly `ThemeNames`.
   label. The table *replaces* the grid rather than nesting inside it, since a table in a grid cell
   is laid out as a single column and loses the columns it exists for. Both views are built from the
   same payloads and the same badge functions, so they cannot disagree about a drive's state.
+- **Grouping** (`FEATURES.md` D9): a "Group by tag" toggle, offered only when at least one drive is
+  tagged — a single "Untagged" heading is the list with a heading on it, not a grouping. It works in
+  both views: cards get a heading and their own grid per group, and the table gets a separator row
+  spanning every column so its header stays the only one. A drive with more than one tag appears
+  under **each** of them, and the header says so outright, because a reader who notices the counts
+  do not add up will otherwise conclude the app is wrong. Untagged drives come last.
 - **Bay:** a drive with a recorded physical location leads its card with it. A serial identifies a
   drive; a bay *finds* it, and the person asking that question is standing in front of a machine
   rather than reading a screen carefully. Unset bays get no row at all — a gap in the bookkeeping

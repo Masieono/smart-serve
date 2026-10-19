@@ -370,7 +370,12 @@ export function deviceCard(device, onOpen, onScan) {
 export function fleetTable(devices, opts = {}) {
   const {
     sortKey = 'health', ascending = true, onOpen = () => {}, onScan = () => {}, onSort = null,
+    groups = null,
   } = opts;
+
+  // A flat list is one unlabelled group. Normalising here means the body below has a single shape
+  // to render, and grouping is a separator row rather than a second table with a second header.
+  const sections = groups || [{ label: null, devices }];
 
   // In the order someone reads a fleet: where it is, what it is, how it is, how old it is.
   const columns = [
@@ -410,23 +415,46 @@ export function fleetTable(devices, opts = {}) {
     return el('th', props, [c.label, active ? (ascending ? ' ↑' : ' ↓') : '']);
   }));
 
+  const rowFor = (d) => el('tr', {
+    class: d.is_missing ? 'fleet-row-missing' : '',
+    tabindex: '0',
+    title: d.is_missing ? 'This device was not present in the last scan' : '',
+    onclick: () => onOpen(d.serial),
+    onkeydown: (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        onOpen(d.serial);
+      }
+    },
+  }, columns.map((c) => el('td', { class: c.numeric ? 'num' : '' }, [c.cell(d)])));
+
+  const body = [];
+  for (const section of sections) {
+    // The separator spans every column, so the header above stays the only one. A second table
+    // per group would repeat an eleven-column header once per pool, which is heavier than the
+    // grouping is worth.
+    if (section.label) {
+      body.push(el('tr', { class: 'fleet-group' }, [
+        el('td', { colspan: String(columns.length) }, [
+          el('strong', { text: section.label }),
+          el('span', { class: 'muted', text: ` · ${countText(section.devices.length)}` }),
+        ]),
+      ]));
+    }
+    for (const d of section.devices) body.push(rowFor(d));
+  }
+
   return el('div', { class: 'table-wrap fleet-wrap' }, [
     el('table', { class: 'data fleet-table' }, [
       el('thead', {}, [header]),
-      el('tbody', {}, devices.map((d) => el('tr', {
-        class: d.is_missing ? 'fleet-row-missing' : '',
-        tabindex: '0',
-        title: d.is_missing ? 'This device was not present in the last scan' : '',
-        onclick: () => onOpen(d.serial),
-        onkeydown: (e) => {
-          if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault();
-            onOpen(d.serial);
-          }
-        },
-      }, columns.map((c) => el('td', { class: c.numeric ? 'num' : '' }, [c.cell(d)]))))),
+      el('tbody', {}, body),
     ]),
   ]);
+}
+
+/** "1 drive" / "3 drives" — a count that reads as a sentence rather than as a number. */
+export function countText(n) {
+  return n === 1 ? '1 drive' : `${n} drives`;
 }
 
 /** Attribute table in the CrystalDiskInfo layout. */

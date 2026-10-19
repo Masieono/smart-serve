@@ -11,6 +11,13 @@ stopped from the device page.
 
 ### Added
 
+- **Group by tag/pool (`D9`)** — the dashboard can group the list by tag, so a NAS reads as three
+  pools instead of twenty-four drives. It is a toggle rather than a filter, offered only when
+  something is actually tagged, and a drive with several tags appears under **each** of them —
+  first-tag-wins would be tidier but would silently drop a drive from a group it belongs to. The
+  header says outright that the counts can add up to more than the fleet size, and untagged drives
+  come last. Grouping works in both the card and table views; the table uses a separator row that
+  spans every column, so its header stays the only one.
 - **Dense fleet table (`D8`)** — a Cards/Table switch on the dashboard. The table gives one row per
   drive with bay, verdict, score, transport, model, capacity, temperature, age and last scan, and
   its headers sort — clicking the sorted column reverses it. A card grid is right for four drives
