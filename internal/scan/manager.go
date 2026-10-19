@@ -12,6 +12,7 @@ import (
 	"github.com/masieono/smart-serve/internal/events"
 	"github.com/masieono/smart-serve/internal/interp"
 	"github.com/masieono/smart-serve/internal/model"
+	"github.com/masieono/smart-serve/internal/smart"
 	"github.com/masieono/smart-serve/internal/store"
 )
 
@@ -368,6 +369,17 @@ func toStored(d Device) store.ScannedDevice {
 	}
 	if size > 0 {
 		out.CapacityBytes = &size
+	}
+	// B9: the newest *finished* test in the drive's self-test log, recorded so the next scan can
+	// tell a new result from the one already reported. Parsed from the raw document rather than
+	// carried on Device, because the scan keeps that document verbatim anyway and a second parse
+	// of it is cheaper than a second field to keep in step with the first.
+	//
+	// Only for a read that succeeded: a failed read must not look like a log with nothing in it,
+	// or the next successful scan would report the drive's existing results as news.
+	if d.Error == "" {
+		logs := smart.ParseLogs(d.Raw)
+		out.SelfTest = logs.LatestFinished()
 	}
 	return out
 }

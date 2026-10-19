@@ -93,6 +93,21 @@ func (s LogSummary) IsEmpty() bool {
 		len(s.SelfTestEntries) == 0
 }
 
+// LatestFinished returns the newest self-test result that has finished, or nil.
+//
+// "Newest" is the drive's own ordering, because a self-test log is reported newest first, and
+// "finished" means the entry carries no percentage remaining — that field appears only while a
+// test runs. This is the entry `B9` compares against next time: a result that is still going is
+// not yet news, and one the drive reports no verdict on is not a failure.
+func (s LogSummary) LatestFinished() *SelfTestEntry {
+	for i := range s.SelfTestEntries {
+		if s.SelfTestEntries[i].Remaining == nil {
+			return &s.SelfTestEntries[i]
+		}
+	}
+	return nil
+}
+
 // Running returns the self-test currently in progress, or nil.
 //
 // A test in progress is identified by the drive reporting a **percentage remaining**, because

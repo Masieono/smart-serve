@@ -21,6 +21,7 @@ notifier bus.
 | `device_disappeared` | Device in DB, absent from lsblk in this scan (fired once per disappearance) | medium |
 | `device_appeared` | Device seen for the first time, or reappearing after `disappeared` | low |
 | `scan_failure` | A scheduled scan (not a manual one) failed entirely (lsblk/smartctl errors) | medium |
+| `self_test_result` | A drive's self-test log holds a finished result it did not hold at the last scan (fired once per result) | low — **high** when the result failed |
 | `scan_success` | A scheduled scan completed **and found nothing to report**. A heartbeat, not an alert — **opt-in**, see below | low |
 
 Priority influences formatting (ntfy priority header, webhook payload field) and
@@ -56,6 +57,38 @@ took, and the alerts do the rest.
 A manual scan never produces a heartbeat: whoever pressed the button is watching the
 screen, and telling them the thing they just did happened is noise. Same reasoning as
 `scan_failure`, which is also scheduled-only.
+
+### Self-test results, and why they are not opt-in
+
+`self_test_result` is the one event that reports *good* news, and it is deliberately not gated the
+way `scan_success` is. The difference is what causes it. The heartbeat fires on a timer, so
+subscribing to it means accepting a message per schedule whether or not anything happened. A
+self-test result only exists because somebody pressed the button (`A19`), so it can never arrive
+unsolicited. It belongs in "everything".
+
+**One event type, not two.** `self_test_passed` and `self_test_failed` would be the obvious split,
+but the outcome is not what a subscription is choosing between — you either want to hear about your
+self-tests or you do not. So the outcome rides in the payload (`self_test_passed`) and sets the
+priority: **high** on a failure, **low** otherwise. A failure is the entire reason to run a test,
+and it should not arrive looking like a footnote.
+
+**Identity is the drive's type and power-on hours.** A self-test log entry carries no id of its
+own, so "this is a result I have not reported" is decided by comparing the newest *finished*
+entry's type and hours against the one stored from the last scan. Two identical tests in the same
+power-on hour are therefore indistinguishable and the second will not notify. That is a rare miss,
+and the alternative is an id the drive does not provide. The verdict is deliberately *not* part of
+the identity: the same test re-read with a different verdict is the same test read twice.
+
+**A baseline has to exist before it can change.** The stored value tells a log that was read and
+found empty apart from a row the app has never read, and only the first is something a new result
+can differ from. Without that distinction, the first scan after an upgrade would announce every
+result every drive already held — the same reasoning as "the first scan announces nothing" above,
+and the reason those columns are nullable rather than defaulting to empty (migration 0007,
+`DATA_MODEL.md`).
+
+**A failed read preserves the baseline.** When smartctl cannot read a drive, the scan records
+nothing about its self-test log rather than recording "no result". Otherwise a single transient
+failure would make the next successful scan report a test that finished days ago as news.
 
 ## Channels
 

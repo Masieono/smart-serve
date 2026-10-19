@@ -193,6 +193,14 @@ func uint64Ptr(n sql.NullInt64) *uint64 {
 	return &v
 }
 
+func int64Ptr(n sql.NullInt64) *int64 {
+	if !n.Valid {
+		return nil
+	}
+	v := n.Int64
+	return &v
+}
+
 func boolInt(b bool) int {
 	if b {
 		return 1

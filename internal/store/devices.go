@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/masieono/smart-serve/internal/model"
 )
 
 // ScannedDevice is one device's result from a scan, ready to persist.
@@ -44,6 +46,11 @@ type ScannedDevice struct {
 	RawOutput string
 	// Error is non-empty when S.M.A.R.T. could not be read for this device.
 	Error string
+	// SelfTest is the newest *finished* test in the drive's self-test log, nil when the log
+	// holds none. Recorded so the next scan can tell a new result from the one already
+	// reported: a notification needs a transition, and a transition needs a previous value
+	// (`FEATURES.md` B9).
+	SelfTest *model.SelfTestEntry
 }
 
 // DeviceRecord is the persisted current state of one drive, joined with its
@@ -201,12 +208,30 @@ func (s *Store) DeleteDevice(ctx context.Context, serial string) (bool, error) {
 
 func upsertDevice(ctx context.Context, tx *sql.Tx, d ScannedDevice, lastScan any, started, ended time.Time) error {
 	available := boolInt(d.Error == "")
+	// A failed read records nothing about the self-test log: the drive was never asked, so
+	// overwriting a known result with "no result" would turn the next successful scan into a
+	// spurious "new result" notification. COALESCE keeps the previous value, the same way
+	// last_scan does.
+	//
+	// A read that *succeeded* always records something, even when that something is the empty
+	// string. That is what leaves SQL NULL meaning only "this row predates the migration", and
+	// so what makes an empty log distinguishable from a drive we have never read
+	// (0007_device_selftest.sql).
+	var selfType, selfHours, selfPassed, selfStatus any
+	if d.Error == "" {
+		selfType, selfStatus = "", ""
+		if st := d.SelfTest; st != nil {
+			selfType, selfStatus = st.Type, st.Status
+			selfHours, selfPassed = nullInt64(st.Hours), nullBool(st.Passed)
+		}
+	}
 	_, err := tx.ExecContext(ctx, `
 		INSERT INTO devices (serial, model, model_family, firmware, device_path, transport,
 			smart_bus, interface_speed, capacity_bytes, rotation, wwn, smart_available,
 			smart_error, health, health_rationale, score, temperature_c, first_seen, last_seen,
-			last_scan, mountpoints, fstype, removable, fs_version, raw_output, is_missing)
-		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,0)
+			last_scan, mountpoints, fstype, removable, fs_version, raw_output, is_missing,
+			selftest_type, selftest_hours, selftest_passed, selftest_status)
+		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,0,?,?,?,?)
 		ON CONFLICT(serial) DO UPDATE SET
 			model=excluded.model,
 			model_family=excluded.model_family,
@@ -231,13 +256,17 @@ func upsertDevice(ctx context.Context, tx *sql.Tx, d ScannedDevice, lastScan any
 			removable=excluded.removable,
 			fs_version=excluded.fs_version,
 			raw_output=excluded.raw_output,
+			selftest_type=COALESCE(excluded.selftest_type, devices.selftest_type),
+			selftest_hours=COALESCE(excluded.selftest_hours, devices.selftest_hours),
+			selftest_passed=COALESCE(excluded.selftest_passed, devices.selftest_passed),
+			selftest_status=COALESCE(excluded.selftest_status, devices.selftest_status),
 			is_missing=0`,
 		d.Serial, d.Model, d.ModelFamily, d.Firmware, d.DevicePath, d.Transport, d.SmartBus,
 		d.InterfaceSpeed, nullUint(d.CapacityBytes), nullInt(d.Rotation), d.WWN, available,
 		d.Error, d.Health, d.HealthRationale, d.Score, nullInt(d.TemperatureC),
 		started.UnixMilli(), ended.UnixMilli(), lastScan,
 		encodeMountpoints(d.Mountpoints), d.Fstype, nullBool(d.Removable), d.FsVersion,
-		d.RawOutput)
+		d.RawOutput, selfType, selfHours, selfPassed, selfStatus)
 	if err != nil {
 		return fmt.Errorf("upsert device %s: %w", d.Serial, err)
 	}
@@ -727,6 +756,13 @@ type DeviceState struct {
 	TemperatureC    *int
 	// Missing is true when the device was absent from the most recent scan.
 	Missing bool
+	// SelfTestRecorded is false until a scan has stored what this drive's self-test log holds.
+	// It is what tells "the log is empty" apart from "we have never looked", and only the first
+	// is a baseline a new result can differ from — without it, every pre-existing result would
+	// look like news the first time a drive was scanned after an upgrade (`FEATURES.md` B9).
+	SelfTestRecorded bool
+	// SelfTest is the newest finished test in the drive's log, nil when there is none.
+	SelfTest *model.SelfTestEntry
 }
 
 // DeviceStates returns every known device keyed by serial, joined with its
@@ -739,7 +775,10 @@ type DeviceState struct {
 func (s *Store) DeviceStates(ctx context.Context) (map[string]DeviceState, error) {
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT d.serial, COALESCE(n.name, ''), d.model, d.health, d.health_rationale,
-		       d.temperature_c, d.is_missing
+		       d.temperature_c, d.is_missing,
+		       d.selftest_type IS NOT NULL,
+		       COALESCE(d.selftest_type, ''), d.selftest_hours, d.selftest_passed,
+		       COALESCE(d.selftest_status, '')
 		FROM devices d
 		LEFT JOIN device_notes n ON n.serial = d.serial`)
 	if err != nil {
@@ -753,13 +792,30 @@ func (s *Store) DeviceStates(ctx context.Context) (map[string]DeviceState, error
 			st        DeviceState
 			temp      sql.NullInt64
 			isMissing int64
+			recorded  bool
+			selfType  string
+			selfHours sql.NullInt64
+			selfPass  sql.NullInt64
+			selfStat  string
 		)
 		if err := rows.Scan(&st.Serial, &st.Name, &st.Model, &st.Health,
-			&st.HealthRationale, &temp, &isMissing); err != nil {
+			&st.HealthRationale, &temp, &isMissing,
+			&recorded, &selfType, &selfHours, &selfPass, &selfStat); err != nil {
 			return nil, err
 		}
 		st.TemperatureC = intPtr(temp)
 		st.Missing = isMissing != 0
+		st.SelfTestRecorded = recorded
+		// A recorded empty type is a log that was read and holds no finished test, so there is
+		// no entry to carry — as opposed to a row this migration has never seen.
+		if recorded && selfType != "" {
+			st.SelfTest = &model.SelfTestEntry{
+				Type:   selfType,
+				Hours:  int64Ptr(selfHours),
+				Passed: boolPtr(selfPass),
+				Status: selfStat,
+			}
+		}
 		out[st.Serial] = st
 	}
 	return out, rows.Err()

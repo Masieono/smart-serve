@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/masieono/smart-serve/internal/model"
 	"github.com/masieono/smart-serve/internal/scan"
 	"github.com/masieono/smart-serve/internal/store"
 )
@@ -96,6 +97,31 @@ func Collect(rep scan.PostScan, opts CollectOptions) []Event {
 			ev.key = EventTemperatureHigh + ":" + serial
 			events = append(events, ev)
 		}
+
+		// B9: a self-test result that was not there last time we looked.
+		//
+		// Identity is type and hours, because a self-test log entry carries no id of its own.
+		// Two identical tests in the same power-on hour are therefore indistinguishable and the
+		// second will not notify — a rare miss, and the alternative is announcing a result that
+		// has already been announced.
+		//
+		// Gated on SelfTestRecorded so that upgrading does not announce every drive's existing
+		// results: a row the app has never read has no baseline to differ from, and "no baseline"
+		// is a different finding from "an empty log".
+		if cur.SelfTest != nil && prev.SelfTestRecorded && !sameSelfTest(prev.SelfTest, cur.SelfTest) {
+			ev := base(EventSelfTestResult, PriorityLow, cur)
+			if cur.SelfTest.Passed != nil && !*cur.SelfTest.Passed {
+				// A failure is the entire reason to run a self-test, so it is not a low-priority
+				// note.
+				ev.Priority = PriorityHigh
+			}
+			ev.SelfTestType = cur.SelfTest.Type
+			ev.SelfTestPassed = cur.SelfTest.Passed
+			ev.SelfTestHours = cur.SelfTest.Hours
+			ev.Rationale = selfTestRationale(cur.SelfTest)
+			ev.key = EventSelfTestResult + ":" + serial
+			events = append(events, ev)
+		}
 	}
 
 	// The heartbeat fires only when the scan found nothing to say — no verdict changed, no
@@ -129,6 +155,47 @@ func Collect(rep scan.PostScan, opts CollectOptions) []Event {
 		return events[i].Type < events[j].Type
 	})
 	return events
+}
+
+// sameSelfTest reports whether two stored results are the same test.
+//
+// Type and hours are the identity, because a self-test log entry carries no id of its own. The
+// verdict is deliberately not part of it: a result re-read with the same type and hours but a
+// different verdict is the same test read twice, not a new one.
+func sameSelfTest(a, b *model.SelfTestEntry) bool {
+	if a == nil || b == nil {
+		return a == nil && b == nil
+	}
+	if a.Type != b.Type {
+		return false
+	}
+	if a.Hours == nil || b.Hours == nil {
+		return a.Hours == nil && b.Hours == nil
+	}
+	return *a.Hours == *b.Hours
+}
+
+// selfTestRationale words a result for a notification.
+//
+// The drive's own status text is quoted where it gave one, because a notification's body is the
+// only part most people read and "Completed: read failure" says more than "failed" ever could.
+func selfTestRationale(e *model.SelfTestEntry) string {
+	outcome := "finished"
+	if e.Passed != nil {
+		if *e.Passed {
+			outcome = "passed"
+		} else {
+			outcome = "failed"
+		}
+	}
+	what := e.Type
+	if what == "" {
+		what = "Self-test"
+	}
+	if e.Status != "" {
+		return fmt.Sprintf("%s %s: %s", what, outcome, e.Status)
+	}
+	return fmt.Sprintf("%s %s", what, outcome)
 }
 
 // Settings reads the tunables that live in the database (ADR-009).

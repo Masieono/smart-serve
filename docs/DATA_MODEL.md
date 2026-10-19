@@ -38,6 +38,7 @@ history — is one file that can be backed up with `cp` while the app is stopped
 | `first_seen` / `last_seen` | INTEGER (unix ms) | |
 | `last_scan` | INTEGER (unix ms) | last successful SMART read |
 | `is_missing` | INTEGER | 1 after a scan where device absent → triggers "removed" event once. The dashboard hides these by default (they are kept so notes and history survive) |
+| `selftest_type` / `selftest_hours` / `selftest_passed` / `selftest_status` | TEXT / INTEGER / INTEGER / TEXT, all NULL | the newest **finished** self-test in the drive's log (migration 0007), kept so `B9` can tell a new result from one already reported. **NULL means "never recorded"**; `''` means "the log was read and holds nothing". Only the second is a baseline a new result can differ from, which is what stops an upgrade announcing every drive's existing results. A read that failed leaves all four untouched (`NOTIFICATIONS.md`) |
 
 ### `device_notes` — user-entered metadata (1:1 with devices, editable in UI)
 

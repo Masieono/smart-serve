@@ -279,7 +279,7 @@ and all of them still hold.
 | B6 | Scheduled-scan failure alerts | MVP | 💤 | |
 | B7 | Alert acknowledgement (mute a known issue, keep the verdict) | P2 | 💤 | **deferred, not dropped** — belongs in the app; the state it needs costs more than the noise it removes at single-host scale |
 | B8 | Maintenance / silence windows (suppress during e.g. array rebuild) | P2 | 💤 | **done** — a `maintenance_windows` setting, one-off or recurring (daily/weekly), optionally scoped to drives picked from a list; evaluated at dispatch time, so no idle cost |
-| B9 | Self-test result notifications (pass/fail) | P2 | 💤 | |
+| B9 | Self-test result notifications (pass/fail) | P2 | 💤 | **done** — one `self_test_result` event, high priority on a failure, deduped on the drive's own result identity. See `NOTIFICATIONS.md` |
 | B10 | ntfy action buttons ("Open dashboard"), priority, tags | P2 | 💤 | |
 | B11 | Gotify / Telegram / Discord / SMTP adapters | P2 | 💤 | **done** — each a small `Sender`; the editor is data-driven, so adding another is a data change |
 | B12 | Per-channel event subscription UI | P2 | 💤 | **done** — checkboxes per channel, served from the server's event list so the two cannot drift |

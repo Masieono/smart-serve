@@ -27,6 +27,11 @@ const (
 	EventDeviceDisappeared = "device_disappeared"
 	EventDeviceAppeared    = "device_appeared"
 	EventScanFailure       = "scan_failure"
+	// EventSelfTestResult reports the outcome of a self-test (FEATURES.md B9). One event type
+	// rather than two, because it is always the result of a test someone deliberately started:
+	// unlike the heartbeat it can never arrive unsolicited, so it belongs in "everything" and
+	// the outcome rides in the payload instead of the type.
+	EventSelfTestResult = "self_test_result"
 	// EventScanSuccess is a heartbeat, not an alert: it says the scheduled scan ran. It is
 	// opt-in (see optInEvents) because it fires on every scheduled scan rather than on a
 	// change, and "everything" was never meant to include a periodic all-clear.
@@ -40,6 +45,7 @@ var EventTypes = []string{
 	EventDeviceDisappeared,
 	EventDeviceAppeared,
 	EventScanFailure,
+	EventSelfTestResult,
 	EventScanSuccess,
 }
 
@@ -79,10 +85,15 @@ type Event struct {
 	ScheduleID   int64    `json:"schedule_id,omitempty"`
 	Error        string   `json:"error,omitempty"`
 	// Scan-summary fields, used by the scheduled-scan heartbeat.
-	DevicesTotal int    `json:"devices_total,omitempty"`
-	DurationMS   int64  `json:"duration_ms,omitempty"`
-	ScanTS       int64  `json:"scan_ts"`
-	Version      string `json:"smartserve_version,omitempty"`
+	DevicesTotal int   `json:"devices_total,omitempty"`
+	DurationMS   int64 `json:"duration_ms,omitempty"`
+	// Self-test result fields, used by `self_test_result` (FEATURES.md B9). The verdict is a
+	// pointer so a drive that gave none is distinguishable from one that failed.
+	SelfTestType   string `json:"self_test_type,omitempty"`
+	SelfTestPassed *bool  `json:"self_test_passed,omitempty"`
+	SelfTestHours  *int64 `json:"self_test_hours,omitempty"`
+	ScanTS         int64  `json:"scan_ts"`
+	Version        string `json:"smartserve_version,omitempty"`
 	// Test marks a synthetic event from the "send test" button. It is on the wire on
 	// purpose: an automation watching a webhook has to be able to tell a test from a
 	// real alert and decline to act on it.

@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/masieono/smart-serve/internal/model"
 	"github.com/masieono/smart-serve/internal/scan"
 	"github.com/masieono/smart-serve/internal/store"
 )
@@ -41,6 +42,40 @@ func states(list ...store.DeviceState) map[string]store.DeviceState {
 		out[s.Serial] = s
 	}
 	return out
+}
+
+// withSelfTest attaches a stored self-test result, and says whether the drive has been read at
+// all — the two are independent, which is the point of the flag.
+func withSelfTest(e *model.SelfTestEntry, recorded bool) stateOpt {
+	return func(s *store.DeviceState) {
+		s.SelfTest = e
+		s.SelfTestRecorded = recorded
+	}
+}
+
+// onlyEvent returns the single event of a type, failing if there is not exactly one.
+func onlyEvent(t *testing.T, events []Event, typ string) Event {
+	t.Helper()
+	var found []Event
+	for _, e := range events {
+		if e.Type == typ {
+			found = append(found, e)
+		}
+	}
+	if len(found) != 1 {
+		t.Fatalf("got %d %s events, want exactly 1 (all: %+v)", len(found), typ, events)
+	}
+	return found[0]
+}
+
+// noEvent fails if an event of a type was produced.
+func noEvent(t *testing.T, events []Event, typ string) {
+	t.Helper()
+	for _, e := range events {
+		if e.Type == typ {
+			t.Fatalf("unexpected %s event: %+v", typ, e)
+		}
+	}
 }
 
 // report builds a successful *manual* scan over the two given state maps.
@@ -509,5 +544,143 @@ func TestNotifierHonoursAConfiguredThreshold(t *testing.T) {
 	}
 	if sender.sent[0].Type != EventTemperatureHigh {
 		t.Errorf("event = %+v, want a temperature_high", sender.sent[0])
+	}
+}
+
+// A finished self-test is news, and a failed one is the whole reason to run a test — so the
+// outcome decides the priority rather than the event type.
+func TestSelfTestResultNotifiesWithTheDrivesOwnVerdict(t *testing.T) {
+	hours := int64(2116)
+	passed, failed := true, false
+
+	base := func() store.DeviceState {
+		return state("S1", "good", withSelfTest(&model.SelfTestEntry{
+			Type: "Short offline", Hours: &hours, Passed: &passed, Status: "Completed without error",
+		}, true))
+	}
+	after := state("S1", "good", withSelfTest(&model.SelfTestEntry{
+		Type: "Extended offline", Hours: &hours, Passed: &failed, Status: "Completed: read failure",
+	}, true))
+
+	ev := onlyEvent(t, Collect(report(states(base()), states(after)), CollectOptions{}), EventSelfTestResult)
+
+	if ev.Priority != PriorityHigh {
+		t.Errorf("priority = %q, want high for a failure", ev.Priority)
+	}
+	if ev.SelfTestType != "Extended offline" {
+		t.Errorf("SelfTestType = %q", ev.SelfTestType)
+	}
+	if ev.SelfTestPassed == nil || *ev.SelfTestPassed {
+		t.Errorf("SelfTestPassed = %v, want false", ev.SelfTestPassed)
+	}
+	// The drive's own words, not a paraphrase: the body is the only part most people read.
+	if !strings.Contains(ev.Rationale, "Completed: read failure") {
+		t.Errorf("rationale = %q, want the drive's own status", ev.Rationale)
+	}
+}
+
+func TestPassingSelfTestNotifiesAtLowPriority(t *testing.T) {
+	hours := int64(10)
+	passed := true
+
+	ev := onlyEvent(t, Collect(report(
+		states(state("S1", "good", withSelfTest(&model.SelfTestEntry{
+			Type: "Short offline", Hours: &hours, Passed: &passed,
+		}, true))),
+		states(state("S1", "good", withSelfTest(&model.SelfTestEntry{
+			Type: "Extended offline", Hours: &hours, Passed: &passed, Status: "Completed without error",
+		}, true))),
+	), CollectOptions{}), EventSelfTestResult)
+
+	if ev.Priority != PriorityLow {
+		t.Errorf("priority = %q, want low for a pass", ev.Priority)
+	}
+}
+
+// The same result re-read is not a new result. Without this the event would fire on every scan
+// for as long as the drive kept the entry, which on a 15-minute schedule is 96 messages a day.
+func TestTheSameSelfTestResultDoesNotNotifyTwice(t *testing.T) {
+	hours := int64(2116)
+	passed := true
+	result := func() *model.SelfTestEntry {
+		return &model.SelfTestEntry{
+			Type: "Extended offline", Hours: &hours, Passed: &passed, Status: "Completed without error",
+		}
+	}
+
+	events := Collect(report(
+		states(state("S1", "good", withSelfTest(result(), true))),
+		states(state("S1", "good", withSelfTest(result(), true))),
+	), CollectOptions{})
+
+	noEvent(t, events, EventSelfTestResult)
+}
+
+// The upgrade case, and the reason the flag exists at all. A row the app has never read has no
+// baseline, so the first scan after upgrading must record what it finds rather than announce it.
+// Every drive with any history would otherwise fire at once, on the first scan after the update.
+func TestADriveWithNoRecordedBaselineAnnouncesNothing(t *testing.T) {
+	hours := int64(2116)
+	passed := true
+
+	events := Collect(report(
+		states(state("S1", "good")),
+		states(state("S1", "good", withSelfTest(&model.SelfTestEntry{
+			Type: "Extended offline", Hours: &hours, Passed: &passed,
+		}, true))),
+	), CollectOptions{})
+
+	noEvent(t, events, EventSelfTestResult)
+}
+
+// The counterpart: a log that *was* read and held nothing is a real baseline, so the first test to
+// finish against it is news.
+func TestFirstResultAgainstARecordedEmptyLogNotifies(t *testing.T) {
+	hours := int64(5)
+	passed := true
+
+	events := Collect(report(
+		states(state("S1", "good", withSelfTest(nil, true))),
+		states(state("S1", "good", withSelfTest(&model.SelfTestEntry{
+			Type: "Short offline", Hours: &hours, Passed: &passed,
+		}, true))),
+	), CollectOptions{})
+
+	onlyEvent(t, events, EventSelfTestResult)
+}
+
+// A drive that has vanished cannot have finished a test, and its stored result is the last one
+// ever seen. Reporting it would be history dressed up as news — the same rule the temperature
+// check follows.
+func TestAMissingDriveDoesNotReportASelfTestResult(t *testing.T) {
+	hours := int64(2116)
+	passed := true
+	stored := &model.SelfTestEntry{Type: "Short offline", Hours: &hours, Passed: &passed}
+
+	events := Collect(report(
+		states(state("S1", "good", withSelfTest(stored, true))),
+		states(state("S1", "good", asMissing(), withSelfTest(stored, true))),
+	), CollectOptions{})
+
+	noEvent(t, events, EventSelfTestResult)
+}
+
+// A drive that gave no verdict is not a drive that failed one. Treating the absent verdict as a
+// failure would put a red cross on a result the drive simply did not characterise.
+func TestASelfTestWithNoVerdictIsNotAFailure(t *testing.T) {
+	hours := int64(7)
+
+	ev := onlyEvent(t, Collect(report(
+		states(state("S1", "good", withSelfTest(nil, true))),
+		states(state("S1", "good", withSelfTest(&model.SelfTestEntry{
+			Type: "Short offline", Hours: &hours, Status: "Completed",
+		}, true))),
+	), CollectOptions{}), EventSelfTestResult)
+
+	if ev.Priority != PriorityLow {
+		t.Errorf("priority = %q, want low when the drive gave no verdict", ev.Priority)
+	}
+	if ev.SelfTestPassed != nil {
+		t.Errorf("SelfTestPassed = %v, want absent", ev.SelfTestPassed)
 	}
 }

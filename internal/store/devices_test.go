@@ -4,6 +4,8 @@ import (
 	"context"
 	"testing"
 	"time"
+
+	"github.com/masieono/smart-serve/internal/model"
 )
 
 // recent is the comparison window the dashboard uses, matching interp.WorsenWindow. The
@@ -362,5 +364,104 @@ func TestPruneRemovesOldSnapshots(t *testing.T) {
 	}
 	if len(series) != 1 {
 		t.Errorf("remaining snapshots = %d, want 1", len(series))
+	}
+}
+
+// selfTestState reads one device's stored state, failing if the drive is unknown.
+func selfTestState(t *testing.T, s *Store, serial string) DeviceState {
+	t.Helper()
+	all, err := s.DeviceStates(context.Background())
+	if err != nil {
+		t.Fatalf("DeviceStates: %v", err)
+	}
+	st, ok := all[serial]
+	if !ok {
+		t.Fatalf("no state for %q", serial)
+	}
+	return st
+}
+
+// B9 compares the newest finished self-test against the one recorded last time, so that value has
+// to survive a restart — and a read that failed has to leave it alone. Without the second half, a
+// single transient smartctl failure would turn the next successful scan into a "new result"
+// notification for a test that finished days ago.
+func TestSelfTestResultIsRecordedAndSurvivesAFailedRead(t *testing.T) {
+	ctx := context.Background()
+	s := newTestStore(t)
+	at := time.Date(2026, 4, 1, 9, 0, 0, 0, time.UTC)
+	hours := int64(2116)
+	passed := true
+
+	if _, err := s.SaveScan(ctx, "manual", at, at, []ScannedDevice{
+		{Serial: "S1", Health: "good", Score: 100, SelfTest: &model.SelfTestEntry{
+			Type: "Extended offline", Hours: &hours, Passed: &passed,
+			Status: "Completed without error",
+		}},
+	}); err != nil {
+		t.Fatalf("SaveScan: %v", err)
+	}
+
+	st := selfTestState(t, s, "S1")
+	if !st.SelfTestRecorded {
+		t.Fatal("SelfTestRecorded = false, but the log was read")
+	}
+	if st.SelfTest == nil {
+		t.Fatal("SelfTest = nil, but a finished test was recorded")
+	}
+	if st.SelfTest.Type != "Extended offline" || st.SelfTest.Status != "Completed without error" {
+		t.Errorf("SelfTest = %+v", st.SelfTest)
+	}
+	if st.SelfTest.Hours == nil || *st.SelfTest.Hours != 2116 {
+		t.Errorf("Hours = %v, want 2116", st.SelfTest.Hours)
+	}
+	if st.SelfTest.Passed == nil || !*st.SelfTest.Passed {
+		t.Errorf("Passed = %v, want true", st.SelfTest.Passed)
+	}
+
+	// The next scan cannot read the drive at all. The baseline must not be erased.
+	if _, err := s.SaveScan(ctx, "manual", at.Add(time.Hour), at.Add(time.Hour), []ScannedDevice{
+		{Serial: "S1", Health: "good", Score: 100, Error: "smartctl: device open failed"},
+	}); err != nil {
+		t.Fatalf("SaveScan after a failed read: %v", err)
+	}
+	st = selfTestState(t, s, "S1")
+	if st.SelfTest == nil || st.SelfTest.Type != "Extended offline" {
+		t.Fatalf("a failed read erased the baseline: %+v", st.SelfTest)
+	}
+}
+
+// A log that was read and holds no finished test is a baseline; a row the migration has never
+// touched is not. Collapsing the two is exactly what would make the first scan after an upgrade
+// announce every result the drive already holds.
+func TestAnEmptySelfTestLogIsARecordedBaseline(t *testing.T) {
+	ctx := context.Background()
+	s := newTestStore(t)
+	at := time.Date(2026, 4, 1, 9, 0, 0, 0, time.UTC)
+
+	if _, err := s.SaveScan(ctx, "manual", at, at, []ScannedDevice{
+		{Serial: "EMPTY", Health: "good", Score: 100},
+	}); err != nil {
+		t.Fatalf("SaveScan: %v", err)
+	}
+	st := selfTestState(t, s, "EMPTY")
+	if !st.SelfTestRecorded {
+		t.Error("an empty log must still count as recorded")
+	}
+	if st.SelfTest != nil {
+		t.Errorf("SelfTest = %+v, want nil for an empty log", st.SelfTest)
+	}
+
+	// A row written before 0007 has null in those columns, which is a different finding.
+	if _, err := s.db.ExecContext(ctx, `INSERT INTO devices
+		(serial, model, health, health_rationale, score, first_seen, last_seen, is_missing)
+		VALUES ('OLD', 'm', 'good', '', 100, 0, 0, 0)`); err != nil {
+		t.Fatalf("insert pre-migration row: %v", err)
+	}
+	st = selfTestState(t, s, "OLD")
+	if st.SelfTestRecorded {
+		t.Error("a row with null selftest_type must not claim a baseline")
+	}
+	if st.SelfTest != nil {
+		t.Errorf("SelfTest = %+v, want nil", st.SelfTest)
 	}
 }

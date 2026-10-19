@@ -11,6 +11,10 @@ stopped from the device page.
 
 ### Added
 
+- **Self-test result notifications (`B9`)** — when a self-test finishes, the result is sent to any
+  channel subscribed to `self_test_result`, at high priority if it failed. It is the one event that
+  reports good news, and it is not opt-in the way the scan heartbeat is: it only ever exists because
+  somebody started a test, so it can never arrive unsolicited.
 - **Self-test triggering (`A19`)** — the device page offers a short and a long test, shows the
   drive's own progress reading while one runs, and can stop it. This is the first and only control
   in the app that changes a drive, so it is opt-in by construction: nothing starts a test on its

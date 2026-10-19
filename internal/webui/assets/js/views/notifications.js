@@ -6,7 +6,7 @@ import { icon } from '../icons.js';
 
 // Fallback for the event catalog; the API is the source of truth so a new event
 // type shows up in the subscription checkboxes without a UI change.
-const EVENT_TYPES = ['health_change', 'temperature_high', 'device_disappeared', 'device_appeared', 'scan_failure', 'scan_success'];
+const EVENT_TYPES = ['health_change', 'temperature_high', 'device_disappeared', 'device_appeared', 'scan_failure', 'self_test_result', 'scan_success'];
 
 // Human labels for the subscription checkboxes; the event list itself comes from
 // the API so a new event type appears without a UI change.
@@ -16,6 +16,7 @@ const EVENT_LABELS = {
   device_disappeared: 'A drive disappears',
   device_appeared: 'A drive appears',
   scan_failure: 'A scheduled scan fails',
+  self_test_result: 'A self-test finishes',
   scan_success: 'A scheduled scan completes successfully',
 };
 
