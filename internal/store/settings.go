@@ -5,6 +5,8 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strconv"
+	"strings"
 	"time"
 )
 
@@ -69,6 +71,53 @@ func (s *Store) SetSettings(ctx context.Context, kv map[string]string) error {
 		}
 	}
 	return tx.Commit()
+}
+
+// --- retention -----------------------------------------------------------------
+
+// DefaultRetentionDays is how long snapshots are kept when nothing says otherwise.
+//
+// It is the default for the `retention_days` setting, and the one place it is written down: the
+// scan's pruning and every question about history read it from here, so the two cannot disagree
+// about how much history exists.
+const DefaultRetentionDays = 180
+
+// DefaultLogRetentionDays is the same for the notification log.
+const DefaultLogRetentionDays = 30
+
+// RetentionDays is how long this deployment keeps snapshots.
+//
+// A missing, unparseable or non-positive setting falls back to the default rather than meaning
+// "keep nothing": pruning the whole history would be a catastrophic reading of a typo, and the
+// settings UI cannot produce a zero, so a zero means something went wrong.
+func (s *Store) RetentionDays(ctx context.Context) int {
+	settings, err := s.GetSettings(ctx)
+	if err != nil {
+		return DefaultRetentionDays
+	}
+	if days, ok := positiveSetting(settings, "retention_days"); ok {
+		return days
+	}
+	return DefaultRetentionDays
+}
+
+// RetentionWindow is `RetentionDays` as a duration, for callers asking how far back history goes.
+//
+// This bounds every question about history — the longevity projection, the worsening flag, the
+// trend adjustment — because snapshots older than it have been pruned. A longer window would be a
+// promise the database cannot keep; a *shorter* one would hide history the user deliberately kept,
+// which is exactly what `A26` set out to stop.
+func (s *Store) RetentionWindow(ctx context.Context) time.Duration {
+	return time.Duration(s.RetentionDays(ctx)) * 24 * time.Hour
+}
+
+// positiveSetting reads a positive integer setting, reporting whether it found a usable one.
+func positiveSetting(settings map[string]string, key string) (int, bool) {
+	v, err := strconv.Atoi(strings.TrimSpace(settings[key]))
+	if err != nil || v <= 0 {
+		return 0, false
+	}
+	return v, true
 }
 
 // --- schedules ----------------------------------------------------------------

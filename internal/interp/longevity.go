@@ -217,14 +217,6 @@ func sectorProjection(obs []Observation) (Projection, bool) {
 // getting worse now", which is why the two can disagree, and should.
 const WorsenWindow = 30 * 24 * time.Hour
 
-// HistoryWindow is how far back a question about history may look.
-//
-// It deliberately matches the default `retention_days` setting: snapshots older than that have been
-// pruned, so a longer window would be a promise the database cannot keep. A user who lowers
-// retention gets a shorter window, which is correct — a trend is limited by the history that
-// exists, not by this constant.
-const HistoryWindow = 180 * 24 * time.Hour
-
 // TrendPenaltyCap is the most a worsening trend can take off a score.
 //
 // Bounded deliberately. A trend is an extrapolation from a handful of readings, and a score is the

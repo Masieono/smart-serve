@@ -44,6 +44,63 @@ func TestSettings(t *testing.T) {
 	}
 }
 
+// A26. The projection window follows the user's retention setting, so what they keep is what the
+// app reads — an owner who raised retention to five years to watch a slow trend was having that
+// history discarded by the projection anyway.
+func TestRetentionWindowFollowsTheSetting(t *testing.T) {
+	ctx := context.Background()
+	s := newTestStore(t)
+
+	// Nothing set: the documented default.
+	if got := s.RetentionDays(ctx); got != DefaultRetentionDays {
+		t.Errorf("RetentionDays = %d, want the default %d", got, DefaultRetentionDays)
+	}
+	if got := s.RetentionWindow(ctx); got != time.Duration(DefaultRetentionDays)*24*time.Hour {
+		t.Errorf("RetentionWindow = %v", got)
+	}
+
+	// A user who keeps five years gets five years.
+	if err := s.SetSettings(ctx, map[string]string{"retention_days": "1825"}); err != nil {
+		t.Fatalf("SetSettings: %v", err)
+	}
+	if got := s.RetentionDays(ctx); got != 1825 {
+		t.Errorf("RetentionDays = %d, want 1825", got)
+	}
+	if got := s.RetentionWindow(ctx); got != 1825*24*time.Hour {
+		t.Errorf("RetentionWindow = %v, want 1825 days", got)
+	}
+}
+
+// A zero or unparseable setting must not mean "keep nothing": pruning the entire history would be a
+// catastrophic reading of a typo, and the settings UI cannot produce a zero.
+func TestAnUnusableRetentionSettingFallsBack(t *testing.T) {
+	ctx := context.Background()
+	s := newTestStore(t)
+
+	for _, bad := range []string{"0", "-5", "", "  ", "soon"} {
+		if err := s.SetSettings(ctx, map[string]string{"retention_days": bad}); err != nil {
+			t.Fatalf("SetSettings(%q): %v", bad, err)
+		}
+		if got := s.RetentionDays(ctx); got != DefaultRetentionDays {
+			t.Errorf("retention_days = %q gave %d, want the default %d",
+				bad, got, DefaultRetentionDays)
+		}
+	}
+}
+
+// Whitespace around a number is a paste artefact, not a different value.
+func TestRetentionDaysToleratesWhitespace(t *testing.T) {
+	ctx := context.Background()
+	s := newTestStore(t)
+
+	if err := s.SetSettings(ctx, map[string]string{"retention_days": " 365 "}); err != nil {
+		t.Fatalf("SetSettings: %v", err)
+	}
+	if got := s.RetentionDays(ctx); got != 365 {
+		t.Errorf("RetentionDays = %d, want 365", got)
+	}
+}
+
 func TestSchedules(t *testing.T) {
 	ctx := context.Background()
 	s := newTestStore(t)

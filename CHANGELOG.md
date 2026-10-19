@@ -11,6 +11,11 @@ stopped from the device page.
 
 ### Changed
 
+- **The projection window follows retention (`A26`).** The longevity estimate, the worsening flag
+  and the trend adjustment all looked at a fixed 180 days, so an owner who raised `retention_days`
+  to five years precisely to watch a slow trend had that history discarded by the projection anyway.
+  All three now use the retention setting itself, so what the user keeps is what the app reads.
+  There is one number rather than two, and it is the same one the pruning uses.
 - **The health score is now trend-aware (`A17`).** A verdict is a statement about *now*; a score is
   a summary, and a drive whose bad sectors are climbing is worse than one sitting at the same count
   and going nowhere. Such a drive now loses 3 points for its first new sector and one more per

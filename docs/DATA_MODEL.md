@@ -124,7 +124,7 @@ worse than no setting at all.
 | `uncorrectable_bad_threshold` | `10` | ID 198 raw ≥ this ⇒ Bad | `interp` |
 | `warn_on_any_nonzero` | `true` | any of ID 5/197/198 > 0 ⇒ Caution | `interp` |
 | `nvme_percentage_used_warn` | `90` | NVMe % used ≥ this ⇒ Caution | `interp` |
-| `retention_days` | `180` | snapshot retention window | `scan` (pruning) |
+| `retention_days` | `180` | snapshot retention window. **Also bounds the projection, the worsening flag and the trend adjustment** — there is one window, not two, so raising it gives a longer view as well as a longer memory (`FEATURES.md` A26) | `scan` (pruning) |
 | `notification_log_retention_days` | `30` | notification-log retention | `scan` (pruning) |
 | `squelch_seconds` | `3600` | re-alert window for persistent conditions | `notify` |
 | `command_timeout_seconds` | `15` | per-`smartctl`/`lsblk` timeout | `scan` (env-seeded) |

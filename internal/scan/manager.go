@@ -217,8 +217,11 @@ func (m *Manager) run(ctx context.Context, t Trigger, o only) (Result, error) {
 	//
 	// A failure to read the history is not worth failing a scan for: the score then stays whatever
 	// the drive's own data says, which is the answer the app gave before this existed.
+	//
+	// The window follows the user's retention setting (A26): asking about five years of history on a
+	// deployment that keeps six months would silently under-report a slow trend.
 	if trend, terr := m.store.SectorTrend(ctx,
-		time.Now().Add(-interp.HistoryWindow), interp.WorsenWindow); terr == nil {
+		time.Now().Add(-m.store.RetentionWindow(ctx)), interp.WorsenWindow); terr == nil {
 		applyTrendPenalties(devices, trend)
 	}
 
@@ -288,7 +291,7 @@ func (m *Manager) notify(ctx context.Context, rep PostScan) {
 // prune applies the retention windows from settings. A pruning failure must
 // never fail the scan itself.
 func (m *Manager) prune(ctx context.Context) {
-	retention, logRetention := 180, 30
+	retention, logRetention := store.DefaultRetentionDays, store.DefaultLogRetentionDays
 	if settings, err := m.store.GetSettings(ctx); err == nil {
 		retention = settingInt(settings, "retention_days", retention)
 		logRetention = settingInt(settings, "notification_log_retention_days", logRetention)

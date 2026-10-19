@@ -38,7 +38,7 @@ avoid idle cost.
 | A23 | Fleet-wide export (every drive in one CSV or page) | P2 | 💤 | NAS: what you paste into a spreadsheet when planning a purchase |
 | A24 | "Replace first" ranking (verdict + direction + remaining life, ordered, with reasons) | P2 | 💤 | the dashboard sorts by *today's* severity; this answers "which one do I buy this month?" |
 | A25 | Correlated-change detection (N drives in a group moving together → one alert about the enclosure) | P3 | 💤 | needs grouping + history first, and a high bar — a RAID rebuild legitimately heats everything |
-| A26 | Projection window follows retention (or becomes a setting) | P2 | 💤 | today it is fixed at 180 d, so a NAS that keeps 5 years discards the history it deliberately kept |
+| A26 | Projection window follows retention (or becomes a setting) | P2 | 💤 | **done** — the projection, the worsening flag and the trend adjustment all use the `retention_days` setting. See below |
 | A27 | Warranty / RMA evidence pack (the exported report says what it is for) | P2 | 💤 | cheap — the export already exists (`A8`) |
 
 ### A14/A16 — Longevity and the worsening badge
@@ -268,7 +268,9 @@ as a bare list entry.
 - **The projection window is too short for a NAS** (`A26`). Retention is configurable;
   the projection window is fixed at 180 days. An owner who raises retention to five years
   is doing so precisely to watch a slow trend — and the app then discards it. The tension
-  was flagged when `A16` was built; a NAS is the case that resolves it.
+  was flagged when `A16` was built; a NAS is the case that resolves it. **Built**: the
+  window is now the `retention_days` setting itself, so what the user keeps is what the app
+  reads. It is one number rather than two, and the same one the pruning uses.
 - **"Replace first" is the question a fleet asks** (`A24`). The verdict says how a drive
   looks *now*; the ranking says which one to buy a replacement for this month, combining
   verdict, direction (`A14`) and remaining life (`A16`), with the reasoning shown.

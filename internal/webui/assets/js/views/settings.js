@@ -80,7 +80,9 @@ const OPERATIONS = [
   {
     key: 'retention_days',
     label: 'History retention',
-    help: 'Snapshots older than this are pruned after each scan.',
+    help: 'Snapshots older than this are pruned after each scan. It also sets how far back the ' +
+      'trend and longevity estimates look, so a longer retention is a longer view as well as a ' +
+      'longer memory.',
     min: 7, max: 3650, step: 1, unit: 'days',
   },
   {

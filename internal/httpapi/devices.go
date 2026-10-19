@@ -148,7 +148,7 @@ func (s *Server) handleListDevices(w http.ResponseWriter, r *http.Request) {
 	// Bad-sector growth per device, so the dashboard can flag a drive that is getting
 	// worse without the user having to open each one. A failure here is not worth failing
 	// the list for: the flag is a nicety and the list is not.
-	trend, err := s.store.SectorTrend(r.Context(), time.Now().Add(-projectionWindow), interp.WorsenWindow)
+	trend, err := s.store.SectorTrend(r.Context(), time.Now().Add(-s.store.RetentionWindow(r.Context())), interp.WorsenWindow)
 	if err != nil {
 		trend = nil
 	}
@@ -230,14 +230,18 @@ func (s *Server) handleGetDevice(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, resp)
 }
 
-// projectionWindow is how far back the longevity estimate looks. Long enough for a wear
-// counter to have moved for a reason other than rounding, bounded so that opening a
-// device page stays cheap even on a long-lived install.
+// projectionWindow is how far back the longevity estimate looks, and it is the user's own
+// `retention_days` setting (`A26`).
 //
-// It is `interp.HistoryWindow` rather than a constant of its own, because the scan applies the
-// same window when it adjusts a score for the trend (`A17`). Two numbers that mean "as far back
-// as the history goes" would eventually stop being equal.
-const projectionWindow = interp.HistoryWindow
+// It used to be a fixed 180 days, which meant an owner who raised retention to five years to watch
+// a slow trend had that history discarded by the projection anyway. The window is now the same
+// number the pruning uses, so what the user keeps is what the app reads.
+//
+// Kept as a helper rather than inlined so the three callers cannot drift apart — and so the
+// reasoning has somewhere to live.
+func (s *Server) projectionWindow(ctx context.Context) time.Duration {
+	return s.store.RetentionWindow(ctx)
+}
 
 // deviceProjection builds the longevity estimate and the worsening flag from stored
 // history.
@@ -246,7 +250,7 @@ const projectionWindow = interp.HistoryWindow
 // enough history yet", which is what a young install would show anyway.
 func (s *Server) deviceProjection(ctx context.Context, serial string) interp.Projection {
 	now := time.Now()
-	series, err := s.store.SnapshotSeries(ctx, serial, now.Add(-projectionWindow), now)
+	series, err := s.store.SnapshotSeries(ctx, serial, now.Add(-s.projectionWindow(ctx)), now)
 	if err != nil {
 		return interp.Projection{}
 	}

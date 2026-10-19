@@ -202,11 +202,12 @@ and `routine` counts the rest rather than dropping them, because a silent filter
 omission. `appeared` marks a counter the drive has just started reporting. `note` is present when
 there is no diff to make at all, which is a different finding from an empty one.
 
-`projection` is what the drive's **history** says about where it is heading, over a
-180-day window (`internal/interp/longevity.go`, `SCOPE.md` §2.2). The window matches the
-default `retention_days` setting, since snapshots older than that have been pruned; lowering
-retention shortens the window, which is correct — the trend is limited by the history that
-exists rather than by the constant.
+`projection` is what the drive's **history** says about where it is heading, over a window that is
+the user's own `retention_days` setting (`internal/store/settings.go`, `FEATURES.md` A26). It used
+to be fixed at 180 days, which meant an owner who raised retention to watch a slow trend had that
+history discarded by the projection anyway; the window is now the same number the pruning uses, so
+what the user keeps is what the app reads. The default is 180 days, and an unparseable or
+non-positive setting falls back to it rather than meaning "keep nothing".
 
 | Field | Meaning |
 |---|---|
