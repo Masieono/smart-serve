@@ -104,6 +104,9 @@ function draw(container, ctx, data, history) {
   const wearPct = snapshot ? snapshot.wear_pct : null;
 
   const identity = statGrid([
+    // First, because it is the one line that answers "which drive do I pull?" — and the person
+    // asking that question is standing in front of a machine, not reading a screen carefully.
+    stat('Bay', d.bay),
     stat('Model', d.model),
     stat('Model family', d.model_family),
     stat('Serial', d.serial),
@@ -688,12 +691,16 @@ async function toggleRaw(device, button) {
 function editNotes(ctx, device) {
   openDialog('Device notes', (body, close, foot) => {
     const name = el('input', { type: 'text', value: device.name || '', placeholder: 'e.g. boot, backup pool' });
+    const bay = el('input', { type: 'text', value: device.bay || '', placeholder: 'e.g. bay 4, front top, USB port 2' });
     const tags = el('input', { type: 'text', value: device.tags || '', placeholder: 'e.g. critical,os' });
     const notes = el('textarea', { value: device.notes || '', placeholder: 'Anything worth remembering about this drive' });
     const hidden = el('input', { type: 'checkbox', checked: Boolean(device.hidden) });
 
     body.append(
       el('div', { class: 'field' }, [el('label', { text: 'Name' }), name]),
+      el('div', { class: 'field' }, [el('label', { text: 'Bay' }), bay,
+        el('p', { class: 'muted field-hint', text: 'Where the drive physically is. A serial ' +
+          'identifies a drive; a bay finds it, which is the question at 3am.' })]),
       el('div', { class: 'field' }, [el('label', { text: 'Tags' }), tags]),
       el('div', { class: 'field' }, [el('label', { text: 'Notes' }), notes]),
       el('label', { class: 'field-row' }, [hidden, el('span', { text: 'Hide from the dashboard' })]),
@@ -710,6 +717,7 @@ function editNotes(ctx, device) {
           try {
             await api.setNotes(device.serial, {
               name: name.value.trim(),
+              bay: bay.value.trim(),
               tags: tags.value.trim(),
               notes: notes.value,
               hidden: hidden.checked,

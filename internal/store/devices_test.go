@@ -465,3 +465,70 @@ func TestAnEmptySelfTestLogIsARecordedBaseline(t *testing.T) {
 		t.Errorf("SelfTest = %+v, want nil", st.SelfTest)
 	}
 }
+
+// The bay is the one field that answers "which drive do I pull?", so it has to survive the round
+// trip through SQLite and come back on the record the dashboard actually renders from.
+func TestBaySurvivesTheNotesRoundTrip(t *testing.T) {
+	ctx := context.Background()
+	s := newTestStore(t)
+	at := time.Date(2026, 5, 1, 9, 0, 0, 0, time.UTC)
+
+	if _, err := s.SaveScan(ctx, "manual", at, at, []ScannedDevice{
+		{Serial: "S1", Model: "m", Health: "good", Score: 100},
+	}); err != nil {
+		t.Fatalf("SaveScan: %v", err)
+	}
+	if err := s.SetNotes(ctx, Notes{Serial: "S1", Name: "parity", Bay: "bay 4"}); err != nil {
+		t.Fatalf("SetNotes: %v", err)
+	}
+
+	rec, err := s.GetDevice(ctx, "S1")
+	if err != nil {
+		t.Fatalf("GetDevice: %v", err)
+	}
+	if rec.Bay != "bay 4" {
+		t.Errorf("DeviceRecord.Bay = %q, want %q", rec.Bay, "bay 4")
+	}
+
+	n, err := s.GetNotes(ctx, "S1")
+	if err != nil {
+		t.Fatalf("GetNotes: %v", err)
+	}
+	if n == nil || n.Bay != "bay 4" {
+		t.Fatalf("Notes.Bay = %+v, want %q", n, "bay 4")
+	}
+
+	// Clearing it must read back as empty rather than as a missing column: the field is
+	// NOT NULL DEFAULT '' precisely so there is no third state to interpret.
+	if err := s.SetNotes(ctx, Notes{Serial: "S1", Name: "parity"}); err != nil {
+		t.Fatalf("SetNotes (clearing): %v", err)
+	}
+	rec, err = s.GetDevice(ctx, "S1")
+	if err != nil {
+		t.Fatalf("GetDevice after clearing: %v", err)
+	}
+	if rec.Bay != "" {
+		t.Errorf("Bay = %q after clearing, want empty", rec.Bay)
+	}
+}
+
+// A device with no notes row at all must still come back with an empty bay rather than failing
+// the scan — the LEFT JOIN is what makes that true, and the dashboard lists every drive.
+func TestADeviceWithNoNotesHasAnEmptyBay(t *testing.T) {
+	ctx := context.Background()
+	s := newTestStore(t)
+	at := time.Date(2026, 5, 1, 9, 0, 0, 0, time.UTC)
+
+	if _, err := s.SaveScan(ctx, "manual", at, at, []ScannedDevice{
+		{Serial: "BARE", Model: "m", Health: "good", Score: 100},
+	}); err != nil {
+		t.Fatalf("SaveScan: %v", err)
+	}
+	rec, err := s.GetDevice(ctx, "BARE")
+	if err != nil {
+		t.Fatalf("GetDevice: %v", err)
+	}
+	if rec.Bay != "" {
+		t.Errorf("Bay = %q, want empty", rec.Bay)
+	}
+}

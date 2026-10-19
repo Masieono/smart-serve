@@ -49,6 +49,7 @@ history — is one file that can be backed up with `cp` while the app is stopped
 | `notes` | TEXT NULL | free-form |
 | `tags` | TEXT NULL | comma-separated (Phase 2: table) |
 | `hidden` | INTEGER DEFAULT 0 | user can hide devices they don't care about |
+| `bay` | TEXT NOT NULL DEFAULT '' | where the drive physically is — "bay 4", "front top", "USB port 2" (migration 0008). Free text, because a bay is whatever the enclosure calls it. **Not nullable**, unlike the self-test columns: nothing about a bay is inferred from the drive, so "no bay recorded" and "the field is empty" are the same finding. It lives with the notes rather than on `devices` because it is something a person assigned, so it survives an unplug for the same reason a name does (`FEATURES.md` D10) |
 | `updated_at` | INTEGER (unix ms) | |
 
 ### `snapshots` — append-only history for trending & longevity (Phase 2 consumer)

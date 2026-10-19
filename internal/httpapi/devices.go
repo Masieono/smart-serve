@@ -47,11 +47,14 @@ type deviceJSON struct {
 	FsVersion string `json:"fs_version,omitempty"`
 	// SmartD is the remembered `smartctl -d` for this drive, so the UI can show which
 	// override is active rather than only offering to set one.
-	SmartD    string  `json:"smart_d,omitempty"`
-	Name      string  `json:"name"`
-	Notes     string  `json:"notes"`
-	Tags      string  `json:"tags"`
-	Hidden    bool    `json:"hidden"`
+	SmartD string `json:"smart_d,omitempty"`
+	Name   string `json:"name"`
+	Notes  string `json:"notes"`
+	Tags   string `json:"tags"`
+	Hidden bool   `json:"hidden"`
+	// Bay is where the drive physically is, so a card can answer "which one do I pull?" without
+	// the reader matching serials against a spreadsheet.
+	Bay       string  `json:"bay,omitempty"`
 	FirstSeen string  `json:"first_seen"`
 	LastSeen  string  `json:"last_seen"`
 	LastScan  *string `json:"last_scan"`
@@ -91,6 +94,7 @@ func toDeviceJSON(d store.DeviceRecord) deviceJSON {
 		Notes:           d.Notes,
 		Tags:            d.Tags,
 		Hidden:          d.Hidden,
+		Bay:             d.Bay,
 		FirstSeen:       rfc3339(d.FirstSeen),
 		LastSeen:        rfc3339(d.LastSeen),
 		IsMissing:       d.IsMissing,
@@ -275,6 +279,7 @@ func (s *Server) handleSetNotes(w http.ResponseWriter, r *http.Request) {
 		Notes  *string `json:"notes"`
 		Tags   *string `json:"tags"`
 		Hidden *bool   `json:"hidden"`
+		Bay    *string `json:"bay"`
 	}
 	if !decodeJSON(w, r, &body) {
 		return
@@ -294,12 +299,16 @@ func (s *Server) handleSetNotes(w http.ResponseWriter, r *http.Request) {
 	if body.Hidden != nil {
 		n.Hidden = *body.Hidden
 	}
+	if body.Bay != nil {
+		n.Bay = *body.Bay
+	}
 	if err := s.store.SetNotes(r.Context(), n); err != nil {
 		s.fail(w, "set notes", err)
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
-		"serial": serial, "name": n.Name, "notes": n.Notes, "tags": n.Tags, "hidden": n.Hidden,
+		"serial": serial, "name": n.Name, "notes": n.Notes, "tags": n.Tags,
+		"hidden": n.Hidden, "bay": n.Bay,
 	})
 }
 

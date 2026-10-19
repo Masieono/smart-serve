@@ -276,13 +276,20 @@ export function deviceCard(device, onOpen, onScan) {
 
   // Text labels rather than bare icons: drive type and capacity are otherwise
   // ambiguous, and icon sizes vary enough to look inconsistent (docs/UI.md §6).
+  //
+  // The bay leads when it is set, because it is the one field that answers "which drive do I
+  // pull?" — a card that makes you match serials against a spreadsheet has failed at the only
+  // question someone standing in front of the machine has. Omitted entirely when unset: a missing
+  // bay is a gap in the bookkeeping rather than a finding about the drive, and a row of dashes
+  // would read as the latter.
   const rows = [
+    device.bay ? ['Bay', device.bay] : null,
     ['Transport', transportLabel(device)],
     ['Capacity', fmtBytes(device.capacity_bytes)],
     ['Temperature', fmtTemp(device.temperature_c)],
     ['Mounted', mounted],
     ['Last scan', fmtAgo(device.last_scan)],
-  ];
+  ].filter(Boolean);
 
   return el('article', {
     class: `card device-card${device.is_missing ? ' device-card-missing' : ''}`,

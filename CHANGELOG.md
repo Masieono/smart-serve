@@ -11,6 +11,11 @@ stopped from the device page.
 
 ### Added
 
+- **Bay / slot field (`D10`)** — a drive can be given a physical location ("bay 4", "front top"),
+  which then leads on its card and appears in every export. A serial identifies a drive; a bay
+  *finds* it, which is the question someone standing in front of a machine at 3am actually has.
+  It is free text, and unset bays are omitted from the card entirely rather than rendered as an
+  empty row — a gap in the bookkeeping is not a finding about the drive.
 - **Self-test result notifications (`B9`)** — when a self-test finishes, the result is sent to any
   channel subscribed to `self_test_result`, at high priority if it failed. It is the one event that
   reports good news, and it is not opt-in the way the scan heartbeat is: it only ever exists because

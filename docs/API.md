@@ -40,6 +40,7 @@ manual one does not (the operator who pressed the button already knows).
       "temperature_c": 41,
       "smart_available": true,
       "name": "boot",
+      "bay": "bay 4",
       "notes": null,
       "hidden": false,
       "mountpoints": ["/"],
@@ -192,11 +193,15 @@ sector basis. A drive with less than a day of history gets `basis: "none"` and
 ### `PUT /api/devices/{serial}/notes`
 
 ```json
-{ "name": "boot", "notes": "bought 2024-03, under warranty until 2029", "tags": "critical,os", "hidden": false }
+{ "name": "boot", "bay": "bay 4", "notes": "bought 2024-03, under warranty until 2029", "tags": "critical,os", "hidden": false }
 ```
 
 Creates the note row if absent (device may currently be unplugged). Response: the
 stored record. Unset fields are `null`, not omitted — full replace semantics.
+
+`bay` is free text: where the drive physically is. It is user metadata rather than
+something read from the drive, so it survives an unplug, and it is what the dashboard
+card leads with when it is set (`FEATURES.md` D10).
 
 ## Schedules
 

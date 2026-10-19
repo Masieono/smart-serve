@@ -158,6 +158,11 @@ picker offers exactly `ThemeNames`.
 - **Scanning:** the sidebar button reflects progress; cards update live via SSE as
   each device completes (no polling — `ADR-006`).
 - **Populated:** cards sorted by severity (bad → caution → good), then by user name.
+- **Bay:** a drive with a recorded physical location leads its card with it. A serial identifies a
+  drive; a bay *finds* it, and the person asking that question is standing in front of a machine
+  rather than reading a screen carefully. Unset bays get no row at all — a gap in the bookkeeping
+  is not a finding about the drive, and "Bay —" would read as a missing measurement (`FEATURES.md`
+  D10).
 - **Disconnected:** a drive absent from the latest scan keeps its record — its notes
   and history must survive an unplug — but is flagged `is_missing`. Those cards are
   hidden by default; a **Show N disconnected** toggle reveals them, dimmed and

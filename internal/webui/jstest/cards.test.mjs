@@ -108,3 +108,18 @@ test('a drive with no S.M.A.R.T. has no health gauge', () => {
   assert.ok(card({}).find(isGauge), 'a scored drive keeps its gauge');
   assert.equal(card({ smart_available: false, score: -1 }).find(isGauge), null);
 });
+
+// The bay is the only field on the card that answers "which drive do I pull?", so it leads.
+test('a bay is shown on the card', () => {
+  const text = textOf(card({ bay: 'bay 4' }));
+  assert.match(text, /Bay/);
+  assert.match(text, /bay 4/);
+});
+
+// A drive with no bay recorded is not a drive with a problem. A row reading "Bay —" would look
+// like a missing measurement rather than a gap in the bookkeeping, so the row is dropped.
+test('a drive with no bay gets no row, not an empty one', () => {
+  const text = textOf(card({}));
+  assert.doesNotMatch(text, /Bay/);
+  assert.match(text, /Transport/, 'the other rows are still there');
+});

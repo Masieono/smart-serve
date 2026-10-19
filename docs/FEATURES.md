@@ -203,7 +203,11 @@ as a bare list entry.
   is also the precondition for `A25`.
 - **A drive needs a physical address** (`D10`). A serial number identifies a drive; a
   bay number *finds* it. Cheapest NAS feature, largest payoff at the moment something
-  actually fails.
+  actually fails. **Built** — free text ("bay 4", "front top", "USB port 2"), stored with
+  the drive's notes so it survives an unplug, leading the card and present in every export.
+  Deliberately not validated against a list of bays: the enclosure decides what its slots
+  are called, and this app has never seen one. A drive with no bay gets no row at all,
+  because a gap in the bookkeeping is not a finding about the drive.
 - **Labels must outlive the container** (`C7`, promoted from P3). Names, notes and tags
   live in the SQLite volume, so they survive a restart but not a host migration. For a
   fleet, re-labelling sixteen drives is the difference between a five-minute move and an
@@ -312,7 +316,7 @@ and all of them still hold.
 | D7 | Localization (multi-language) | P3 | 💤 | CDI parity |
 | D8 | Dense fleet table view (one row per drive, sortable by risk) | P2 | 💤 | the dashboard is a card grid; at 24 drives that is a lot of scrolling |
 | D9 | Device grouping by tag/pool, dashboard grouped | P2 | 💤 | turns 24 cards into 3 readable groups; also the precondition for `A25` |
-| D10 | Bay/slot field (physical location on the card and in the report) | P2 | 💤 | at 3am you need the bay number, not the serial |
+| D10 | Bay/slot field (physical location on the card and in the report) | P2 | 💤 | **done** — a free-text `bay` in the device's notes, shown first on the card and in the report. See below |
 | D11 | Testing session (label, test and report a batch of bench drives without polluting the fleet) | P3 | 💤 | `D4`'s *forget* already covers the single-drive version of this |
 
 ## E. Idle-cost guardrails (rules for accepting any new feature)

@@ -1107,6 +1107,15 @@ table.data tbody tr.section th {
   color: var(--muted);
 }
 
+/* A one-line explanation under a field, for the inputs whose purpose is not obvious from the
+   label alone — "Bay" being the one that needs it, since it is free text with no format. Muted
+   and small: it is there to be read once and then stop being noticed. */
+.field-hint {
+  margin: 0;
+  font-size: var(--text-xs);
+  color: var(--muted);
+}
+
 input[type="text"],
 input[type="number"],
 input[type="search"],

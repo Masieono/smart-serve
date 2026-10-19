@@ -95,6 +95,10 @@ type DeviceRecord struct {
 	Notes  string
 	Tags   string
 	Hidden bool
+	// Bay is where the drive physically is — "bay 4", "front top", "USB port 2". A serial
+	// identifies a drive; a bay *finds* it, which is the question someone standing in front of
+	// a machine at 3am actually has.
+	Bay string
 }
 
 // SaveScan persists one scan atomically: a scan_history row, an upsert per
@@ -298,7 +302,8 @@ SELECT d.serial, d.model, d.model_family, d.firmware, d.device_path, d.transport
        d.first_seen, d.last_seen, d.last_scan, d.is_missing,
        d.mountpoints, d.fstype, d.removable, d.fs_version, d.raw_output,
        COALESCE(t.smart_d, ''),
-       COALESCE(n.name, ''), COALESCE(n.notes, ''), COALESCE(n.tags, ''), COALESCE(n.hidden, 0)
+       COALESCE(n.name, ''), COALESCE(n.notes, ''), COALESCE(n.tags, ''), COALESCE(n.hidden, 0),
+       COALESCE(n.bay, '')
 FROM devices d
 LEFT JOIN device_notes n ON n.serial = d.serial
 LEFT JOIN device_transport_overrides t ON t.serial = d.serial`
@@ -355,6 +360,7 @@ func scanDevice(r rowScanner) (DeviceRecord, error) {
 		&mountpoints, &rec.Fstype, &removable, &rec.FsVersion, &rec.RawOutput,
 		&rec.TransportOverride,
 		&rec.Name, &rec.Notes, &rec.Tags, &hidden,
+		&rec.Bay,
 	)
 	if err != nil {
 		return rec, err
@@ -421,6 +427,7 @@ type Notes struct {
 	Notes     string
 	Tags      string
 	Hidden    bool
+	Bay       string
 	UpdatedAt time.Time
 }
 
@@ -428,12 +435,12 @@ type Notes struct {
 // not currently be attached; notes are keyed by serial so they survive unplugs.
 func (s *Store) SetNotes(ctx context.Context, n Notes) error {
 	_, err := s.db.ExecContext(ctx, `
-		INSERT INTO device_notes (serial, name, notes, tags, hidden, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?)
+		INSERT INTO device_notes (serial, name, notes, tags, hidden, bay, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(serial) DO UPDATE SET
 			name=excluded.name, notes=excluded.notes, tags=excluded.tags,
-			hidden=excluded.hidden, updated_at=excluded.updated_at`,
-		n.Serial, n.Name, n.Notes, n.Tags, boolInt(n.Hidden), time.Now().UnixMilli())
+			hidden=excluded.hidden, bay=excluded.bay, updated_at=excluded.updated_at`,
+		n.Serial, n.Name, n.Notes, n.Tags, boolInt(n.Hidden), n.Bay, time.Now().UnixMilli())
 	if err != nil {
 		return fmt.Errorf("set notes for %s: %w", n.Serial, err)
 	}
@@ -448,9 +455,9 @@ func (s *Store) GetNotes(ctx context.Context, serial string) (*Notes, error) {
 		updatedAt int64
 	)
 	err := s.db.QueryRowContext(ctx, `
-		SELECT serial, name, notes, tags, hidden, updated_at
+		SELECT serial, name, notes, tags, hidden, bay, updated_at
 		FROM device_notes WHERE serial = ?`, serial).
-		Scan(&n.Serial, &n.Name, &n.Notes, &n.Tags, &hidden, &updatedAt)
+		Scan(&n.Serial, &n.Name, &n.Notes, &n.Tags, &hidden, &n.Bay, &updatedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}

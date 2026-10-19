@@ -144,6 +144,9 @@ func renderTextReport(d store.DeviceRecord, snap *store.Snapshot) string {
 		fmt.Fprintf(&b, "Family:       %s\n", d.ModelFamily)
 	}
 	fmt.Fprintf(&b, "Serial:       %s\n", d.Serial)
+	if d.Bay != "" {
+		fmt.Fprintf(&b, "Bay:          %s\n", d.Bay)
+	}
 	fmt.Fprintf(&b, "Path:         %s\n", d.DevicePath)
 	fmt.Fprintf(&b, "Transport:    %s\n", d.Transport)
 	if d.Fstype != "" {
@@ -191,6 +194,7 @@ func reportFacts(d store.DeviceRecord, snap *store.Snapshot) []reportField {
 		{"Model family", d.ModelFamily},
 		{"Serial", d.Serial},
 		{"Firmware", d.Firmware},
+		{"Bay", d.Bay},
 		{"Path", d.DevicePath},
 		{"Transport", d.Transport},
 		{"Capacity", humanBytes(d.CapacityBytes)},
