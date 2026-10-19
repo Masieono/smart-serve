@@ -217,6 +217,43 @@ func sectorProjection(obs []Observation) (Projection, bool) {
 // getting worse now", which is why the two can disagree, and should.
 const WorsenWindow = 30 * 24 * time.Hour
 
+// HistoryWindow is how far back a question about history may look.
+//
+// It deliberately matches the default `retention_days` setting: snapshots older than that have been
+// pruned, so a longer window would be a promise the database cannot keep. A user who lowers
+// retention gets a shorter window, which is correct — a trend is limited by the history that
+// exists, not by this constant.
+const HistoryWindow = 180 * 24 * time.Hour
+
+// TrendPenaltyCap is the most a worsening trend can take off a score.
+//
+// Bounded deliberately. A trend is an extrapolation from a handful of readings, and a score is the
+// number people quote and compare; letting an extrapolation move it by more than a few points would
+// make the score say more than the data supports. It is also small enough that the trend alone can
+// never carry a drive out of its verdict — the trend adjusts the summary, it does not overrule the
+// drive's own data.
+const TrendPenaltyCap = 10
+
+// TrendPenalty is how many points a worsening trend takes off a score (`FEATURES.md` A17).
+//
+// Any growth costs something, because any growth is a finding: a drive that has reallocated even one
+// sector has lost storage it cannot get back, and the count going *up* is the difference between a
+// drive to watch and a drive to watch closely.
+//
+// Past that it scales by doubling rather than linearly, and stops at a cap. Sector counts arrive in
+// bursts, so the difference between 200 and 400 new sectors is not the difference between two
+// scores — and a rule that kept growing would let a single bad afternoon dominate the number.
+func TrendPenalty(sectorsAdded int64) int {
+	if sectorsAdded <= 0 {
+		return 0
+	}
+	penalty := 3
+	for step := int64(2); step <= sectorsAdded && penalty < TrendPenaltyCap; step *= 2 {
+		penalty++
+	}
+	return penalty
+}
+
 // worsening is the early-warning flag: something is measurably getting worse *now*.
 //
 // It compares the latest reading against the newest one at least WorsenWindow older,

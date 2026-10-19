@@ -29,7 +29,7 @@ avoid idle cost.
 | A14 | Degradation trend detection ("worsening" early-warning badge) | P2 | 💤 | **done** — see below |
 | A15 | History charts (temp, sectors, wear) + sparklines | P2 | 💤 | **done** — per-metric sparkline card on the device page, with a 7/30/90-day/all range selector. The x-axis is **time**, not reading index, with one shared date axis under the card (`ADR-023`) |
 | A16 | Remaining-longevity estimate (NVMe / SSD / HDD) | P2 | 💤 | **done** — see below, with confidence labels |
-| A17 | Health score 0–100 + letter grade | MVP/P2 | 💤 | basic in MVP; trend-aware in P2 |
+| A17 | Health score 0–100 + letter grade | MVP/P2 | 💤 | **done, trend-aware** — the score is lowered by up to 10 points for a drive whose bad sectors are climbing, with the reason in the rationale. See below |
 | A18 | Snapshot diff ("what changed since last scan") | P2 | 💤 | **done** — a "Since the last scan" card on the device page. The server decides which attribute movements are findings, so the diff cannot disagree with the verdict. See below |
 | A19 | SMART self-test (manual short/long + scheduled) + self-test log | P2 | 💤 | **manual done** — short/long, live progress, abort; opt-in only, never automatic. Scheduling still to come. See below |
 | A20 | SMART error log display | P2 | 💤 | **done** — the error and self-test log *counts* and *entries*, the drive's own self-test timings, and smartctl's words when a log cannot be read. See below |
@@ -63,6 +63,21 @@ one is worse than reporting none, so an ATA drive falls back to the sector basis
 card and the device page. It is separate from the verdict badge because the two answer
 different questions: the verdict says how the drive looks *now*, the badge says which way
 it is going — and a drive can be green today and still be the one worth replacing first.
+
+**The score is trend-aware** (`A17`). A verdict is a statement about now; a score is a
+summary, and a drive whose bad sectors are climbing is worse than one sitting at the same
+count and going nowhere. So the score takes a penalty — 3 points for the first new sector,
+then one more per doubling, capped at 10 — and the rationale says why, as a rate and a
+window rather than a date.
+
+Three things about that are deliberate. The penalty is **bounded**, because a trend is an
+extrapolation from a handful of readings and a score is the number people quote and
+compare; the cap is also small enough that the trend alone can never carry a drive out of
+its verdict, so it adjusts the summary rather than overruling the drive's own data. It is
+**applied outside `interp.Evaluate`**, in the scan, because the trend is a question about
+*history* and `Evaluate` is deliberately a pure function of the drive's own data. And it is
+**skipped for a drive that could not be read**, since a trend inherited from an earlier scan
+is not evidence about a drive nobody just looked at.
 
 A drive with too little history says so rather than guessing, and a drive that reports no
 sector counts is *absent* from the trend rather than reported as flat: no history is not

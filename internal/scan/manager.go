@@ -210,6 +210,18 @@ func (m *Manager) run(ctx context.Context, t Trigger, o only) (Result, error) {
 		})
 	}
 
+	// A17: a score is a summary, and a drive whose bad sectors are climbing is worse than one
+	// sitting at the same count and going nowhere. Applied here rather than inside the
+	// interpretation because the trend is a question about *history*, and Evaluate is deliberately
+	// a pure function of the drive's own data.
+	//
+	// A failure to read the history is not worth failing a scan for: the score then stays whatever
+	// the drive's own data says, which is the answer the app gave before this existed.
+	if trend, terr := m.store.SectorTrend(ctx,
+		time.Now().Add(-interp.HistoryWindow), interp.WorsenWindow); terr == nil {
+		applyTrendPenalties(devices, trend)
+	}
+
 	stored := make([]store.ScannedDevice, 0, len(devices))
 	for _, d := range devices {
 		stored = append(stored, toStored(d))
@@ -382,6 +394,53 @@ func toStored(d Device) store.ScannedDevice {
 		out.SelfTest = logs.LatestFinished()
 	}
 	return out
+}
+
+// applyTrendPenalties lowers the score of every drive whose bad sectors are measurably climbing
+// (`FEATURES.md` A17), and returns how many drives it touched.
+//
+// Separate from the store read that feeds it, and pure, so the rule can be tested without a scan,
+// a device or a database.
+//
+// A drive whose S.M.A.R.T. could not be read is skipped: it has no score to adjust, and a trend
+// inherited from an earlier scan is not evidence about a drive nobody just looked at.
+func applyTrendPenalties(devices []Device, trend map[string]int64) int {
+	adjusted := 0
+	for i := range devices {
+		d := &devices[i]
+		if d.Error != "" || d.Health.Score < 0 {
+			continue
+		}
+		added, ok := trend[serialFor(*d)]
+		if !ok {
+			continue
+		}
+		penalty := interp.TrendPenalty(added)
+		if penalty == 0 {
+			continue
+		}
+		d.Health.Score = max(0, d.Health.Score-penalty)
+		d.Health.Rationale = trendRationale(d.Health.Rationale, penalty, added)
+		adjusted++
+	}
+	return adjusted
+}
+
+// trendRationale appends the trend to a verdict's rationale.
+//
+// A rate and a window, never a date: sector counts arrive in bursts, and a date extrapolated through
+// two of them looks precise and means nothing (`SCOPE.md` §2.2).
+func trendRationale(existing string, penalty int, added int64) string {
+	what := "sector problems"
+	if added == 1 {
+		what = "sector problem"
+	}
+	trend := fmt.Sprintf("%d points off the score: %d new %s in the last %d days",
+		penalty, added, what, int(interp.WorsenWindow.Hours()/24))
+	if strings.TrimSpace(existing) == "" {
+		return trend
+	}
+	return strings.TrimSpace(existing) + " " + trend
 }
 
 // Running reports whether a scan is currently in flight, so callers can tell a

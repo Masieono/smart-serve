@@ -234,11 +234,10 @@ func (s *Server) handleGetDevice(w http.ResponseWriter, r *http.Request) {
 // counter to have moved for a reason other than rounding, bounded so that opening a
 // device page stays cheap even on a long-lived install.
 //
-// It deliberately matches the default `retention_days` setting: snapshots older than that
-// have been pruned, so a longer window would be a promise the database cannot keep. A user
-// who lowers retention gets a shorter window, which is correct — the trend is limited by
-// the history that exists, not by this constant.
-const projectionWindow = 180 * 24 * time.Hour
+// It is `interp.HistoryWindow` rather than a constant of its own, because the scan applies the
+// same window when it adjusts a score for the trend (`A17`). Two numbers that mean "as far back
+// as the history goes" would eventually stop being equal.
+const projectionWindow = interp.HistoryWindow
 
 // deviceProjection builds the longevity estimate and the worsening flag from stored
 // history.

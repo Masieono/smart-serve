@@ -215,6 +215,38 @@ genuinely poor even while no single counter has crossed the Bad line.
 
 Start at `100`, subtract penalties, then clamp to the verdict band.
 
+**Trend adjustment (`A17`).** After the penalties and the clamp, a drive whose bad sectors are
+*climbing* loses a few more points:
+
+| New sector problems in the window | Points off |
+|---|---|
+| none | 0 |
+| 1 | 3 |
+| 2–3 | 4 |
+| 4–7 | 5 |
+| 8–15 | 6 |
+| 16–31 | 7 |
+| 32–63 | 8 |
+| 64–127 | 9 |
+| 128+ | 10 (the cap) |
+
+Any growth costs something, because any growth is a finding: a drive that has reallocated even one
+sector has lost storage it cannot get back, and the count going *up* is the difference between a
+drive to watch and a drive to watch closely. Past the first sector it scales by doubling rather than
+linearly, and stops: sector counts arrive in bursts, so the difference between 200 and 400 new
+sectors is not the difference between two scores.
+
+The adjustment is deliberately bounded at 10 points, and that is what keeps it honest. A trend is an
+extrapolation from a handful of readings, and a score is the number people quote and compare —
+letting an extrapolation move it further would make the score say more than the data supports. The
+cap is also small enough that the trend **alone can never carry a drive out of its verdict**, so it
+adjusts the summary rather than overruling the drive's own data. The rationale states it plainly
+("74 less 5 for the trend: 7 new sector problems in the last 30 days"), as a rate and a window
+rather than a date, for the reason in §2.2 of `SCOPE.md`.
+
+A drive whose S.M.A.R.T. could not be read is **not** adjusted: a trend inherited from an earlier
+scan is not evidence about a drive nobody just looked at.
+
 **ATA / SATA / USB-SAT** (raw values after the packed-word rule, §3):
 
 | Factor | Penalty | Cap |

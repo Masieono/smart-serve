@@ -11,6 +11,13 @@ stopped from the device page.
 
 ### Changed
 
+- **The health score is now trend-aware (`A17`).** A verdict is a statement about *now*; a score is
+  a summary, and a drive whose bad sectors are climbing is worse than one sitting at the same count
+  and going nowhere. Such a drive now loses 3 points for its first new sector and one more per
+  doubling, capped at 10, with the reason appended to the verdict rationale as a rate and a window
+  rather than a date. The cap is what keeps it honest: the trend adjusts the summary, and is too
+  small to overrule the drive's own data or carry it out of its verdict on its own. A drive that
+  could not be read is not adjusted at all.
 - **The trend card's x-axis is time, not reading index** (`ADR-023`). One change gives all three
   things the rework was for: a 30-day window now spans 30 days whether or not anything was recorded
   in them, so a drive that stopped being scanned leaves a *visible gap* rather than a line that

@@ -246,3 +246,59 @@ func TestHumanDaysScalesToTheMagnitude(t *testing.T) {
 		}
 	}
 }
+
+// A17. The penalty has to be bounded and explainable: a trend is an extrapolation from a handful
+// of readings, and a score is the number people quote and compare.
+func TestTrendPenaltyScalesByDoublingAndStops(t *testing.T) {
+	cases := []struct {
+		added int64
+		want  int
+	}{
+		{0, 0}, {-5, 0},
+		{1, 3},
+		{2, 4}, {3, 4},
+		{4, 5}, {7, 5},
+		{8, 6}, {15, 6},
+		{16, 7}, {31, 7},
+		{32, 8}, {63, 8},
+		{64, 9}, {127, 9},
+		{128, TrendPenaltyCap},
+		{1_000_000, TrendPenaltyCap},
+	}
+	for _, c := range cases {
+		if got := TrendPenalty(c.added); got != c.want {
+			t.Errorf("TrendPenalty(%d) = %d, want %d", c.added, got, c.want)
+		}
+	}
+}
+
+// The cap exists so the trend can never carry a drive out of its verdict on its own.
+func TestTrendPenaltyNeverExceedsTheCap(t *testing.T) {
+	for added := int64(1); added < 100000; added++ {
+		if got := TrendPenalty(added); got > TrendPenaltyCap {
+			t.Fatalf("TrendPenalty(%d) = %d, above the cap of %d", added, got, TrendPenaltyCap)
+		}
+	}
+}
+
+// More new sectors is never *better* than fewer. A rule that could fall as growth rose would make
+// the score jump around for no reason a reader could follow.
+func TestTrendPenaltyNeverFallsAsGrowthRises(t *testing.T) {
+	previous := 0
+	for added := int64(1); added < 5000; added++ {
+		got := TrendPenalty(added)
+		if got < previous {
+			t.Fatalf("TrendPenalty(%d) = %d, below the previous %d", added, got, previous)
+		}
+		previous = got
+	}
+}
+
+// Any growth costs something: a drive that has reallocated even one sector has lost storage it
+// cannot get back, and the count going *up* is the difference between a drive to watch and a drive
+// to watch closely.
+func TestAnyGrowthCostsSomething(t *testing.T) {
+	if TrendPenalty(1) == 0 {
+		t.Error("TrendPenalty(1) = 0, but one reallocated sector is a finding")
+	}
+}
