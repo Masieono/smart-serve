@@ -122,6 +122,9 @@ func (s *Server) routes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /healthz", s.handleHealthz)
 
 	mux.HandleFunc("GET /api/devices", s.handleListDevices)
+	// The fleet export (`FEATURES.md` A23). Registered beside the device routes because that is what
+	// it exports; a literal segment is more specific than `{serial}`, so the mux picks this one.
+	mux.HandleFunc("GET /api/devices/export", s.handleExportFleet)
 	mux.HandleFunc("GET /api/devices/{serial}", s.handleGetDevice)
 	mux.HandleFunc("DELETE /api/devices/{serial}", s.handleForgetDevice)
 	mux.HandleFunc("PUT /api/devices/{serial}/notes", s.handleSetNotes)

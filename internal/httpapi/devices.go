@@ -139,25 +139,51 @@ func (s *Server) handleHealthz(w http.ResponseWriter, _ *http.Request) {
 }
 
 func (s *Server) handleListDevices(w http.ResponseWriter, r *http.Request) {
-	devices, err := s.store.ListDevices(r.Context())
+	rows, ranking, err := s.deviceRows(r.Context())
 	if err != nil {
 		s.fail(w, "list devices", err)
 		return
 	}
-	out := make([]deviceJSON, 0, len(devices))
-	// Bad-sector growth per device, so the dashboard can flag a drive that is getting
-	// worse without the user having to open each one. A failure here is not worth failing
-	// the list for: the flag is a nicety and the list is not.
-	trend, err := s.store.SectorTrend(r.Context(), time.Now().Add(-s.store.RetentionWindow(r.Context())), interp.WorsenWindow)
+	writeJSON(w, http.StatusOK, map[string]any{
+		"devices": rows,
+		// A24: "which one do I buy this month?" is a different question from the sort the
+		// dashboard already does, because it is about direction and remaining life as much as
+		// about the verdict. Built from the payloads just assembled, so the ranking and the cards
+		// cannot disagree about a drive.
+		"ranking":      ranking,
+		"last_scan_ts": s.lastScanTime(r.Context()),
+	})
+}
+
+// deviceRows builds the device list payload and its replacement ranking together.
+//
+// Extracted from handleListDevices so the fleet export (`FEATURES.md` A23) renders the same rows the
+// dashboard shows, through the same ranking. A second copy of this would be a second answer to "what
+// is this drive", and the export's whole job is to be the version you can trust and file.
+//
+// The two derived queries — bad-sector growth, and power-on hours with wear — are best-effort. A
+// failure in either is not worth failing the list for: the extra figures are a nicety and the list
+// is not.
+func (s *Server) deviceRows(ctx context.Context) ([]deviceJSON, []interp.ReplacementRank, error) {
+	devices, err := s.store.ListDevices(ctx)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// Bad-sector growth per device, so a drive that is getting worse is flagged without the user
+	// having to open each one.
+	trend, err := s.store.SectorTrend(ctx, time.Now().Add(-s.store.RetentionWindow(ctx)), interp.WorsenWindow)
 	if err != nil {
 		trend = nil
 	}
 	// Power-on hours and wear, for the same reason: a fleet table wants a drive's age per row, and
 	// one query for the list beats one per row.
-	facts, ferr := s.store.LatestSnapshotFacts(r.Context())
+	facts, ferr := s.store.LatestSnapshotFacts(ctx)
 	if ferr != nil {
 		facts = nil
 	}
+
+	out := make([]deviceJSON, 0, len(devices))
 	for _, d := range devices {
 		dj := toDeviceJSON(d)
 		if delta, ok := trend[d.Serial]; ok && delta > 0 {
@@ -168,15 +194,7 @@ func (s *Server) handleListDevices(w http.ResponseWriter, r *http.Request) {
 		}
 		out = append(out, dj)
 	}
-	writeJSON(w, http.StatusOK, map[string]any{
-		"devices": out,
-		// A24: "which one do I buy this month?" is a different question from the sort the
-		// dashboard already does, because it is about direction and remaining life as much as
-		// about the verdict. Built from the payloads just assembled, so the ranking and the cards
-		// cannot disagree about a drive.
-		"ranking":      interp.RankForReplacement(replacementCandidates(out)),
-		"last_scan_ts": s.lastScanTime(r.Context()),
-	})
+	return out, interp.RankForReplacement(replacementCandidates(out)), nil
 }
 
 // replacementCandidates maps the list payloads onto the ranking's inputs.

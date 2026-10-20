@@ -35,11 +35,11 @@ avoid idle cost.
 | A20 | SMART error log display | P2 | 💤 | **done** — the error and self-test log *counts* and *entries*, the drive's own self-test timings, and smartctl's words when a log cannot be read. See below |
 | A21 | Drive knowledge base (rated TBW, known firmware advisories) | P3 | 💤 | bundled static table; opt-in in-app refresh |
 | A22 | Usable support for drives with no S.M.A.R.T. (USB flash drives, card readers) | P2 | 💤 | **done** — see below |
-| A23 | Fleet-wide export (every drive in one CSV or page) | P2 | 💤 | NAS: what you paste into a spreadsheet when planning a purchase |
+| A23 | Fleet-wide export (every drive in one CSV or page) | P2 | 💤 | **done** — one row per drive, as a CSV or a printable page. A missing reading is an empty cell, never a zero. See below |
 | A24 | "Replace first" ranking (verdict + direction + remaining life, ordered, with reasons) | P2 | 💤 | **done** — a "Replace first" card, using bands rather than a weighted score so the reasons can be shown. See below |
 | A25 | Correlated-change detection (N drives in a group moving together → one alert about the enclosure) | P3 | 💤 | needs grouping + history first, and a high bar — a RAID rebuild legitimately heats everything |
 | A26 | Projection window follows retention (or becomes a setting) | P2 | 💤 | **done** — the projection, the worsening flag and the trend adjustment all use the `retention_days` setting. See below |
-| A27 | Warranty / RMA evidence pack (the exported report says what it is for) | P2 | 💤 | cheap — the export already exists (`A8`) |
+| A27 | Warranty / RMA evidence pack (the exported report says what it is for) | P2 | 💤 | **done** — every format says what it is for, and names the evidence: the attributes failing the drive's *own* threshold, and the counters the app reads |
 
 ### A14/A16 — Longevity and the worsening badge
 
@@ -293,7 +293,33 @@ as a bare list entry.
   in your permanent fleet: label them, test them, export the reports, forget them.
 - **Evidence is cheap** (`A27`). The report export already exists; saying on it that it is
   warranty/RMA evidence costs almost nothing and is the whole reason some people run a
-  scan at all.
+  scan at all. **Built**, and it turned out to be worth more than the sentence: the default
+  text format had no attribute table at all, so a report could say `BAD` and name no
+  reason a support engineer could check. Every format now names **the attributes that fail
+  the drive's *own* manufacturer threshold** — the limit the vendor wrote into the drive,
+  in the drive's own terms — and **the counters this app reads as evidence**, from the same
+  list the verdict uses, so a report cannot cite a different set of attributes than the
+  assessment did. Selecting by the drive's threshold rather than ours is what keeps the
+  report from contradicting itself: it is a listing, not a verdict, so a threshold the user
+  changed since the scan cannot make the two disagree. It claims evidence, not proof — a
+  S.M.A.R.T. report is the drive's own account, and whether that is a warranty case is the
+  vendor's call.
+- **One file for the whole fleet** (`A23`). Two formats, because they answer different
+  questions and neither is the other's fallback: a **CSV** with one row per drive, which is
+  what you sort when planning a purchase, and a **printable page**, which is what you attach
+  when several drives are going back at once. Both render from the same column list and the
+  same rows the dashboard shows, through the same ranking, so the export cannot disagree
+  with the screen. Three decisions. **A missing reading is an empty cell, never a zero** —
+  the em-dash rule from the UI, and it has teeth here because this is the file the numbers
+  get aggregated in: a blank is what a spreadsheet's `AVERAGE` skips, while a `0` drags every
+  average down and reads as a measurement. **The export is never filtered** — not by the
+  dashboard's filter, not by hidden — because a wrong number gets noticed and a missing row
+  does not; `hidden` and `connected` are columns, so the reader can see why a drive was not
+  on screen. And **the order is the ranking's own**, because it is the one thing a reader
+  cannot recover from the file: sorting the band column alphabetically gives fine, now,
+  soon, watch. Disconnected drives are listed but unranked — the ranking excludes them by
+  design (`A24`) — and their band is empty rather than `fine`, because `fine` is a claim the
+  ranking did not make.
 
 None of these adds idle cost. They are views over data the app already stores, plus one
 setting (`A26`).

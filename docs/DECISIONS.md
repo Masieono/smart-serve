@@ -437,7 +437,21 @@ bench — produced a set of additions that are not "more features" so much as a 
    form of work the app already does.
 8. **Evidence is a first-class output** (`A23`/`A27`). The report export already exists;
    saying on it that it is warranty/RMA evidence costs almost nothing, and it is the whole
-   reason some people run a scan at all.
+   reason some people run a scan at all. **Built**, and the sentence turned out to be the
+   cheap half. A report that says `BAD` and names no reason is not evidence a support
+   engineer can check, so every format now names the attributes that fail the drive's
+   **own manufacturer threshold** — the vendor's limit, in the drive's own terms — and the
+   counters the app reads, taken from the list the verdict itself uses. Selecting by the
+   drive's threshold rather than ours is what stops the report contradicting itself: it is
+   a listing rather than a verdict, so a threshold the user changed since the scan cannot
+   make the two disagree. The fleet export (`A23`) is the same idea applied to a whole
+   rack: one row per drive, from the same rows and the same ranking the dashboard shows, so
+   the file and the screen cannot disagree either. Its two rules are worth recording. **A
+   missing reading is an empty cell, never a zero** — the em-dash rule from the UI, and it
+   has teeth here because this is the file the numbers get aggregated in: a blank is what a
+   spreadsheet's `AVERAGE` skips, while a `0` drags every average down and reads as a
+   measurement. And **the export is never filtered**: a wrong number gets noticed and a
+   missing row does not, so `hidden` and `connected` are columns rather than filters.
 
 **Alternatives.**
 - *Ship a Grafana/InfluxDB-shaped graph stack* — the approach Scrutiny takes. Rejected: it
@@ -597,7 +611,10 @@ here rather than remembered.
 2. **`D5` → `D8` → `D9` → `D10`.** The fleet tier's foundation, in that order: `D8` depends on
    `D5`, and `D9` is the precondition for `A25`.
 3. **`A18` + `A17`.** The insight pair, both over history that is already stored.
-4. **`C7` + `A26` + `A24`.** The rest of the fleet tier.
+4. **`C7` + `A26` + `A24`.** The rest of the fleet tier. The two evidence items (`A23`, `A27`)
+   went with it: they are the same surface — the report `A24` already reads, and the rows the
+   fleet table already shows — so building them beside it cost nothing extra and kept one set
+   of decisions instead of two.
 5. **`A21` knowledge base.** Needs data collection rather than code, so it starts whenever the
    owner wants a break from implementation.
 6. **Notifications polish:** `B7`, `B10`, `B13`.

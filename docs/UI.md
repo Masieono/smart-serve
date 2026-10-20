@@ -196,6 +196,15 @@ picker offers exactly `ThemeNames`.
   rather than reading a screen carefully. Unset bays get no row at all — a gap in the bookkeeping
   is not a finding about the drive, and "Bay —" would read as a missing measurement (`FEATURES.md`
   D10).
+- **Export** (`FEATURES.md` A23): two links at the end of the controls row, after the view switch —
+  **Export CSV** and **Export page**. Anchors with `download`, the same choice as the config export
+  in Settings (`C7`), because these are files to keep and the browser's own save dialog is the right
+  one to put them somewhere. Two, because the formats answer different questions and neither is the
+  other's fallback: the CSV is the inventory you sort when planning a purchase, the page is the sheet
+  you print or attach when several drives are going back at once. Both are offered only when there is
+  a fleet — with one drive the export is the single-drive report with fewer columns, and that report
+  is better for the one thing a lone drive needs. They sit in the controls row for the same reason:
+  it is the row that appears when there is a fleet to control.
 - **Disconnected:** a drive absent from the latest scan keeps its record — its notes
   and history must survive an unplug — but is flagged `is_missing`. Those cards are
   hidden by default; a **Show N disconnected** toggle reveals them, dimmed and

@@ -11,6 +11,22 @@ stopped from the device page.
 
 ### Added
 
+- **Fleet-wide export (`A23`)** — the whole fleet as one file, from two links on the dashboard: a
+  **CSV** with one row per drive, which is what you sort when planning a purchase, and a
+  **printable page**, which is what you attach when several drives are going back at once. Both
+  render from the same column list and the same rows the dashboard shows, through the same ranking,
+  so the export cannot disagree with the screen. Three rules: **an absent reading is an empty cell,
+  never a zero** (a blank is what a spreadsheet's `AVERAGE` skips; a `0` drags every average down and
+  reads as a measurement), **the export is never filtered** (not by the dashboard's filter, not by
+  hidden — a wrong number gets noticed and a missing row does not), and **the rows are in the
+  ranking's own order**, because that is the one thing a reader cannot recover from the file.
+- **Warranty/RMA evidence pack (`A27`)** — every report format now says what it is for, and names
+  the evidence: the attributes failing the drive's **own manufacturer threshold**, plus the counters
+  this app reads when it assesses a drive, from the same list the verdict uses. The default text
+  format had no attribute table at all, so a report could say `BAD` and name no reason a support
+  engineer could check. Selecting by the drive's threshold rather than ours keeps the report from
+  contradicting itself: it is a listing, not a verdict, so a threshold changed since the scan cannot
+  make the two disagree. It claims evidence, not proof.
 - **Config import/export (`C7`)** — one JSON bundle of device labels, settings and schedules, with
   Export and Import in Settings. For a host migration: names, bays and tags live in the database,
   which survives a restart but not a move, and re-labelling sixteen drives by hand is an evening's

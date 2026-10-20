@@ -24,7 +24,10 @@ database daemon.
   notes per device. Identity is keyed by serial number, so notes survive reboots, replug
   events, and device-letter changes.
 - **Export anywhere** — plain text (the format to attach to a warranty claim), a
-  self-contained web page, a spreadsheet, or JSON.
+  self-contained web page, a spreadsheet, or JSON. A report says what it is for and names
+  the evidence a claim needs: the attributes failing the drive's **own** manufacturer
+  threshold, and the counters the app reads. The whole fleet exports as one CSV to sort, or
+  as one printable page.
 - **Alert notifications** — get notified when a drive's health state changes. ntfy,
   Gotify, Telegram, Discord, email (SMTP) and generic webhooks; health-transition
   events with squelching so a failing drive doesn't spam you on every scan, and
@@ -147,7 +150,9 @@ alert.
 - [x] Notifications (`internal/notify`) — ntfy, Gotify, Telegram, Discord, SMTP and
       webhooks; transition-based alerts, squelching, maintenance windows, delivery
       log, channel test — unit-tested
-- [x] Multi-format report export (`txt` / `html` / `csv` / `json`) — unit-tested
+- [x] Multi-format report export (`txt` / `html` / `csv` / `json`), saying what it is for and
+      naming the evidence for a warranty claim (`A27`) — unit-tested
+- [x] Fleet-wide export as one CSV or one printable page (`A23`) — unit-tested
 - [x] Dockerfile, docker-compose (prod + dev), GitHub Actions CI
 - [x] Docker device-access validation on real hardware — a native NVMe, a USB-attached
       NVMe, and a USB-attached SATA SSD all read correctly; a drive with no S.M.A.R.T.

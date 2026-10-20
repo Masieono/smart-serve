@@ -127,6 +127,38 @@ export function replaceFirstCard(ranking, ctx) {
 }
 
 /**
+ * The fleet export links (`FEATURES.md` A23), or none.
+ *
+ * Anchors with `download`, the same choice as the config export in Settings (`C7`): these are files
+ * to keep, so the browser's own save dialog is the right one rather than this code holding the bytes.
+ *
+ * Two of them, because the formats answer different questions and neither is the other's fallback.
+ * The CSV is the inventory you sort when planning a purchase; the page is the sheet you print or
+ * attach when several drives are going back at once.
+ *
+ * None for a lone drive. With one drive the export is the single-drive report with fewer columns,
+ * and that report is better for the one thing a lone drive needs. That is also why these sit in the
+ * controls row, which is drawn only when there is a fleet to control.
+ */
+export function exportLinks(deviceCount) {
+  if (deviceCount < 2) return [];
+  return [
+    el('a', {
+      class: 'btn btn-sm',
+      href: api.fleetExportUrl('csv'),
+      download: 'smart-serve-fleet.csv',
+      title: 'Every drive as one spreadsheet row — sort by age, wear or verdict',
+    }, [icon('download'), 'Export CSV']),
+    el('a', {
+      class: 'btn btn-sm',
+      href: api.fleetExportUrl('html'),
+      download: 'smart-serve-fleet.html',
+      title: 'The whole fleet as one printable page, for a batch RMA or a support ticket',
+    }, [icon('download'), 'Export page']),
+  ];
+}
+
+/**
  * Split the visible drives into tag groups (`FEATURES.md` D9).
  *
  * A drive appears under **each** of its tags. The alternative — first tag wins — silently drops a
@@ -295,6 +327,9 @@ function draw(container, ctx, data) {
   // it is the list with a heading on it.
   const canGroup = all.some((d) => String(d.tags || '').trim() !== '');
 
+  // The fleet export (`FEATURES.md` A23).
+  const exportControls = exportLinks(all.length);
+
   const head = el('div', { class: 'card devices-head' }, [
     el('div', { class: 'devices-head-row' }, [
       el('h1', { text: 'Devices' }),
@@ -347,6 +382,9 @@ function draw(container, ctx, data) {
             : null,
           viewButton('cards', 'Cards'),
           viewButton('table', 'Table'),
+          // At the far end, after the view switch: these change what happens to the list rather than
+          // how it is shown, so they sit outside the sort-and-filter group.
+          ...exportControls,
         ])
       : null,
     el('div', { class: 'devices-head-sub muted', text: `Last scan ${fmtAgo(data.last_scan_ts)}` }),

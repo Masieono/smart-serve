@@ -11,7 +11,7 @@ import { installStubDom } from './stub-dom.mjs';
 
 installStubDom();
 
-const { visibleDevices, groupByTag } = await import('../assets/js/views/dashboard.js');
+const { visibleDevices, groupByTag, exportLinks } = await import('../assets/js/views/dashboard.js');
 
 /** A device payload carrying the fields the sort and filter rules read. */
 function drive(overrides = {}) {
@@ -221,4 +221,29 @@ test('grouping keeps the order the list arrived in', () => {
     drive({ serial: 'bad', health: 'bad', tags: 'tank' }),
   ]);
   assert.deepEqual(inGroup(groupByTag(sorted), 'tank'), ['bad', 'good']);
+});
+
+// The fleet export (FEATURES.md A23). Anchors rather than buttons, because these are files to keep
+// and the browser's own save dialog is the right one to put them somewhere.
+test('the fleet export is two download links, one per format', () => {
+  const links = exportLinks(4);
+  assert.equal(links.length, 2);
+  assert.deepEqual(
+    links.map((a) => a.getAttribute('href')),
+    ['/api/devices/export?format=csv', '/api/devices/export?format=html'],
+  );
+
+  // The filename is part of the document: it is what the file is called in the folder it is saved
+  // to, months later, beside a dozen other exports. Both are distinct, so saving both works.
+  assert.deepEqual(
+    links.map((a) => a.getAttribute('download')),
+    ['smart-serve-fleet.csv', 'smart-serve-fleet.html'],
+  );
+});
+
+// A lone drive gets the single-drive report instead — the same thing with fewer columns, and better
+// for the one thing a lone drive needs.
+test('a lone drive gets no fleet export', () => {
+  assert.deepEqual(exportLinks(1), []);
+  assert.deepEqual(exportLinks(0), []);
 });

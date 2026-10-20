@@ -416,7 +416,7 @@ stop demanding a value that is never going to be typed into the form (`ADR-022`)
   if the serial was never stored. A later scan re-adds the drive if it is physically
   present — forgetting is not a blocklist.
 - `GET /api/devices/{serial}/report?format=txt|json|html|csv` — report export for
-  warranty/RMA (`FEATURES.md` A8). `txt` (default), `html` and `csv` are served as
+  warranty/RMA (`FEATURES.md` A8, `A27`). `txt` (default), `html` and `csv` are served as
   downloads with a `smart-serve-<serial>.<ext>` filename; `json` is returned inline
   because it is the machine format. An unknown format is a `400`.
   `txt` is a CrystalDiskInfo-style summary, `html` a self-contained page with no
@@ -424,6 +424,52 @@ stop demanding a value that is never going to be typed into the form (`ADR-022`)
   a two-column `field,value` sheet covering identity, health and every attribute.
   A per-format enable list (`report_export_formats`) and a `?bundle=1` zip remain
   unimplemented (`DATA_MODEL.md`).
+
+  **Every format says what it is for** (`A27`), in the file rather than only in this
+  document: it is read by whoever the file is forwarded to, and a file found in a folder a
+  year later has to explain itself. It claims evidence, not proof — whether a S.M.A.R.T.
+  report is a warranty case is the vendor's call.
+
+  **Every format also names the evidence**, in two groups. *Failing attributes* are the
+  attributes at or below the threshold the drive's **own manufacturer** set — the vendor's
+  limit, in the drive's own terms, which is what an RMA argument turns on. A threshold of
+  zero means "no threshold", not "must be zero", so those attributes are not listed. Because
+  this is a listing rather than a verdict, it cannot contradict the stored verdict when a
+  threshold changes between the scan and the export. *Evidence counters* are the attributes
+  the app reads when it assesses a drive (`5`, `10`, `187`, `196`, `197`, `198`, `199`) whose
+  raw value is non-zero, read through the interpreter itself so the report cannot cite a
+  different set of attributes, or read the same value differently, than the verdict did. A
+  group with nothing in it is omitted, because "nothing here" and "we did not look" are
+  different findings.
+- `GET /api/devices/export?format=csv|html` — the whole fleet as one file
+  (`FEATURES.md` A23), served as a download named `smart-serve-fleet-<date>.<ext>`.
+  **One row per drive, not one row per attribute**: a spreadsheet's job here is to compare
+  drives with each other, and the per-attribute sheet is the report above. Both formats
+  render from the same column list and the same rows the dashboard shows, through the same
+  ranking (`A24`), so the export cannot disagree with the screen.
+
+  `csv` (default) carries a short preamble above the header — a title and what the file is —
+  because a CSV in a shared folder is read months later by someone with no memory of where it
+  came from. The cost is that a strict parser sees those rows; the machine-readable form is
+  `GET /api/devices`, which already exists. `html` is a self-contained printable page, which
+  is what gets attached when several drives are going back at once. There is deliberately no
+  `json` format: `/api/devices` already is one, and a second shape would be a second thing to
+  keep in step. An unknown format is a `400`.
+
+  Three rules are worth knowing before parsing it. **An absent reading is an empty cell, never
+  a zero** — a blank is what a spreadsheet's `AVERAGE` skips, while a `0` drags every average
+  down and reads as a measurement. **The export is never filtered**: not by the dashboard's
+  filter, not by `hidden`, because a wrong number gets noticed and a missing row does not;
+  `Hidden` and `Connected` are columns so the reader can see why a drive was not on screen.
+  And **the rows are in the ranking's own order** (`A24`), because that is the one thing a
+  reader cannot recover from the file — sorting the `Replace` column alphabetically gives
+  fine, now, soon, watch. Disconnected drives are listed, unranked, and last: the ranking
+  excludes them by design, and their `Replace` cell is **empty rather than `fine`**, because
+  `fine` is a claim the ranking did not make about them.
+
+  The route shadows a device whose serial is literally `export`. Go's mux resolves a literal
+  segment ahead of a wildcard, so the only cost is that such a serial is unreachable, and no
+  drive has one.
 - `GET /api/devices/{serial}/selftest` — the drive's self-test state, read **live**
   rather than from the stored document, because a test's progress exists nowhere the
   app stores. Returns `{ logs, running }`: `logs` in the same shape the device detail

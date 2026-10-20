@@ -78,6 +78,10 @@ export const api = {
   configExportUrl: () => appPath('/api/config/export'),
   importConfig: (bundle) => request('POST', '/api/config/import', bundle),
 
+  // The fleet export (FEATURES.md A23). A URL for the same reason as the config export: it is a
+  // file to keep, and the browser's own save dialog is the right one to put it somewhere.
+  fleetExportUrl: (format = 'csv') => appPath(`/api/devices/export?format=${format}`),
+
   // Self-tests (FEATURES.md A19). The GET reads the drive live rather than from the stored
   // document, because progress exists nowhere else; the POSTs are the only requests in this
   // client that change a drive, so they are named for what they do.
