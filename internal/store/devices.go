@@ -469,6 +469,38 @@ func (s *Store) GetNotes(ctx context.Context, serial string) (*Notes, error) {
 	return &n, nil
 }
 
+// AllNotes returns every device's user metadata, ordered by serial.
+//
+// Read from `device_notes` rather than from the joined device list, because that is where the
+// labels actually live: a drive that is currently unplugged still has a name, a bay and tags, and
+// those are precisely the things an export exists to preserve (`FEATURES.md` C7).
+func (s *Store) AllNotes(ctx context.Context) ([]Notes, error) {
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT serial, name, notes, tags, hidden, bay, updated_at
+		FROM device_notes ORDER BY serial`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	out := make([]Notes, 0, 8)
+	for rows.Next() {
+		var (
+			n         Notes
+			hidden    int64
+			updatedAt int64
+		)
+		if err := rows.Scan(&n.Serial, &n.Name, &n.Notes, &n.Tags, &hidden, &n.Bay,
+			&updatedAt); err != nil {
+			return nil, err
+		}
+		n.Hidden = hidden != 0
+		n.UpdatedAt = fromMS(updatedAt)
+		out = append(out, n)
+	}
+	return out, rows.Err()
+}
+
 // SetTransportOverride remembers the working -d transport for a stubborn USB
 // bridge (docs/FEATURES.md A11).
 func (s *Store) SetTransportOverride(ctx context.Context, serial, smartD string) error {

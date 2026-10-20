@@ -258,6 +258,38 @@ stored record. Unset fields are `null`, not omitted — full replace semantics.
 something read from the drive, so it survives an unplug, and it is what the dashboard
 card leads with when it is set (`FEATURES.md` D10).
 
+## Import and export
+
+- `GET /api/config/export` — the deployment's **labels, settings and schedules** as one JSON file
+  (`FEATURES.md` C7), served as a download. The point of it is a host migration: names, bays and
+  tags live in the database, which survives a restart but not a move.
+- `POST /api/config/import` — the same shape back. **Merges**, with the file winning for what it
+  contains: a drive or a setting the file does not mention is left alone, because a restore that
+  deleted anything it did not recognise would be one you could not safely run twice. Schedules are
+  the exception — a file that carries them *replaces* the list, since a schedule has no natural key
+  and importing the same file twice would otherwise leave duplicates. An absent `schedules` key
+  leaves them alone; an empty array means "none". Returns `{"applied": {"devices": n, "settings": n,
+  "schedules": n}}`.
+
+```json
+{
+  "smartserve": 1,
+  "exported_at": "2025-10-12T10:17:20Z",
+  "note": "Device labels, settings and schedules. Channels are deliberately not included...",
+  "devices": [{ "serial": "S1", "name": "parity", "bay": "bay 4", "tags": "tank", "notes": "..." }],
+  "settings": { "retention_days": "365" },
+  "schedules": [{ "kind": "interval", "every_seconds": 21600, "label": "every 6h", "enabled": true }]
+}
+```
+
+`smartserve` is a format marker and is **checked**: handing this endpoint the wrong JSON file says
+so, rather than applying nothing and reporting success.
+
+**Channels are deliberately absent.** Their config holds tokens and passwords, and a backup file is
+exactly the kind of thing that gets emailed to yourself — the app already refuses to serve secret
+values over the API, and a backup that quietly undid that would be a worse trade than the one it
+saves. The bundle says so in its own `note`, so a file found later explains itself.
+
 ## Schedules
 
 - `GET /api/schedules` — list (includes `last_run` and `next_run`).

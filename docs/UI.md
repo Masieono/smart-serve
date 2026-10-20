@@ -337,7 +337,14 @@ picker offers exactly `ThemeNames`.
   did not.
 
 ### 7.5 Settings
-- Grouped sections: **Health thresholds**, **Alerts and retention**, **Appearance**.
+- Grouped sections: **Health thresholds**, **Alerts and retention**, **Appearance**, and
+  **Import and export** (`FEATURES.md` C7). The last is two controls: an **Export** anchor with
+  `download` — it is a file to keep, so the browser's own save dialog is the right one — and an
+  **Import** button that opens a file picker. The import is confirmed *before* the picker rather
+  than after: the user should know what the file will do before they spend time finding it, and the
+  one destructive part (a file carrying schedules *replaces* the list) is the thing they most need
+  to know. A malformed file reports what went wrong rather than surfacing `Unexpected token <`,
+  which is the common failure and explains nothing.
 - **Three columns** at wide widths, from the shared `.panel-grid` (§6): a wide screen
   shows the three cards side by side and a narrow one stacks them, with no breakpoint to
   keep in sync. Each row keeps its label and explanation on the left and its control on

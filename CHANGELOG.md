@@ -11,6 +11,15 @@ stopped from the device page.
 
 ### Added
 
+- **Config import/export (`C7`)** — one JSON bundle of device labels, settings and schedules, with
+  Export and Import in Settings. For a host migration: names, bays and tags live in the database,
+  which survives a restart but not a move, and re-labelling sixteen drives by hand is an evening's
+  work. **Import merges**, with the file winning for what it contains — a restore that deleted
+  anything it did not recognise would be one you could not safely run twice — except schedules,
+  which are replaced and say so. **Channels are deliberately excluded**: their config holds tokens
+  and passwords, an export file is exactly the thing that gets emailed around, and the app already
+  refuses to serve secret values over the API. The bundle carries a note saying so, so a file found
+  in a drawer a year later explains itself.
 - **"Replace first" ranking (`A24`)** — the dashboard carries a shortlist ordered by how strongly
   each drive argues for replacement, answering "which one do I buy this month?" rather than "how
   does each drive look today". It uses **bands** (replace now / soon / watch) rather than a weighted

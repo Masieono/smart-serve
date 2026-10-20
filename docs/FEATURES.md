@@ -258,7 +258,15 @@ as a bare list entry.
 - **Labels must outlive the container** (`C7`, promoted from P3). Names, notes and tags
   live in the SQLite volume, so they survive a restart but not a host migration. For a
   fleet, re-labelling sixteen drives is the difference between a five-minute move and an
-  evening's work.
+  evening's work. **Built** as one JSON bundle of labels, settings and schedules, keyed by
+  serial because that is the only identifier that survives a move. Two decisions:
+  **import merges**, with the file winning for what it contains, because the usual reason to
+  import is a fresh install that needs its labels back and a restore that deleted anything
+  it did not recognise is one you could not safely run twice — except schedules, which are
+  replaced and say so. And **channels are deliberately excluded**: their config holds tokens
+  and passwords, an export file is exactly the thing that gets emailed around, and the app
+  already refuses to serve secret values over the API. The bundle says so in its own `note`,
+  so a file found in a drawer a year later explains itself.
 - **Correlated change is the fleet-only insight** (`A25`). Eight drives in one enclosure
   share a temperature: a dying fan presents as *all eight* running hot, which per-drive
   monitoring reports as eight unrelated alerts — precisely the noise that teaches people
@@ -355,7 +363,7 @@ and all of them still hold.
 | C4 | Reverse-proxy auth documented (nginx/Caddy) | MVP | 💤 | |
 | C5 | ~~Built-in single-user basic auth~~ **Not planned** — auth delegated to a reverse proxy (D23) | — | 💤 | |
 | C6 | Prometheus `/metrics` exporter | P3 | ⚠ | **off by default** — scraping invites polling |
-| C7 | Import/export config, notes & labels (JSON) | P2 | 💤 | **promoted from P3** — for a NAS this is not a nice-to-have: it is the difference between restoring a file and re-labelling 16 drives |
+| C7 | Import/export config, notes & labels (JSON) | P2 | 💤 | **done** — one JSON bundle of labels, settings and schedules. Channels are deliberately excluded, because their config holds tokens. See below |
 | C8 | Multi-arch image (amd64 / arm64) | MVP | 💤 | home NAS / Raspberry Pi |
 | C9 | Configurable base path for subpath hosting | MVP | 💤 | `SMARTSERVE_BASE_PATH` (`ADR-015`) |
 

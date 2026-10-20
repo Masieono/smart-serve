@@ -73,6 +73,11 @@ export const api = {
 
   eventsUrl: () => appPath('/api/events'),
 
+  // Import/export (FEATURES.md C7). The export is a URL rather than a fetch: it is a download, and
+  // the browser should save it rather than this code holding it in memory.
+  configExportUrl: () => appPath('/api/config/export'),
+  importConfig: (bundle) => request('POST', '/api/config/import', bundle),
+
   // Self-tests (FEATURES.md A19). The GET reads the drive live rather than from the stored
   // document, because progress exists nowhere else; the POSTs are the only requests in this
   // client that change a drive, so they are named for what they do.

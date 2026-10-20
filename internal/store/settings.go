@@ -230,6 +230,39 @@ func (s *Store) MakeScheduleDue(ctx context.Context, id int64, now time.Time) er
 	return err
 }
 
+// ReplaceSchedules replaces every schedule with the given set, in one transaction.
+//
+// Replacement rather than merge, because a schedule has no natural key: importing the same file
+// twice would otherwise leave duplicates, and "my schedules came back twice" is a worse failure
+// than "my schedules were replaced by the file". The caller is expected to have said so.
+//
+// `last_run` and `next_run` are deliberately dropped. They are bookkeeping about *this* install,
+// not configuration: an imported schedule has never run here, and its next run is a time the
+// scheduler computes from the current clock. Leaving `next_run` null is what makes the scheduler
+// arm it — see `Scheduler.Wake`.
+func (s *Store) ReplaceSchedules(ctx context.Context, schedules []Schedule) error {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	if _, err := tx.ExecContext(ctx, `DELETE FROM scan_schedules`); err != nil {
+		return fmt.Errorf("clear schedules: %w", err)
+	}
+	for _, sched := range schedules {
+		if _, err := tx.ExecContext(ctx, `
+			INSERT INTO scan_schedules
+				(enabled, kind, every_seconds, cron, label, last_run, next_run, created_at)
+			VALUES (?, ?, ?, ?, ?, NULL, NULL, ?)`,
+			boolInt(sched.Enabled), sched.Kind, nullInt64(sched.EverySeconds), sched.Cron,
+			sched.Label, time.Now().UnixMilli()); err != nil {
+			return fmt.Errorf("insert schedule %q: %w", sched.Label, err)
+		}
+	}
+	return tx.Commit()
+}
+
 func scanSchedule(r rowScanner) (Schedule, error) {
 	var (
 		sched            Schedule

@@ -144,6 +144,11 @@ func (s *Server) routes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/settings", s.handleGetSettings)
 	mux.HandleFunc("PUT /api/settings", s.handlePutSettings)
 
+	// Import/export (`FEATURES.md` C7). The export is a download because it is a file to keep; the
+	// import takes the same shape back.
+	mux.HandleFunc("GET /api/config/export", s.handleExportConfig)
+	mux.HandleFunc("POST /api/config/import", s.handleImportConfig)
+
 	mux.HandleFunc("GET /api/schedules", s.handleListSchedules)
 	mux.HandleFunc("POST /api/schedules", s.handleCreateSchedule)
 	mux.HandleFunc("PUT /api/schedules/{id}", s.handleUpdateSchedule)

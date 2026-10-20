@@ -1,8 +1,9 @@
 // Settings (docs/UI.md §7.5).
 import { el, mount, convertTemp, toCelsius } from '../dom.js';
 import { api } from '../api.js';
-import { errorBox, toast } from '../components.js';
+import { errorBox, toast, confirmDialog } from '../components.js';
 import { applyTheme } from '../theme.js';
+import { icon } from '../icons.js';
 
 // Themes offered in Appearance. Kept in step with ThemeNames in
 // internal/webui/webui.go — a test on each side pins the pair together.
@@ -268,8 +269,73 @@ function draw(container, ctx, data, { carried = {}, unit: unitOverride } = {}) {
           tintRow,
         ]),
       ]),
+      el('div', { class: 'card stack' }, [
+        el('h2', { text: 'Import and export' }),
+        el('p', { class: 'muted', text: 'Device labels, settings and schedules, as one JSON file. ' +
+          'For moving to another host: names, bays and tags live in the database, which survives a ' +
+          'restart but not a move.' }),
+        el('p', { class: 'muted', text: 'Notification channels are deliberately not included. Their ' +
+          'config holds tokens and passwords, and a backup file is exactly the thing that gets ' +
+          'emailed around.' }),
+        el('div', { class: 'row', style: 'gap:var(--space-2)' }, [
+          // An anchor with `download`, not a button: this is a file to keep, and the browser's own
+          // save dialog is the right one to use.
+          el('a', {
+            class: 'btn', href: api.configExportUrl(), download: 'smart-serve-config.json',
+          }, [icon('download'), 'Export']),
+          el('button', {
+            class: 'btn', type: 'button',
+            onclick: (e) => importConfig(ctx, e.currentTarget),
+          }, ['Import']),
+        ]),
+      ]),
     ]),
   );
+}
+
+/**
+ * Import a bundle (`FEATURES.md` C7).
+ *
+ * Confirmed before the file picker rather than after: the user should know what the file will do
+ * before they spend time finding it, and the one destructive part — schedules are replaced rather
+ * than merged — is the thing they most need to know.
+ */
+async function importConfig(ctx, button) {
+  const ok = await confirmDialog(
+    'Import a configuration',
+    'Labels, settings and schedules from the file are applied. Anything the file does not mention ' +
+    'is left alone, but a file that carries schedules *replaces* the schedule list. Notification ' +
+    'channels are not affected.',
+    'Choose a file',
+  );
+  if (!ok) return;
+
+  const input = el('input', { type: 'file', accept: 'application/json,.json', hidden: true });
+  input.addEventListener('change', async () => {
+    const file = input.files && input.files[0];
+    if (!file) {
+      input.remove();
+      return;
+    }
+    button.disabled = true;
+    try {
+      const applied = await api.importConfig(JSON.parse(await file.text()));
+      const a = (applied && applied.applied) || {};
+      toast(`Imported ${a.devices || 0} sets of labels, ${a.settings || 0} settings and ` +
+        `${a.schedules || 0} schedules`, 'good');
+      ctx.refresh();
+    } catch (err) {
+      // A malformed file is the common failure here, and "Unexpected token < in JSON" is not an
+      // explanation of what went wrong.
+      toast(`Could not import that file: ${err.message}`, 'error');
+      button.disabled = false;
+    } finally {
+      input.remove();
+    }
+  });
+
+  document.body.append(input);
+  input.click();
 }
 
 // --- row builders --------------------------------------------------------------
