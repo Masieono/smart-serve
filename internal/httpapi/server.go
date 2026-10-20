@@ -128,6 +128,10 @@ func (s *Server) routes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/devices/{serial}", s.handleGetDevice)
 	mux.HandleFunc("DELETE /api/devices/{serial}", s.handleForgetDevice)
 	mux.HandleFunc("PUT /api/devices/{serial}/notes", s.handleSetNotes)
+	// Acknowledging a condition the user already knows about (`FEATURES.md` B7). It changes no
+	// finding, only whether the finding is repeated.
+	mux.HandleFunc("PUT /api/devices/{serial}/ack", s.handleAckDevice)
+	mux.HandleFunc("DELETE /api/devices/{serial}/ack", s.handleUnackDevice)
 	mux.HandleFunc("PUT /api/devices/{serial}/transport", s.handleSetTransport)
 	mux.HandleFunc("GET /api/devices/{serial}/raw", s.handleRaw)
 	mux.HandleFunc("GET /api/devices/{serial}/report", s.handleReport)

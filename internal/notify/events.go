@@ -28,7 +28,10 @@ type CollectOptions struct {
 	// Correlation tunes the group-heat check (FEATURES.md A25). A zero MinDrives turns it off, which
 	// is what a caller with no settings has.
 	Correlation interp.CorrelationThresholds
-	Version     string
+	// BaseURL is where this deployment is reachable, so a channel that supports it can offer a link
+	// back into the app (FEATURES.md B10). Empty when the operator has not set one.
+	BaseURL string
+	Version string
 }
 
 // Collect turns a finished scan into the events worth notifying about.
@@ -43,7 +46,7 @@ func Collect(rep scan.PostScan, opts CollectOptions) []Event {
 			Type: typ, Priority: pri,
 			Serial: st.Serial, DeviceName: st.Name, DeviceModel: st.Model,
 			TemperatureC: st.TemperatureC, ScanTS: ts, Version: opts.Version,
-			tempUnit: opts.TemperatureUnit,
+			tempUnit: opts.TemperatureUnit, baseURL: opts.BaseURL,
 		}
 	}
 
@@ -57,7 +60,8 @@ func Collect(rep scan.PostScan, opts CollectOptions) []Event {
 			Type: EventScanFailure, Priority: PriorityMedium,
 			ScheduleID: rep.Trigger.ScheduleID, Error: rep.Error,
 			ScanTS: ts, Version: opts.Version,
-			key: fmt.Sprintf("%s:%d", EventScanFailure, rep.Trigger.ScheduleID),
+			baseURL: opts.BaseURL,
+			key:     fmt.Sprintf("%s:%d", EventScanFailure, rep.Trigger.ScheduleID),
 		}}
 	}
 
@@ -67,6 +71,16 @@ func Collect(rep scan.PostScan, opts CollectOptions) []Event {
 	events := make([]Event, 0, 4)
 	for serial, cur := range rep.Current {
 		prev, known := rep.Previous[serial]
+
+		// An acknowledged condition is one the user has said they know about (`FEATURES.md` B7). It
+		// silences the two alerts that describe the *condition* — a verdict change and a hot drive —
+		// and nothing else: a drive that vanishes is still news, and a self-test result is something
+		// the user asked for.
+		//
+		// The ack is spent the moment the verdict moves, because `AckHealth == cur.Health` is only
+		// true while the drive is in the state the user named. So it can never hide a drive getting
+		// worse, which is the one thing it must not do.
+		acked := cur.AckHealth != "" && cur.AckHealth == cur.Health
 
 		switch {
 		case cur.Missing:
@@ -84,7 +98,7 @@ func Collect(rep scan.PostScan, opts CollectOptions) []Event {
 				ev.key = EventDeviceAppeared + ":" + serial
 				events = append(events, ev)
 			}
-		case prev.Health != cur.Health:
+		case prev.Health != cur.Health && !acked:
 			ev := base(EventHealthChange, PriorityHigh, cur)
 			ev.OldHealth, ev.NewHealth = prev.Health, cur.Health
 			ev.Rationale = cur.HealthRationale
@@ -92,7 +106,7 @@ func Collect(rep scan.PostScan, opts CollectOptions) []Event {
 			events = append(events, ev)
 		}
 
-		if opts.TemperatureThresholdC > 0 && cur.TemperatureC != nil &&
+		if !acked && opts.TemperatureThresholdC > 0 && cur.TemperatureC != nil &&
 			*cur.TemperatureC >= opts.TemperatureThresholdC {
 			ev := base(EventTemperatureHigh, PriorityMedium, cur)
 			ev.Rationale = fmt.Sprintf("%s is at or above the %s threshold",
@@ -154,7 +168,8 @@ func Collect(rep scan.PostScan, opts CollectOptions) []Event {
 			DevicesTotal: len(rep.Current),
 			DurationMS:   rep.Ended.Sub(rep.Started).Milliseconds(),
 			ScanTS:       ts, Version: opts.Version,
-			key: fmt.Sprintf("%s:%d", EventScanSuccess, rep.Trigger.ScheduleID),
+			baseURL: opts.BaseURL,
+			key:     fmt.Sprintf("%s:%d", EventScanSuccess, rep.Trigger.ScheduleID),
 		})
 	}
 
@@ -257,6 +272,7 @@ func groupHeatEvents(rep scan.PostScan, opts CollectOptions) []Event {
 			ScanTS:      rep.Ended.UnixMilli(),
 			Version:     opts.Version,
 			tempUnit:    opts.TemperatureUnit,
+			baseURL:     opts.BaseURL,
 			// One key per group, so squelching quiets the *group* rather than the event type: a
 			// second enclosure heating up while the first is squelched is news.
 			key: EventGroupHeat + ":" + g.Group,
@@ -290,13 +306,7 @@ func NewNotifier(st Settings, disp *Dispatcher, version string, log *slog.Logger
 // OnScan implements scan.PostScanFunc. It must never fail the scan, so every
 // problem here is logged rather than returned.
 func (n *Notifier) OnScan(ctx context.Context, rep scan.PostScan) {
-	threshold, unit, correlation := n.alertSettings(ctx)
-	events := Collect(rep, CollectOptions{
-		TemperatureThresholdC: threshold,
-		TemperatureUnit:       unit,
-		Correlation:           correlation,
-		Version:               n.version,
-	})
+	events := Collect(rep, n.alertSettings(ctx))
 	if len(events) == 0 {
 		return
 	}
@@ -307,21 +317,33 @@ func (n *Notifier) OnScan(ctx context.Context, rep scan.PostScan) {
 // alertSettings reads the user-tunable alert settings, falling back to the documented defaults
 // whenever they are missing or unparseable. The unit only affects how alerts are worded; the
 // thresholds themselves are always Celsius.
-func (n *Notifier) alertSettings(ctx context.Context) (threshold int, unit string, correlation interp.CorrelationThresholds) {
-	threshold, unit = DefaultTemperatureThresholdC, "c"
-	correlation = interp.DefaultCorrelationThresholds()
+//
+// It returns the whole option set rather than the individual values, because there are now four of
+// them and a four-value return is one positional mistake away from a temperature threshold being
+// used as a URL.
+func (n *Notifier) alertSettings(ctx context.Context) CollectOptions {
+	opts := CollectOptions{
+		TemperatureThresholdC: DefaultTemperatureThresholdC,
+		TemperatureUnit:       "c",
+		Correlation:           interp.DefaultCorrelationThresholds(),
+		Version:               n.version,
+	}
 	settings, err := n.settings.GetSettings(ctx)
 	if err != nil {
-		return threshold, unit, correlation
+		return opts
 	}
 	if parsed, perr := strconv.Atoi(strings.TrimSpace(settings["temperature_threshold_c"])); perr == nil && parsed > 0 {
-		threshold = parsed
+		opts.TemperatureThresholdC = parsed
 	}
 	if strings.EqualFold(strings.TrimSpace(settings["temperature_unit"]), "f") {
-		unit = "f"
+		opts.TemperatureUnit = "f"
 	}
-	correlation = interp.CorrelationFromSettings(settings)
-	return threshold, unit, correlation
+	opts.Correlation = interp.CorrelationFromSettings(settings)
+	// Where the app is reachable from wherever the alert lands (`FEATURES.md` B10). Empty is the
+	// default and means "no action button", which is honest: the app cannot know its own external
+	// address, and guessing `localhost` would produce a link that works for nobody.
+	opts.BaseURL = strings.TrimSpace(settings["public_url"])
+	return opts
 }
 
 // TestEvent is the synthetic event behind "send test". Its Title and Body say plainly

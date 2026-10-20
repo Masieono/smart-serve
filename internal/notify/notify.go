@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"log/slog"
 	"math"
+	"net/url"
 	"sort"
 	"strconv"
 	"strings"
@@ -120,6 +121,26 @@ type Event struct {
 	// consumer wants. They only shape the human-readable output.
 	key      string
 	tempUnit string
+	// baseURL is where this deployment is reachable, used to build a link back into the app
+	// (`FEATURES.md` B10). Also private: it is a property of the deployment rather than of the
+	// event, and putting it on the wire would invite a consumer to depend on it.
+	baseURL string
+}
+
+// Link is the in-app URL for this event, or "" when the deployment has not said where it is.
+//
+// Empty rather than a guess. A notification action pointing at `localhost` from a phone is worse
+// than no action at all: it looks like a feature and fails like a bug, and the reader has no way to
+// tell which it was.
+func (e Event) Link() string {
+	base := strings.TrimRight(strings.TrimSpace(e.baseURL), "/")
+	if base == "" {
+		return ""
+	}
+	if e.Serial != "" {
+		return base + "/device/" + url.PathEscape(e.Serial)
+	}
+	return base + "/"
 }
 
 // Key is the squelch key for the event (docs/NOTIFICATIONS.md).

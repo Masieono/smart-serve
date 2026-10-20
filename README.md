@@ -157,6 +157,8 @@ alert.
       (`D11`) — unit-tested
 - [x] Correlated-change detection: several drives in one group heating together is one finding
       about what they share (`A25`) — unit-tested
+- [x] Alert acknowledgement: silence a known condition without hiding the verdict (`B7`), and
+      notification action buttons back into the app (`B10`) — unit-tested
 - [x] Dockerfile, docker-compose (prod + dev), GitHub Actions CI
 - [x] Docker device-access validation on real hardware — a native NVMe, a USB-attached
       NVMe, and a USB-attached SATA SSD all read correctly; a drive with no S.M.A.R.T.

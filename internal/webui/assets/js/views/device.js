@@ -149,6 +149,21 @@ function draw(container, ctx, data, history) {
       el('button', { class: 'btn btn-sm', type: 'button', title: 'Export a report',
         onclick: () => exportDialog(d) }, [icon('download'), 'Export']),
       el('button', { class: 'btn btn-sm', type: 'button', onclick: () => editNotes(ctx, d) }, [icon('save'), 'Notes']),
+      // A drive with nothing wrong has nothing to acknowledge, so the control is absent rather than
+      // present and refusing (FEATURES.md B7).
+      d.health !== 'good'
+        ? (d.ack
+            ? el('button', {
+                class: 'btn btn-sm', type: 'button',
+                title: 'Remove the acknowledgement, so this drive alerts again',
+                onclick: (e) => unack(ctx, d, e.currentTarget),
+              }, ['Un-acknowledge'])
+            : el('button', {
+                class: 'btn btn-sm', type: 'button',
+                title: 'Silence the alerts for this condition until the verdict changes',
+                onclick: (e) => acknowledge(ctx, d, e.currentTarget),
+              }, ['Acknowledge']))
+        : null,
       el('button', { class: 'btn btn-sm btn-ghost', type: 'button',
         title: 'Remove this drive, its history and its notes',
         onclick: () => ctx.forgetDevice(d.serial) }, [icon('trash'), 'Forget']),
@@ -166,6 +181,7 @@ function draw(container, ctx, data, history) {
         ]),
       ]),
       d.smart_available ? null : smartProblemNotice(ctx, d),
+      ackNotice(d),
     ]),
 
     el('div', { class: 'panel-grid panel-grid-pair' }, [
@@ -804,6 +820,87 @@ async function toggleRaw(device, button) {
   } catch (err) {
     toast(err.message, 'error');
   } finally {
+    button.disabled = false;
+  }
+}
+
+/**
+ * The acknowledgement notice (`FEATURES.md` B7), or null when the drive is not acknowledged.
+ *
+ * Shown on the verdict card, and that is the point: the verdict still says the drive is failing,
+ * because it is. What the acknowledgement removed is the repetition, and without this notice the
+ * reader would conclude the app had lost the alert — or worse, that the drive had recovered.
+ *
+ * It says what the ack is *for* as well as that it exists, because "acknowledged" on its own does not
+ * tell you whether the note still applies.
+ */
+function ackNotice(d) {
+  if (!d.ack) return null;
+  const when = d.ack.at ? ` · ${fmtAgo(d.ack.at)}` : '';
+  return el('div', { class: 'ack-notice' }, [
+    el('div', { class: 'row' }, [
+      icon('check'),
+      el('strong', { text: 'Acknowledged' }),
+      el('span', { class: 'muted', text: `as ${d.ack.health}${when}` }),
+    ]),
+    d.ack.note ? el('div', { class: 'ack-note', text: d.ack.note }) : null,
+    el('div', { class: 'muted ack-explain', text: 'Alerts for this condition are silenced. A drive ' +
+      'that gets worse still alerts, and the verdict above does not change.' }),
+  ]);
+}
+
+/**
+ * Acknowledge the drive's current condition (`FEATURES.md` B7).
+ *
+ * The note is asked for rather than skipped past: "acknowledged" with no reason is a state nobody can
+ * act on later, including the person who set it, and the whole value of the record is that it says
+ * *why* the alert is being ignored.
+ */
+function acknowledge(ctx, device, button) {
+  openDialog('Acknowledge this condition', (body, close, foot) => {
+    const note = el('textarea', {
+      value: device.ack ? device.ack.note || '' : '',
+      placeholder: 'e.g. RMA raised, replacement ordered, known bad cable',
+    });
+    body.append(
+      el('p', { class: 'muted', text: `Alerts about ${device.name || device.serial} will be silenced ` +
+        `while its verdict stays "${device.health}". The verdict itself does not change — this hides ` +
+        'the repetition, not the finding — and a drive that gets worse still alerts.' }),
+      el('div', { class: 'field' }, [el('label', { text: 'Why' }), note]),
+    );
+    foot.append(
+      el('button', { class: 'btn', type: 'button', text: 'Cancel', onclick: close }),
+      el('button', {
+        class: 'btn btn-primary',
+        type: 'button',
+        text: 'Acknowledge',
+        onclick: async () => {
+          try {
+            await api.ackDevice(device.serial, note.value.trim());
+            close();
+            toast('Acknowledged', 'good');
+            ctx.refresh();
+          } catch (err) {
+            toast(err.message, 'error');
+          }
+        },
+      }),
+    );
+    // `button` is unused here but kept in the signature: the caller passes it, and a control that
+    // silently does nothing while a request is in flight is worse than one that is briefly disabled.
+    void button;
+  });
+}
+
+/** Remove an acknowledgement, so the drive alerts again on the next scan. */
+async function unack(ctx, device, button) {
+  button.disabled = true;
+  try {
+    await api.unackDevice(device.serial);
+    toast('Acknowledgement removed', 'good');
+    ctx.refresh();
+  } catch (err) {
+    toast(err.message, 'error');
     button.disabled = false;
   }
 }

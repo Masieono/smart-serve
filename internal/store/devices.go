@@ -99,6 +99,8 @@ type DeviceRecord struct {
 	// identifies a drive; a bay *finds* it, which is the question someone standing in front of
 	// a machine at 3am actually has.
 	Bay string
+	// Ack is the user's acknowledgement of the drive's condition, nil for none (`FEATURES.md` B7).
+	Ack *Ack
 }
 
 // SaveScan persists one scan atomically: a scan_history row, an upsert per
@@ -303,7 +305,8 @@ SELECT d.serial, d.model, d.model_family, d.firmware, d.device_path, d.transport
        d.mountpoints, d.fstype, d.removable, d.fs_version, d.raw_output,
        COALESCE(t.smart_d, ''),
        COALESCE(n.name, ''), COALESCE(n.notes, ''), COALESCE(n.tags, ''), COALESCE(n.hidden, 0),
-       COALESCE(n.bay, '')
+       COALESCE(n.bay, ''),
+       COALESCE(n.ack_health, ''), COALESCE(n.ack_note, ''), COALESCE(n.ack_at, 0)
 FROM devices d
 LEFT JOIN device_notes n ON n.serial = d.serial
 LEFT JOIN device_transport_overrides t ON t.serial = d.serial`
@@ -351,6 +354,8 @@ func scanDevice(r rowScanner) (DeviceRecord, error) {
 		firstSeen, lastSeen               int64
 		smartAvailable, isMissing, hidden int64
 		mountpoints                       string
+		ackHealth, ackNote                string
+		ackAt                             int64
 	)
 	err := r.Scan(
 		&rec.Serial, &rec.Model, &rec.ModelFamily, &rec.Firmware, &rec.DevicePath, &rec.Transport,
@@ -361,6 +366,7 @@ func scanDevice(r rowScanner) (DeviceRecord, error) {
 		&rec.TransportOverride,
 		&rec.Name, &rec.Notes, &rec.Tags, &hidden,
 		&rec.Bay,
+		&ackHealth, &ackNote, &ackAt,
 	)
 	if err != nil {
 		return rec, err
@@ -376,6 +382,11 @@ func scanDevice(r rowScanner) (DeviceRecord, error) {
 	rec.FirstSeen = fromMS(firstSeen)
 	rec.LastSeen = fromMS(lastSeen)
 	rec.LastScan = timePtr(lastScan)
+	// An empty acknowledged verdict is "not acknowledged", so there is no third state to represent
+	// and no nil to check for (`FEATURES.md` B7).
+	if ackHealth != "" {
+		rec.Ack = &Ack{Serial: rec.Serial, Health: ackHealth, Note: ackNote, At: fromMS(ackAt)}
+	}
 	return rec, nil
 }
 
@@ -898,6 +909,10 @@ type DeviceState struct {
 	// Tags is the drive's stored tag string, carried because the post-scan pass groups drives by it
 	// (`FEATURES.md` A25) and this is the one query that already joins the notes.
 	Tags string
+	// AckHealth is the verdict the user acknowledged, empty for none (`FEATURES.md` B7). Carried for
+	// the same reason: the post-scan pass is what decides whether an alert is news, so the
+	// acknowledgement has to reach it.
+	AckHealth string
 	// Missing is true when the device was absent from the most recent scan.
 	Missing bool
 	// SelfTestRecorded is false until a scan has stored what this drive's self-test log holds.
@@ -920,7 +935,7 @@ func (s *Store) DeviceStates(ctx context.Context) (map[string]DeviceState, error
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT d.serial, COALESCE(n.name, ''), d.model, d.health, d.health_rationale,
 		       d.temperature_c, d.is_missing,
-		       COALESCE(n.tags, ''),
+		       COALESCE(n.tags, ''), COALESCE(n.ack_health, ''),
 		       d.selftest_type IS NOT NULL,
 		       COALESCE(d.selftest_type, ''), d.selftest_hours, d.selftest_passed,
 		       COALESCE(d.selftest_status, '')
@@ -944,7 +959,7 @@ func (s *Store) DeviceStates(ctx context.Context) (map[string]DeviceState, error
 			selfStat  string
 		)
 		if err := rows.Scan(&st.Serial, &st.Name, &st.Model, &st.Health,
-			&st.HealthRationale, &temp, &isMissing, &st.Tags,
+			&st.HealthRationale, &temp, &isMissing, &st.Tags, &st.AckHealth,
 			&recorded, &selfType, &selfHours, &selfPass, &selfStat); err != nil {
 			return nil, err
 		}

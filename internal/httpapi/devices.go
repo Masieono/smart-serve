@@ -63,11 +63,15 @@ type deviceJSON struct {
 	OnBench bool `json:"on_bench,omitempty"`
 	// Bay is where the drive physically is, so a card can answer "which one do I pull?" without
 	// the reader matching serials against a spreadsheet.
-	Bay       string  `json:"bay,omitempty"`
-	FirstSeen string  `json:"first_seen"`
-	LastSeen  string  `json:"last_seen"`
-	LastScan  *string `json:"last_scan"`
-	IsMissing bool    `json:"is_missing"`
+	Bay string `json:"bay,omitempty"`
+	// Ack is the user's acknowledgement of the drive's condition (`FEATURES.md` B7). Carried
+	// wherever the verdict is shown, because a drive that is acknowledged has to *say so*: without it
+	// the app looks like it lost the alert rather than like it was told to stay quiet.
+	Ack       *ackJSON `json:"ack,omitempty"`
+	FirstSeen string   `json:"first_seen"`
+	LastSeen  string   `json:"last_seen"`
+	LastScan  *string  `json:"last_scan"`
+	IsMissing bool     `json:"is_missing"`
 	// Logs summarises what the drive's own error and self-test logs hold. Present only on
 	// the detail endpoint, and only when the drive reported something: parsing the stored
 	// raw document for every device on every list request would be work for data the
@@ -108,6 +112,7 @@ func toDeviceJSON(d store.DeviceRecord) deviceJSON {
 		Tags:            d.Tags,
 		Hidden:          d.Hidden,
 		OnBench:         store.HasTag(d.Tags, store.BenchTag),
+		Ack:             toAckJSON(d.Ack),
 		Bay:             d.Bay,
 		FirstSeen:       rfc3339(d.FirstSeen),
 		LastSeen:        rfc3339(d.LastSeen),

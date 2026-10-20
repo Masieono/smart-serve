@@ -50,6 +50,9 @@ history — is one file that can be backed up with `cp` while the app is stopped
 | `tags` | TEXT NULL | comma-separated (Phase 2: table) |
 | `hidden` | INTEGER DEFAULT 0 | user can hide devices they don't care about |
 | `bay` | TEXT NOT NULL DEFAULT '' | where the drive physically is — "bay 4", "front top", "USB port 2" (migration 0008). Free text, because a bay is whatever the enclosure calls it. **Not nullable**, unlike the self-test columns: nothing about a bay is inferred from the drive, so "no bay recorded" and "the field is empty" are the same finding. It lives with the notes rather than on `devices` because it is something a person assigned, so it survives an unplug for the same reason a name does (`FEATURES.md` D10) |
+| `ack_health` | TEXT NOT NULL DEFAULT '' | the verdict the user acknowledged (migration 0009, `FEATURES.md` B7). **Empty means "not acknowledged"**, so there is no third state to represent. It is what makes the ack expire: the ack covers the drive only while its verdict is still this one, so it can never hide a drive getting worse |
+| `ack_note` | TEXT NOT NULL DEFAULT '' | why the alert is being ignored — "RMA raised", "known bad cable". Asked for when acknowledging, because "acknowledged" with no reason is a state nobody can act on later |
+| `ack_at` | INTEGER NOT NULL DEFAULT 0 | unix ms, so the UI can say when the condition was acknowledged |
 | `updated_at` | INTEGER (unix ms) | |
 
 ### `snapshots` — append-only history for trending & longevity (Phase 2 consumer)
@@ -129,6 +132,7 @@ worse than no setting at all.
 | `squelch_seconds` | `3600` | re-alert window for persistent conditions | `notify` |
 | `correlation_min_drives` | `4` | how many drives in one tag group must heat up together before `A25` reports it as one finding about the group. Raise it for a big enclosure: 4 is a sixth of a 24-bay NAS and nearly all of a workstation | `interp` |
 | `correlation_delta_c` | `8` | the temperature **rise** between two readings that counts as a drive having moved. A stopped fan moves a whole chassis well past this; a warm afternoon usually does not | `interp` |
+| `public_url` | `""` | where this app is reachable from outside the host, used for the "Open drive" action button on a notification (`FEATURES.md` B10). Empty means no button — the app cannot know its own external address, and a wrong link is worse than none | `notify` |
 | `command_timeout_seconds` | `15` | per-`smartctl`/`lsblk` timeout | `scan` (env-seeded) |
 | `missed_run_policy` | `"skip"` | `skip` \| `run_once` | `sched` (env-seeded) |
 | `timezone` | `""` | schedule time zone; empty = container `TZ` (C6) | `sched` |

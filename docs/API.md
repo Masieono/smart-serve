@@ -285,6 +285,28 @@ sector basis. A drive with less than a day of history gets `basis: "none"` and
 { "name": "boot", "bay": "bay 4", "notes": "bought 2024-03, under warranty until 2029", "tags": "critical,os", "hidden": false }
 ```
 
+- `PUT /api/devices/{serial}/ack` — **acknowledge the drive's current condition** (`FEATURES.md` B7),
+  body `{ "note": "RMA raised" }`. Returns `{ "serial": "…", "ack": { "health": "caution", "note": "…",
+  "at": "…" } }`.
+
+  It silences the alerts that describe the *condition* — `health_change` and `temperature_high` — and
+  changes no finding: the verdict still reads as caution, because the drive is caution. What it
+  removes is the repetition.
+
+  **The acknowledged verdict comes from the stored device, not from the request**, because the ack has
+  to name the condition the *server* last assessed. A stale client could otherwise acknowledge a
+  verdict the drive no longer has and silence a real change.
+
+  A `400` on a drive that is reporting nothing wrong: an ack on a healthy drive would sit there waiting
+  to silence the first problem it develops, which is the opposite of what the user meant. A `404` for
+  an unknown serial.
+- `DELETE /api/devices/{serial}/ack` — remove the acknowledgement, so the drive alerts again on the
+  next scan. Same response shape, with `"ack": null`.
+
+  The ack is **spent the moment the verdict moves**: a drive acknowledged at `caution` that goes `bad`
+  alerts normally. That is a better expiry than a timer — it is exactly the condition the user named,
+  and it happens when there is something new to say — which is why an ack has no duration.
+
 Creates the note row if absent (device may currently be unplugged). Response: the
 stored record. Unset fields are `null`, not omitted — full replace semantics.
 

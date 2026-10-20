@@ -964,6 +964,33 @@ a:hover {
   flex-wrap: wrap;
 }
 
+/* An acknowledged condition (`FEATURES.md` B7). Deliberately quiet rather than alarming: it records a
+   decision the user already made, and a notice that shouted would be the noise the feature removes. */
+.ack-notice {
+  border-left: 3px solid var(--border);
+  padding: var(--space-2) 0 var(--space-2) var(--space-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.ack-note {
+  font-size: var(--text-sm);
+}
+
+.ack-explain {
+  font-size: var(--text-xs);
+  max-width: 80ch;
+}
+
+/* A free-text setting. Sized like a URL rather than like a number, and flexible so it fills the
+   control column instead of leaving a wide gap between the label and the field. */
+.setting-text {
+  flex: 1 1 220px;
+  min-width: 0;
+  max-width: 320px;
+}
+
 /* The enclosure heat card (`FEATURES.md` A25). One block per group, because the finding is about the
    group and two enclosures heating at once are two findings. */
 .heat-group {

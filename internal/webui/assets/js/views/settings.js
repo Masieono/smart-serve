@@ -148,6 +148,7 @@ const DEFAULTS = {
   squelch_seconds: '3600',
   correlation_min_drives: '4',
   correlation_delta_c: '8',
+  public_url: '',
   temperature_unit: 'c',
   theme: 'auto',
   theme_base: 'dark',
@@ -177,6 +178,18 @@ function draw(container, ctx, data, { carried = {}, unit: unitOverride } = {}) {
   const operationRows = OPERATIONS.map((spec) => sliderRow(spec, settings, renderUnit, carried, inputs));
 
   const warn = el('input', { type: 'checkbox', checked: settings.warn_on_any_nonzero === 'true' });
+
+  // Where this deployment is reachable from wherever an alert lands (`FEATURES.md` B10), so a
+  // channel that supports action buttons can offer a link back. Free text, and empty by default:
+  // the app cannot know its own external address, and guessing one would produce a link that works
+  // for nobody while looking like a feature.
+  const publicUrl = el('input', {
+    type: 'url',
+    class: 'setting-text',
+    placeholder: 'https://nas.example.lan:8080',
+    value: settings.public_url || '',
+    'aria-label': 'Public URL',
+  });
 
   const unit = el('select', {}, [
     el('option', { value: 'c', text: 'Celsius (°C)' }),
@@ -248,6 +261,7 @@ function draw(container, ctx, data, { carried = {}, unit: unitOverride } = {}) {
       const payload = {
         warn_on_any_nonzero: warn.checked ? 'true' : 'false',
         temperature_unit: unit.value,
+        public_url: publicUrl.value.trim(),
         ...currentTheme(),
       };
       for (const spec of ALL_SPECS) {
@@ -297,7 +311,14 @@ function draw(container, ctx, data, { carried = {}, unit: unitOverride } = {}) {
 
       el('div', { class: 'card stack' }, [
         el('h2', { text: 'Alerts and retention' }),
-        el('div', {}, operationRows),
+        el('div', {}, [
+          ...operationRows,
+          settingRow('Public URL',
+            'Where this app is reachable from outside the host, used to put an "Open drive" button ' +
+            'on a notification. Leave it empty and no button is added — the app cannot know its own ' +
+            'external address, and a wrong link is worse than none.',
+            publicUrl),
+        ]),
       ]),
 
       el('div', { class: 'card stack' }, [

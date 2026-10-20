@@ -36,6 +36,11 @@ export const api = {
     `/api/devices/${encodeURIComponent(serial)}/history${from ? `?from=${encodeURIComponent(from)}` : ''}`,
   ),
   setNotes: (serial, notes) => request('PUT', `/api/devices/${encodeURIComponent(serial)}/notes`, notes),
+  // Acknowledging a condition the user already knows about (FEATURES.md B7). It silences the alerts
+  // for that condition and changes no finding: the verdict stays what it is.
+  ackDevice: (serial, note) =>
+    request('PUT', `/api/devices/${encodeURIComponent(serial)}/ack`, { note }),
+  unackDevice: (serial) => request('DELETE', `/api/devices/${encodeURIComponent(serial)}/ack`),
   setTransport: (serial, smartD) =>
     request('PUT', `/api/devices/${encodeURIComponent(serial)}/transport`, { smart_d: smartD }),
   reportUrl: (serial, format = 'txt') =>

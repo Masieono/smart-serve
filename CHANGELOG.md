@@ -11,6 +11,21 @@ stopped from the device page.
 
 ### Added
 
+- **Alert acknowledgement (`B7`)** — an **Acknowledge** control on a drive's page silences the alerts
+  for a condition the user already knows about, with a note saying why ("RMA raised"), and leaves the
+  verdict alone: the drive still reads as caution, because it is caution. What it removes is the
+  repetition, not the finding. The ack records **the verdict it was granted for**, so it is **spent
+  the moment the verdict moves** — a drive acknowledged at caution that goes bad alerts normally. That
+  is a better expiry than a timer: it is exactly the condition the user named, and it happens when
+  there is something new to say. A drive that vanishes and a self-test the user asked for still alert,
+  because an acknowledgement covers a condition rather than a drive. The device page says outright
+  that the condition is acknowledged, with the note and when — without that the reader would conclude
+  the app had lost the alert, or that the drive had recovered.
+- **ntfy action buttons (`B10`)** — a notification now carries a **view action back into the app**:
+  "Open drive" for a device event, "Open dashboard" otherwise, with `clear=true` so the notification
+  is dismissed once opened. The URL comes from a new **`public_url`** setting, deliberately empty by
+  default: the app cannot know its own external address, and guessing `localhost` would produce a
+  button that works for nobody while looking like a feature. Priority and tags were already there.
 - **Correlated change (`A25`)** — the fleet-only insight: eight drives in one enclosure share a
   temperature, so a dying fan presents as *all eight* running hotter at once, which per-drive
   monitoring reports as eight unrelated alerts. The app now notices that a group moved together and

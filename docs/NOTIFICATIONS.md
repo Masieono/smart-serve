@@ -28,7 +28,49 @@ notifier bus.
 Priority influences formatting (ntfy priority header, webhook payload field) and
 squelch defaults — not delivery: every channel subscribed to the event gets it.
 
-### "Everything" and the one exception
+## Acknowledging a condition (`FEATURES.md` B7)
+
+A drive with a known issue alerts on every scan until somebody fixes it. Before this, the only ways
+to stop it were to disable the channel or hide the drive — both of which throw away the monitoring
+along with the noise.
+
+An acknowledgement says **"I know about this one"** and leaves everything else alone. Three
+decisions, and the first is the whole feature:
+
+- **It is scoped to the verdict, not to the drive.** The ack records the verdict that was
+  acknowledged, and it is **spent the moment the verdict moves** — so it can never hide a drive
+  getting worse, which is the one thing it must not do. A drive acknowledged at `caution` that goes
+  `bad` alerts normally, because `ack_health == health` stops being true.
+- **It is a better expiry than a timer.** A timer would need a clock to get wrong and would expire at
+  an arbitrary moment; the verdict change is *exactly* the condition the user named, and it happens
+  when there is something new to say. So an acknowledgement has no duration.
+- **The verdict does not change.** The drive still reads as caution on the dashboard, because it is
+  caution. What the ack removes is the repetition, not the finding. The device page says outright
+  that the condition is acknowledged, with the note and when — without that the reader would conclude
+  the app had lost the alert, or that the drive had recovered.
+
+A **note** is asked for when acknowledging, because "acknowledged" with no reason is a state nobody
+can act on later, including the person who set it. An acknowledgement is refused on a healthy drive:
+it would sit there waiting to silence the first problem the drive developed, which is the opposite of
+what the user meant.
+
+What an ack silences is exactly the two events that describe the **condition** — `health_change` and
+`temperature_high`. A drive that vanishes is still news, and a self-test result is something the user
+deliberately asked for, so both still fire.
+
+## Action buttons (`FEATURES.md` B10)
+
+ntfy takes a `Priority` and `Tags` header already, derived from the event. It also takes `Actions`,
+and the app uses it for one thing: a **view action back into the app** — "Open drive" for a device
+event, "Open dashboard" otherwise, with `clear=true` so the notification is dismissed once it has
+been opened. The alternative is a tray that accumulates alerts the user has already dealt with.
+
+The URL comes from a **`public_url` setting**, and it is deliberately empty by default. The app
+cannot know its own external address, and guessing `localhost` would produce a button that works for
+nobody while looking like a feature — so with no setting there is no button at all. That is the same
+reasoning as the em dash on screen: a wrong value is worse than an honest absence.
+
+
 
 A channel with no subscriptions ticked receives **every** event. That default is about
 exceptions — a verdict changed, a drive vanished, a scan failed — and each of those is

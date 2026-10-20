@@ -58,6 +58,78 @@ func withTags(tags string) stateOpt {
 	return func(s *store.DeviceState) { s.Tags = tags }
 }
 
+// withAck records the verdict the user acknowledged (`FEATURES.md` B7).
+func withAck(health string) stateOpt {
+	return func(s *store.DeviceState) { s.AckHealth = health }
+}
+
+// B7: an acknowledged condition is one the user has said they know about. It silences the two alerts
+// that describe the *condition* — a verdict change and a hot drive — and leaves the verdict alone:
+// the drive still reads as caution on the dashboard, because it is caution.
+func TestAnAcknowledgedConditionDoesNotAlert(t *testing.T) {
+	rep := scan.PostScan{
+		OK: true, Started: scanTime, Ended: scanTime,
+		Previous: states(state("a", "caution", withAck("caution"), withTemp(60))),
+		Current:  states(state("a", "caution", withAck("caution"), withTemp(61))),
+	}
+	events := Collect(rep, CollectOptions{TemperatureThresholdC: 55, Version: "test"})
+	if len(events) != 0 {
+		t.Errorf("an acknowledged condition produced events: %+v", events)
+	}
+}
+
+// The ack must never hide a drive getting *worse* — that is the one thing it cannot do. It is spent
+// the moment the verdict moves, because `AckHealth == cur.Health` stops being true.
+func TestAWorseVerdictAlertsThroughAnAcknowledgement(t *testing.T) {
+	rep := scan.PostScan{
+		OK: true, Started: scanTime, Ended: scanTime,
+		Previous: states(state("a", "caution", withAck("caution"))),
+		Current:  states(state("a", "bad", withAck("caution"), withTemp(40))),
+	}
+	ev := onlyEvent(t, Collect(rep, CollectOptions{Version: "test"}), EventHealthChange)
+	if ev.NewHealth != "bad" {
+		t.Errorf("event = %+v, want the move to bad", ev)
+	}
+}
+
+// And a drive that improves *back into* the acknowledged verdict is quiet again: the user
+// acknowledged that condition, and it is the condition the drive is in.
+func TestReturningToTheAcknowledgedVerdictIsQuiet(t *testing.T) {
+	rep := scan.PostScan{
+		OK: true, Started: scanTime, Ended: scanTime,
+		Previous: states(state("a", "bad", withAck("caution"))),
+		Current:  states(state("a", "caution", withAck("caution"), withTemp(40))),
+	}
+	if events := Collect(rep, CollectOptions{Version: "test"}); len(events) != 0 {
+		t.Errorf("returning to the acknowledged verdict produced events: %+v", events)
+	}
+}
+
+// An acknowledgement covers a condition, not a drive. Two things are still news while one is set:
+// a drive that vanishes, and a self-test the user deliberately asked for.
+func TestAnAcknowledgementDoesNotSilenceEverything(t *testing.T) {
+	// Gone, while acknowledged.
+	rep := scan.PostScan{
+		OK: true, Started: scanTime, Ended: scanTime,
+		Previous: states(state("a", "caution", withAck("caution"))),
+		Current:  states(state("a", "caution", withAck("caution"), asMissing())),
+	}
+	onlyEvent(t, Collect(rep, CollectOptions{Version: "test"}), EventDeviceDisappeared)
+
+	// A finished self-test, while acknowledged. A test is something the user started, so its result
+	// is news whatever they have acknowledged about the drive's condition.
+	passed := true
+	before, after := int64(100), int64(200)
+	rep = scan.PostScan{
+		OK: true, Started: scanTime, Ended: scanTime,
+		Previous: states(state("a", "caution", withAck("caution"),
+			withSelfTest(&model.SelfTestEntry{Type: "Short", Hours: &before}, true))),
+		Current: states(state("a", "caution", withAck("caution"),
+			withSelfTest(&model.SelfTestEntry{Type: "Short", Hours: &after, Passed: &passed}, true))),
+	}
+	onlyEvent(t, Collect(rep, CollectOptions{Version: "test"}), EventSelfTestResult)
+}
+
 // A25: **one** event for the group rather than one per drive. Eight drives in a chassis have one fan,
 // and eight alerts about one fan is precisely the noise that teaches people to ignore alerts.
 func TestCollectReportsAGroupThatMovedTogether(t *testing.T) {

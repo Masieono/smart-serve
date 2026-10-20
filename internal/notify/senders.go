@@ -142,6 +142,17 @@ func (s ntfySender) Send(ctx context.Context, cfg map[string]any, ev Event) erro
 		req.Header.Set("Title", ascii(ev.Title()))
 		req.Header.Set("Priority", ntfyPriority(ev.Priority))
 		req.Header.Set("Tags", strings.Join(ntfyTags(ev), ","))
+		// One action, and only when the deployment has said where it is reachable (`FEATURES.md`
+		// B10). `clear=true` dismisses the notification once it has been opened, which is the right
+		// behaviour for "I have seen this": the alternative is a tray that accumulates alerts the
+		// user has already dealt with.
+		if link := ev.Link(); link != "" {
+			label := "Open dashboard"
+			if ev.Serial != "" {
+				label = "Open drive"
+			}
+			req.Header.Set("Actions", fmt.Sprintf("view, %s, %s, clear=true", label, link))
+		}
 		if token != "" {
 			req.Header.Set("Authorization", "Bearer "+token)
 		}

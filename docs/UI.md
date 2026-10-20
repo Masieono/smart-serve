@@ -205,6 +205,16 @@ picker offers exactly `ThemeNames`.
   a fleet — with one drive the export is the single-drive report with fewer columns, and that report
   is better for the one thing a lone drive needs. They sit in the controls row for the same reason:
   it is the row that appears when there is a fleet to control.
+- **Alert acknowledgement** (`FEATURES.md` B7): a **Notes**-row **Acknowledge** control on a drive's
+  page, with a note saying why. It silences the alerts for that condition and leaves the verdict
+  alone — the drive still reads as caution, because it is caution — and it is **spent the moment the
+  verdict moves**, so it can never hide a drive getting worse. The verdict card says outright that the
+  condition is acknowledged, with the note and when; without that the reader would conclude the app
+  had lost the alert. A drive that vanishes and a self-test you asked for still alert: an
+  acknowledgement covers a condition, not a drive.
+- **Action buttons on notifications** (`FEATURES.md` B10): ntfy notifications carry an "Open drive" /
+  "Open dashboard" button, from a new **Public URL** setting. Empty means no button — the app cannot
+  know its own external address, and a wrong link is worse than none.
 - **Heating together** (`FEATURES.md` A25): a card that appears only when a group is actually moving,
   the same rule as the other two. One block per group, each naming the group, the ratio (`3 of 4
   drives`), the shared rise and the hottest current reading, with the drives as links to their pages.
