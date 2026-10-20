@@ -7,11 +7,27 @@
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { installStubDom } from './stub-dom.mjs';
+import { installStubDom, StubNode } from './stub-dom.mjs';
 
 installStubDom();
 
-const { visibleDevices, groupByTag, exportLinks } = await import('../assets/js/views/dashboard.js');
+const { visibleDevices, groupByTag, exportLinks, benchSession } =
+  await import('../assets/js/views/dashboard.js');
+
+/** Every string in a subtree, in document order. */
+function textOf(node) {
+  const out = [];
+  const walk = (n) => {
+    for (const child of n.childNodes) {
+      if (!(child instanceof StubNode)) continue;
+      if (child.tagName === '#TEXT') out.push(child.data);
+      else if (child.textContent) out.push(child.textContent);
+      walk(child);
+    }
+  };
+  walk(node);
+  return out.join(' | ');
+}
 
 /** A device payload carrying the fields the sort and filter rules read. */
 function drive(overrides = {}) {
@@ -246,4 +262,46 @@ test('the fleet export is two download links, one per format', () => {
 test('a lone drive gets no fleet export', () => {
   assert.deepEqual(exportLinks(1), []);
   assert.deepEqual(exportLinks(0), []);
+});
+
+// The bench filter (`FEATURES.md` D11) reads the server's `on_bench` flag rather than the tag string,
+// so the UI never has to know the tag's name or split a tag list the way the grouping does.
+test('the bench filter uses the server flag, not the tag string', () => {
+  const all = [
+    drive({ serial: 'in-service' }),
+    drive({ serial: 'on-bench', on_bench: true, tags: 'Bench, spare' }),
+  ];
+
+  assert.deepEqual(visibleDevices(all, { benchOnly: true }).map((d) => d.serial), ['on-bench']);
+  assert.deepEqual(visibleDevices(all).map((d) => d.serial).sort(), ['in-service', 'on-bench']);
+});
+
+// The testing session card (`FEATURES.md` D11).
+//
+// Absent when the bench is empty — a panel that is always present stops being read — and when present
+// it lists every drive in the batch rather than a shortlist: the session *is* the batch, so
+// truncating it would be answering a different question.
+test('the testing session lists the whole batch and offers its verbs', () => {
+  assert.equal(benchSession([], {}, 'bench'), null);
+
+  const bench = [
+    drive({ serial: 'b1', name: 'spare-1', on_bench: true, tags: 'bench' }),
+    drive({ serial: 'b2', name: 'spare-2', on_bench: true, tags: 'bench' }),
+  ];
+  const card = benchSession(bench, { openDevice: () => {} }, 'bench');
+
+  const text = textOf(card);
+  assert.match(text, /Testing session/);
+  assert.match(text, /2 drives tagged bench/);
+  for (const name of ['spare-1', 'spare-2']) assert.ok(text.includes(name), `missing ${name}`);
+
+  // The batch's own sheet, scoped by tag: it cannot be the whole fleet's file under another name.
+  const link = card.all('a')[0];
+  assert.equal(link.getAttribute('href'), '/api/devices/export?format=csv&tag=bench');
+  assert.equal(link.getAttribute('download'), 'smart-serve-fleet-bench.csv');
+
+  // Every verb the batch needs is reachable from the card.
+  for (const label of ['Test all', 'Export batch', 'Forget all']) {
+    assert.ok(text.includes(label), `missing ${label}`);
+  }
 });

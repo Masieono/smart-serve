@@ -1,7 +1,7 @@
 // Dashboard: device cards, health summary, scan button (docs/UI.md §7.1).
 import { el, mount, fmtAgo } from '../dom.js';
 import { api } from '../api.js';
-import { deviceCard, fleetTable, deviceTitle, countText, healthFilter, emptyState, skeletonCards, errorBox, transportLabel } from '../components.js';
+import { deviceCard, fleetTable, deviceTitle, countText, healthFilter, emptyState, skeletonCards, errorBox, transportLabel, toast, confirmDialog } from '../components.js';
 import { icon } from '../icons.js';
 
 // Module-level so the choices survive navigating into a drive and back.
@@ -13,6 +13,7 @@ let sortKey = 'health';
 let ascending = true;
 let view = 'cards';
 let grouped = false;
+let benchOnly = false;
 
 // Worst first. The rank is what makes "sort by risk" mean something: the server's own ORDER BY
 // uses the same order, and this is the client's copy of it for the sorts below.
@@ -159,6 +160,144 @@ export function exportLinks(deviceCount) {
 }
 
 /**
+ * The testing session (`FEATURES.md` D11), or null when nothing is on the bench.
+ *
+ * A drive tagged `bench` is being evaluated rather than used, so the app leaves it out of the health
+ * counts and out of the replace-first ranking — a batch of failing bench drives would otherwise
+ * dominate both with drives you already know about, and a bench drive failing is a **result** rather
+ * than an alarm. The card exists so that exclusion is not silent: it says what is on the bench and
+ * what is being left out, and it is where the batch's verbs live.
+ *
+ * Rendered only when the bench is not empty, the same rule as the replace-first shortlist. A panel
+ * that is always present stops being read.
+ *
+ * The batch verbs are here rather than on a tag-group heading because grouping is drawn two
+ * different ways — card headings and a table separator row — and putting three buttons in a table
+ * cell to keep the two views level is worse than having one place for them.
+ *
+ * `benchTag` is passed in rather than hard-coded: the server owns which tag means "on the bench", and
+ * sends it with the device list.
+ */
+export function benchSession(bench, ctx, benchTag) {
+  if (!bench.length) return null;
+
+  return el('div', { class: 'card stack bench-session' }, [
+    el('div', { class: 'row' }, [
+      el('h2', { text: 'Testing session' }),
+      el('span', { class: 'spacer' }),
+      el('span', { class: 'muted', text: 'left out of the fleet counts' }),
+    ]),
+    el('p', { class: 'muted', text: `${countText(bench.length)} tagged ${benchTag}. They are listed ` +
+      'and exported like any other drive, but left out of the health counts above and out of the ' +
+      'replace-first ranking: a drive being tested failing is a result, not an alarm.' }),
+    el('ul', { class: 'bench-list' }, bench.map((d) => el('li', {}, [
+      el('button', {
+        class: 'link', type: 'button', onclick: () => ctx.openDevice(d.serial),
+      }, [deviceTitle(d)]),
+      el('span', { class: 'muted', text: [d.bay, d.model].filter(Boolean).join(' · ') }),
+    ]))),
+    el('div', { class: 'row bench-actions' }, [
+      el('button', {
+        class: 'btn btn-sm',
+        type: 'button',
+        title: 'Start a short self-test on every drive in the batch',
+        onclick: (e) => testAll(bench, ctx, e.currentTarget),
+      }, ['Test all']),
+      // An anchor with `download`, like every other export: this is a file to keep.
+      el('a', {
+        class: 'btn btn-sm',
+        href: api.fleetExportUrl('csv', benchTag),
+        download: `smart-serve-fleet-${benchTag}.csv`,
+        title: 'One spreadsheet row per drive in the batch, for an RMA or a purchase decision',
+      }, [icon('download'), 'Export batch']),
+      el('button', {
+        class: 'btn btn-sm',
+        type: 'button',
+        title: 'Forget every drive in the batch, once they have been reported',
+        onclick: (e) => forgetAll(bench, ctx, e.currentTarget),
+      }, ['Forget all']),
+    ]),
+  ]);
+}
+
+/**
+ * Start a short self-test on every drive in the batch.
+ *
+ * Sequential, and a failure is counted rather than thrown. One drive that cannot be tested must not
+ * abandon the rest of the batch, and eight concurrent `smartctl` calls against one host is a
+ * stampede for no gain — the drives take hours either way.
+ *
+ * Confirmed first, because a self-test is the only thing this app does that writes to a drive
+ * (`A19`), and doing it to a whole batch at once is exactly the kind of action that should be
+ * deliberate.
+ */
+async function testAll(bench, ctx, button) {
+  const ok = await confirmDialog('Test the whole batch',
+    `Start a short self-test on ${countText(bench.length)}? Each drive will be busy for a few ` +
+    'minutes, and the results appear on the drive pages.', 'Test all');
+  if (!ok) return;
+
+  button.disabled = true;
+  let started = 0;
+  const failed = [];
+  for (const d of bench) {
+    try {
+      await api.startSelfTest(d.serial, 'short');
+      started += 1;
+    } catch (err) {
+      failed.push(`${deviceTitle(d)}: ${err.message}`);
+    }
+  }
+  button.disabled = false;
+
+  if (failed.length) {
+    // Named rather than counted: "2 of 6 failed" tells you nothing about which two to go and look at.
+    toast(`Started ${started} of ${bench.length}. ${failed.join('; ')}`, 'error');
+  } else {
+    toast(`Short self-test started on ${countText(started)}`, 'good');
+  }
+  ctx.refresh();
+}
+
+/**
+ * Forget every drive in the batch (`FEATURES.md` D4, batch form).
+ *
+ * One confirmation for the batch rather than one per drive, and the serials are listed in it — this
+ * is the only irreversible action in the app, so the dialog has to be specific about what goes.
+ *
+ * Driven from the client rather than a bulk endpoint on purpose: a request that deletes every drive
+ * matching a tag is one mis-click away from clearing the fleet, and a loop reports partial failure
+ * honestly instead of pretending the batch was atomic.
+ */
+async function forgetAll(bench, ctx, button) {
+  const names = bench.map((d) => d.name || d.serial).join(', ');
+  const ok = await confirmDialog('Forget the whole batch',
+    `This removes ${countText(bench.length)} — ${names} — with their history and notes. A scan will ` +
+    'not bring them back unless they are connected again. This cannot be undone.', 'Forget all');
+  if (!ok) return;
+
+  button.disabled = true;
+  let gone = 0;
+  const failed = [];
+  for (const d of bench) {
+    try {
+      await api.forgetDevice(d.serial);
+      gone += 1;
+    } catch (err) {
+      failed.push(`${deviceTitle(d)}: ${err.message}`);
+    }
+  }
+  button.disabled = false;
+
+  if (failed.length) {
+    toast(`Forgot ${gone} of ${bench.length}. ${failed.join('; ')}`, 'error');
+  } else {
+    toast(`Forgot ${countText(gone)}`, 'good');
+  }
+  ctx.refresh();
+}
+
+/**
  * Split the visible drives into tag groups (`FEATURES.md` D9).
  *
  * A drive appears under **each** of its tags. The alternative — first tag wins — silently drops a
@@ -207,6 +346,7 @@ export function groupByTag(shown) {
 export function visibleDevices(all, opts = {}) {
   const {
     health = null, query = '', transport = '', showMissing = false, sortKey = 'health',
+    benchOnly = false,
   } = opts;
 
   const spec = SORTS.find((s) => s.key === sortKey) || SORTS[0];
@@ -223,6 +363,9 @@ export function visibleDevices(all, opts = {}) {
   const shown = pool.filter((d) => {
     if (transport && (d.transport || '') !== transport) return false;
     if (health && d.health !== health) return false;
+    // `on_bench` is the server's reading of the bench tag (`FEATURES.md` D11), so this filter never
+    // has to know the tag's name — or split a tag string the way the grouping does.
+    if (benchOnly && !d.on_bench) return false;
     if (!needle) return true;
     // Bay is searchable, because hunting a drive by where it physically is is the whole point of
     // recording one.
@@ -250,8 +393,18 @@ function draw(container, ctx, data) {
   const connected = all.filter((d) => !d.is_missing);
   const missing = all.filter((d) => d.is_missing);
 
+  // A drive on the bench is being evaluated rather than used (`FEATURES.md` D11), so it is left out
+  // of the counts and out of the replace-first ranking the server sends. Stated below rather than
+  // silent: the counts are what you glance at, and a number that quietly excluded drives would be
+  // worse than one that is slightly too alarming.
+  const bench = connected.filter((d) => d.on_bench);
+  const inFleet = connected.filter((d) => !d.on_bench);
+  // The tag the server treats as the bench. Read from the payload rather than hard-coded, so the two
+  // cannot drift about which drives are on the bench.
+  const benchTag = data.bench_tag || 'bench';
+
   const counts = { good: 0, caution: 0, bad: 0, unknown: 0 };
-  for (const d of connected) counts[d.health] = (counts[d.health] || 0) + 1;
+  for (const d of inFleet) counts[d.health] = (counts[d.health] || 0) + 1;
 
   const search = el('input', {
     type: 'search',
@@ -356,6 +509,20 @@ function draw(container, ctx, data) {
             showMissing ? `Hide ${missing.length} disconnected` : `Show ${missing.length} disconnected`,
           ])
         : null,
+      // A filter, not a toggle: bench drives are always listed. This is how you look at the batch on
+      // its own without grouping, and it is also the answer to "why do the counts not add up?".
+      bench.length
+        ? el('button', {
+            class: 'btn btn-sm',
+            type: 'button',
+            'aria-pressed': benchOnly ? 'true' : 'false',
+            title: `Show only the drives tagged ${benchTag}, which are being tested rather than used`,
+            onclick: () => {
+              benchOnly = !benchOnly;
+              draw(container, ctx, data);
+            },
+          }, [`Bench only (${bench.length})`])
+        : null,
     ]),
     // Sorting and filtering one drive is meaningless, so the row is only drawn when there is a
     // choice to make.
@@ -394,6 +561,13 @@ function draw(container, ctx, data) {
       ? el('div', { class: 'devices-head-sub muted', text: 'A drive with more than one tag appears ' +
           'under each of them, so the group counts can add up to more than the fleet size.' })
       : null,
+    // The same rule as the line above: the counts above describe the fleet, and a reader who adds
+    // them up and gets a number smaller than the list is owed the reason.
+    bench.length
+      ? el('div', { class: 'devices-head-sub muted', text: `${countText(bench.length)} are tagged ` +
+          `${benchTag} and left out of those counts — a drive being tested failing is a result ` +
+          'rather than an alarm. They are still listed below and still in every export.' })
+      : null,
     el('div', { class: 'devices-head-sub muted', text: 'Rescan a single drive from its card. Open a ' +
       'drive that is no longer connected to forget it entirely.' }),
   ]);
@@ -412,7 +586,7 @@ function draw(container, ctx, data) {
 
   function paint() {
     const shown = visibleDevices(all, {
-      health: filter, query, transport: transportFilter, showMissing, sortKey, ascending,
+      health: filter, query, transport: transportFilter, showMissing, sortKey, ascending, benchOnly,
     });
     const groups = grouped && shown.length ? groupByTag(shown) : null;
 
@@ -459,6 +633,6 @@ function draw(container, ctx, data) {
   }
   paint();
 
-  mount(container, head, replaceFirstCard(data.ranking, ctx), grid);
+  mount(container, head, benchSession(bench, ctx, benchTag), replaceFirstCard(data.ranking, ctx), grid);
 }
 

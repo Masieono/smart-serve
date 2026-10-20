@@ -11,6 +11,15 @@ stopped from the device page.
 
 ### Added
 
+- **Testing session (`D11`)** — the `bench` tag *is* the session: no mode, no new column, no new
+  control. A drive tagged `bench` is being evaluated rather than used, so it is left out of the
+  health counts and out of the replace-first ranking while staying listed, searchable and in every
+  export. Without that, a batch of drives you already expect to fail would dominate the ranking above
+  the drive in service that is actually failing. The exclusion is **stated on screen**, not silent. A
+  card appears while the bench is not empty and carries the batch's verbs — **Test all**, **Export
+  batch** (the fleet CSV scoped to the tag) and **Forget all** — and a **Bench only** control filters
+  the list to the batch. Which tag means "on the bench" is the server's contract, sent to the UI
+  rather than hard-coded in it.
 - **Fleet-wide export (`A23`)** — the whole fleet as one file, from two links on the dashboard: a
   **CSV** with one row per drive, which is what you sort when planning a purchase, and a
   **printable page**, which is what you attach when several drives are going back at once. Both

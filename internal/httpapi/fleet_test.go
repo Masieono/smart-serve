@@ -220,3 +220,81 @@ func TestTheExportRouteDoesNotShadowDeviceRoutes(t *testing.T) {
 		}
 	}
 }
+
+// The batch's own file (`FEATURES.md` D11). A scope the caller asked for, which is the only reason it
+// can exist beside the rule that the export ignores the dashboard's filter: view state the caller did
+// not ask for is a different thing from a parameter they did.
+func TestTheExportCanBeScopedToATag(t *testing.T) {
+	srv, st, _, _ := newTestServer(t, Options{})
+	do(t, srv, http.MethodPost, "/api/scan?wait=1", "", nil)
+	if err := st.SetNotes(context.Background(), store.Notes{Serial: "S1", Tags: "bench, spare"}); err != nil {
+		t.Fatalf("SetNotes: %v", err)
+	}
+
+	rec := do(t, srv, http.MethodGet, "/api/devices/export?tag=spare", "", nil)
+	header, rows := fleetCSV(t, rec.Body.String())
+	if len(rows) != 1 {
+		t.Fatalf("got %d rows, want the one tagged drive", len(rows))
+	}
+	if got := cell(t, header, rows[0], "Serial"); got != "S1" {
+		t.Errorf("serial = %q", got)
+	}
+	// The filename carries the scope, because the filename is what the file is called in the folder
+	// it is saved to: a batch's sheet and the whole fleet's must not land on top of each other.
+	if cd := rec.Header().Get("Content-Disposition"); !strings.Contains(cd, "spare") {
+		t.Errorf("content disposition = %q, want the tag in the filename", cd)
+	}
+
+	// Case-insensitively, because the tag was typed by hand and the filter should match the way the
+	// grouping does.
+	rec = do(t, srv, http.MethodGet, "/api/devices/export?tag=SPARE", "", nil)
+	if _, rows := fleetCSV(t, rec.Body.String()); len(rows) != 1 {
+		t.Errorf("got %d rows for a tag in the wrong case", len(rows))
+	}
+
+	// A tag nothing carries is an empty sheet, not an error: "the batch is empty" is a real answer,
+	// and a 404 would send the reader looking for a fault that is not there.
+	rec = do(t, srv, http.MethodGet, "/api/devices/export?tag=nope", "", nil)
+	if rec.Code != http.StatusOK {
+		t.Errorf("status = %d for a tag nothing carries, want 200", rec.Code)
+	}
+	if _, rows := fleetCSV(t, rec.Body.String()); len(rows) != 0 {
+		t.Errorf("got %d rows for a tag nothing carries", len(rows))
+	}
+}
+
+// A drive on the bench is being evaluated, not used (`FEATURES.md` D11). Ranking it would put a drive
+// that is *expected* to fail above one in service that is actually failing — the same mistake the
+// disconnected rule avoids, in the other direction.
+func TestABenchDriveIsListedButNotRanked(t *testing.T) {
+	srv, st, _, _ := newTestServer(t, Options{})
+	do(t, srv, http.MethodPost, "/api/scan?wait=1", "", nil)
+	if err := st.SetNotes(context.Background(), store.Notes{Serial: "S1", Tags: "Bench"}); err != nil {
+		t.Fatalf("SetNotes: %v", err)
+	}
+
+	var body struct {
+		Devices  []deviceJSON             `json:"devices"`
+		Ranking  []interp.ReplacementRank `json:"ranking"`
+		BenchTag string                   `json:"bench_tag"`
+	}
+	decodeBody(t, do(t, srv, http.MethodGet, "/api/devices", "", nil), &body)
+
+	if len(body.Devices) != 1 {
+		t.Fatalf("got %d devices, want the bench drive still listed", len(body.Devices))
+	}
+	// The server decides which drives are on the bench, so the UI never has to know the tag's name —
+	// or split a tag string the way the grouping does.
+	if !body.Devices[0].OnBench {
+		t.Error("on_bench is not set for a drive tagged Bench")
+	}
+	if body.BenchTag != store.BenchTag {
+		t.Errorf("bench_tag = %q, want %q", body.BenchTag, store.BenchTag)
+	}
+	// Healthy, so it would otherwise be ranked "fine" and appear in the shortlist's data.
+	for _, r := range body.Ranking {
+		if r.Serial == "S1" {
+			t.Errorf("the bench drive is in the ranking: %+v", r)
+		}
+	}
+}

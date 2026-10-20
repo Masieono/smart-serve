@@ -80,7 +80,11 @@ export const api = {
 
   // The fleet export (FEATURES.md A23). A URL for the same reason as the config export: it is a
   // file to keep, and the browser's own save dialog is the right one to put it somewhere.
-  fleetExportUrl: (format = 'csv') => appPath(`/api/devices/export?format=${format}`),
+  //
+  // `tag` narrows it to one tag, which is how a bench batch gets its own sheet (FEATURES.md D11).
+  // It is a scope the caller asked for, unlike the dashboard's filter, which the export ignores.
+  fleetExportUrl: (format = 'csv', tag = '') =>
+    appPath(`/api/devices/export?format=${format}${tag ? `&tag=${encodeURIComponent(tag)}` : ''}`),
 
   // Self-tests (FEATURES.md A19). The GET reads the drive live rather than from the stored
   // document, because progress exists nowhere else; the POSTs are the only requests in this

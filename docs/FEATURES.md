@@ -290,7 +290,35 @@ as a bare list entry.
   is deliberately left out: it is a finding of its own, and ranking it would put a backup
   drive someone unplugged on purpose above a drive that is actually failing.
 - **Bench work is the second use case** (`D11`). Testing a batch of drives you do not want
-  in your permanent fleet: label them, test them, export the reports, forget them.
+  in your permanent fleet: label them, test them, export the reports, forget them. **Built**,
+  and the design is that **the tag *is* the session** — no mode, no new column, no new
+  control. The feature's own words are "label, test and report a batch", and a tag already
+  does all three: it groups (`D9`), it survives an unplug, and it exports and imports
+  (`C7`). What the tag *means* is the app's contract with the user, so it is named once
+  (`store.BenchTag`) and **the server decides** which drives are on the bench — sent per
+  drive as `on_bench` and once as `bench_tag` — so the UI never has to know the name or
+  split a tag string the way the grouping does.
+
+  What the tag changes is **the aggregates, not the list**: a bench drive is left out of the
+  health counts and out of the replace-first ranking, and stays listed, searchable and in
+  every export. Being out of the summary is not the same as being hidden — and without the
+  exclusion a batch of five drives you already expect to fail would dominate the ranking
+  above the drive in service that is actually failing. The exclusion is **stated rather than
+  silent** ("6 are tagged bench and left out of those counts"), because a reader who adds the
+  counts up and gets a number smaller than the list is owed the reason; that is the same rule
+  as the disconnected toggle and the group-count note.
+
+  The batch's verbs — **Test all**, **Export batch**, **Forget all** — live on one card that
+  appears only when the bench is non-empty, the same rule as the replace-first shortlist.
+  Not on tag-group headings, which are drawn two different ways (card headings and a table
+  separator row), and putting three buttons in a table cell to keep the two views level is
+  worse than having one place for them. Two smaller decisions: the batch forget is a **client
+  loop**, not an endpoint, because a request that deletes every drive matching a tag is one
+  mis-click from clearing the fleet and a loop can report partial failure honestly; and the
+  export takes **`?tag=`**, so the batch gets its own sheet — a *deliberate* scope, which is
+  the only reason it can exist beside the rule that the export ignores the dashboard's
+  filter, since view state the caller did not ask for is a different thing from a parameter
+  they did.
 - **Evidence is cheap** (`A27`). The report export already exists; saying on it that it is
   warranty/RMA evidence costs almost nothing and is the whole reason some people run a
   scan at all. **Built**, and it turned out to be worth more than the sentence: the default
@@ -407,7 +435,7 @@ and all of them still hold.
 | D8 | Dense fleet table view (one row per drive, sortable by risk) | P2 | 💤 | **done** — a Cards/Table switch on the dashboard; the table carries bay, verdict, score, transport, model, capacity, temperature, age and last scan, with sortable headers. See `UI.md` §7.1 |
 | D9 | Device grouping by tag/pool, dashboard grouped | P2 | 💤 | **done** — a "Group by tag" toggle, offered only when something is tagged. A drive with several tags appears under each of them. See below |
 | D10 | Bay/slot field (physical location on the card and in the report) | P2 | 💤 | **done** — a free-text `bay` in the device's notes, shown first on the card and in the report. See below |
-| D11 | Testing session (label, test and report a batch of bench drives without polluting the fleet) | P3 | 💤 | `D4`'s *forget* already covers the single-drive version of this |
+| D11 | Testing session (label, test and report a batch of bench drives without polluting the fleet) | P3 | 💤 | **done** — the `bench` tag *is* the session. The batch is left out of the health counts and the replace-first ranking, and gets Test all / Export batch / Forget all. See below |
 
 ## E. Idle-cost guardrails (rules for accepting any new feature)
 

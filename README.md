@@ -153,6 +153,8 @@ alert.
 - [x] Multi-format report export (`txt` / `html` / `csv` / `json`), saying what it is for and
       naming the evidence for a warranty claim (`A27`) — unit-tested
 - [x] Fleet-wide export as one CSV or one printable page (`A23`) — unit-tested
+- [x] Testing session: tag a batch of bench drives, test them, export the batch, forget them
+      (`D11`) — unit-tested
 - [x] Dockerfile, docker-compose (prod + dev), GitHub Actions CI
 - [x] Docker device-access validation on real hardware — a native NVMe, a USB-attached
       NVMe, and a USB-attached SATA SSD all read correctly; a drive with no S.M.A.R.T.

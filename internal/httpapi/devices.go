@@ -57,6 +57,10 @@ type deviceJSON struct {
 	Notes  string `json:"notes"`
 	Tags   string `json:"tags"`
 	Hidden bool   `json:"hidden"`
+	// OnBench is the server's reading of the bench tag (`FEATURES.md` D11), so the UI never has to
+	// know the tag's name. Derived from Tags rather than stored: the tag is the source of truth, and
+	// a second column could disagree with it.
+	OnBench bool `json:"on_bench,omitempty"`
 	// Bay is where the drive physically is, so a card can answer "which one do I pull?" without
 	// the reader matching serials against a spreadsheet.
 	Bay       string  `json:"bay,omitempty"`
@@ -103,6 +107,7 @@ func toDeviceJSON(d store.DeviceRecord) deviceJSON {
 		Notes:           d.Notes,
 		Tags:            d.Tags,
 		Hidden:          d.Hidden,
+		OnBench:         store.HasTag(d.Tags, store.BenchTag),
 		Bay:             d.Bay,
 		FirstSeen:       rfc3339(d.FirstSeen),
 		LastSeen:        rfc3339(d.LastSeen),
@@ -152,6 +157,10 @@ func (s *Server) handleListDevices(w http.ResponseWriter, r *http.Request) {
 		// cannot disagree about a drive.
 		"ranking":      ranking,
 		"last_scan_ts": s.lastScanTime(r.Context()),
+		// The tag this app treats as "on the bench" (`FEATURES.md` D11), sent rather than hard-coded
+		// in the UI for the same reason the verdict is: the contract lives on the server, so the two
+		// cannot drift into disagreeing about which drives are on the bench.
+		"bench_tag": store.BenchTag,
 	})
 }
 
@@ -207,6 +216,12 @@ func replacementCandidates(devices []deviceJSON) []interp.ReplacementCandidate {
 	out := make([]interp.ReplacementCandidate, 0, len(devices))
 	for _, d := range devices {
 		if d.IsMissing {
+			continue
+		}
+		// A drive on the bench is being evaluated, not used (`FEATURES.md` D11). Ranking it would
+		// put a drive that is *expected* to fail above one in service that is actually failing —
+		// which is the same mistake the disconnected rule below avoids, in the other direction.
+		if d.OnBench {
 			continue
 		}
 		var worsening int64

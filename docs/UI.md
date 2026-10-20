@@ -205,6 +205,20 @@ picker offers exactly `ThemeNames`.
   a fleet — with one drive the export is the single-drive report with fewer columns, and that report
   is better for the one thing a lone drive needs. They sit in the controls row for the same reason:
   it is the row that appears when there is a fleet to control.
+- **Testing session** (`FEATURES.md` D11): a card that appears only when a drive carries the `bench`
+  tag, the same rule as the replace-first shortlist — a panel that is always present stops being read.
+  It names every drive in the batch (the session *is* the batch, so a shortlist of it would be
+  answering a different question) and carries the batch's three verbs: **Test all** (short self-tests,
+  sequential, confirmed first because a self-test is the only thing this app does that writes to a
+  drive), **Export batch** (the fleet CSV scoped to the tag, so the batch gets its own sheet), and
+  **Forget all** (one confirmation listing the drives, then a client-side loop, because a request
+  that deletes every drive matching a tag is one mis-click from clearing the fleet). Partial failures
+  are named per drive — "2 of 6 failed" tells you nothing about which two to go and look at.
+- **Bench drives and the counts:** they are left out of the health summary, and the head says so
+  ("6 are tagged bench and left out of those counts"), because a reader who adds the counts up and
+  gets a number smaller than the list is owed the reason. They are **not** hidden: they stay in the
+  list, in the search and in every export, and a **Bench only (6)** control filters the list to them
+  without turning on grouping.
 - **Disconnected:** a drive absent from the latest scan keeps its record — its notes
   and history must survive an unplug — but is flagged `is_missing`. Those cards are
   hidden by default; a **Show N disconnected** toggle reveals them, dimmed and

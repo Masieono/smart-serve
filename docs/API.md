@@ -42,7 +42,9 @@ manual one does not (the operator who pressed the button already knows).
       "name": "boot",
       "bay": "bay 4",
       "notes": null,
+      "tags": "tank, media",
       "hidden": false,
+      "on_bench": false,
       "mountpoints": ["/"],
       "fstype": "ext4",
       "fs_version": "1.0",
@@ -52,9 +54,21 @@ manual one does not (the operator who pressed the button already knows).
       "is_missing": false
     }
   ],
+  "ranking": [{ "serial": "S5GXNX0R512345J", "band": "watch", "reasons": ["5 pending sectors"] }],
+  "bench_tag": "bench",
   "last_scan_ts": 1730000000000
 }
 ```
+
+`ranking` is the replace-first shortlist (`FEATURES.md` A24), and `bench_tag` names the tag this
+app treats as "on the bench" (`D11`). Both are sent rather than derived by the client, so the UI
+cannot disagree with the server about which drive to buy or which drive is being tested.
+
+`on_bench` is the server's reading of that tag for one drive, so a client never has to know the
+tag's name or split a tag string the way the grouping does. It is derived from `tags` on every
+request rather than stored, because the tag is the source of truth and a second column could
+disagree with it. A bench drive is left out of `ranking` and out of the health counts the UI
+derives; it is **never** left out of this list or of an export.
 
 `mountpoints` / `fstype` are aggregated from the disk **and its partitions**: on Linux a
 whole-disk node (`/dev/nvme0n1`) is never itself mounted, so a disk whose partitions are
@@ -441,8 +455,8 @@ stop demanding a value that is never going to be typed into the form (`ADR-022`)
   different set of attributes, or read the same value differently, than the verdict did. A
   group with nothing in it is omitted, because "nothing here" and "we did not look" are
   different findings.
-- `GET /api/devices/export?format=csv|html` — the whole fleet as one file
-  (`FEATURES.md` A23), served as a download named `smart-serve-fleet-<date>.<ext>`.
+- `GET /api/devices/export?format=csv|html&tag=<tag>` — the whole fleet as one file
+  (`FEATURES.md` A23), served as a download named `smart-serve-fleet[-<tag>]-<date>.<ext>`.
   **One row per drive, not one row per attribute**: a spreadsheet's job here is to compare
   drives with each other, and the per-attribute sheet is the report above. Both formats
   render from the same column list and the same rows the dashboard shows, through the same
@@ -466,6 +480,13 @@ stop demanding a value that is never going to be typed into the form (`ADR-022`)
   fine, now, soon, watch. Disconnected drives are listed, unranked, and last: the ranking
   excludes them by design, and their `Replace` cell is **empty rather than `fine`**, because
   `fine` is a claim the ranking did not make about them.
+
+  `tag` is the one scope, and it is a **deliberate** one: a request that says "the batch" is
+  not the same as view state the caller did not ask for and would not notice. It is how a
+  bench batch gets its own sheet (`D11`), matched case-insensitively and by whole tag, so
+  `benchtop` is not `bench`. A tag nothing carries is an empty sheet rather than a `404`:
+  "the batch is empty" is a real answer, and a `404` would send the reader looking for a
+  fault that is not there.
 
   The route shadows a device whose serial is literally `export`. Go's mux resolves a literal
   segment ahead of a wildcard, so the only cost is that such a serial is unreachable, and no

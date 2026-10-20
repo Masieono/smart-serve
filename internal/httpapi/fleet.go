@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/masieono/smart-serve/internal/interp"
+	"github.com/masieono/smart-serve/internal/store"
 )
 
 // fleetPurpose is what the fleet export is for (`FEATURES.md` A23).
@@ -46,21 +47,59 @@ func (s *Server) handleExportFleet(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, "export fleet", err)
 		return
 	}
+
+	// The filename carries the scope, because the filename is what the file is called in the folder
+	// it is saved to: a batch's sheet and the whole fleet's must not land on top of each other.
+	name := "smart-serve-fleet"
+	if tag := strings.TrimSpace(r.URL.Query().Get("tag")); tag != "" {
+		devices, ranks = withTag(devices, ranks, tag)
+		name += "-" + safeFilename(tag)
+	}
+
 	rows := fleetRows(devices, ranks)
 	stamp := time.Now().UTC().Format("2006-01-02")
 
 	switch format := r.URL.Query().Get("format"); format {
 	case "", "csv":
-		downloadAs(w, "text/csv; charset=utf-8", "smart-serve-fleet-"+stamp+".csv")
+		downloadAs(w, "text/csv; charset=utf-8", name+"-"+stamp+".csv")
 		_, _ = fmt.Fprint(w, renderFleetCSV(rows))
 	case "html":
-		downloadAs(w, "text/html; charset=utf-8", "smart-serve-fleet-"+stamp+".html")
+		downloadAs(w, "text/html; charset=utf-8", name+"-"+stamp+".html")
 		_, _ = fmt.Fprint(w, renderFleetHTML(rows, stamp))
 	default:
 		// No `json`. `/api/devices` already is the JSON, and a second shape would be a second thing
 		// to keep in step for no reader who wants it.
 		writeError(w, http.StatusBadRequest, "unsupported format (want csv or html)")
 	}
+}
+
+// withTag narrows the export to the drives carrying one tag (`FEATURES.md` D11).
+//
+// This is the batch's own file. "Report the batch" needs one artefact, and the alternative is
+// exporting the whole fleet and filtering by the Tags column in the spreadsheet.
+//
+// A **deliberate** scope, which is the only reason it can exist at all beside the rule that the
+// export ignores the dashboard's filter. The two are different things: one is the caller asking for
+// a subset, the other is view state the caller did not ask for and would not notice. The ranking is
+// filtered with the devices rather than recomputed, so the batch keeps the order the fleet had.
+func withTag(devices []deviceJSON, ranks []interp.ReplacementRank, tag string) ([]deviceJSON, []interp.ReplacementRank) {
+	kept := make([]deviceJSON, 0, len(devices))
+	inScope := make(map[string]bool, len(devices))
+	for _, d := range devices {
+		if !store.HasTag(d.Tags, tag) {
+			continue
+		}
+		kept = append(kept, d)
+		inScope[d.Serial] = true
+	}
+
+	keptRanks := make([]interp.ReplacementRank, 0, len(ranks))
+	for _, rank := range ranks {
+		if inScope[rank.Serial] {
+			keptRanks = append(keptRanks, rank)
+		}
+	}
+	return kept, keptRanks
 }
 
 // fleetRows pairs the list payloads with the ranking and puts them in the ranking's own order.
