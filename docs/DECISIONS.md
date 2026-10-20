@@ -653,7 +653,13 @@ here rather than remembered.
 5. **`C6` Prometheus: build it, off by default.** The owner does not run Prometheus but recognises
    that plenty do. A scrape endpoint does not violate the zero-idle-cost invariant, since nothing
    on this side polls; it is still opt-in, because enabling it invites someone else's scraper to
-   poll this app, and that is the owner's decision rather than a default.
+   poll this app, and that is the owner's decision rather than a default. **Built**, with two
+   details worth recording. A disabled endpoint answers **404 rather than 403**, because the honest
+   answer to "is this feature on?" is "it is not here" and a 403 would advertise an endpoint the
+   operator did not enable. And the exposition format is **written by hand**: it is four rules and a
+   handful of escaping, this is six metrics, and `prometheus/client_golang` would multiply a
+   dependency tree that currently holds exactly one module — which is a feature of this project
+   (`ADR-020`), not an accident.
 
 **`D7` — why localization is deferred.** `D7` is translating the interface into other languages.
 CrystalDiskInfo is popular partly because it is translated, so the case is real. It is deferred for

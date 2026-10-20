@@ -448,7 +448,7 @@ and all of them still hold.
 | C3 | SQLite single-file storage + retention pruning | MVP | 💤 | |
 | C4 | Reverse-proxy auth documented (nginx/Caddy) | MVP | 💤 | |
 | C5 | ~~Built-in single-user basic auth~~ **Not planned** — auth delegated to a reverse proxy (D23) | — | 💤 | |
-| C6 | Prometheus `/metrics` exporter | P3 | ⚠ | **off by default** — scraping invites polling |
+| C6 | Prometheus `/metrics` exporter | P3 | ⚠ | **done** — `GET /metrics` in the exposition format, **off by default** (`prometheus_enabled`). Hand-written rather than with the client library: four rules and six metrics do not justify multiplying a one-module dependency tree. See `API.md` |
 | C7 | Import/export config, notes & labels (JSON) | P2 | 💤 | **done** — one JSON bundle of labels, settings and schedules. Channels are deliberately excluded, because their config holds tokens. See below |
 | C8 | Multi-arch image (amd64 / arm64) | MVP | 💤 | home NAS / Raspberry Pi |
 | C9 | Configurable base path for subpath hosting | MVP | 💤 | `SMARTSERVE_BASE_PATH` (`ADR-015`) |

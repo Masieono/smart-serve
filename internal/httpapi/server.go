@@ -120,6 +120,9 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) routes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /healthz", s.handleHealthz)
+	// The Prometheus exporter (`FEATURES.md` C6). Outside `/api` because that is where a scraper
+	// looks for it, and behind a setting because enabling it invites someone else's poller.
+	mux.HandleFunc("GET /metrics", s.handleMetrics)
 
 	mux.HandleFunc("GET /api/devices", s.handleListDevices)
 	// The fleet export (`FEATURES.md` A23). Registered beside the device routes because that is what

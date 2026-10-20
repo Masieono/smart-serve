@@ -133,6 +133,7 @@ worse than no setting at all.
 | `correlation_min_drives` | `4` | how many drives in one tag group must heat up together before `A25` reports it as one finding about the group. Raise it for a big enclosure: 4 is a sixth of a 24-bay NAS and nearly all of a workstation | `interp` |
 | `correlation_delta_c` | `8` | the temperature **rise** between two readings that counts as a drive having moved. A stopped fan moves a whole chassis well past this; a warm afternoon usually does not | `interp` |
 | `public_url` | `""` | where this app is reachable from outside the host, used for the "Open drive" action button on a notification (`FEATURES.md` B10). Empty means no button — the app cannot know its own external address, and a wrong link is worse than none | `notify` |
+| `prometheus_enabled` | `false` | serve `GET /metrics` (`FEATURES.md` C6). Off by default: the endpoint costs nothing itself, but enabling it invites another service to poll this app, and that is the operator's decision | `httpapi` |
 | `command_timeout_seconds` | `15` | per-`smartctl`/`lsblk` timeout | `scan` (env-seeded) |
 | `missed_run_policy` | `"skip"` | `skip` \| `run_once` | `sched` (env-seeded) |
 | `timezone` | `""` | schedule time zone; empty = container `TZ` (C6) | `sched` |

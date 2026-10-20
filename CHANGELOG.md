@@ -11,6 +11,13 @@ stopped from the device page.
 
 ### Added
 
+- **Prometheus `/metrics` (`C6`)** — an opt-in exporter in the text exposition format: per-drive score,
+  temperature, power-on hours, wear, new sector problems and last verdict as labels, plus fleet counts
+  and the last scan time. **Off by default** (`prometheus_enabled`), and a disabled endpoint answers
+  `404` rather than `403`. A reading the drive did not report **drops the series rather than exporting
+  a zero** — an absent series means "no measurement", which is what Prometheus expects and what the em
+  dash means on screen. Written by hand rather than with the client library: four rules and six metrics
+  do not justify multiplying a dependency tree that holds one module.
 - **Alert acknowledgement (`B7`)** — an **Acknowledge** control on a drive's page silences the alerts
   for a condition the user already knows about, with a note saying why ("RMA raised"), and leaves the
   verdict alone: the drive still reads as caution, because it is caution. What it removes is the

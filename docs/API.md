@@ -314,6 +314,49 @@ stored record. Unset fields are `null`, not omitted — full replace semantics.
 something read from the drive, so it survives an unplug, and it is what the dashboard
 card leads with when it is set (`FEATURES.md` D10).
 
+## Prometheus metrics
+
+- `GET /metrics` — the Prometheus text exposition format (`FEATURES.md` C6). **Off by default**: with
+  `prometheus_enabled` unset or `false` it answers **`404`, not `403`** — the honest answer to "is
+  this feature on?" is "it is not here", and a `403` would advertise an endpoint the operator did not
+  enable.
+
+  The idle-cost argument is not that the handler is expensive — it does no work of its own and runs
+  no timer — but that enabling it invites *someone else's* scraper to poll this app on a schedule.
+
+```text
+smartserve_build_info{version="1.0.2"} 1
+smartserve_device_info{health="caution",model="WDC WD40EFRX",serial="S1",transport="sata"} 1
+smartserve_device_score{serial="S1"} 74
+smartserve_device_temperature_celsius{serial="S1"} 41
+smartserve_device_power_on_hours{serial="S1"} 31603
+smartserve_device_wear_percent{serial="S1"} 94
+smartserve_device_new_sectors{serial="S1"} 7
+smartserve_devices_total 4
+smartserve_devices{health="bad"} 1
+smartserve_devices{health="caution"} 1
+smartserve_devices{health="good"} 2
+smartserve_scan_last_success_timestamp_seconds 1760000000
+```
+
+Three rules shape it, and they are the same three the rest of the app follows.
+
+**A reading the drive did not report drops the series rather than exporting a zero.** A `0` is a
+claim that the drive reported zero; an absent series is "no measurement", which is both what
+Prometheus expects and what the em dash means on screen. A drive that could not be scored has no
+`score` series, and a count that is not moving has no `new_sectors` series.
+
+**Descriptive labels live in one `_info` metric**, with the numeric series keyed by `serial` alone. A
+model, a bay and a tag set are constants per drive, so repeating them across five metrics would
+multiply the series count for nothing.
+
+**Unplugged drives are still described and still counted.** They are part of the inventory, and their
+readings are the last ones anybody saw — the same reason the fleet export includes them.
+
+The format is written by hand rather than with `prometheus/client_golang`: the exposition format is
+four rules and a handful of escaping, this is six metrics, and the library would multiply a dependency
+tree that currently holds exactly one module (`ADR-020`).
+
 ## Import and export
 
 - `GET /api/config/export` — the deployment's **labels, settings and schedules** as one JSON file

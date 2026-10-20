@@ -149,6 +149,7 @@ const DEFAULTS = {
   correlation_min_drives: '4',
   correlation_delta_c: '8',
   public_url: '',
+  prometheus_enabled: 'false',
   temperature_unit: 'c',
   theme: 'auto',
   theme_base: 'dark',
@@ -178,6 +179,11 @@ function draw(container, ctx, data, { carried = {}, unit: unitOverride } = {}) {
   const operationRows = OPERATIONS.map((spec) => sliderRow(spec, settings, renderUnit, carried, inputs));
 
   const warn = el('input', { type: 'checkbox', checked: settings.warn_on_any_nonzero === 'true' });
+
+  // Off by default (`FEATURES.md` C6): the endpoint costs nothing by itself, but turning it on invites
+  // another service to poll this app on a schedule, and that is the operator's decision rather than a
+  // default. The same reasoning as a self-test being opt-in.
+  const prometheus = el('input', { type: 'checkbox', checked: settings.prometheus_enabled === 'true' });
 
   // Where this deployment is reachable from wherever an alert lands (`FEATURES.md` B10), so a
   // channel that supports action buttons can offer a link back. Free text, and empty by default:
@@ -262,6 +268,7 @@ function draw(container, ctx, data, { carried = {}, unit: unitOverride } = {}) {
         warn_on_any_nonzero: warn.checked ? 'true' : 'false',
         temperature_unit: unit.value,
         public_url: publicUrl.value.trim(),
+        prometheus_enabled: prometheus.checked ? 'true' : 'false',
         ...currentTheme(),
       };
       for (const spec of ALL_SPECS) {
@@ -318,6 +325,11 @@ function draw(container, ctx, data, { carried = {}, unit: unitOverride } = {}) {
             'on a notification. Leave it empty and no button is added — the app cannot know its own ' +
             'external address, and a wrong link is worse than none.',
             publicUrl),
+          settingRow('Prometheus metrics',
+            'Serve /metrics for a Prometheus scrape. Off by default: the endpoint itself costs ' +
+            'nothing, but turning it on invites another service to poll this app, and that is your ' +
+            'call rather than ours.',
+            prometheus),
         ]),
       ]),
 

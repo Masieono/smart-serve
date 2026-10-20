@@ -205,6 +205,10 @@ picker offers exactly `ThemeNames`.
   a fleet — with one drive the export is the single-drive report with fewer columns, and that report
   is better for the one thing a lone drive needs. They sit in the controls row for the same reason:
   it is the row that appears when there is a fleet to control.
+- **Prometheus metrics** (`FEATURES.md` C6): a **Prometheus metrics** checkbox in Alerts and
+  retention, off by default, which serves `GET /metrics` in the text exposition format. The endpoint
+  costs nothing by itself; turning it on invites another service to poll this app, and that is the
+  operator's decision rather than a default — the same reasoning as a self-test being opt-in.
 - **Alert acknowledgement** (`FEATURES.md` B7): a **Notes**-row **Acknowledge** control on a drive's
   page, with a note saying why. It silences the alerts for that condition and leaves the verdict
   alone — the drive still reads as caution, because it is caution — and it is **spent the moment the
