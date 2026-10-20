@@ -54,9 +54,13 @@ func (s *Server) handlePutSettings(w http.ResponseWriter, r *http.Request) {
 // --- schedules ----------------------------------------------------------------
 
 type scheduleJSON struct {
-	ID           int64   `json:"id"`
-	Enabled      bool    `json:"enabled"`
-	Kind         string  `json:"kind"`
+	ID      int64  `json:"id"`
+	Enabled bool   `json:"enabled"`
+	Kind    string `json:"kind"`
+	// Action is what happens when the schedule fires (`FEATURES.md` B13): "scan" or "digest". Sent
+	// and accepted rather than implied, because the two produce completely different things from the
+	// same timing.
+	Action       string  `json:"action"`
 	EverySeconds *int64  `json:"every_seconds,omitempty"`
 	Cron         string  `json:"cron,omitempty"`
 	Label        string  `json:"label"`
@@ -67,7 +71,7 @@ type scheduleJSON struct {
 
 func toScheduleJSON(sched store.Schedule) scheduleJSON {
 	out := scheduleJSON{
-		ID: sched.ID, Enabled: sched.Enabled, Kind: sched.Kind,
+		ID: sched.ID, Enabled: sched.Enabled, Kind: sched.Kind, Action: sched.Action,
 		EverySeconds: sched.EverySeconds, Cron: sched.Cron, Label: sched.Label,
 		CreatedAt: rfc3339(sched.CreatedAt),
 	}
@@ -104,9 +108,14 @@ func (s *Server) handleCreateSchedule(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, msg)
 		return
 	}
+	if msg := validateScheduleAction(body.Action); msg != "" {
+		writeError(w, http.StatusBadRequest, msg)
+		return
+	}
 	id, err := s.store.CreateSchedule(r.Context(), store.Schedule{
-		Enabled: body.Enabled, Kind: body.Kind, EverySeconds: body.EverySeconds,
-		Cron: body.Cron, Label: body.Label,
+		Enabled: body.Enabled, Kind: body.Kind, Action: body.Action,
+		EverySeconds: body.EverySeconds,
+		Cron:         body.Cron, Label: body.Label,
 	})
 	if err != nil {
 		s.fail(w, "create schedule", err)
@@ -141,6 +150,13 @@ func (s *Server) handleUpdateSchedule(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	existing.Enabled = body.Enabled
+	if msg := validateScheduleAction(body.Action); msg != "" {
+		writeError(w, http.StatusBadRequest, msg)
+		return
+	}
+	if body.Action != "" {
+		existing.Action = body.Action
+	}
 	if body.Kind != "" {
 		existing.Kind = body.Kind
 	}
@@ -224,6 +240,20 @@ func (s *Server) handleRunSchedule(w http.ResponseWriter, r *http.Request) {
 	}()
 
 	writeJSON(w, http.StatusAccepted, map[string]any{"status": "started", "schedule_id": id})
+}
+
+// validateScheduleAction checks the *what* half of a schedule (`FEATURES.md` B13).
+//
+// An empty action means "scan", which is what a schedule has always done and what a client written
+// before this existed will send. Anything else has to be one of the two, so a typo cannot create a
+// schedule that quietly does nothing when it fires.
+func validateScheduleAction(action string) string {
+	switch strings.TrimSpace(action) {
+	case "", store.ActionScan, store.ActionDigest:
+		return ""
+	default:
+		return "action must be scan or digest"
+	}
 }
 
 func validateSchedule(kind string, every *int64, cron string) string {

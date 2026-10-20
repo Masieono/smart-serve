@@ -167,8 +167,12 @@ func runServe() error {
 	// The scheduler owns scheduled scans (ADR-004). It sleeps to the next due
 	// schedule rather than ticking, so it costs nothing while idle. The timezone and
 	// missed-run policy are read from settings, with the environment as the seed.
+	//
+	// It also owns digest schedules (`FEATURES.md` B13): a weekly summary is the same timing problem
+	// as a scan on a schedule, so it rides the same machinery rather than a second timer.
 	scheduler := sched.New(st, manager, hub, sched.Options{
 		MissedRunPolicy: cfg.MissedRunPolicy,
+		Digester:        notify.NewDigestSender(st, dispatcher, cfg.Version, logger),
 		Logger:          logger,
 	})
 	go scheduler.Run(ctx)

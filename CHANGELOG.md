@@ -11,6 +11,14 @@ stopped from the device page.
 
 ### Added
 
+- **Weekly digest (`B13`)** — one summary of a period instead of a message per event: the fleet as it
+  stands, what changed, what lost storage, how many scans ran, and what the ranking says to replace
+  first. It is a **schedule with `action: digest`** rather than a setting with its own timer, because a
+  weekly summary is the same timing problem as a scan on a schedule — so it inherits cron, time zones
+  and the missed-run policy. The period is *since this last ran*, so a monthly digest does not repeat
+  itself, and a drive that was not being watched at the start is not reported as a change. Its
+  priority reflects its content: a healthy fleet is a note, a failing drive is not. Sections with
+  nothing in them are omitted, and each list is capped and says what it left out.
 - **Prometheus `/metrics` (`C6`)** — an opt-in exporter in the text exposition format: per-drive score,
   temperature, power-on hours, wear, new sector problems and last verdict as labels, plus fleet counts
   and the last scan time. **Off by default** (`prometheus_enabled`), and a disabled endpoint answers

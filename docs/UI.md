@@ -205,6 +205,11 @@ picker offers exactly `ThemeNames`.
   a fleet — with one drive the export is the single-drive report with fewer columns, and that report
   is better for the one thing a lone drive needs. They sit in the controls row for the same reason:
   it is the row that appears when there is a fleet to control.
+- **Schedule action** (`FEATURES.md` B13): the schedule editor's **Action** field chooses between
+  "Scan the drives" and "Send a digest of the period", and the list has an **Action** column so a
+  digest schedule is not mistaken for a scan. The two axes are independent — the timing controls below
+  answer *when*, the action answers *what* — which is why a weekly digest is a cron schedule with
+  `action: digest` rather than a second kind of schedule.
 - **Prometheus metrics** (`FEATURES.md` C6): a **Prometheus metrics** checkbox in Alerts and
   retention, off by default, which serves `GET /metrics` in the text exposition format. The endpoint
   costs nothing by itself; turning it on invites another service to poll this app, and that is the

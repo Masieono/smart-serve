@@ -186,6 +186,8 @@ func ntfyTags(ev Event) []string {
 		return []string{"electric_plug"}
 	case EventScanFailure:
 		return []string{"rotating_light"}
+	case EventDigest:
+		return []string{"bar_chart"}
 	}
 	return []string{"floppy_disk"}
 }

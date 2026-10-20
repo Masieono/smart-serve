@@ -24,9 +24,56 @@ notifier bus.
 | `self_test_result` | A drive's self-test log holds a finished result it did not hold at the last scan (fired once per result) | low — **high** when the result failed |
 | `scan_success` | A scheduled scan completed **and found nothing to report**. A heartbeat, not an alert — **opt-in**, see below | low |
 | `group_heat` | Several drives in one tag group all rose by `correlation_delta_c` since the previous reading, at least `correlation_min_drives` of them. **Opt-in**, see below | medium |
+| `digest` | A **digest schedule** fired (`FEATURES.md` B13). One summary of the period instead of a message per event | low — **medium** when the fleet has anything failing or on caution |
 
 Priority influences formatting (ntfy priority header, webhook payload field) and
 squelch defaults — not delivery: every channel subscribed to the event gets it.
+
+## The digest (`FEATURES.md` B13)
+
+Every other event in the catalog is **exception-shaped**: it fires because something changed, and a
+quiet week sends nothing at all. That is right for alerts and wrong for the question *"is my fleet
+okay?"*, which a weekly digest answers in a sentence.
+
+A digest is a **schedule with `action: digest`** rather than a setting with its own timer. A weekly
+summary is exactly the same timing problem as a scan on a schedule — cron, time zones, the missed-run
+policy — so it rides the machinery that already solves it. The schedule's two axes are independent:
+`kind` says *when*, `action` says *what*.
+
+```
+📊 Smart-Serve digest
+4 drives: 2 healthy · 1 caution · 1 failing
+Changed: parity caution → bad
+Worse: parity +40 sectors, media +7 sectors
+Scans: 7 completed, 0 failed
+Replace first: parity (failing now)
+```
+
+Four decisions shape it.
+
+**The period is "since this last ran", not "the last seven days".** A digest on a monthly schedule
+would otherwise repeat itself. A schedule that has never run falls back to seven days, so the first
+digest is not a summary of all history.
+
+**It needs no storage of its own.** The snapshots *are* the history and the verdict is on every one,
+so "what changed" is a comparison against each drive's newest snapshot at the start of the period. A
+drive with no baseline is not a change — it has arrived — and reporting it as one would make every
+first week look like a fleet-wide event.
+
+**Its priority reflects its content**, not its type: a digest of a healthy fleet is a note and a
+digest naming a failing drive is not. A weekly message that always arrives at the same importance
+stops carrying information.
+
+**It is not opt-in.** `scan_success` and `group_heat` are, because they would otherwise be sent to
+channels that never asked. A digest only exists because somebody created a digest schedule, so the
+schedule *is* the subscription — and a channel subscribed to everything should receive it.
+
+Sections with nothing in them are omitted rather than printed as "none", the same rule as the
+evidence blocks in a report: a heading with nothing under it is noise, and a reader learns to skip the
+whole message. What *is* always printed is the scan count, including the zero — "7 completed, 0
+failed" is the reassurance a digest exists to give, and an absent line would be ambiguous between
+"none failed" and "we did not look". Each list is capped at five entries and says what it left out,
+because a silently truncated list reads as a complete one.
 
 ## Acknowledging a condition (`FEATURES.md` B7)
 

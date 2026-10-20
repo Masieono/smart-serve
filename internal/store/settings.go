@@ -124,9 +124,16 @@ func positiveSetting(settings map[string]string, key string) (int, bool) {
 
 // Schedule is a configured recurring scan.
 type Schedule struct {
-	ID           int64
-	Enabled      bool
-	Kind         string // interval | cron
+	ID      int64
+	Enabled bool
+	// Kind is *when* it runs: interval | cron.
+	Kind string
+	// Action is *what* happens when it does: scan | digest (`FEATURES.md` B13).
+	//
+	// Two axes rather than a third kind, so a digest inherits every timing feature the scan schedules
+	// already have — cron, time zones, the missed-run policy — instead of duplicating them. An empty
+	// Action means "scan", which is what every row written before migration 0010 meant.
+	Action       string
 	EverySeconds *int64
 	Cron         string
 	Label        string
@@ -135,10 +142,27 @@ type Schedule struct {
 	CreatedAt    time.Time
 }
 
+// Schedule actions (`FEATURES.md` B13).
+const (
+	// ActionScan runs a scan, which is what a schedule has always done.
+	ActionScan = "scan"
+	// ActionDigest sends one summary of the period instead of a message per event.
+	ActionDigest = "digest"
+)
+
+// scheduleAction normalises a stored action, so a row from before migration 0010 and a request that
+// omitted the field both mean "scan".
+func scheduleAction(action string) string {
+	if strings.TrimSpace(action) == "" {
+		return ActionScan
+	}
+	return action
+}
+
 // ListSchedules returns every schedule, oldest first.
 func (s *Store) ListSchedules(ctx context.Context) ([]Schedule, error) {
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT id, enabled, kind, every_seconds, cron, label, last_run, next_run, created_at
+		SELECT id, enabled, kind, action, every_seconds, cron, label, last_run, next_run, created_at
 		FROM scan_schedules ORDER BY id`)
 	if err != nil {
 		return nil, err
@@ -159,7 +183,7 @@ func (s *Store) ListSchedules(ctx context.Context) ([]Schedule, error) {
 // GetSchedule returns one schedule, or nil when it does not exist.
 func (s *Store) GetSchedule(ctx context.Context, id int64) (*Schedule, error) {
 	sched, err := scanSchedule(s.db.QueryRowContext(ctx, `
-		SELECT id, enabled, kind, every_seconds, cron, label, last_run, next_run, created_at
+		SELECT id, enabled, kind, action, every_seconds, cron, label, last_run, next_run, created_at
 		FROM scan_schedules WHERE id = ?`, id))
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
@@ -174,9 +198,10 @@ func (s *Store) GetSchedule(ctx context.Context, id int64) (*Schedule, error) {
 func (s *Store) CreateSchedule(ctx context.Context, sched Schedule) (int64, error) {
 	res, err := s.db.ExecContext(ctx, `
 		INSERT INTO scan_schedules
-			(enabled, kind, every_seconds, cron, label, last_run, next_run, created_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-		boolInt(sched.Enabled), sched.Kind, nullInt64(sched.EverySeconds), sched.Cron,
+			(enabled, kind, action, every_seconds, cron, label, last_run, next_run, created_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		boolInt(sched.Enabled), sched.Kind, scheduleAction(sched.Action),
+		nullInt64(sched.EverySeconds), sched.Cron,
 		sched.Label, ptrMS(sched.LastRun), ptrMS(sched.NextRun), time.Now().UnixMilli())
 	if err != nil {
 		return 0, fmt.Errorf("create schedule: %w", err)
@@ -188,10 +213,11 @@ func (s *Store) CreateSchedule(ctx context.Context, sched Schedule) (int64, erro
 func (s *Store) UpdateSchedule(ctx context.Context, sched Schedule) error {
 	_, err := s.db.ExecContext(ctx, `
 		UPDATE scan_schedules
-		SET enabled = ?, kind = ?, every_seconds = ?, cron = ?, label = ?,
+		SET enabled = ?, kind = ?, action = ?, every_seconds = ?, cron = ?, label = ?,
 		    last_run = ?, next_run = ?
 		WHERE id = ?`,
-		boolInt(sched.Enabled), sched.Kind, nullInt64(sched.EverySeconds), sched.Cron,
+		boolInt(sched.Enabled), sched.Kind, scheduleAction(sched.Action),
+		nullInt64(sched.EverySeconds), sched.Cron,
 		sched.Label, ptrMS(sched.LastRun), ptrMS(sched.NextRun), sched.ID)
 	if err != nil {
 		return fmt.Errorf("update schedule %d: %w", sched.ID, err)
@@ -253,9 +279,10 @@ func (s *Store) ReplaceSchedules(ctx context.Context, schedules []Schedule) erro
 	for _, sched := range schedules {
 		if _, err := tx.ExecContext(ctx, `
 			INSERT INTO scan_schedules
-				(enabled, kind, every_seconds, cron, label, last_run, next_run, created_at)
-			VALUES (?, ?, ?, ?, ?, NULL, NULL, ?)`,
-			boolInt(sched.Enabled), sched.Kind, nullInt64(sched.EverySeconds), sched.Cron,
+				(enabled, kind, action, every_seconds, cron, label, last_run, next_run, created_at)
+			VALUES (?, ?, ?, ?, ?, ?, NULL, NULL, ?)`,
+			boolInt(sched.Enabled), sched.Kind, scheduleAction(sched.Action),
+			nullInt64(sched.EverySeconds), sched.Cron,
 			sched.Label, time.Now().UnixMilli()); err != nil {
 			return fmt.Errorf("insert schedule %q: %w", sched.Label, err)
 		}
@@ -271,12 +298,13 @@ func scanSchedule(r rowScanner) (Schedule, error) {
 		lastRun, nextRun sql.NullInt64
 		createdAt        int64
 	)
-	err := r.Scan(&sched.ID, &enabled, &sched.Kind, &every, &sched.Cron, &sched.Label,
+	err := r.Scan(&sched.ID, &enabled, &sched.Kind, &sched.Action, &every, &sched.Cron, &sched.Label,
 		&lastRun, &nextRun, &createdAt)
 	if err != nil {
 		return sched, err
 	}
 	sched.Enabled = enabled != 0
+	sched.Action = scheduleAction(sched.Action)
 	if every.Valid {
 		v := every.Int64
 		sched.EverySeconds = &v

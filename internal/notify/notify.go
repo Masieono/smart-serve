@@ -46,6 +46,11 @@ const (
 	// tells them apart (`ADR-023`). The body therefore states a correlation rather than a diagnosis,
 	// and a channel has to ask for it — so an install that would find it noisy never receives it.
 	EventGroupHeat = "group_heat"
+	// EventDigest is one period's summary instead of a message per event (`FEATURES.md` B13). It
+	// fires from a *schedule* rather than from a change, so it is the second event in the catalog that
+	// is not exception-shaped — and unlike the heartbeat it is not opt-in, because a digest only
+	// exists when somebody created a digest schedule. The schedule is the subscription.
+	EventDigest = "digest"
 )
 
 // EventTypes lists every subscribable event, in catalog order.
@@ -58,6 +63,7 @@ var EventTypes = []string{
 	EventSelfTestResult,
 	EventScanSuccess,
 	EventGroupHeat,
+	EventDigest,
 }
 
 // optInEvents are the events a channel has to ask for by name.
@@ -172,6 +178,8 @@ func (e Event) Title() string {
 		return "Scheduled scan completed"
 	case EventGroupHeat:
 		return "Drives heating together: " + e.Group
+	case EventDigest:
+		return "Smart-Serve digest"
 	}
 	return "Smart-Serve: " + e.Type
 }
@@ -215,6 +223,12 @@ func (e Event) Body() string {
 		}
 		if e.Rationale != "" {
 			lines = append(lines, e.Rationale)
+		}
+	case EventDigest:
+		// The summary is already several lines, so it is appended whole rather than joined with
+		// anything: a digest that opened with "0 drives changed" would be padding.
+		if e.Rationale != "" {
+			lines = append(lines, strings.Split(e.Rationale, "\n")...)
 		}
 	case EventScanFailure:
 		if e.Error != "" {
@@ -300,6 +314,8 @@ func (e Event) emoji() string {
 		return "✅"
 	case EventGroupHeat:
 		return "🌡️"
+	case EventDigest:
+		return "📊"
 	}
 	return "💾"
 }

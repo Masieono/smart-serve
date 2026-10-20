@@ -160,6 +160,8 @@ alert.
 - [x] Alert acknowledgement: silence a known condition without hiding the verdict (`B7`), and
       notification action buttons back into the app (`B10`) — unit-tested
 - [x] Prometheus `/metrics` exporter, opt-in and hand-written (`C6`) — unit-tested
+- [x] Weekly digest as a schedule action: one summary of the period instead of a message per
+      event (`B13`) — unit-tested
 - [x] Dockerfile, docker-compose (prod + dev), GitHub Actions CI
 - [x] Docker device-access validation on real hardware — a native NVMe, a USB-attached
       NVMe, and a USB-attached SATA SSD all read correctly; a drive with no S.M.A.R.T.

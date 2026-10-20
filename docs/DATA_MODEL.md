@@ -77,7 +77,8 @@ history — is one file that can be backed up with `cp` while the app is stopped
 |---|---|---|
 | `id` | INTEGER PK | |
 | `enabled` | INTEGER DEFAULT 1 | |
-| `kind` | TEXT | `interval` or `cron` |
+| `kind` | TEXT | *when* it runs: `interval` or `cron` |
+| `action` | TEXT NOT NULL DEFAULT `'scan'` | *what* happens when it fires (migration 0010, `FEATURES.md` B13): `scan` or `digest`. A separate axis from `kind`, so a digest inherits cron, time zones and the missed-run policy instead of duplicating them. An empty or absent value means `scan`, which is what every row written before migration 0010 meant |
 | `every_seconds` | INTEGER NULL | for `interval` |
 | `cron` | TEXT NULL | 5-field cron for `cron` (evaluated by a Go cron library) |
 | `label` | TEXT | user-friendly name |

@@ -42,6 +42,7 @@ func TestScheduleCRUD(t *testing.T) {
 		Schedule struct {
 			ID           int64  `json:"id"`
 			Kind         string `json:"kind"`
+			Action       string `json:"action"`
 			EverySeconds *int64 `json:"every_seconds"`
 			Label        string `json:"label"`
 			Enabled      bool   `json:"enabled"`
@@ -51,11 +52,44 @@ func TestScheduleCRUD(t *testing.T) {
 	if created.Schedule.ID == 0 || created.Schedule.Kind != "interval" || !created.Schedule.Enabled {
 		t.Fatalf("created = %+v", created.Schedule)
 	}
+	// An omitted action means "scan", which is what a schedule has always done and what a client
+	// written before B13 will send.
+	if created.Schedule.Action != "scan" {
+		t.Errorf("action = %q, want scan by default", created.Schedule.Action)
+	}
 
 	// An interval schedule without every_seconds is rejected.
 	rec = do(t, srv, http.MethodPost, "/api/schedules", `{"kind":"interval"}`, nil)
 	if rec.Code != http.StatusBadRequest {
 		t.Errorf("invalid schedule status = %d, want 400", rec.Code)
+	}
+
+	// So is an action that is neither of the two, because a schedule that quietly does nothing when
+	// it fires is worse than one that refuses to be created.
+	rec = do(t, srv, http.MethodPost, "/api/schedules",
+		`{"kind":"interval","every_seconds":3600,"action":"email"}`, nil)
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("unknown action status = %d, want 400: %s", rec.Code, rec.Body.String())
+	}
+
+	// A digest schedule is the other action, and it round-trips.
+	rec = do(t, srv, http.MethodPost, "/api/schedules",
+		`{"kind":"cron","cron":"0 9 * * 1","action":"digest","label":"weekly"}`, nil)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("digest create status = %d, body = %s", rec.Code, rec.Body.String())
+	}
+	var digest struct {
+		Schedule struct {
+			ID     int64  `json:"id"`
+			Action string `json:"action"`
+		} `json:"schedule"`
+	}
+	decodeBody(t, rec, &digest)
+	if digest.Schedule.Action != "digest" {
+		t.Errorf("action = %q, want digest", digest.Schedule.Action)
+	}
+	if rec := do(t, srv, http.MethodDelete, schedulePath(digest.Schedule.ID), "", nil); rec.Code != http.StatusOK {
+		t.Fatalf("cleanup delete status = %d", rec.Code)
 	}
 
 	// Switch it to a cron schedule and disable it.

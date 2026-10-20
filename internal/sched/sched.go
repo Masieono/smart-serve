@@ -23,6 +23,15 @@ type Runner interface {
 	Scan(ctx context.Context, t scan.Trigger) (scan.Result, bool, error)
 }
 
+// Digester sends a scheduled digest (`FEATURES.md` B13). *notify.DigestSender satisfies it.
+//
+// A schedule does two different things depending on its action, so the scheduler takes two
+// dependencies rather than one interface with two methods: a caller that only runs scans should not
+// have to supply a digest sender, and vice versa.
+type Digester interface {
+	SendDigest(ctx context.Context, sched store.Schedule) error
+}
+
 // retryInterval is how far a schedule is advanced when its next boundary cannot
 // be computed. It keeps a malformed expression from spinning the loop.
 const retryInterval = time.Minute
@@ -38,17 +47,21 @@ type Options struct {
 	MissedRunPolicy string
 	// ScanTimeout bounds one scheduled scan (default 10m).
 	ScanTimeout time.Duration
-	Logger      *slog.Logger
+	// Digester sends a scheduled digest (`FEATURES.md` B13). Without it, a digest schedule logs that
+	// it has nowhere to send and still advances, rather than failing or spinning.
+	Digester Digester
+	Logger   *slog.Logger
 	// Now overrides the clock in tests.
 	Now func() time.Time
 }
 
 // Scheduler wakes at the next due schedule and runs it.
 type Scheduler struct {
-	store  *store.Store
-	runner Runner
-	hub    *events.Hub
-	log    *slog.Logger
+	store    *store.Store
+	runner   Runner
+	digester Digester
+	hub      *events.Hub
+	log      *slog.Logger
 
 	loc             *time.Location
 	missedRunPolicy string
@@ -61,7 +74,7 @@ type Scheduler struct {
 // New builds a scheduler.
 func New(st *store.Store, r Runner, hub *events.Hub, opts Options) *Scheduler {
 	s := &Scheduler{
-		store: st, runner: r, hub: hub, log: opts.Logger,
+		store: st, runner: r, digester: opts.Digester, hub: hub, log: opts.Logger,
 		loc: opts.Location, missedRunPolicy: opts.MissedRunPolicy,
 		scanTimeout: opts.ScanTimeout, now: opts.Now,
 		wake: make(chan struct{}, 1),
@@ -281,21 +294,53 @@ func (s *Scheduler) nextAfter(sched store.Schedule, from time.Time, loc *time.Lo
 	return Next(sched.Cron, from, loc)
 }
 
-// fire runs one scheduled scan and advances the schedule. The run is recorded
+// sendDigest sends one period's summary (`FEATURES.md` B13).
+//
+// A failure is logged rather than propagated: the schedule's boundary arrived, so the bookkeeping
+// that advances it has to happen either way. That is the same rule the scan path follows — a broken
+// scanner must not stop the schedule, and neither must a broken notification channel.
+func (s *Scheduler) sendDigest(ctx context.Context, sched store.Schedule) {
+	if s.digester == nil {
+		s.log.Warn("digest schedule has nowhere to send", "schedule", sched.ID)
+		return
+	}
+	if err := s.digester.SendDigest(ctx, sched); err != nil {
+		s.log.Warn("digest failed", "schedule", sched.ID, "err", err)
+	}
+}
+
+// fire runs one scheduled action and advances the schedule. The run is recorded
 // even when the scan fails, so a broken scanner keeps firing on its interval —
 // and, per the event catalog, keeps saying so.
 func (s *Scheduler) fire(ctx context.Context, id int64) {
-	s.log.Info("running scheduled scan", "schedule", id)
+	// The action decides what a fire *means* (`FEATURES.md` B13), so it is read before anything
+	// happens: a digest is not a scan, and the difference has to be known up front.
+	sched, err := s.store.GetSchedule(ctx, id)
+	if err != nil {
+		s.log.Error("could not read the schedule before running it", "schedule", id, "err", err)
+		return
+	}
+	if sched == nil {
+		return // deleted between the wake and the fire
+	}
+
+	s.log.Info("running scheduled action", "schedule", id, "action", sched.Action)
 	s.hub.Publish("schedule_fired", map[string]any{"schedule_id": id})
 
-	// The scan must not be cancelled by an unrelated request context, but it is
+	// The work must not be cancelled by an unrelated request context, but it is
 	// still bounded.
-	scanCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), s.scanTimeout)
+	runCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), s.scanTimeout)
 	defer cancel()
 
-	res, _, err := s.runner.Scan(scanCtx, scan.Trigger{Kind: "schedule", ScheduleID: id})
-	if err != nil {
-		s.log.Warn("scheduled scan failed", "schedule", id, "err", err)
+	var res scan.Result
+	if sched.Action == store.ActionDigest {
+		s.sendDigest(runCtx, *sched)
+	} else {
+		var rerr error
+		res, _, rerr = s.runner.Scan(runCtx, scan.Trigger{Kind: "schedule", ScheduleID: id})
+		if rerr != nil {
+			s.log.Warn("scheduled scan failed", "schedule", id, "err", rerr)
+		}
 	}
 
 	// Bookkeeping survives cancellation: a run that happened must be recorded,

@@ -391,6 +391,18 @@ saves. The bundle says so in its own `note`, so a file found later explains itse
 
 ## Schedules
 
+- `GET /api/schedules` — every schedule. Each carries `kind` (*when* it runs: `interval` or `cron`)
+  and `action` (*what* happens: `scan` or `digest`, `FEATURES.md` B13).
+- `POST /api/schedules` / `PUT /api/schedules/{id}` — body
+  `{ "label": "weekly", "kind": "cron", "cron": "0 9 * * 1", "action": "digest", "enabled": true }`.
+  An omitted or empty `action` means `scan`, which is what every schedule did before `B13`; anything
+  else is a `400`, because a schedule that quietly does nothing when it fires is worse than one that
+  refuses to be created.
+
+  `action: digest` sends **one summary of the period since this schedule last ran** instead of
+  scanning — see `NOTIFICATIONS.md` for what is in it. A digest schedule that has never run summarises
+  the last seven days.
+
 - `GET /api/schedules` — list (includes `last_run` and `next_run`).
 - `POST /api/schedules` — create: `{ "kind": "interval", "every_seconds": 21600, "label": "every 6h" }`
   or `{ "kind": "cron", "cron": "0 3 * * *", "label": "nightly" }`. Cron is evaluated

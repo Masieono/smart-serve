@@ -49,10 +49,13 @@ function draw(container, ctx, data) {
   mount(container, head, el('div', { class: 'card' }, [
     el('div', { class: 'table-wrap' }, [
       el('table', { class: 'data' }, [
-        el('thead', {}, [el('tr', {}, ['Label', 'When', 'Next run', 'Last run', 'Enabled', '']
+        el('thead', {}, [el('tr', {}, ['Label', 'Action', 'When', 'Next run', 'Last run', 'Enabled', '']
           .map((h) => el('th', { text: h })))]),
         el('tbody', {}, schedules.map((s) => el('tr', {}, [
           el('td', { text: s.label || `#${s.id}` }),
+          // Spelled out rather than implied by the label: a digest schedule and a scan schedule look
+          // identical otherwise, and confusing the two is confusing "it scanned" with "it wrote to me".
+          el('td', { text: s.action === 'digest' ? 'Digest' : 'Scan' }),
           el('td', { text: describe(s) }),
           el('td', { text: s.next_run ? fmtDateTime(s.next_run) : '—' }),
           el('td', { text: s.last_run ? fmtAgo(s.last_run) : 'never' }),
@@ -104,6 +107,15 @@ function draw(container, ctx, data) {
 function editSchedule(ctx, existing) {
   openDialog(existing ? 'Edit schedule' : 'New schedule', (body, close, foot) => {
     const label = el('input', { type: 'text', value: (existing && existing.label) || '', placeholder: 'e.g. nightly' });
+
+    // What the schedule *does* (`FEATURES.md` B13), which is a separate axis from when it runs. A
+    // digest is weekly in practice, and weekly is a timing question the controls below already
+    // answer, so the two are chosen independently.
+    const action = el('select', {}, [
+      el('option', { value: 'scan', text: 'Scan the drives' }),
+      el('option', { value: 'digest', text: 'Send a digest of the period' }),
+    ]);
+    action.value = (existing && existing.action) || 'scan';
 
     const mode = el('select', {}, [
       el('option', { value: 'interval', text: 'Every few minutes / hours / days' }),
@@ -225,6 +237,9 @@ function editSchedule(ctx, existing) {
 
     body.append(
       el('div', { class: 'field' }, [el('label', { text: 'Label' }), label]),
+      el('div', { class: 'field' }, [el('label', { text: 'Action' }), action,
+        el('p', { class: 'muted field-hint', text: 'A digest sends one summary of what happened ' +
+          'since this last ran, instead of a message per event.' })]),
       el('div', { class: 'field' }, [el('label', { text: 'Repeat' }), mode]),
       intervalRow,
       dailyRow,
@@ -244,7 +259,8 @@ function editSchedule(ctx, existing) {
             return;
           }
         }
-        const payload = { label: label.value.trim(), kind, enabled: enabled.checked, every_seconds, cron };
+        const payload = { label: label.value.trim(), kind, enabled: enabled.checked, every_seconds, cron,
+          action: action.value };
         if (existing) payload.id = existing.id;
 
         event.currentTarget.disabled = true;
