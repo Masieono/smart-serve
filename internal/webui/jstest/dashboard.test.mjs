@@ -11,7 +11,7 @@ import { installStubDom, StubNode } from './stub-dom.mjs';
 
 installStubDom();
 
-const { visibleDevices, groupByTag, exportLinks, benchSession } =
+const { visibleDevices, groupByTag, exportLinks, benchSession, heatCard } =
   await import('../assets/js/views/dashboard.js');
 
 /** Every string in a subtree, in document order. */
@@ -304,4 +304,43 @@ test('the testing session lists the whole batch and offers its verbs', () => {
   for (const label of ['Test all', 'Export batch', 'Forget all']) {
     assert.ok(text.includes(label), `missing ${label}`);
   }
+});
+
+// The enclosure heat card (`FEATURES.md` A25).
+//
+// It reports a correlation and never a cause — a RAID rebuild heats everything too, and so does a warm
+// afternoon — and it shows the ratio rather than a bare count, because six of six is a different
+// finding from six of twenty-four.
+test('the heat card reports the group and its ratio, not a diagnosis', () => {
+  assert.equal(heatCard([], {}), null);
+  assert.equal(heatCard(undefined, {}), null);
+
+  const card = heatCard([
+    { group: 'tank', drives: ['a', 'b', 'c'], total: 4, delta_c: 9, max_c: 47 },
+  ], { openDevice: () => {} });
+
+  const text = textOf(card);
+  assert.match(text, /Heating together/);
+  assert.match(text, /\+9 °C/);
+  assert.match(text, /3 of 4 drives/);
+  assert.match(text, /47 °C/);
+  // The words that keep it honest.
+  assert.match(text, /correlation, not a diagnosis/);
+  for (const word of ['overheating', 'failed', 'dying']) {
+    assert.ok(!text.toLowerCase().includes(word), `claims a diagnosis: ${word}`);
+  }
+
+  // Every drive named is reachable, because the next step is always to go and look at one.
+  assert.equal(card.all('button').length, 3);
+});
+
+// Two enclosures heating at once are two findings, not one.
+test('the heat card shows every group', () => {
+  const card = heatCard([
+    { group: 'tank', drives: ['a', 'b', 'c'], total: 3, delta_c: 9 },
+    { group: 'media', drives: ['d', 'e', 'f'], total: 6, delta_c: 12 },
+  ], { openDevice: () => {} });
+
+  assert.equal(card.all('button').length, 6);
+  assert.match(textOf(card), /media/);
 });

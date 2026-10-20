@@ -36,6 +36,15 @@ const (
 	// opt-in (see optInEvents) because it fires on every scheduled scan rather than on a
 	// change, and "everything" was never meant to include a periodic all-clear.
 	EventScanSuccess = "scan_success"
+	// EventGroupHeat reports that several drives in one tag group heated up together
+	// (FEATURES.md A25), which points at what they share — a fan, an intake, an ambient —
+	// rather than at the drives.
+	//
+	// It is **opt-in**, and that is the mitigation for the one thing that can go wrong here: a RAID
+	// rebuild, or a warm afternoon, also heats everything, and nothing observable from a temperature
+	// tells them apart (`ADR-023`). The body therefore states a correlation rather than a diagnosis,
+	// and a channel has to ask for it — so an install that would find it noisy never receives it.
+	EventGroupHeat = "group_heat"
 )
 
 // EventTypes lists every subscribable event, in catalog order.
@@ -47,6 +56,7 @@ var EventTypes = []string{
 	EventScanFailure,
 	EventSelfTestResult,
 	EventScanSuccess,
+	EventGroupHeat,
 }
 
 // optInEvents are the events a channel has to ask for by name.
@@ -58,7 +68,7 @@ var EventTypes = []string{
 // and the first thing a user would do is turn notifications off altogether.
 //
 // An explicit "*" still means everything, including these.
-var optInEvents = map[string]bool{EventScanSuccess: true}
+var optInEvents = map[string]bool{EventScanSuccess: true, EventGroupHeat: true}
 
 // Priority influences formatting (the ntfy priority header, a payload field) and
 // squelch defaults — never whether a subscribed channel receives the event.
@@ -92,8 +102,14 @@ type Event struct {
 	SelfTestType   string `json:"self_test_type,omitempty"`
 	SelfTestPassed *bool  `json:"self_test_passed,omitempty"`
 	SelfTestHours  *int64 `json:"self_test_hours,omitempty"`
-	ScanTS         int64  `json:"scan_ts"`
-	Version        string `json:"smartserve_version,omitempty"`
+	// Group-heat fields, used by `group_heat` (FEATURES.md A25). The group replaces the device
+	// identity, because the finding is about the group rather than about any one drive in it.
+	Group       string   `json:"group,omitempty"`
+	GroupSize   int      `json:"group_size,omitempty"`
+	GroupDrives []string `json:"group_drives,omitempty"`
+	GroupDeltaC *int     `json:"group_delta_c,omitempty"`
+	ScanTS      int64    `json:"scan_ts"`
+	Version     string   `json:"smartserve_version,omitempty"`
 	// Test marks a synthetic event from the "send test" button. It is on the wire on
 	// purpose: an automation watching a webhook has to be able to tell a test from a
 	// real alert and decline to act on it.
@@ -133,6 +149,8 @@ func (e Event) Title() string {
 		return "Scheduled scan failed"
 	case EventScanSuccess:
 		return "Scheduled scan completed"
+	case EventGroupHeat:
+		return "Drives heating together: " + e.Group
 	}
 	return "Smart-Serve: " + e.Type
 }
@@ -169,6 +187,14 @@ func (e Event) Body() string {
 		if e.Rationale != "" {
 			lines = append(lines, e.Rationale)
 		}
+	case EventGroupHeat:
+		if e.GroupDeltaC != nil {
+			lines = append(lines, formatTempDelta(*e.GroupDeltaC, e.tempUnit)+
+				" hotter than at the previous reading")
+		}
+		if e.Rationale != "" {
+			lines = append(lines, e.Rationale)
+		}
 	case EventScanFailure:
 		if e.Error != "" {
 			lines = append(lines, e.Error)
@@ -199,6 +225,18 @@ func (e Event) Body() string {
 func formatTemp(celsius int, unit string) string {
 	if strings.EqualFold(strings.TrimSpace(unit), "f") {
 		return fmt.Sprintf("%d °F", int(math.Round(float64(celsius)*9/5+32)))
+	}
+	return fmt.Sprintf("%d °C", celsius)
+}
+
+// formatTempDelta renders a temperature *span*, which scales with the unit but takes no offset.
+//
+// The distinction is not pedantry: an 8 °C rise is a 14 °F rise, and running it through `formatTemp`
+// would report 46 °F — a number that reads as a temperature rather than as a change, in the one
+// message whose whole job is to describe how much things moved.
+func formatTempDelta(celsius int, unit string) string {
+	if strings.EqualFold(strings.TrimSpace(unit), "f") {
+		return fmt.Sprintf("%d °F", int(math.Round(float64(celsius)*9/5)))
 	}
 	return fmt.Sprintf("%d °C", celsius)
 }
@@ -239,6 +277,8 @@ func (e Event) emoji() string {
 		return "🚨"
 	case EventScanSuccess:
 		return "✅"
+	case EventGroupHeat:
+		return "🌡️"
 	}
 	return "💾"
 }
@@ -541,7 +581,11 @@ func (d *Dispatcher) record(ctx context.Context, channelID int64, ev Event, outc
 // deduped by the transition detection itself (ADR-008), appear/disappear are
 // one-shot by construction, and a broken scanner is allowed to be loud.
 func squelchWindow(ev Event, squelch time.Duration) time.Duration {
-	if ev.Type == EventTemperatureHigh {
+	// A hot drive and a hot chassis are both conditions rather than events: they persist until
+	// somebody fixes them, so they stay quiet for the squelch window instead of repeating on every
+	// scheduled scan. Everything else in the catalog is one-shot by construction or deduped by
+	// transition detection (ADR-008).
+	if ev.Type == EventTemperatureHigh || ev.Type == EventGroupHeat {
 		return squelch
 	}
 	return 0

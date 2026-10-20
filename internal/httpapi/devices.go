@@ -157,11 +157,46 @@ func (s *Server) handleListDevices(w http.ResponseWriter, r *http.Request) {
 		// cannot disagree about a drive.
 		"ranking":      ranking,
 		"last_scan_ts": s.lastScanTime(r.Context()),
+		// A25: the groups whose drives moved together. Computed from the store's own two readings per
+		// drive rather than from the payloads above, because those carry only the latest one.
+		"correlation": s.correlatedHeat(r.Context()),
 		// The tag this app treats as "on the bench" (`FEATURES.md` D11), sent rather than hard-coded
 		// in the UI for the same reason the verdict is: the contract lives on the server, so the two
 		// cannot drift into disagreeing about which drives are on the bench.
 		"bench_tag": store.BenchTag,
 	})
+}
+
+// correlatedHeat finds the groups whose drives moved together (`FEATURES.md` A25).
+//
+// A failure here is not worth failing the list for: the finding is a nicety and the list is not.
+//
+// Bench drives are left out for the same reason the ranking leaves them out — a drive being tested
+// is *expected* to heat up, and a batch of them on one bench would fire this on every scan. The tags
+// are split here rather than in the interpreter, so the rule stays a function of names.
+func (s *Server) correlatedHeat(ctx context.Context) []interp.GroupHeat {
+	pairs, err := s.store.TemperaturePairs(ctx)
+	if err != nil {
+		return nil
+	}
+	settings, err := s.store.GetSettings(ctx)
+	if err != nil {
+		settings = nil
+	}
+
+	readings := make([]interp.HeatReading, 0, len(pairs))
+	for _, p := range pairs {
+		if store.HasTag(p.Tags, store.BenchTag) {
+			continue
+		}
+		readings = append(readings, interp.HeatReading{
+			Serial: p.Serial,
+			Groups: store.TagList(p.Tags),
+			Prev:   p.Prev,
+			Now:    p.Now,
+		})
+	}
+	return interp.CorrelatedHeat(readings, interp.CorrelationFromSettings(settings))
 }
 
 // deviceRows builds the device list payload and its replacement ranking together.

@@ -205,6 +205,14 @@ picker offers exactly `ThemeNames`.
   a fleet — with one drive the export is the single-drive report with fewer columns, and that report
   is better for the one thing a lone drive needs. They sit in the controls row for the same reason:
   it is the row that appears when there is a fleet to control.
+- **Heating together** (`FEATURES.md` A25): a card that appears only when a group is actually moving,
+  the same rule as the other two. One block per group, each naming the group, the ratio (`3 of 4
+  drives`), the shared rise and the hottest current reading, with the drives as links to their pages.
+  The ratio is shown rather than a bare count because six of six is a different finding from six of
+  twenty-four, and that judgement belongs to the reader. The card is headed **"a correlation, not a
+  diagnosis"**, and its wording deliberately names what moved and where to look and never what is
+  wrong — a RAID rebuild heats everything too, and the reader knows whether one is running. It is
+  ordered first of the three panels: a condition comes before a suggestion.
 - **Testing session** (`FEATURES.md` D11): a card that appears only when a drive carries the `bench`
   tag, the same rule as the replace-first shortlist — a panel that is always present stops being read.
   It names every drive in the batch (the session *is* the batch, so a shortlist of it would be

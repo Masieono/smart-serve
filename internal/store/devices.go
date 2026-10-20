@@ -895,6 +895,9 @@ type DeviceState struct {
 	Health          string
 	HealthRationale string
 	TemperatureC    *int
+	// Tags is the drive's stored tag string, carried because the post-scan pass groups drives by it
+	// (`FEATURES.md` A25) and this is the one query that already joins the notes.
+	Tags string
 	// Missing is true when the device was absent from the most recent scan.
 	Missing bool
 	// SelfTestRecorded is false until a scan has stored what this drive's self-test log holds.
@@ -917,6 +920,7 @@ func (s *Store) DeviceStates(ctx context.Context) (map[string]DeviceState, error
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT d.serial, COALESCE(n.name, ''), d.model, d.health, d.health_rationale,
 		       d.temperature_c, d.is_missing,
+		       COALESCE(n.tags, ''),
 		       d.selftest_type IS NOT NULL,
 		       COALESCE(d.selftest_type, ''), d.selftest_hours, d.selftest_passed,
 		       COALESCE(d.selftest_status, '')
@@ -940,7 +944,7 @@ func (s *Store) DeviceStates(ctx context.Context) (map[string]DeviceState, error
 			selfStat  string
 		)
 		if err := rows.Scan(&st.Serial, &st.Name, &st.Model, &st.Health,
-			&st.HealthRationale, &temp, &isMissing,
+			&st.HealthRationale, &temp, &isMissing, &st.Tags,
 			&recorded, &selfType, &selfHours, &selfPass, &selfStat); err != nil {
 			return nil, err
 		}

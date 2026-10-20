@@ -1,5 +1,5 @@
 // Dashboard: device cards, health summary, scan button (docs/UI.md §7.1).
-import { el, mount, fmtAgo } from '../dom.js';
+import { el, mount, fmtAgo, convertTemp, convertTempDelta, temperatureUnitName } from '../dom.js';
 import { api } from '../api.js';
 import { deviceCard, fleetTable, deviceTitle, countText, healthFilter, emptyState, skeletonCards, errorBox, transportLabel, toast, confirmDialog } from '../components.js';
 import { icon } from '../icons.js';
@@ -157,6 +157,63 @@ export function exportLinks(deviceCount) {
       title: 'The whole fleet as one printable page, for a batch RMA or a support ticket',
     }, [icon('download'), 'Export page']),
   ];
+}
+
+/**
+ * The enclosure heat card (`FEATURES.md` A25), or null when nothing is moving together.
+ *
+ * The insight is that an enclosure is shared: eight drives in one chassis have one fan, one intake
+ * and one ambient, so a failing fan presents as *all eight* running hotter at once — which per-drive
+ * monitoring reports as eight unrelated alerts, precisely the noise that teaches people to ignore
+ * alerts. This says it once, naming the group.
+ *
+ * It reports a **correlation, not a cause**, and the wording says so. A RAID rebuild heats everything
+ * too, and so does a warm afternoon; nothing observable from a temperature tells them apart, so the
+ * card names what moved and where to look and leaves the diagnosis to the reader, who knows whether
+ * a rebuild is running. A false "your enclosure is overheating" would be worse than the eight true
+ * per-drive alerts it is meant to replace.
+ *
+ * The ratio is shown rather than a bare count — six of six is a different finding from six of
+ * twenty-four — because that judgement belongs to the reader.
+ */
+export function heatCard(groups, ctx) {
+  if (!groups || !groups.length) return null;
+
+  return el('div', { class: 'card stack heat-card' }, [
+    el('div', { class: 'row' }, [
+      el('h2', { text: 'Heating together' }),
+      el('span', { class: 'spacer' }),
+      el('span', { class: 'muted', text: 'a correlation, not a diagnosis' }),
+    ]),
+    ...groups.map((g) => el('div', { class: 'heat-group' }, [
+      el('div', { class: 'row' }, [
+        el('span', { class: 'badge badge-caution', text: `+${deltaText(g.delta_c)}` }),
+        el('strong', { text: g.group }),
+        el('span', { class: 'muted', text: `${g.drives.length} of ${g.total} drives` }),
+        g.max_c !== undefined
+          ? el('span', { class: 'muted', text: `· hottest now ${maxText(g.max_c)}` })
+          : null,
+      ]),
+      el('div', { class: 'muted heat-reasons', text: `${g.drives.length} drives in this group are ` +
+        `at least ${deltaText(g.delta_c)} hotter than at the previous reading. If they share an ` +
+        'enclosure, look there first — a fan, a filter, or ambient — rather than at the drives.' }),
+      el('div', { class: 'heat-drives' }, g.drives.map((serial) => el('button', {
+        class: 'link', type: 'button', onclick: () => ctx.openDevice(serial),
+      }, [serial]))),
+    ])),
+  ]);
+}
+
+/** A rise, in the display unit. A span, so it scales without the 32° offset. */
+function deltaText(celsius) {
+  const value = convertTempDelta(celsius);
+  return value === null ? '—' : `${value} °${temperatureUnitName()}`;
+}
+
+/** A reading, in the display unit. */
+function maxText(celsius) {
+  const value = convertTemp(celsius);
+  return value === null ? '—' : `${value} °${temperatureUnitName()}`;
 }
 
 /**
@@ -633,6 +690,9 @@ function draw(container, ctx, data) {
   }
   paint();
 
-  mount(container, head, benchSession(bench, ctx, benchTag), replaceFirstCard(data.ranking, ctx), grid);
+  // Order is "a condition before a suggestion": something happening now, then the batch in hand,
+  // then the advice about what to buy.
+  mount(container, head, heatCard(data.correlation, ctx), benchSession(bench, ctx, benchTag),
+    replaceFirstCard(data.ranking, ctx), grid);
 }
 

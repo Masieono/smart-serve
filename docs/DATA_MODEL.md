@@ -127,6 +127,8 @@ worse than no setting at all.
 | `retention_days` | `180` | snapshot retention window. **Also bounds the projection, the worsening flag and the trend adjustment** — there is one window, not two, so raising it gives a longer view as well as a longer memory (`FEATURES.md` A26) | `scan` (pruning) |
 | `notification_log_retention_days` | `30` | notification-log retention | `scan` (pruning) |
 | `squelch_seconds` | `3600` | re-alert window for persistent conditions | `notify` |
+| `correlation_min_drives` | `4` | how many drives in one tag group must heat up together before `A25` reports it as one finding about the group. Raise it for a big enclosure: 4 is a sixth of a 24-bay NAS and nearly all of a workstation | `interp` |
+| `correlation_delta_c` | `8` | the temperature **rise** between two readings that counts as a drive having moved. A stopped fan moves a whole chassis well past this; a warm afternoon usually does not | `interp` |
 | `command_timeout_seconds` | `15` | per-`smartctl`/`lsblk` timeout | `scan` (env-seeded) |
 | `missed_run_policy` | `"skip"` | `skip` \| `run_once` | `sched` (env-seeded) |
 | `timezone` | `""` | schedule time zone; empty = container `TZ` (C6) | `sched` |

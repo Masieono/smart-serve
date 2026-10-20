@@ -23,6 +23,7 @@ notifier bus.
 | `scan_failure` | A scheduled scan (not a manual one) failed entirely (lsblk/smartctl errors) | medium |
 | `self_test_result` | A drive's self-test log holds a finished result it did not hold at the last scan (fired once per result) | low — **high** when the result failed |
 | `scan_success` | A scheduled scan completed **and found nothing to report**. A heartbeat, not an alert — **opt-in**, see below | low |
+| `group_heat` | Several drives in one tag group all rose by `correlation_delta_c` since the previous reading, at least `correlation_min_drives` of them. **Opt-in**, see below | medium |
 
 Priority influences formatting (ntfy priority header, webhook payload field) and
 squelch defaults — not delivery: every channel subscribed to the event gets it.
@@ -39,7 +40,15 @@ mean 96 messages a day. Adding it to the catalog therefore does *not* put it in
 Otherwise the first thing a user would experience after an upgrade is a burst of messages
 they never asked for, and the second thing they would do is turn notifications off.
 
-An explicit `"*"` subscription still means everything, including the heartbeat.
+`group_heat` is opt-in for a different reason, and a more important one. It reports that
+several drives in one group heated up together, which points at what they share — but a RAID
+rebuild heats everything too, and so does a warm afternoon, and nothing observable from a
+temperature separates them (`ADR-023`). The wording is therefore careful to state a
+correlation rather than a cause, and a channel has to ask for it, so an install that would
+find it noisy never receives it. A false "your enclosure is overheating" is worse than the
+eight true per-drive alerts it is meant to explain.
+
+An explicit `"*"` subscription still means everything, including both of those.
 
 #### What "found nothing to report" means exactly
 
@@ -354,6 +363,8 @@ Rule: for each `(channel, event_key)` pair, where `event_key` is:
   (good→caution→bad fires twice; caution persists quietly).
 - `temperature_high:<serial>` — refires only after `squelch_seconds`
   (default 3600) while the condition persists.
+- `group_heat:<tag>` — the same, per **group** rather than per event type: a second
+  enclosure heating up while the first is quiet is news.
 - `device_disappeared:<serial>` / `device_appeared:<serial>` — one-shot per
   appearance cycle by construction.
 - `scan_failure:<schedule_id>` — one per scan attempt (this one is allowed to
@@ -365,8 +376,8 @@ the body-described `POST /api/channels/test` the editor uses to test unsaved set
 The latter writes no log row at all: a draft has no id, so there is no stored channel to
 attribute a delivery to, and testing a draft must not persist anything.
 
-**As implemented**, only `temperature_high` consults a time window. Everything
-else carries a zero window and is therefore never squelched, because for those
+**As implemented**, only `temperature_high` and `group_heat` consult a time window.
+Everything else carries a zero window and is therefore never squelched, because for those
 events the dedupe is structural rather than temporal:
 
 - A `health_change` is only generated when the stored verdict actually differs

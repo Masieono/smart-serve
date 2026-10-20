@@ -149,7 +149,6 @@ export function toCelsius(displayed, fromUnit = currentUnit) {
   if (!Number.isFinite(n)) return null;
   return fromUnit === 'f' ? Math.round(((n - 32) * 5) / 9) : n;
 }
-
 /**
  * A temperature *difference* in the display unit.
  *
@@ -163,6 +162,13 @@ export function convertTempDelta(delta, targetUnit = currentUnit) {
   const n = Number(delta);
   if (!Number.isFinite(n)) return null;
   return targetUnit === 'f' ? Math.round((n * 9) / 5) : n;
+}
+
+/** A span entered in `fromUnit` back to canonical Celsius, for saving. */
+export function toCelsiusDelta(displayed, fromUnit = currentUnit) {
+  const n = Number(displayed);
+  if (!Number.isFinite(n)) return null;
+  return fromUnit === 'f' ? Math.round((n * 5) / 9) : n;
 }
 
 export function fmtTemp(celsius) {

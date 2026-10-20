@@ -964,6 +964,33 @@ a:hover {
   flex-wrap: wrap;
 }
 
+/* The enclosure heat card (`FEATURES.md` A25). One block per group, because the finding is about the
+   group and two enclosures heating at once are two findings. */
+.heat-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.heat-group + .heat-group {
+  border-top: 1px solid var(--border);
+  padding-top: var(--space-3);
+}
+
+.heat-reasons {
+  font-size: var(--text-xs);
+  max-width: 80ch;
+}
+
+/* The serials, as links. Wrapped rather than one per line: a 24-drive chassis is one finding, and a
+   list of 24 rows would read as 24 findings again. */
+.heat-drives {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-3);
+  font-size: var(--text-xs);
+}
+
 /* A button that reads as a link: it navigates rather than acting, but it has to be a button so
    the keyboard can reach it. */
 .link {

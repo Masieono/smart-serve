@@ -155,6 +155,8 @@ alert.
 - [x] Fleet-wide export as one CSV or one printable page (`A23`) — unit-tested
 - [x] Testing session: tag a batch of bench drives, test them, export the batch, forget them
       (`D11`) — unit-tested
+- [x] Correlated-change detection: several drives in one group heating together is one finding
+      about what they share (`A25`) — unit-tested
 - [x] Dockerfile, docker-compose (prod + dev), GitHub Actions CI
 - [x] Docker device-access validation on real hardware — a native NVMe, a USB-attached
       NVMe, and a USB-attached SATA SSD all read correctly; a drive with no S.M.A.R.T.

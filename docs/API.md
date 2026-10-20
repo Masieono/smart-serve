@@ -64,6 +64,26 @@ manual one does not (the operator who pressed the button already knows).
 app treats as "on the bench" (`D11`). Both are sent rather than derived by the client, so the UI
 cannot disagree with the server about which drive to buy or which drive is being tested.
 
+`correlation` is the group-heat finding (`A25`): the tag groups whose drives all rose together,
+which points at what they share rather than at the drives. It is computed from the store's own two
+readings per drive rather than from the payloads above, because those carry only the latest one.
+
+```json
+"correlation": [
+  { "group": "tank", "drives": ["S1", "S2", "S3", "S4"], "total": 4, "delta_c": 8, "max_c": 47 }
+]
+```
+
+`drives` are the serials that moved and `total` is the size of the group they moved within — the
+ratio is carried rather than reduced because six of six is a different finding from six of
+twenty-four, and that judgement belongs to the reader. `delta_c` is the **smallest** rise among the
+drives named, so the figure is true of every one of them; a mean would let one drive's spike stand
+in for the others. The thresholds behind it are settings (`DATA_MODEL.md`), and it is **empty**
+rather than absent when nothing is moving — the same "no finding" shape as an empty `ranking`.
+
+A bench drive is left out of this too (`D11`): a drive being tested is expected to heat up, and a
+batch of them on one bench would fire it on every scan.
+
 `on_bench` is the server's reading of that tag for one drive, so a client never has to know the
 tag's name or split a tag string the way the grouping does. It is derived from `tags` on every
 request rather than stored, because the tag is the source of truth and a second column could

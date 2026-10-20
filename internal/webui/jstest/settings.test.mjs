@@ -52,8 +52,8 @@ test('every numeric setting gets a slider bound to its own range', async () => {
   await render(container);
 
   const sliders = container.all('input').filter((n) => n.className === 'setting-range');
-  // Five thresholds plus three operational settings.
-  assert.equal(sliders.length, 8);
+  // Five health thresholds, three operational settings, and the two correlated-heat tunables.
+  assert.equal(sliders.length, 10);
 
   for (const slider of sliders) {
     const min = Number(slider.getAttribute('min'));

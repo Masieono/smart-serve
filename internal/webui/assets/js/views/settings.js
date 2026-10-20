@@ -1,5 +1,5 @@
 // Settings (docs/UI.md §7.5).
-import { el, mount, convertTemp, toCelsius } from '../dom.js';
+import { el, mount, convertTemp, toCelsius, convertTempDelta, toCelsiusDelta } from '../dom.js';
 import { api } from '../api.js';
 import { errorBox, toast, confirmDialog } from '../components.js';
 import { applyTheme } from '../theme.js';
@@ -92,9 +92,49 @@ const OPERATIONS = [
     help: 'Delivery records older than this are pruned.',
     min: 1, max: 365, step: 1, unit: 'days',
   },
+  // Correlated change (FEATURES.md A25). Two numbers, both configurable because the fleet size this
+  // has to suit spans an order of magnitude (ADR-023).
+  {
+    key: 'correlation_min_drives',
+    label: 'Correlated heat: drives that must move',
+    help: 'How many drives in one tag group have to heat up together before the app reports it as ' +
+      'one finding about the group rather than several about the drives. Raise it for a big ' +
+      'enclosure: 4 is a sixth of a 24-bay NAS and nearly all of a workstation.',
+    min: 2, max: 24, step: 1, unit: 'drives',
+  },
+  {
+    key: 'correlation_delta_c',
+    label: 'Correlated heat: the rise that counts',
+    help: 'How far a drive has to rise between two readings to count as having moved. A stopped ' +
+      'fan moves a whole chassis well past this; a warm afternoon usually does not.',
+    // A span, not a reading: it scales with the unit but does not take the 32° offset.
+    delta: true,
+  },
 ];
 
 const ALL_SPECS = [...THRESHOLDS, ...OPERATIONS];
+
+/**
+ * Whether a setting's value is a temperature, and so follows the display unit.
+ *
+ * `temperature` is a *reading* and converts with the offset (30 °C is 86 °F); `delta` is a *span*
+ * and scales without it (a 8 °C rise is a 14 °F rise, not a 46 °F one). Both follow the unit, because
+ * "eight degrees hotter" is the same physical change either way — and getting the second one wrong
+ * would make the slider say 46 °F for a threshold that means 14.
+ */
+const isTemperature = (spec) => Boolean(spec.temperature || spec.delta);
+
+/** A stored (Celsius) value in the unit the control is showing. */
+function toDisplay(spec, celsius, unit) {
+  if (spec.delta) return convertTempDelta(celsius, unit);
+  return spec.temperature ? convertTemp(celsius, unit) : celsius;
+}
+
+/** A value typed into the control, back to what gets stored. */
+function fromDisplay(spec, shown, unit) {
+  if (spec.delta) return toCelsiusDelta(shown, unit);
+  return spec.temperature ? toCelsius(shown, unit) : shown;
+}
 
 const DEFAULTS = {
   temperature_threshold_c: '55',
@@ -106,6 +146,8 @@ const DEFAULTS = {
   retention_days: '180',
   notification_log_retention_days: '30',
   squelch_seconds: '3600',
+  correlation_min_drives: '4',
+  correlation_delta_c: '8',
   temperature_unit: 'c',
   theme: 'auto',
   theme_base: 'dark',
@@ -153,8 +195,8 @@ function draw(container, ctx, data, { carried = {}, unit: unitOverride } = {}) {
     for (const spec of ALL_SPECS) {
       const raw = Number(inputs[spec.key].value);
       if (!Number.isFinite(raw)) continue;
-      const celsius = spec.temperature ? toCelsius(raw, renderUnit) : raw;
-      next[spec.key] = spec.temperature ? convertTemp(celsius, unit.value) : celsius;
+      const celsius = fromDisplay(spec, raw, renderUnit);
+      next[spec.key] = toDisplay(spec, celsius, unit.value);
     }
     ctx.setTemperatureUnit(unit.value);
     draw(container, ctx, data, { carried: next, unit: unit.value });
@@ -212,7 +254,7 @@ function draw(container, ctx, data, { carried = {}, unit: unitOverride } = {}) {
         const raw = Number(inputs[spec.key].value);
         if (!Number.isFinite(raw)) continue;
         // A temperature is stored in Celsius whatever the display unit says.
-        payload[spec.key] = String(spec.temperature ? toCelsius(raw, renderUnit) : raw);
+        payload[spec.key] = String(fromDisplay(spec, raw, renderUnit));
       }
 
       event.currentTarget.disabled = true;
@@ -357,6 +399,9 @@ function settingRow(label, help, control) {
  * the very unit the user chose to see.
  */
 function boundsFor(spec, unit) {
+  // A span's bounds are a span: the 32° offset must not appear here either, or the slider would
+  // start at 34 °F for a threshold of 1 °C.
+  if (spec.delta) return unit === 'f' ? { min: 2, max: 45, step: 1 } : { min: 1, max: 25, step: 1 };
   if (!spec.temperature) return { min: spec.min, max: spec.max, step: spec.step };
   return unit === 'f' ? { min: 86, max: 194, step: 1 } : { min: 30, max: 90, step: 1 };
 }
@@ -365,9 +410,12 @@ function boundsFor(spec, unit) {
 function displayValue(spec, settings, unit) {
   const stored = Number(settings[spec.key]);
   if (!Number.isFinite(stored)) {
+    // The documented defaults, so an install that has never opened this page shows what the app is
+    // actually using rather than the slider's minimum.
+    if (spec.delta) return toDisplay(spec, 8, unit);
     return spec.temperature ? convertTemp(55, unit) : spec.min;
   }
-  return spec.temperature ? convertTemp(stored, unit) : stored;
+  return toDisplay(spec, stored, unit);
 }
 
 /** A slider paired with a number box, so a value can be dragged or typed. */
@@ -375,7 +423,7 @@ function sliderRow(spec, settings, unit, carried, inputs) {
   const bounds = boundsFor(spec, unit);
   // A value edited but not yet saved wins over the stored one.
   const value = carried[spec.key] ?? displayValue(spec, settings, unit);
-  const unitLabel = spec.temperature ? `°${unit === 'f' ? 'F' : 'C'}` : (spec.unit || '');
+  const unitLabel = isTemperature(spec) ? `°${unit === 'f' ? 'F' : 'C'}` : (spec.unit || '');
 
   const range = el('input', {
     type: 'range', class: 'setting-range',

@@ -37,7 +37,7 @@ avoid idle cost.
 | A22 | Usable support for drives with no S.M.A.R.T. (USB flash drives, card readers) | P2 | 💤 | **done** — see below |
 | A23 | Fleet-wide export (every drive in one CSV or page) | P2 | 💤 | **done** — one row per drive, as a CSV or a printable page. A missing reading is an empty cell, never a zero. See below |
 | A24 | "Replace first" ranking (verdict + direction + remaining life, ordered, with reasons) | P2 | 💤 | **done** — a "Replace first" card, using bands rather than a weighted score so the reasons can be shown. See below |
-| A25 | Correlated-change detection (N drives in a group moving together → one alert about the enclosure) | P3 | 💤 | needs grouping + history first, and a high bar — a RAID rebuild legitimately heats everything |
+| A25 | Correlated-change detection (N drives in a group moving together → one alert about the enclosure) | P3 | 💤 | **done** — temperature only, because that is what an enclosure shares. Two settings, an opt-in notification, and wording that claims a correlation rather than a cause. See below |
 | A26 | Projection window follows retention (or becomes a setting) | P2 | 💤 | **done** — the projection, the worsening flag and the trend adjustment all use the `retention_days` setting. See below |
 | A27 | Warranty / RMA evidence pack (the exported report says what it is for) | P2 | 💤 | **done** — every format says what it is for, and names the evidence: the attributes failing the drive's *own* threshold, and the counters the app reads |
 
@@ -273,6 +273,38 @@ as a bare list entry.
   to ignore alerts. One alert naming the group and the shared delta points at the
   enclosure instead of the drives. It is deliberately P3: it needs grouping and history
   first, and it needs a high bar, because a RAID rebuild legitimately heats everything.
+  **Built**, and the whole design is one admission: **the app cannot tell a failing fan
+  from a RAID rebuild, or from a warm afternoon.** Nothing observable from a temperature
+  separates them. So it does not try. It reports a **correlation and never a cause** —
+  "4 of the 4 drives tagged `tank` are at least 8 °C hotter than at the previous reading.
+  They share an enclosure, so the cause is more likely to be there — a fan, a filter, or
+  ambient — than in 4 drives at once." A reader who started a rebuild knows why; a false
+  "your enclosure is overheating" would be worse than the eight true per-drive alerts it
+  is meant to explain, and the way to avoid one is not to make the claim.
+
+  Three consequences of that admission. **The signal is temperature only** — it is the
+  thing an enclosure shares, while sector counts and wear are per-drive by nature, and two
+  drives' counters moving together is a coincidence rather than a chassis. **The check is
+  a *rise*, not a level**: a group that is uniformly hot but steady is an ambient
+  condition, and "correlated *change*" is what the feature is called. And the **alert is
+  opt-in per channel** (`optInEvents`), the same mechanism as the scan heartbeat, so an
+  install that would find it noisy never receives it — while the dashboard card is always
+  on, because a card on a page you opened is not an interruption.
+
+  The bar is two settings (`ADR-023`), because the fleet size this suits spans an order of
+  magnitude: **how many drives have to move** (default 4) and **the rise that counts**
+  (default 8 °C). Four is nearly all of a workstation and a sixth of a 24-bay NAS, so a big
+  enclosure should raise it — the question is "did enough of this group move at once to be
+  one cause rather than several", and "enough" grows with the group. A `MinDrives` below
+  two and a non-positive delta are refused rather than obeyed, so a typo cannot turn the
+  check into "any one drive that moved". Two smaller decisions: the baseline is **the
+  previous reading**, which is a scan boundary rather than a time window, because that is
+  exactly "what changed since we last looked"; and a drive counts for **each of its tags**,
+  the same rule as the grouping (`D9`), so a group never hides a drive. Bench drives are
+  excluded (`D11`) — a drive being tested is *expected* to heat up. The per-drive alerts are
+  deliberately **not** suppressed: each one is true, and silencing a true finding to reduce
+  volume is how a monitor becomes one you cannot trust. What `A25` removes is the
+  confusion, not the messages.
 - **The projection window is too short for a NAS** (`A26`). Retention is configurable;
   the projection window is fixed at 180 days. An owner who raises retention to five years
   is doing so precisely to watch a slow trend — and the app then discards it. The tension

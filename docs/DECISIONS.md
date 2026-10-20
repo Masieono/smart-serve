@@ -431,7 +431,17 @@ bench — produced a set of additions that are not "more features" so much as a 
    unrelated alerts — exactly the noise that teaches people to ignore alerts. It needs
    grouping and history first, and it needs a high bar, because a RAID rebuild legitimately
    heats everything: a *false* "your enclosure is overheating" alert is worse than eight
-   true per-drive ones.
+   true per-drive ones. **Built**, and the high bar turned out to be an admission rather than
+   a threshold: the app **cannot tell a failing fan from a RAID rebuild, or from a warm
+   afternoon**, and nothing observable from a temperature separates them. So it does not try.
+   It reports a **correlation and never a cause**, naming the group and the shared rise and
+   leaving the diagnosis to the reader who knows whether a rebuild is running. The two
+   thresholds the owner asked for are real — how many drives must move, and by how much — but
+   they set how *much* evidence is enough, not how confident the app pretends to be. The
+   notification is opt-in per channel for the same reason, the signal is temperature alone
+   because that is what an enclosure shares, and the per-drive alerts are deliberately **not**
+   suppressed: each one is true, and what `A25` removes is the confusion rather than the
+   messages.
 7. **"Replace first" is the ranking a fleet asks for** (`A24`), combining verdict, direction
    (`A14`) and remaining life (`A16`), with the reasoning shown. It is the action-shaped
    form of work the app already does.

@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/masieono/smart-serve/internal/interp"
 	"github.com/masieono/smart-serve/internal/model"
 	"github.com/masieono/smart-serve/internal/scan"
 	"github.com/masieono/smart-serve/internal/store"
@@ -50,6 +51,127 @@ func withSelfTest(e *model.SelfTestEntry, recorded bool) stateOpt {
 	return func(s *store.DeviceState) {
 		s.SelfTest = e
 		s.SelfTestRecorded = recorded
+	}
+}
+
+func withTags(tags string) stateOpt {
+	return func(s *store.DeviceState) { s.Tags = tags }
+}
+
+// A25: **one** event for the group rather than one per drive. Eight drives in a chassis have one fan,
+// and eight alerts about one fan is precisely the noise that teaches people to ignore alerts.
+func TestCollectReportsAGroupThatMovedTogether(t *testing.T) {
+	rep := scan.PostScan{
+		OK:      true,
+		Started: scanTime, Ended: scanTime.Add(time.Second),
+		Previous: states(
+			state("a", "good", withTags("tank"), withTemp(35)),
+			state("b", "good", withTags("tank"), withTemp(36)),
+			state("c", "good", withTags("tank"), withTemp(34)),
+			state("d", "good", withTags("tank"), withTemp(37)),
+		),
+		Current: states(
+			state("a", "good", withTags("tank"), withTemp(46)),
+			state("b", "good", withTags("tank"), withTemp(47)),
+			state("c", "good", withTags("tank"), withTemp(45)),
+			state("d", "good", withTags("tank"), withTemp(45)),
+		),
+	}
+
+	events := Collect(rep, CollectOptions{
+		Correlation: interp.DefaultCorrelationThresholds(),
+		Version:     "test",
+	})
+	ev := onlyEvent(t, events, EventGroupHeat)
+
+	if ev.Group != "tank" || ev.GroupSize != 4 || len(ev.GroupDrives) != 4 {
+		t.Errorf("event = %+v, want the whole tank group", ev)
+	}
+	// The smallest rise among the movers, so the figure is true of every drive named.
+	if ev.GroupDeltaC == nil || *ev.GroupDeltaC != 8 {
+		t.Errorf("delta = %v, want 8", ev.GroupDeltaC)
+	}
+	// Four drives moved and one event was produced. That ratio is the whole feature.
+	if n := len(events); n != 1 {
+		t.Errorf("got %d events, want 1 — not one per drive: %+v", n, events)
+	}
+	// It states a correlation and never a cause: a RAID rebuild heats everything too.
+	body := ev.Body()
+	if !strings.Contains(body, "tank") || !strings.Contains(body, "8 °C") {
+		t.Errorf("body does not name the group and the rise: %q", body)
+	}
+	if strings.Contains(strings.ToLower(body), "overheating") {
+		t.Errorf("body claims a diagnosis: %q", body)
+	}
+}
+
+// The correlation check is off when a caller has no settings, which is what a zero MinDrives means.
+func TestCollectSkipsCorrelationWithoutThresholds(t *testing.T) {
+	rep := scan.PostScan{
+		OK: true, Started: scanTime, Ended: scanTime,
+		Previous: states(state("a", "good", withTags("tank"), withTemp(35))),
+		Current:  states(state("a", "good", withTags("tank"), withTemp(60))),
+	}
+	for _, ev := range Collect(rep, CollectOptions{Version: "test"}) {
+		if ev.Type == EventGroupHeat {
+			t.Errorf("a caller with no thresholds still got a finding: %+v", ev)
+		}
+	}
+}
+
+// A drive being tested is *expected* to heat up, and a batch of them on one bench would fire this on
+// every scan (`FEATURES.md` D11).
+func TestBenchDrivesAreNotPartOfACorrelation(t *testing.T) {
+	previous := states(
+		state("a", "good", withTags("bench, tank"), withTemp(35)),
+		state("b", "good", withTags("bench, tank"), withTemp(36)),
+		state("c", "good", withTags("bench, tank"), withTemp(34)),
+		state("d", "good", withTags("bench, tank"), withTemp(37)),
+	)
+	current := states(
+		state("a", "good", withTags("bench, tank"), withTemp(46)),
+		state("b", "good", withTags("bench, tank"), withTemp(47)),
+		state("c", "good", withTags("bench, tank"), withTemp(45)),
+		state("d", "good", withTags("bench, tank"), withTemp(45)),
+	)
+
+	for _, ev := range Collect(scan.PostScan{
+		OK: true, Started: scanTime, Ended: scanTime, Previous: previous, Current: current,
+	}, CollectOptions{Correlation: interp.DefaultCorrelationThresholds(), Version: "test"}) {
+		if ev.Type == EventGroupHeat {
+			t.Errorf("a bench batch produced a finding: %+v", ev)
+		}
+	}
+}
+
+// It is **opt-in** (`ADR-023`), and that is the mitigation for the one thing that can go wrong here:
+// a false "your enclosure is overheating" is worse than eight true per-drive alerts, so an install
+// that would find it noisy must never receive it. An empty subscription list means "everything" for
+// every other exception in the catalog, and deliberately not for this one.
+func TestGroupHeatIsOptIn(t *testing.T) {
+	if subscribed("", EventGroupHeat) {
+		t.Error("an unsubscribed channel receives group_heat")
+	}
+	if subscribed(`["health_change"]`, EventGroupHeat) {
+		t.Error("an unrelated subscription receives group_heat")
+	}
+	if !subscribed(`["group_heat"]`, EventGroupHeat) {
+		t.Error("naming it does not subscribe")
+	}
+	if !subscribed(`["*"]`, EventGroupHeat) {
+		t.Error("an explicit * should include it")
+	}
+}
+
+// A hot chassis is a condition rather than an event: it persists until somebody fixes it, so it
+// stays quiet for the squelch window instead of repeating on every scheduled scan.
+func TestGroupHeatIsSquelchedPerGroup(t *testing.T) {
+	if got := squelchWindow(Event{Type: EventGroupHeat}, time.Hour); got != time.Hour {
+		t.Errorf("squelch = %v, want 1h", got)
+	}
+	// Per group, so a second enclosure heating up while the first is quiet is still news.
+	if k := (Event{Type: EventGroupHeat, key: "group_heat:tank"}).Key(); k != "group_heat:tank" {
+		t.Errorf("key = %q, want group_heat:tank", k)
 	}
 }
 

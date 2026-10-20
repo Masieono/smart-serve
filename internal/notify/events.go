@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/masieono/smart-serve/internal/interp"
 	"github.com/masieono/smart-serve/internal/model"
 	"github.com/masieono/smart-serve/internal/scan"
 	"github.com/masieono/smart-serve/internal/store"
@@ -24,7 +25,10 @@ type CollectOptions struct {
 	// TemperatureUnit is the display unit for human-readable output ("c" or "f").
 	// The wire payload always carries Celsius, because that is what drives report.
 	TemperatureUnit string
-	Version         string
+	// Correlation tunes the group-heat check (FEATURES.md A25). A zero MinDrives turns it off, which
+	// is what a caller with no settings has.
+	Correlation interp.CorrelationThresholds
+	Version     string
 }
 
 // Collect turns a finished scan into the events worth notifying about.
@@ -124,6 +128,14 @@ func Collect(rep scan.PostScan, opts CollectOptions) []Event {
 		}
 	}
 
+	// A25: the groups whose drives moved together. Built from this scan and the one before it, which
+	// is a sharper baseline than any time window — the question is "what changed since we last
+	// looked", and a scan boundary is exactly that.
+	//
+	// Before the heartbeat, deliberately: a scan that found a chassis heating up has something to
+	// say, and the heartbeat exists for the scans that do not.
+	events = append(events, groupHeatEvents(rep, opts)...)
+
 	// The heartbeat fires only when the scan found nothing to say — no verdict changed, no
 	// drive vanished or appeared, nothing ran hot. It is the *complement* of the alert
 	// stream rather than an addition to it: you hear from a scheduled scan either way, and
@@ -198,6 +210,61 @@ func selfTestRationale(e *model.SelfTestEntry) string {
 	return fmt.Sprintf("%s %s", what, outcome)
 }
 
+// groupHeatEvents reports the tag groups whose drives heated up together (`FEATURES.md` A25).
+//
+// One event per group rather than one per drive, which is the whole point: eight drives in a chassis
+// have one fan, and eight alerts about one fan is precisely the noise that teaches people to ignore
+// alerts.
+//
+// It says what moved and where to look, and never what is wrong. A RAID rebuild heats everything,
+// and so does a warm afternoon; the reader knows which is running and this does not.
+//
+// Bench drives are left out — a drive being tested is *expected* to heat up, and a batch of them on
+// one bench would fire this on every scan — and so is a drive with no temperature at either reading,
+// because it cannot have moved.
+func groupHeatEvents(rep scan.PostScan, opts CollectOptions) []Event {
+	if opts.Correlation.MinDrives < 2 {
+		return nil
+	}
+
+	readings := make([]interp.HeatReading, 0, len(rep.Current))
+	for serial, cur := range rep.Current {
+		if cur.Missing || cur.TemperatureC == nil || store.HasTag(cur.Tags, store.BenchTag) {
+			continue
+		}
+		r := interp.HeatReading{
+			Serial: serial,
+			Groups: store.TagList(cur.Tags),
+			Now:    cur.TemperatureC,
+		}
+		if prev, ok := rep.Previous[serial]; ok && !prev.Missing {
+			r.Prev = prev.TemperatureC
+		}
+		readings = append(readings, r)
+	}
+
+	var out []Event
+	for _, g := range interp.CorrelatedHeat(readings, opts.Correlation) {
+		delta := g.DeltaC
+		out = append(out, Event{
+			Type:        EventGroupHeat,
+			Priority:    PriorityMedium,
+			Group:       g.Group,
+			GroupSize:   g.Total,
+			GroupDrives: g.Drives,
+			GroupDeltaC: &delta,
+			Rationale:   interp.HeatSummary(g, formatTempDelta(delta, opts.TemperatureUnit)),
+			ScanTS:      rep.Ended.UnixMilli(),
+			Version:     opts.Version,
+			tempUnit:    opts.TemperatureUnit,
+			// One key per group, so squelching quiets the *group* rather than the event type: a
+			// second enclosure heating up while the first is squelched is news.
+			key: EventGroupHeat + ":" + g.Group,
+		})
+	}
+	return out
+}
+
 // Settings reads the tunables that live in the database (ADR-009).
 type Settings interface {
 	GetSettings(ctx context.Context) (map[string]string, error)
@@ -223,10 +290,11 @@ func NewNotifier(st Settings, disp *Dispatcher, version string, log *slog.Logger
 // OnScan implements scan.PostScanFunc. It must never fail the scan, so every
 // problem here is logged rather than returned.
 func (n *Notifier) OnScan(ctx context.Context, rep scan.PostScan) {
-	threshold, unit := n.temperatureSettings(ctx)
+	threshold, unit, correlation := n.alertSettings(ctx)
 	events := Collect(rep, CollectOptions{
 		TemperatureThresholdC: threshold,
 		TemperatureUnit:       unit,
+		Correlation:           correlation,
 		Version:               n.version,
 	})
 	if len(events) == 0 {
@@ -236,14 +304,15 @@ func (n *Notifier) OnScan(ctx context.Context, rep scan.PostScan) {
 	n.disp.Dispatch(ctx, events)
 }
 
-// temperatureSettings reads the user-tunable temperature settings, falling back to
-// the documented defaults whenever they are missing or unparseable. The unit only
-// affects how alerts are worded; the threshold itself is always Celsius.
-func (n *Notifier) temperatureSettings(ctx context.Context) (threshold int, unit string) {
+// alertSettings reads the user-tunable alert settings, falling back to the documented defaults
+// whenever they are missing or unparseable. The unit only affects how alerts are worded; the
+// thresholds themselves are always Celsius.
+func (n *Notifier) alertSettings(ctx context.Context) (threshold int, unit string, correlation interp.CorrelationThresholds) {
 	threshold, unit = DefaultTemperatureThresholdC, "c"
+	correlation = interp.DefaultCorrelationThresholds()
 	settings, err := n.settings.GetSettings(ctx)
 	if err != nil {
-		return threshold, unit
+		return threshold, unit, correlation
 	}
 	if parsed, perr := strconv.Atoi(strings.TrimSpace(settings["temperature_threshold_c"])); perr == nil && parsed > 0 {
 		threshold = parsed
@@ -251,7 +320,8 @@ func (n *Notifier) temperatureSettings(ctx context.Context) (threshold int, unit
 	if strings.EqualFold(strings.TrimSpace(settings["temperature_unit"]), "f") {
 		unit = "f"
 	}
-	return threshold, unit
+	correlation = interp.CorrelationFromSettings(settings)
+	return threshold, unit, correlation
 }
 
 // TestEvent is the synthetic event behind "send test". Its Title and Body say plainly

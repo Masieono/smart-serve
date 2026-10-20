@@ -11,6 +11,17 @@ stopped from the device page.
 
 ### Added
 
+- **Correlated change (`A25`)** — the fleet-only insight: eight drives in one enclosure share a
+  temperature, so a dying fan presents as *all eight* running hotter at once, which per-drive
+  monitoring reports as eight unrelated alerts. The app now notices that a group moved together and
+  says so **once**, naming the group and the shared rise. It reports a **correlation and never a
+  cause** — nothing observable from a temperature separates a stopped fan from a RAID rebuild or a
+  warm afternoon — so the wording names what moved and where to look and leaves the diagnosis to the
+  reader. Temperature only, because that is what an enclosure shares; a *rise* rather than a level;
+  two configurable thresholds (how many drives must move, and by how much); and the notification is
+  **opt-in per channel**, because a false "your enclosure is overheating" would be worse than the
+  eight true alerts it explains. The per-drive alerts are deliberately *not* suppressed: each is
+  true, and what `A25` removes is the confusion rather than the messages.
 - **Testing session (`D11`)** — the `bench` tag *is* the session: no mode, no new column, no new
   control. A drive tagged `bench` is being evaluated rather than used, so it is left out of the
   health counts and out of the replace-first ranking while staying listed, searchable and in every
