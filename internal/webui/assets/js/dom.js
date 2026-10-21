@@ -41,6 +41,32 @@ export function mount(node, ...children) {
   return append(clear(node), children);
 }
 
+/**
+ * Freeze a container at its current height while its contents are replaced.
+ *
+ * A view that empties its container and *then* waits for a fetch leaves the page short for as long as
+ * the request takes, and the browser clamps the scroll position to the top of a short page — which is
+ * how a refresh throws you out of the section you were reading. The clear and the refill have to be in
+ * different tasks for this to happen, which is why it shows up on the pages that load data and not on
+ * the ones that just re-draw.
+ *
+ * Holding the old height across the swap keeps the scroll position valid, and releasing it afterwards
+ * hands the element back to its own content: if the new content is genuinely shorter the browser
+ * clamps then, which is the honest result rather than a jump to the top.
+ *
+ * Returns the release function. Call it in a `finally`, or the element keeps a floor under it.
+ */
+export function holdHeight(node) {
+  const height = typeof node.offsetHeight === 'number' ? node.offsetHeight : 0;
+  // Nothing on screen to hold: the first render, or the test stub, which has no layout at all.
+  if (!(height > 0)) return () => {};
+  const previous = node.style.minHeight;
+  node.style.minHeight = `${height}px`;
+  return () => {
+    node.style.minHeight = previous || '';
+  };
+}
+
 /** Parse an SVG string into an element. */
 export function svg(markup) {
   const wrap = document.createElement('div');

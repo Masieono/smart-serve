@@ -41,7 +41,7 @@ function buttonsOf(node) {
 
 /** Press a button and let its async handler settle. */
 async function press(button) {
-  await button.onclick({ target: button, currentTarget: button });
+  await button.click();
   // Handlers await confirmDialog, which settles on the dialog's `close` event, then await the
   // request. Two turns is enough for both without depending on a timer.
   await new Promise((resolve) => setImmediate(resolve));
@@ -64,7 +64,7 @@ const flush = () => new Promise((resolve) => setImmediate(resolve));
 
 /** Press a button, confirm the dialog it opens, and let the handler finish. */
 async function clickThrough(button) {
-  const done = button.onclick({ target: button, currentTarget: button });
+  const done = button.click();
   await flush();
   await confirmLastDialog();
   await done;
@@ -230,7 +230,7 @@ test('declining the confirmation sends nothing', async () => {
   const card = selfTestCard(stubCtx(), { serial: 'S' }, { short_minutes: 2 });
 
   const run = buttonsOf(card)[0];
-  const done = run.onclick({ target: run, currentTarget: run });
+  const done = run.click();
   await flush();
   const [cancel] = dialogButtons();
   cancel.click();

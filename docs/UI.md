@@ -184,7 +184,12 @@ picker offers exactly `ThemeNames`.
   hangs the pointer cursor on — a header that looks clickable and is not is worse than a plain
   label. The table *replaces* the grid rather than nesting inside it, since a table in a grid cell
   is laid out as a single column and loses the columns it exists for. Both views are built from the
-  same payloads and the same badge functions, so they cannot disagree about a drive's state.
+  same payloads and the same badge functions, so they cannot disagree about a drive's state. The
+  choice is **stored rather than remembered by the tab**: it is a display preference like the theme
+  and the temperature unit, so it lives in the settings table, is read before the first render, and
+  travels in the config export. A reader who wants the table wants the table after a refresh, not cards
+  again. The filter and the sort beside it stay in the module, because those are about the question
+  being asked rather than about how this person likes to read.
 - **Grouping** (`FEATURES.md` D9): a "Group by tag" toggle, offered only when at least one drive is
   tagged — a single "Untagged" heading is the list with a heading on it, not a grouping. It works in
   both views: cards get a heading and their own grid per group, and the table gets a separator row
@@ -446,6 +451,13 @@ picker offers exactly `ThemeNames`.
 - **Reduced motion** honoured via `prefers-reduced-motion`.
 - **No layout shift** during scans — cards reserve their space (skeletons match final
   dimensions).
+- **A re-render never moves the reader.** A refresh, a rescan or a scan finishing re-draws the page it
+  is already on, so the scroll position has to survive it. Every view empties its container and *then*
+  awaits its data, and a page that is briefly short makes the browser clamp the scroll position to the
+  top — which is how "Refresh now" threw you out of the card you were reading. The container is held at
+  its old height across the swap and released afterwards, so the position stays valid and only a
+  genuinely shorter page moves the reader. Navigation is the opposite case and starts at the top,
+  because a page you have just asked for is one you have not read yet.
 
 ## 9. Accessibility
 

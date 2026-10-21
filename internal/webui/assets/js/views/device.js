@@ -417,7 +417,9 @@ function smartProblemNotice(ctx, d) {
         transport,
         el('button', { class: 'btn btn-sm', type: 'button', text: 'Apply & rescan',
           onclick: async (event) => {
-            event.currentTarget.disabled = true;
+            // Captured before the first `await`: `event.currentTarget` is null once dispatch ends.
+            const button = event.currentTarget;
+            button.disabled = true;
             try {
               await api.setTransport(d.serial, transport.value);
               await api.scanDevice(d.serial);
@@ -426,7 +428,7 @@ function smartProblemNotice(ctx, d) {
             } catch (err) {
               toast(err.message, 'error');
             } finally {
-              event.currentTarget.disabled = false;
+              button.disabled = false;
             }
           } }),
       ]),
@@ -1016,7 +1018,9 @@ function editNotes(ctx, device) {
         type: 'button',
         text: 'Save',
         onclick: async (event) => {
-          event.currentTarget.disabled = true;
+          // Captured before the first `await`: `event.currentTarget` is null once dispatch ends.
+          const button = event.currentTarget;
+          button.disabled = true;
           try {
             await api.setNotes(device.serial, {
               name: name.value.trim(),
@@ -1030,7 +1034,7 @@ function editNotes(ctx, device) {
             ctx.refresh();
           } catch (err) {
             toast(err.message, 'error');
-            event.currentTarget.disabled = false;
+            button.disabled = false;
           }
         },
       }),

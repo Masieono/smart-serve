@@ -15,6 +15,19 @@ let view = 'cards';
 let grouped = false;
 let benchOnly = false;
 
+/**
+ * The stored view preference (`cards` or `table`), applied before the first render.
+ *
+ * Unlike the filter and the sort beside it — which are deliberately module-only, so they survive a
+ * trip into a drive and back but not a reload — this one is a *preference*, and the app already keeps
+ * its display preferences (the theme, the temperature unit) in the database, so they survive a reload
+ * and travel in the config export. An earlier version kept this in the module too, which meant a
+ * reader who wanted the table got cards again on every refresh.
+ */
+export function setView(stored) {
+  if (stored === 'cards' || stored === 'table') view = stored;
+}
+
 // Worst first. The rank is what makes "sort by risk" mean something: the server's own ORDER BY
 // uses the same order, and this is the client's copy of it for the sorts below.
 const HEALTH_RANK = { bad: 0, caution: 1, unknown: 2, good: 3 };
@@ -514,6 +527,12 @@ function draw(container, ctx, data) {
       onclick: () => {
         view = key;
         draw(container, ctx, data);
+        // Stored server-side, like the theme and the temperature unit, so the choice survives a
+        // reload. Sent after the re-render rather than before it: the switch has to be instant, and a
+        // save that fails is reported rather than rolling the view back — the reader asked for the
+        // table, and showing it to them is the more useful half of the answer.
+        api.putSettings({ dashboard_view: key })
+          .catch((err) => toast(`Could not remember the view: ${err.message}`, 'error'));
       },
     }, [label]);
   }

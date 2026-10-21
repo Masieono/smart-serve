@@ -5,7 +5,7 @@ import { installStubDom, StubNode } from './stub-dom.mjs';
 installStubDom();
 
 const {
-  el, mount, fmtBytes, fmtHours, fmtInt, scoreGrade,
+  el, mount, fmtBytes, fmtHours, fmtInt, scoreGrade, holdHeight,
   fmtTemp, setTemperatureUnit, temperatureUnitName, convertTemp, toCelsius, convertTempDelta,
 } = await import('../assets/js/dom.js');
 
@@ -35,6 +35,64 @@ test('table-style row arrays render as rows', () => {
     el('tr', {}, [el('td', { text: 'b' })]),
   ]);
   assert.equal(tbody.childNodes.length, 2);
+});
+
+/**
+ * `event.currentTarget` is null once dispatch ends. That is the spec's rule, and it is the rule that
+ * makes `finally { event.currentTarget.disabled = false }` throw a TypeError into an unhandled
+ * promise and leave a button disabled for the rest of the session.
+ *
+ * The stub used to hand out a plain property that stayed valid forever, so the whole suite was blind
+ * to that bug — which is how "Save settings" came to work exactly once. This pins the behaviour, so
+ * a future tidy-up of the stub cannot quietly re-blind the tests.
+ */
+test('currentTarget is null after the handler returns, as the spec says', async () => {
+  const button = document.createElement('button');
+  let during = 'never set';
+  let after = 'never set';
+
+  button.onclick = (event) => {
+    during = event.currentTarget;
+    // One turn of the event loop, so this runs after dispatch has finished.
+    return Promise.resolve().then(() => { after = event.currentTarget; });
+  };
+
+  await button.click();
+
+  assert.equal(during, button, 'currentTarget was not the button while it was being dispatched');
+  assert.equal(after, null, 'currentTarget outlived dispatch, so the stub hides the bug');
+});
+
+test('click hands back what the handler returned, so an async handler can be awaited', async () => {
+  const button = document.createElement('button');
+  button.onclick = async () => 'done';
+  assert.equal(await button.click(), 'done');
+});
+
+/**
+ * `holdHeight` is what stops a refresh from throwing the reader to the top of the page. A view empties
+ * its container and *then* awaits its data, so the page is short for the length of the request and the
+ * browser clamps the scroll position to the top. Holding the old height across the swap keeps it valid.
+ */
+test('holdHeight freezes the container until it is released', () => {
+  const node = document.createElement('div');
+  // The stub has no layout, so the height is stated rather than measured.
+  node.offsetHeight = 1200;
+
+  const release = holdHeight(node);
+  assert.equal(node.style.minHeight, '1200px', 'the container was not held at its height');
+
+  release();
+  assert.equal(node.style.minHeight, '', 'the height was not handed back to the content');
+});
+
+test('holdHeight does nothing when there is no height to hold', () => {
+  const node = document.createElement('div');
+  // The first render has nothing on screen yet, and a container with no layout must not be given a
+  // floor of zero.
+  const release = holdHeight(node);
+  assert.equal(node.style.minHeight, undefined);
+  assert.equal(typeof release, 'function', 'a no-op hold still has to be safe to release');
 });
 
 test('formatters', () => {

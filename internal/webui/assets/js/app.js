@@ -1,5 +1,5 @@
 // App shell: navigation, routing, SSE wiring, shortcuts (docs/UI.md §2, §8).
-import { el, mount, clear, setTemperatureUnit as applyTemperatureUnit } from './dom.js';
+import { el, mount, clear, holdHeight, setTemperatureUnit as applyTemperatureUnit } from './dom.js';
 import { icon } from './icons.js';
 import { api, appPath } from './api.js';
 import { toast, confirmDialog } from './components.js';
@@ -32,7 +32,9 @@ const ctx = {
     ctx.navigate(`/device/${encodeURIComponent(serial)}`);
   },
   refresh() {
-    route();
+    // A refresh re-renders the view that is already on screen, so the reader keeps their place
+    // (`route`). Navigation is the case that starts at the top.
+    route({ keepScroll: true });
   },
   // Display preferences the settings view can change without a reload.
   setTemperatureUnit: applyTemperatureUnit,
@@ -53,7 +55,9 @@ const ctx = {
     try {
       await api.scanDevice(serial);
       toast('Drive rescanned', 'good');
-      route();
+      // The button that started this is on the card being rescanned, so the reader is looking at
+      // that part of the page: losing their place would be the app's fault, not their scroll.
+      route({ keepScroll: true });
     } catch (err) {
       // "device X is not connected" is the interesting case: the drive was unplugged
       // between the last scan and this button press.
@@ -83,20 +87,35 @@ function currentPath() {
   return path.startsWith('/') ? path : `/${path}`;
 }
 
-async function route() {
+/**
+ * Render the view for the current path.
+ *
+ * `keepScroll` is for a re-render of the view that is *already on screen* — a refresh, a rescan, a
+ * scan finishing — where the reader's place has to survive it. Navigation passes nothing, because a
+ * page you have just asked for should start at the top.
+ */
+async function route({ keepScroll = false } = {}) {
   const path = currentPath();
   renderSidebar(path);
 
-  if (path.startsWith('/device/')) {
-    await device.render(content, ctx, decodeURIComponent(path.slice('/device/'.length)));
-  } else if (path === '/schedules') {
-    await schedules.render(content, ctx);
-  } else if (path === '/notifications') {
-    await notifications.render(content, ctx);
-  } else if (path === '/settings') {
-    await settings.render(content, ctx);
-  } else {
-    await dashboard.render(content, ctx);
+  // Every view mounts a skeleton and then awaits its data, so the container is empty for the length
+  // of the request and the browser clamps the scroll position to the top of a very short page.
+  // Holding the old height across the swap is what keeps the reader where they were.
+  const release = keepScroll ? holdHeight(content) : null;
+  try {
+    if (path.startsWith('/device/')) {
+      await device.render(content, ctx, decodeURIComponent(path.slice('/device/'.length)));
+    } else if (path === '/schedules') {
+      await schedules.render(content, ctx);
+    } else if (path === '/notifications') {
+      await notifications.render(content, ctx);
+    } else if (path === '/settings') {
+      await settings.render(content, ctx);
+    } else {
+      await dashboard.render(content, ctx);
+    }
+  } finally {
+    if (release) release();
   }
 }
 
@@ -180,7 +199,9 @@ function connectEvents() {
     } else {
       toast(`Scan complete: ${data.devices_ok}/${data.devices_total} readable`, 'good');
     }
-    route();
+    // A scan finishing is news about the fleet, not a navigation: the reader was doing something
+    // else, and yanking them to the top of the page to tell them is the wrong interruption.
+    route({ keepScroll: true });
   });
   // EventSource reconnects automatically; nothing to do on error.
 }
@@ -215,7 +236,11 @@ window.addEventListener('popstate', route);
 async function loadDisplayPreferences() {
   try {
     const data = await api.settings();
-    applyTemperatureUnit(data && data.settings && data.settings.temperature_unit);
+    const stored = (data && data.settings) || {};
+    applyTemperatureUnit(stored.temperature_unit);
+    // Same reason as the temperature unit, and the same place: a list that flashed cards and then
+    // became a table would be worse than either one on its own.
+    dashboard.setView(stored.dashboard_view);
   } catch {
     /* keep the defaults; the first view will report the real error */
   }

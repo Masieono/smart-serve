@@ -293,7 +293,12 @@ function draw(container, ctx, data, { carried = {}, unit: unitOverride } = {}) {
         payload[spec.key] = String(fromDisplay(spec, raw, renderUnit));
       }
 
-      event.currentTarget.disabled = true;
+      // Captured before the first `await`. The spec nulls `event.currentTarget` the moment
+      // dispatch ends, so reading it afterwards throws a TypeError into an unhandled promise —
+      // silently, because nobody awaits a click handler — and the button stays disabled for the
+      // rest of the session. One click on Save, then the page is unusable.
+      const button = event.currentTarget;
+      button.disabled = true;
       try {
         await api.putSettings(payload);
         ctx.setTemperatureUnit(payload.temperature_unit);
@@ -302,7 +307,7 @@ function draw(container, ctx, data, { carried = {}, unit: unitOverride } = {}) {
       } catch (err) {
         toast(err.message, 'error');
       } finally {
-        event.currentTarget.disabled = false;
+        button.disabled = false;
       }
     },
   });

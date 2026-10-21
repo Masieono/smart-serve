@@ -7,11 +7,11 @@
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { installStubDom, StubNode } from './stub-dom.mjs';
+import { installStubDom, StubNode, stubFetch } from './stub-dom.mjs';
 
 installStubDom();
 
-const { visibleDevices, groupByTag, exportLinks, benchSession, heatCard } =
+const { visibleDevices, groupByTag, exportLinks, benchSession, heatCard, render, setView } =
   await import('../assets/js/views/dashboard.js');
 
 /** Every string in a subtree, in document order. */
@@ -343,4 +343,61 @@ test('the heat card shows every group', () => {
 
   assert.equal(card.all('button').length, 6);
   assert.match(textOf(card), /media/);
+});
+
+// --- the cards/table switch (docs/UI.md §7.1) ----------------------------------
+//
+// The view is a *preference* rather than view state, which is why it is stored server-side like the
+// theme and the temperature unit: a reader who wants the table wants the table after a refresh, not
+// cards again. The filter and the sort beside it stay module-only, and that difference is deliberate.
+
+/** The first button whose label is exactly this text. */
+function buttonLabelled(node, label) {
+  return node.all('button').find((b) => b.childNodes
+    .filter((n) => n.tagName === '#TEXT')
+    .map((n) => n.data)
+    .join('') === label);
+}
+
+const listCtx = { openDevice() {}, scanDevice() {}, refresh() {} };
+const flush = () => new Promise((resolve) => setTimeout(resolve, 1));
+
+test('the list opens in the stored view', async () => {
+  installStubDom();
+  stubFetch({ devices: [drive({ serial: 'a' }), drive({ serial: 'b' })] });
+
+  try {
+    setView('table');
+    const container = document.createElement('div');
+    await render(container, listCtx);
+    assert.ok(container.all('table').length, 'the stored table view was not drawn');
+  } finally {
+    // The module keeps the choice, so leaving it set would decide the next test's first render.
+    setView('cards');
+  }
+});
+
+test('choosing a view stores it, so it survives a refresh', async () => {
+  installStubDom();
+  const requests = [];
+  stubFetch({ devices: [drive({ serial: 'a' }), drive({ serial: 'b' })] }, requests);
+
+  try {
+    setView('cards');
+    const container = document.createElement('div');
+    await render(container, listCtx);
+    assert.equal(container.all('table').length, 0, 'cards were expected to be the default');
+
+    const table = buttonLabelled(container, 'Table');
+    assert.ok(table, 'the table half of the switch is not rendered');
+    table.click();
+    await flush();
+
+    const put = requests.find((r) => r.method === 'PUT');
+    assert.ok(put, 'choosing a view should store it');
+    assert.equal(put.body.dashboard_view, 'table');
+    assert.ok(container.all('table').length, 'the table was not drawn after the switch');
+  } finally {
+    setView('cards');
+  }
 });

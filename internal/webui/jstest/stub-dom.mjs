@@ -82,23 +82,53 @@ export class StubNode {
   }
 
   dispatch(type, event = {}) {
+    const dispatchEvent = this.dispatchEvent(type, event);
     for (const handler of [...(this.listeners.get(type) || [])]) {
-      // preventDefault/stopPropagation are part of the contract handlers rely on, so
-      // the stub provides them rather than letting a real handler throw.
-      handler({
-        type,
-        target: this,
-        currentTarget: this,
-        preventDefault() {},
-        stopPropagation() {},
-        ...event,
-      });
+      handler(dispatchEvent);
     }
+    dispatchEvent.done();
   }
 
-  /** Fire the click handler, as a real click would. */
+  /**
+   * An event object shaped like a real one.
+   *
+   * `currentTarget` is the trap this stub exists to reproduce: the spec sets it to null as soon as
+   * dispatch finishes, so a handler that reads it *after* an `await` gets null. The stub used to
+   * hand out a plain property that stayed valid forever, which made the whole suite blind to every
+   * `finally { event.currentTarget.disabled = false }` — each one threw a TypeError into an
+   * unhandled promise and left its button disabled for the rest of the session.
+   */
+  dispatchEvent(type, event = {}) {
+    let current = this;
+    const shaped = {
+      type,
+      target: this,
+      preventDefault() {},
+      stopPropagation() {},
+      ...event,
+      get currentTarget() {
+        return current;
+      },
+    };
+    // Not a property the caller can shadow: the point is that it becomes null.
+    shaped.done = () => { current = null; };
+    return shaped;
+  }
+
+  /**
+   * Fire the click handler, as a real click would.
+   *
+   * Returns whatever the handler returned, so a test can await an async handler — and goes through
+   * `dispatchEvent`, so the handler sees the same `currentTarget` behaviour the browser gives it.
+   */
   click() {
-    if (this.onclick) this.onclick({ target: this, currentTarget: this });
+    if (!this.onclick) return undefined;
+    const event = this.dispatchEvent('click');
+    try {
+      return this.onclick(event);
+    } finally {
+      event.done();
+    }
   }
 
   // The slice of HTMLDialogElement that openDialog uses.

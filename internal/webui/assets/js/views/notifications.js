@@ -377,6 +377,8 @@ function editWindow(ctx, windows, devices) {
     foot.append(
       el('button', { class: 'btn', type: 'button', text: 'Cancel', onclick: close }),
       el('button', { class: 'btn btn-primary', type: 'button', text: 'Add', onclick: async (event) => {
+        // Captured before the first `await`: `event.currentTarget` is null once dispatch ends.
+        const button = event.currentTarget;
         const built = buildWindow({
           label: label.value,
           recurrence: recurrence.value,
@@ -393,7 +395,7 @@ function editWindow(ctx, windows, devices) {
           toast(built.error, 'error');
           return;
         }
-        event.currentTarget.disabled = true;
+        button.disabled = true;
         await saveWindows(ctx, [...windows, built.window]);
         close();
       } }),
@@ -786,8 +788,6 @@ function editChannel(ctx, existing, eventTypes = EVENT_TYPES, serverTypes = null
           'scheduled-scan heartbeat: that one fires on every scan, so it has to be ticked.'),
       ]),
       el('label', { class: 'field-row' }, [enabled, el('span', { text: 'Enabled' })]),
-      hint('“Test” sends one event through these settings without saving them, so a bad ' +
-        'token or URL can be corrected and retried. Nothing is stored until you press Save.'),
     );
 
     function payloadFromForm() {
@@ -814,12 +814,15 @@ function editChannel(ctx, existing, eventTypes = EVENT_TYPES, serverTypes = null
       el('button', { class: 'btn', type: 'button', text: 'Test',
         title: 'Send one test event through these settings, without saving them',
         onclick: async (event) => {
+          // Captured before the first `await`: `event.currentTarget` is null once dispatch ends,
+          // so a `finally` that reads it throws and leaves the button greyed out for good.
+          const button = event.currentTarget;
           const problem = validate();
           if (problem) {
             toast(problem, 'error');
             return;
           }
-          event.currentTarget.disabled = true;
+          button.disabled = true;
           try {
             await api.testChannelConfig(payloadFromForm());
             toast('Test event sent', 'good');
@@ -828,18 +831,20 @@ function editChannel(ctx, existing, eventTypes = EVENT_TYPES, serverTypes = null
             // tell a bad token from a bad URL.
             toast(`Test failed: ${err.message}`, 'error');
           } finally {
-            event.currentTarget.disabled = false;
+            button.disabled = false;
           }
         } }),
       el('span', { class: 'spacer' }),
       el('button', { class: 'btn', type: 'button', text: 'Cancel', onclick: close }),
       el('button', { class: 'btn btn-primary', type: 'button', text: 'Save', onclick: async (event) => {
+        // Captured before the first `await`: `event.currentTarget` is null once dispatch ends.
+        const button = event.currentTarget;
         const problem = validate();
         if (problem) {
           toast(problem, 'error');
           return;
         }
-        event.currentTarget.disabled = true;
+        button.disabled = true;
         try {
           await store();
           toast('Channel saved', 'good');
@@ -847,7 +852,7 @@ function editChannel(ctx, existing, eventTypes = EVENT_TYPES, serverTypes = null
           ctx.refresh();
         } catch (err) {
           toast(err.message, 'error');
-          event.currentTarget.disabled = false;
+          button.disabled = false;
         }
       } }),
     );

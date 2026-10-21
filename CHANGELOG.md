@@ -182,6 +182,36 @@ shown, and a self-test can be started, watched and stopped from the device page.
   time scale as the line, so pointing at a chart now gives the reading nearest the pointer rather
   than one a fraction of the way through the array. Per-metric y-scaling is unchanged.
 
+### Fixed
+
+- **A button worked once, then went dead.** Every async click handler that re-enabled its own button in
+  a `finally` was reading `event.currentTarget`, which the DOM nulls the moment dispatch finishes — so
+  the line threw a `TypeError` into an unhandled promise, silently, because nobody awaits a click
+  handler, and the button stayed disabled for the rest of the session. The visible symptoms were "Save
+  settings" working exactly once and the channel editor allowing a single Test, but it was eight
+  handlers: Save settings, Save notes, Save schedule, Save channel, Test, Apply & rescan, Run self-test
+  and Add maintenance window. All eight now capture the element as the handler's first statement. Why
+  the tests never caught it is worth recording: the DOM stub handed out a plain `currentTarget` that
+  stayed valid forever. It is now a getter that is nulled when dispatch ends, so this bug class is
+  caught by the suite rather than by the user — and the stub's behaviour is pinned by a test of its own,
+  so a future tidy-up cannot quietly re-blind it.
+- **A refresh no longer throws you to the top of the page.** Every view empties its container and *then*
+  awaits its data, and a page that is briefly short makes the browser clamp the scroll position to the
+  top — which is what "Refresh now" on the knowledge card, a rescan from a device card, and a scan
+  finishing in the background all did. The container is now held at its old height across the swap, so
+  the position stays valid and only a genuinely shorter page moves the reader. Navigation still starts at
+  the top, because a page you have just asked for is one you have not read yet. The trend-range control
+  on the device page had been fixed on its own earlier; this is the general fix, so it cannot come back
+  on the next card that loads its own data.
+- **The cards/table choice survives a reload.** It was module state, so a reader who wanted the table got
+  cards again on every refresh. It is now the `dashboard_view` setting — a display preference like the
+  theme and the temperature unit, read before the first render so the list never flashes the wrong shape,
+  and carried in the config export. The filter and the sort beside it stay in the module: those are about
+  the question being asked, not about how this person likes to read.
+- **The channel editor no longer explains what its own Test button does.** The paragraph above the form
+  said what the button's tooltip already said, and a sentence of reassurance above a form is read once
+  and then only seen.
+
 ## [1.0.1] — 2026-10-18
 
 Four fixes found by using the first release in anger, plus the documentation corrections that

@@ -251,6 +251,8 @@ function editSchedule(ctx, existing) {
     foot.append(
       el('button', { class: 'btn', type: 'button', text: 'Cancel', onclick: close }),
       el('button', { class: 'btn btn-primary', type: 'button', text: 'Save', onclick: async (event) => {
+        // Captured before the first `await`: `event.currentTarget` is null once dispatch ends.
+        const button = event.currentTarget;
         const { kind, every_seconds, cron } = compute();
         if (kind === 'cron') {
           const problem = cronFieldError(cron);
@@ -263,7 +265,7 @@ function editSchedule(ctx, existing) {
           action: action.value };
         if (existing) payload.id = existing.id;
 
-        event.currentTarget.disabled = true;
+        button.disabled = true;
         try {
           if (existing) await api.updateSchedule(payload);
           else await api.createSchedule(payload);
@@ -272,7 +274,7 @@ function editSchedule(ctx, existing) {
           ctx.refresh();
         } catch (err) {
           toast(err.message, 'error');
-          event.currentTarget.disabled = false;
+          button.disabled = false;
         }
       } }),
     );

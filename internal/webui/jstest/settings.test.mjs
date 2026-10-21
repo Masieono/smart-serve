@@ -260,3 +260,31 @@ test('the save payload carries every control the page renders', async () => {
   }
 });
 
+/**
+ * Regression: Save worked exactly once.
+ *
+ * `event.currentTarget` is null once dispatch ends, so the `finally` that re-enabled the button
+ * threw a TypeError into an unhandled promise — silently, because nobody awaits a click handler —
+ * and the button stayed disabled for the rest of the session. The second press is the assertion
+ * that matters: the first one always "worked".
+ */
+test('Save is usable again after it has been pressed', async () => {
+  installStubDom();
+  const requests = [];
+  stubFetch({ settings: {} }, requests);
+
+  const container = document.createElement('div');
+  await render(container);
+
+  const save = saveButton(container);
+  save.click();
+  await flush();
+
+  assert.equal(save.disabled, false,
+    'Save stayed disabled after saving, so it can never be pressed a second time');
+
+  save.click();
+  await flush();
+  assert.equal(requests.filter((r) => r.method === 'PUT').length, 2, 'the second press did not save');
+});
+

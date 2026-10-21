@@ -120,6 +120,9 @@ export function selfTestCard(ctx, device, logs) {
     return el('button', {
       class: 'btn', type: 'button', title: detail,
       onclick: async (event) => {
+        // First statement, deliberately: the confirmation below is an `await`, and
+        // `event.currentTarget` is null by the time it resolves.
+        const button = event.currentTarget;
         const what = label.toLowerCase();
         const ok = await confirmDialog(
           `Run a ${what}?`,
@@ -128,14 +131,14 @@ export function selfTestCard(ctx, device, logs) {
           `Run ${what}`,
         );
         if (!ok) return;
-        event.currentTarget.disabled = true;
+        button.disabled = true;
         try {
           const res = await api.startSelfTest(device.serial, kind);
           toast((res && res.note) || `${label} started`, 'good');
           await read();
         } catch (err) {
           toast(err.message, 'error');
-          event.currentTarget.disabled = false;
+          button.disabled = false;
         }
       },
     }, [icon('scan'), label]);
