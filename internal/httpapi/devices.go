@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/masieono/smart-serve/internal/interp"
+	"github.com/masieono/smart-serve/internal/knowledge"
 	"github.com/masieono/smart-serve/internal/model"
 	"github.com/masieono/smart-serve/internal/smart"
 	"github.com/masieono/smart-serve/internal/store"
@@ -67,11 +68,15 @@ type deviceJSON struct {
 	// Ack is the user's acknowledgement of the drive's condition (`FEATURES.md` B7). Carried
 	// wherever the verdict is shown, because a drive that is acknowledged has to *say so*: without it
 	// the app looks like it lost the alert rather than like it was told to stay quiet.
-	Ack       *ackJSON `json:"ack,omitempty"`
-	FirstSeen string   `json:"first_seen"`
-	LastSeen  string   `json:"last_seen"`
-	LastScan  *string  `json:"last_scan"`
-	IsMissing bool     `json:"is_missing"`
+	Ack *ackJSON `json:"ack,omitempty"`
+	// Knowledge is what the table knows about this drive (`FEATURES.md` A21): rated endurance, the
+	// source it came from, and any firmware advisory that applies. Nil when the table has nothing for
+	// this model, which is a real answer — the app says nothing rather than inventing a figure.
+	Knowledge *knowledge.Lookup `json:"knowledge,omitempty"`
+	FirstSeen string            `json:"first_seen"`
+	LastSeen  string            `json:"last_seen"`
+	LastScan  *string           `json:"last_scan"`
+	IsMissing bool              `json:"is_missing"`
 	// Logs summarises what the drive's own error and self-test logs hold. Present only on
 	// the detail endpoint, and only when the drive reported something: parsing the stored
 	// raw document for every device on every list request would be work for data the
@@ -233,6 +238,10 @@ func (s *Server) deviceRows(ctx context.Context) ([]deviceJSON, []interp.Replace
 	}
 
 	out := make([]deviceJSON, 0, len(devices))
+	// The knowledge base is resolved once per list rather than once per drive: it is three documents
+	// and a merge, and doing that twenty-four times for one page would be twenty-four times the work
+	// for the same answer.
+	base := s.resolveKnowledge(ctx)
 	for _, d := range devices {
 		dj := toDeviceJSON(d)
 		if delta, ok := trend[d.Serial]; ok && delta > 0 {
@@ -240,6 +249,9 @@ func (s *Server) deviceRows(ctx context.Context) ([]deviceJSON, []interp.Replace
 		}
 		if f, ok := facts[d.Serial]; ok {
 			dj.PowerOnHours, dj.WearPct = f.PowerOnHours, f.WearPct
+		}
+		if lookup := base.Find(d.Model, d.ModelFamily, d.Firmware, d.CapacityBytes); lookup.Known() {
+			dj.Knowledge = &lookup
 		}
 		out = append(out, dj)
 	}
@@ -303,6 +315,9 @@ func (s *Server) handleGetDevice(w http.ResponseWriter, r *http.Request) {
 
 	device := toDeviceJSON(*rec)
 	device.Logs = logsFrom(rec.RawOutput)
+	if lookup := s.lookupKnowledge(r.Context(), *rec); lookup.Known() {
+		device.Knowledge = &lookup
+	}
 	// A18: what changed since the previous scan. Two snapshots, newest first, and the diff is
 	// computed here rather than in the UI so the "is this a finding?" rule stays beside the
 	// interpretation that already owns it.

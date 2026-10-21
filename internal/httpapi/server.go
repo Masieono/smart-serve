@@ -154,6 +154,13 @@ func (s *Server) routes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/settings", s.handleGetSettings)
 	mux.HandleFunc("PUT /api/settings", s.handlePutSettings)
 
+	// The drive knowledge base (`FEATURES.md` A21). The refresh is a POST because it changes stored
+	// state, and it is a *button* rather than a timer: nothing here polls while the app is idle.
+	mux.HandleFunc("GET /api/knowledge", s.handleGetKnowledge)
+	mux.HandleFunc("POST /api/knowledge/refresh", s.handleRefreshKnowledge)
+	mux.HandleFunc("PUT /api/knowledge/overrides", s.handlePutKnowledgeOverrides)
+	mux.HandleFunc("DELETE /api/knowledge/cache", s.handleClearKnowledgeCache)
+
 	// Import/export (`FEATURES.md` C7). The export is a download because it is a file to keep; the
 	// import takes the same shape back.
 	mux.HandleFunc("GET /api/config/export", s.handleExportConfig)
