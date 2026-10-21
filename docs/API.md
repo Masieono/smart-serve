@@ -645,3 +645,35 @@ native (browser `EventSource` auto-retry with `Last-Event-ID` cursor for missed
 - `GET /api/devices/{serial}/history?from=…&to=…` — snapshots in range, with
   computed series (`temperature_c`, `wear_pct`, attr-5/197/198 raw values,
   `power_on_hours`).
+
+## Knowledge base (implemented, `A21`)
+
+The drive knowledge base: rated endurance and known firmware advisories, in three layers — bundled,
+fetched, and yours — with later layers winning. The format is documented in
+[`KNOWLEDGE.md`](KNOWLEDGE.md), which is the whole interface: the bundled file, the fetched copy and
+the entries you type are all the same document.
+
+| Method | Path | Notes |
+|---|---|---|
+| `GET` | `/api/knowledge` | The Settings view: the refresh URL, entry counts per layer, the resolved table, and the shipped document as text. |
+| `POST` | `/api/knowledge/refresh` | Fetch the configured URL and store it. **A button, never a timer.** |
+| `PUT` | `/api/knowledge/overrides` | Validate and store your entries. An empty `payload` clears the layer. |
+| `DELETE` | `/api/knowledge/cache` | Discard the fetched copy, falling back to the shipped table. |
+
+**The refresh is parsed before it is stored**, so a bad file leaves the previous layer in place rather
+than replacing something readable with something that is not. Failures are reported with the URL and
+the reason: `400` when the document is unusable, `502` when the URL answers with an error or not at
+all. A URL that is not `http(s)` is refused with `400` before anything is fetched.
+
+`PUT /api/knowledge/overrides` returns the **parse error verbatim**, naming the entry and the field —
+the message goes back to the person who typed it, which is the whole reason the editor exists rather
+than a second file to edit by hand.
+
+`GET /api/devices` and `GET /api/devices/{serial}` carry a `knowledge` object when the table knows the
+drive: `{ family, rated_tbw, rated_tbw_approx, rated_workload_tb_per_year, source, notes, advisories }`.
+Absent when nothing matched, which is a real answer — the app says nothing rather than inventing a
+figure. The list resolves the table **once per request**, not once per drive.
+
+The user's own entries also travel in `GET /api/config/export` as a `knowledge` string, verbatim, and
+`POST /api/config/import` validates and applies them. The fetched copy is deliberately **not** in the
+bundle: it is a cache of a URL the settings already carry.

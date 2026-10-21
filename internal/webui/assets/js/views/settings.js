@@ -1,5 +1,5 @@
 // Settings (docs/UI.md §7.5).
-import { el, mount, convertTemp, toCelsius, convertTempDelta, toCelsiusDelta } from '../dom.js';
+import { el, mount, convertTemp, toCelsius, convertTempDelta, toCelsiusDelta, fmtAgo } from '../dom.js';
 import { api } from '../api.js';
 import { errorBox, toast, confirmDialog } from '../components.js';
 import { applyTheme } from '../theme.js';
@@ -150,6 +150,7 @@ const DEFAULTS = {
   correlation_delta_c: '8',
   public_url: '',
   prometheus_enabled: 'false',
+  knowledge_url: '',
   temperature_unit: 'c',
   theme: 'auto',
   theme_base: 'dark',
@@ -160,7 +161,10 @@ const DEFAULTS = {
 export async function render(container, ctx) {
   mount(container, el('div', { class: 'skeleton', style: 'width:30%;height:24px' }));
   try {
-    draw(container, ctx, await api.settings());
+    // Both in one round trip: the knowledge card is part of the page, and a second request that
+    // arrived after the first render would make the page jump.
+    const [settings, knowledge] = await Promise.all([api.settings(), api.knowledge()]);
+    draw(container, ctx, { ...settings, knowledge });
   } catch (err) {
     mount(container, errorBox(`Could not load settings: ${err.message}`));
   }
@@ -184,6 +188,16 @@ function draw(container, ctx, data, { carried = {}, unit: unitOverride } = {}) {
   // another service to poll this app on a schedule, and that is the operator's decision rather than a
   // default. The same reasoning as a self-test being opt-in.
   const prometheus = el('input', { type: 'checkbox', checked: settings.prometheus_enabled === 'true' });
+
+  // Where the knowledge base refreshes from (`FEATURES.md` A21). Empty means the documented default,
+  // which points at the file in the repository — the same file this build ships.
+  const knowledgeUrl = el('input', {
+    type: 'url',
+    class: 'setting-text',
+    placeholder: 'defaults to the published table',
+    value: settings.knowledge_url || '',
+    'aria-label': 'Knowledge base URL',
+  });
 
   // Where this deployment is reachable from wherever an alert lands (`FEATURES.md` B10), so a
   // channel that supports action buttons can offer a link back. Free text, and empty by default:
@@ -269,6 +283,7 @@ function draw(container, ctx, data, { carried = {}, unit: unitOverride } = {}) {
         temperature_unit: unit.value,
         public_url: publicUrl.value.trim(),
         prometheus_enabled: prometheus.checked ? 'true' : 'false',
+        knowledge_url: knowledgeUrl.value.trim(),
         ...currentTheme(),
       };
       for (const spec of ALL_SPECS) {
@@ -364,6 +379,13 @@ function draw(container, ctx, data, { carried = {}, unit: unitOverride } = {}) {
           }, ['Import']),
         ]),
       ]),
+
+      // The knowledge base gets its own full-width row rather than a grid cell: it carries a JSON
+      // editor, and a text box squeezed into a 460px column is a text box nobody will use.
+      //
+      // Read from `data`, not from the local `settings` map — that one is the stored settings, and
+      // the knowledge status is its own payload.
+      knowledgeCard(data.knowledge, ctx, knowledgeUrl),
     ]),
   );
 }
@@ -416,6 +438,135 @@ async function importConfig(ctx, button) {
 // --- row builders --------------------------------------------------------------
 
 /** A label and its explanation on the left, the control right-aligned opposite. */
+/**
+ * The knowledge base card (`FEATURES.md` A21).
+ *
+ * Three layers, in the order they win: what ships with this build, a copy fetched from a URL, and the
+ * entries typed here. The card exists because the last two are the *user's* — the whole point of the
+ * feature is that the data outlives the repository, which means whoever runs this has to be able to
+ * maintain it without a pull request.
+ *
+ * The refresh is a button rather than a schedule, and the card says how old the copy is instead of
+ * hiding it: the one thing worse than stale data is stale data you believe is current.
+ *
+ * The editor is a text box rather than a form, and that is deliberate. The format *is* the interface —
+ * the same JSON the bundled file and the refresh URL use — so there is one thing to learn rather than
+ * a form that can only express what the form thought of. The parse error comes back verbatim and is
+ * shown beside the box, which is the only place a message about a typo is worth anything.
+ */
+function knowledgeCard(knowledge, ctx, urlInput) {
+  const k = knowledge || {};
+  const error = el('div', { class: 'knowledge-error', hidden: true });
+  const editor = el('textarea', {
+    rows: '7',
+    class: 'knowledge-editor',
+    'aria-label': 'Your knowledge base entries',
+    placeholder: '{\n  "version": 1,\n  "drives": [\n    { "family": "My Drive 9000", "rated_tbw": 600, "source": "the datasheet in the box" }\n  ]\n}',
+    value: (k.overrides && k.overrides.payload) || '',
+  });
+
+  function showError(message) {
+    error.textContent = message;
+    error.hidden = !message;
+  }
+
+  /** Run an action with the button disabled and its error shown inline. */
+  function act(button, run) {
+    return async () => {
+      showError('');
+      button.disabled = true;
+      try {
+        await run();
+      } catch (err) {
+        // Inline rather than a toast: these messages name a URL and a JSON field, and a toast
+        // disappears before anyone can read them.
+        showError(err.message);
+      } finally {
+        button.disabled = false;
+      }
+    };
+  }
+
+  // The status line is the honest part of this card: how many families are known, how many shipped,
+  // how old the fetched copy is. A reader who cannot see the age cannot decide whether to refresh.
+  const parts = [`${k.resolved_entries || 0} families known`,
+    `${k.bundled_entries || 0} shipped with this build`];
+  if (k.cache) {
+    const age = k.cache.fetched_at ? fmtAgo(k.cache.fetched_at) : 'at an unknown time';
+    parts.push(`${k.cache.entries} fetched ${age}`);
+  } else {
+    parts.push('nothing fetched yet');
+  }
+  if (k.overrides) parts.push(`${k.overrides.entries} yours`);
+
+  const refresh = el('button', { class: 'btn btn-sm', type: 'button', text: 'Refresh now' });
+  refresh.addEventListener('click', act(refresh, async () => {
+    const got = await api.refreshKnowledge();
+    toast(`Fetched ${got.entries} families`, 'good');
+    ctx.refresh();
+  }));
+
+  const save = el('button', { class: 'btn btn-sm', type: 'button', text: 'Save my entries' });
+  save.addEventListener('click', act(save, async () => {
+    const got = await api.putKnowledgeOverrides(editor.value);
+    toast(got.entries ? `Saved ${got.entries} entries` : 'Cleared your entries', 'good');
+    ctx.refresh();
+  }));
+
+  const discard = el('button', {
+    class: 'btn btn-sm btn-ghost', type: 'button', text: 'Discard the fetched copy',
+  });
+  discard.addEventListener('click', act(discard, async () => {
+    await api.clearKnowledgeCache();
+    toast('Fetched copy discarded', 'good');
+    ctx.refresh();
+  }));
+
+  return el('div', { class: 'card stack panel-wide knowledge' }, [
+    el('h2', { text: 'Knowledge base' }),
+    el('p', { class: 'muted', text: 'Rated endurance and known firmware advisories, per model ' +
+      'family. A figure nobody can check is a figure nobody should believe, so every entry names ' +
+      'its source and the app shows it beside the number.' }),
+    el('div', { class: 'muted knowledge-status', text: parts.join(' · ') }),
+    k.cache_stale
+      ? el('p', { class: 'muted knowledge-warn', text: 'The stored copy came from a different URL ' +
+          'than the one below. Refresh to replace it, or discard it to fall back to the shipped ' +
+          'table.' })
+      : null,
+    settingRow('Refresh URL',
+      'Where to fetch an updated table from. Empty uses the published one, which is the file this ' +
+      'build already ships. Nothing is fetched on a schedule — only when you press Refresh.',
+      urlInput),
+    el('div', { class: 'row knowledge-actions' }, [
+      refresh,
+      k.cache ? discard : null,
+      // The shipped document, verbatim. This is how somebody starts their own copy to point the URL
+      // at — which is the whole reason the refresh exists.
+      el('a', {
+        class: 'btn btn-sm btn-ghost',
+        href: `data:application/json;charset=utf-8,${encodeURIComponent(k.bundled || '{}')}`,
+        download: 'smart-serve-knowledge.json',
+        title: 'The table this build ships, to edit and host yourself',
+      }, [icon('download'), 'Download the shipped table']),
+    ]),
+    el('div', { class: 'field' }, [
+      el('label', { text: 'Your own entries' }),
+      el('p', { class: 'muted field-hint', text: 'The same format as the table above, and they win ' +
+        'over it. An entry *replaces* the one for that family rather than merging with it, so copy ' +
+        'across anything you want to keep. These travel in the config export.' }),
+      editor,
+    ]),
+    error,
+    el('div', { class: 'row knowledge-actions' }, [
+      save,
+      el('button', {
+        class: 'btn btn-sm btn-ghost', type: 'button', text: 'Clear',
+        onclick: () => { editor.value = ''; showError(''); },
+      }),
+    ]),
+  ]);
+}
+
 function settingRow(label, help, control) {
   return el('div', { class: 'setting-row' }, [
     el('div', { class: 'setting-text' }, [

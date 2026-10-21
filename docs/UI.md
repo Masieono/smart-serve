@@ -421,6 +421,20 @@ picker offers exactly `ThemeNames`.
 - The version shown is stamped at build time (`-X main.version`), so it identifies the
   revision a container is actually running rather than a constant. An unstamped build
   says `0.0.0-dev`, which is the honest answer.
+- **The knowledge base card** (`FEATURES.md` A21) is the fourth card, and it spans the grid
+  rather than taking a cell: it carries a JSON editor, and a text box squeezed into a 460px
+  column is a text box nobody will use. Its status line is the honest part — how many families
+  are known, how many shipped with this build, and how old the fetched copy is — because the
+  refresh is a *button* and a reader cannot decide whether it is worth pressing without seeing
+  the age. The editor is a text area rather than a form, deliberately: the format *is* the
+  interface, the same JSON the bundled file and the refresh URL use, so there is one thing to
+  learn rather than a form that can only express what the form thought of. The parse error comes
+  back verbatim and is shown **beside the box**, in a `.knowledge-error` block rather than a
+  toast — these messages name a URL and a JSON field, and a toast disappears before anyone can
+  read it. A copy fetched from a URL that has since changed is called out, because its age is
+  not evidence about the URL the user is looking at. **Download the shipped table** is an anchor
+  with a `data:` href and `download`, which is how somebody starts their own copy to point the
+  refresh URL at.
 
 ## 8. Interaction & feedback
 

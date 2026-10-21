@@ -33,7 +33,7 @@ avoid idle cost.
 | A18 | Snapshot diff ("what changed since last scan") | P2 | 💤 | **done** — a "Since the last scan" card on the device page. The server decides which attribute movements are findings, so the diff cannot disagree with the verdict. See below |
 | A19 | SMART self-test (manual short/long + scheduled) + self-test log | P2 | 💤 | **manual done** — short/long, live progress, abort; opt-in only, never automatic. Scheduling still to come. See below |
 | A20 | SMART error log display | P2 | 💤 | **done** — the error and self-test log *counts* and *entries*, the drive's own self-test timings, and smartctl's words when a log cannot be read. See below |
-| A21 | Drive knowledge base (rated TBW, known firmware advisories) | P3 | 💤 | bundled static table; opt-in in-app refresh |
+| A21 | Drive knowledge base (rated TBW, known firmware advisories) | P3 | 💤 | **done** — a bundled table, an opt-in refresh from a URL, and your own entries. Rated endurance on the device page, advisories only when the firmware matches, and every figure carries its source. Never fetched on a schedule. See below |
 | A22 | Usable support for drives with no S.M.A.R.T. (USB flash drives, card readers) | P2 | 💤 | **done** — see below |
 | A23 | Fleet-wide export (every drive in one CSV or page) | P2 | 💤 | **done** — one row per drive, as a CSV or a printable page. A missing reading is an empty cell, never a zero. See below |
 | A24 | "Replace first" ranking (verdict + direction + remaining life, ordered, with reasons) | P2 | 💤 | **done** — a "Replace first" card, using bands rather than a weighted score so the reasons can be shown. See below |
@@ -549,4 +549,67 @@ Feature work lands in three moves, and the third is not optional:
 
 This is a working agreement rather than a phase: it repeats for every batch
 (`ADR-019`).
+
+### A21 — The knowledge base: three layers, and no clock
+
+The feature asks for a table of rated endurance and known firmware advisories. Two things shaped what
+was built, and both are about the same problem: **this data is published, but not machine-readable.**
+It lives in datasheets and support pages, so a curated table is the only honest source — which means
+the table has to outlive whoever curated it.
+
+So there are three layers, later winning:
+
+1. **A table bundled with the build**, so the feature works on the first page load with no network and
+   no configuration. This is the floor, and it is the reason a refresh failing is survivable.
+2. **A copy fetched from a configurable URL**, defaulting to the file in this repository but pointable
+   at a fork, a gist, or a file on the LAN.
+3. **Your own entries**, typed in Settings.
+
+**The bundled file and the refreshable file are the same file.** One format, one validator, one thing
+for a contributor to learn — and it means the data can be maintained by somebody who is not the
+person who wrote the app. That was the point.
+
+**Never on a timer.** The refresh is a button in Settings. The project is built on costing nothing
+while idle, and a knowledge base that quietly polled a URL would be the first thing to break that —
+for data that changes a few times a year. The card shows how old the stored copy is, so pressing it is
+an informed decision rather than a hopeful one.
+
+Three decisions inside the data model, each one about *not inventing a number*:
+
+- **Endurance is per capacity.** A 250 GB and a 4 TB drive in one family are rated differently, so the
+  entry carries a table keyed by the decimal GB the drive reports. A capacity no bucket is close to
+  gets **no figure** rather than a neighbour's: a rating for a different capacity is a number about a
+  different drive. Within 10% counts as the bucket; within 2% is exact, so the app can say "600 TBW"
+  rather than "about 600 TBW".
+- **Matching is a substring on the model or the family**, because model strings are messy —
+  `"WDC WD40EFRX-68N32N0"` is a WD40EFRX, and many drives report no family at all. The longest pattern
+  wins, so a specific entry beats a general one whatever order the file lists them in. Patterns under
+  five characters are **refused**: a wrong entry is worse than a missing one, because it carries a
+  number that looks authoritative.
+- **`matches` covers a series.** The SMR Red line is `WD20EFAX` through `WD80EFAX` — four characters at
+  the end, too short to match on safely and impossible to express as one family string.
+
+**Advisories only appear when the firmware matches.** A drive that reported no firmware cannot match a
+firmware-specific advisory, because that would be guessing at the one fact the advisory is about. An
+advisory with no firmware at all is family-wide, which is how the SMR Red entry is written: the
+problem is the model, not a revision.
+
+**Every figure carries its source**, and the app shows it beside the number. A figure nobody can check
+is a figure nobody should believe — and a curated table is exactly the kind of thing that acquires
+confident-looking numbers from nowhere.
+
+**The knowledge base changes no verdict.** It is context: a denominator for the wear figure, and a
+card when something is known to be wrong. The drive's own reported data is what the app reasons from,
+and letting a hand-edited table move a verdict would make the verdict unaccountable.
+
+**The shipped table is deliberately short** — Samsung's consumer SATA and NVMe lines, the Crucial
+MX500, WD Red/Red Plus/Red Pro/Black, Seagate IronWolf/IronWolf Pro/Barracuda. An entry nobody can
+verify is worse than a missing one, because a missing one says so. The one advisory in it is the one a
+NAS owner most needs: the SMR Red models, which WD sold as RAID-ready and which are a poor choice in
+an array.
+
+**Your entries travel in the config export** (`C7`); the fetched copy does not. One is your data, and
+a host migration that dropped it would drop the only copy. The other is a cache of a URL the settings
+already carry, and a bundle holding a stale copy of somebody else's file would be worse than
+re-fetching it.
 

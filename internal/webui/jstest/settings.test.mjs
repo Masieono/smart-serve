@@ -7,6 +7,89 @@ const settings = await import('../assets/js/views/settings.js');
 
 const ctx = { setTemperatureUnit() {}, refresh() {} };
 
+// The knowledge base status (`FEATURES.md` A21), as GET /api/knowledge returns it. Both requests the
+// settings page makes are stubbed with the same payload, so this object carries the settings map *and*
+// the knowledge status — which is exactly what the page has to cope with anyway.
+const KNOWLEDGE = {
+  url: 'https://example.test/knowledge.json',
+  bundled_entries: 12,
+  resolved_entries: 14,
+  cache: { entries: 13, fetched_at: '2026-10-01T00:00:00Z', source_url: 'https://example.test/k.json' },
+  overrides: { entries: 1, payload: '{"version":1,"drives":[]}' },
+  bundled: '{"version":1,"drives":[]}',
+};
+
+/** Every element of a tag under a class, for asserting on what the card actually says. */
+function textsFor(container, tag, className) {
+  return container
+    .all(tag)
+    .filter((node) => node.className === className)
+    .map((node) => node.textContent);
+}
+
+// The knowledge card has to say where the table came from and how old it is, because the whole reason
+// the refresh is a button is that the user decides when it is worth pressing — and they cannot decide
+// that without seeing the age.
+test('the knowledge card reports every layer', async () => {
+  installStubDom();
+  stubFetch({ settings: {}, ...KNOWLEDGE });
+
+  const container = document.createElement('div');
+  await render(container);
+
+  const [status] = textsFor(container, 'div', 'muted knowledge-status');
+  assert.ok(status, 'no status line');
+  for (const expected of ['14 families known', '12 shipped', '13 fetched', '1 yours']) {
+    assert.ok(status.includes(expected), `status "${status}" does not mention "${expected}"`);
+  }
+
+  // The overrides editor holds what is stored, so a save round-trips rather than blanking it.
+  const editors = container.all('textarea').filter((n) => n.className === 'knowledge-editor');
+  assert.equal(editors.length, 1);
+  assert.equal(editors[0].value, KNOWLEDGE.overrides.payload);
+
+  // The shipped table is offered as a download, which is how somebody starts their own copy to point
+  // the URL at.
+  const download = container
+    .all('a')
+    .find((n) => n.getAttribute('download') === 'smart-serve-knowledge.json');
+  assert.ok(download, 'the shipped table is not offered as a download');
+  assert.ok(download.getAttribute('href').startsWith('data:application/json'),
+    'the download is not a data URL');
+});
+
+// Nothing stored yet is a real state, not an error: the bundled table is the floor, so the card says
+// what it has and offers no "discard" for a copy that does not exist.
+test('the knowledge card copes with nothing fetched and nothing typed', async () => {
+  installStubDom();
+  stubFetch({ settings: {}, bundled_entries: 12, resolved_entries: 12, bundled: '{"version":1}' });
+
+  const container = document.createElement('div');
+  await render(container);
+
+  const [status] = textsFor(container, 'div', 'muted knowledge-status');
+  assert.ok(status.includes('12 families known'));
+  assert.ok(status.includes('nothing fetched yet'));
+  assert.ok(!status.includes('yours'), 'a layer nobody has written is reported as present');
+
+  const discard = container.all('button').find((n) => n.textContent.includes('Discard'));
+  assert.ok(!discard, 'a discard button for a copy that does not exist');
+});
+
+// A copy fetched from a different URL than the one now configured is called out, because its age is
+// not evidence about the URL the user is looking at.
+test('a stale fetched copy is called out', async () => {
+  installStubDom();
+  stubFetch({ settings: {}, ...KNOWLEDGE, cache_stale: true });
+
+  const container = document.createElement('div');
+  await render(container);
+
+  const warnings = textsFor(container, 'p', 'muted knowledge-warn');
+  assert.equal(warnings.length, 1);
+  assert.ok(warnings[0].includes('different URL'));
+});
+
 /** The label of every setting row on the page, in order. */
 function rowLabels(container) {
   return container

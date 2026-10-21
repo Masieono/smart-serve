@@ -213,3 +213,29 @@ All writes happen from the single scan executor goroutine or from API handler wr
 (user notes/schedule edits), serialized via SQLite's own write lock plus a coarse
 application-level mutex around transactions. WAL mode allows reads (page loads) to
 never block during scans.
+
+## `knowledge_docs` (`A21`, migration `0011`)
+
+The two *stored* layers of the drive knowledge base. The third — the table bundled with the binary —
+is embedded in the executable and needs no storage.
+
+| Column | Notes |
+|---|---|
+| `kind` | `cache` or `overrides`. **The primary key**, which is what keeps this at two rows. |
+| `payload` | The JSON document, verbatim. |
+| `source_url` | Where a fetched copy came from. Empty for overrides, which have no source. |
+| `fetched_at` | When it was fetched, in milliseconds. `0` means "not fetched" — which is why a zero is *not* converted to a time, or every override would claim 1970. |
+| `updated_at` | Last write. |
+
+**Two rows in one table rather than two tables.** The fetched copy and the user's entries are the
+*same kind of thing* — a knowledge document — so they are distinguished by a column rather than by
+living in different places.
+
+**The payload is stored verbatim rather than shredded into columns**, because the file *is* the
+format: the editor hands the user a copy of it, the refresh stores what it fetched, and a
+column-per-field schema would be a third representation to keep in step with the other two.
+
+A layer that fails to parse is **skipped rather than fatal** when the base is resolved. The bundled
+table is the floor, so a corrupt cached copy or an entry broken by a typo degrades to "we know less"
+instead of "the drive page does not load". The editor is where a typo is refused, with the message in
+front of the person who typed it.

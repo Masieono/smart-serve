@@ -41,6 +41,13 @@ export const api = {
   ackDevice: (serial, note) =>
     request('PUT', `/api/devices/${encodeURIComponent(serial)}/ack`, { note }),
   unackDevice: (serial) => request('DELETE', `/api/devices/${encodeURIComponent(serial)}/ack`),
+
+  // The drive knowledge base (FEATURES.md A21). The refresh is a POST because it changes stored state
+  // — and it is a button, never a timer: nothing here polls while the app is idle.
+  knowledge: () => request('GET', '/api/knowledge'),
+  refreshKnowledge: () => request('POST', '/api/knowledge/refresh'),
+  putKnowledgeOverrides: (payload) => request('PUT', '/api/knowledge/overrides', { payload }),
+  clearKnowledgeCache: () => request('DELETE', '/api/knowledge/cache'),
   setTransport: (serial, smartD) =>
     request('PUT', `/api/devices/${encodeURIComponent(serial)}/transport`, { smart_d: smartD }),
   reportUrl: (serial, format = 'txt') =>

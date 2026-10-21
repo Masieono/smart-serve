@@ -38,6 +38,67 @@ func labelDrive(t *testing.T, st *store.Store, serial, name, bay string) {
 	}
 }
 
+// The user's own knowledge entries travel in the bundle (`FEATURES.md` A21): they are hand-typed
+// figures for drives nobody else has written down, and a host migration that dropped them would drop
+// the only copy.
+//
+// The *fetched* layer deliberately does not travel. It is a cache of a URL the settings already
+// carry, and a bundle holding a stale copy of somebody else's file would be worse than re-fetching it.
+func TestTheBundleCarriesKnowledgeOverridesButNotTheCache(t *testing.T) {
+	srv, st, _, _ := newTestServer(t, Options{})
+	ctx := context.Background()
+
+	overrides := `{"version":1,"drives":[{"family":"My Drive 9000","rated_tbw":600,"source":"the box"}]}`
+	if err := st.PutKnowledgeDoc(ctx, store.KnowledgeOverrides, overrides, ""); err != nil {
+		t.Fatalf("PutKnowledgeDoc: %v", err)
+	}
+	if err := st.PutKnowledgeDoc(ctx, store.KnowledgeCache, `{"version":1,"drives":[{"family":"Cached Drive","rated_tbw":1}]}`, "http://example.test/k.json"); err != nil {
+		t.Fatalf("PutKnowledgeDoc: %v", err)
+	}
+
+	got := exportBundle(t, srv)
+	if got.Knowledge != overrides {
+		t.Errorf("knowledge = %q, want the overrides verbatim", got.Knowledge)
+	}
+	if strings.Contains(got.Knowledge, "Cached Drive") {
+		t.Error("the fetched layer travelled in the bundle; it is a cache, not configuration")
+	}
+
+	// And the import applies them, so a restore brings the figures back.
+	fresh, freshStore, _, _ := newTestServer(t, Options{})
+	if rec := importBundle(t, fresh, recode(t, got)); rec.Code != http.StatusOK {
+		t.Fatalf("import status = %d: %s", rec.Code, rec.Body.String())
+	}
+	doc, err := freshStore.GetKnowledgeDoc(ctx, store.KnowledgeOverrides)
+	if err != nil || doc == nil || doc.Payload != overrides {
+		t.Fatalf("after import: doc = %+v, %v", doc, err)
+	}
+
+	// A bundle whose knowledge entries are unusable is refused, and nothing is stored — a bad layer
+	// would degrade every drive page rather than failing loudly here.
+	bad := configBundle{SmartServe: bundleVersion, Knowledge: `{"version":1,"drives":[{"family":"Bad"}]}`}
+	rec := importBundle(t, fresh, recode(t, bad))
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400: %s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "not usable") {
+		t.Errorf("the error does not say what is wrong: %s", rec.Body.String())
+	}
+	if doc, _ := freshStore.GetKnowledgeDoc(ctx, store.KnowledgeOverrides); doc == nil || doc.Payload != overrides {
+		t.Error("a refused import changed the stored entries")
+	}
+}
+
+// recode marshals a bundle back to JSON, so a test can post what the export produced.
+func recode(t *testing.T, bundle configBundle) string {
+	t.Helper()
+	data, err := json.Marshal(bundle)
+	if err != nil {
+		t.Fatalf("marshal bundle: %v", err)
+	}
+	return string(data)
+}
+
 func appliedCounts(t *testing.T, rec *httptest.ResponseRecorder) map[string]int {
 	t.Helper()
 	var got struct {

@@ -103,6 +103,11 @@ function draw(container, ctx, data, history) {
     : (snapshot ? snapshot.power_on_hours : null);
   const wearPct = snapshot ? snapshot.wear_pct : null;
 
+  // What the knowledge base knows about this drive (FEATURES.md A21): the rated endurance, the
+  // source it came from, and any firmware advisory that matches. Null when the table has nothing for
+  // this model, which is a real answer — the app says nothing rather than inventing a figure.
+  const known = d.knowledge || null;
+
   const identity = statGrid([
     // First, because it is the one line that answers "which drive do I pull?" — and the person
     // asking that question is standing in front of a machine, not reading a screen carefully.
@@ -127,6 +132,13 @@ function draw(container, ctx, data, history) {
     stat('Data read', m.data_read_bytes != null ? fmtBytes(m.data_read_bytes) : null),
     stat('Data written', m.data_written_bytes != null ? fmtBytes(m.data_written_bytes) : null),
     stat('Life remaining', lifeText(m.life_left_pct, wearPct)),
+    // The knowledge base's contribution (FEATURES.md A21). The rating is the denominator the drive's
+    // own wear indicator is measured against, so it belongs beside the figures it explains: 220 TB
+    // written means nothing until you know the drive is rated for 600.
+    stat('Rated endurance', enduranceText(known, m)),
+    // Its own line rather than a tooltip, because this is the bit that makes the figure checkable —
+    // and a figure nobody can check is a figure nobody should believe.
+    stat('Rated by', known ? known.source : null),
     stat('Mountpoints', d.mountpoints && d.mountpoints.length ? d.mountpoints.join(', ') : 'not mounted'),
     // The filesystem version comes from lsblk and is often all there is to say about
     // a drive that reports no S.M.A.R.T.
@@ -206,6 +218,10 @@ function draw(container, ctx, data, history) {
         el('h2', { text: 'Notes' }),
         el('p', { text: d.notes }),
       ]) : null,
+
+      // A21. Only when one applies to *this* drive's firmware: an advisory for a revision it is not
+      // running is noise, and noise is what makes people stop reading advisories.
+      known && known.advisories && known.advisories.length ? advisoryCard(known) : null,
 
       trendCard(series, async (next) => {
         trendRange = next;
@@ -416,6 +432,76 @@ function smartProblemNotice(ctx, d) {
       ]),
     ]),
     d.smart_error ? el('p', { class: 'mono muted', text: d.smart_error }) : null,
+  ]);
+}
+
+/**
+ * The rated endurance line (`FEATURES.md` A21), with how much of it is used where that can be worked
+ * out.
+ *
+ * **The percentage uses decimal terabytes**, because that is what TBW is measured in: dividing a
+ * drive's written bytes by 1e12 matches the published figure, and dividing by 2^40 would quietly
+ * report 10% more of the rating than the drive has used. The byte counts elsewhere on this page stay
+ * binary, which is correct for them and is why this is worked out here rather than reusing one
+ * formatter for both.
+ *
+ * Nothing is invented. No rating means no line; no written figure means no percentage; a rating that
+ * came from a capacity bucket that only nearly matches says "about". The drive's own wear indicator is
+ * not used as the percentage here, because it is a fraction of *its* rating, which is not necessarily
+ * the published one — vendors change cells within a family without renaming it.
+ */
+function enduranceText(known, metrics) {
+  if (!known) return null;
+  const parts = [];
+  if (known.rated_tbw) {
+    parts.push(`${known.rated_tbw_approx ? 'about ' : ''}${fmtInt(known.rated_tbw)} TBW`);
+  }
+  if (known.rated_workload_tb_per_year) {
+    parts.push(`${fmtInt(known.rated_workload_tb_per_year)} TB/year rated`);
+  }
+  if (!parts.length) return null;
+
+  const written = metrics ? metrics.data_written_bytes : null;
+  if (written != null && known.rated_tbw) {
+    const tb = written / 1e12;
+    parts.push(`${tb < 10 ? tb.toFixed(1) : fmtInt(tb)} TB written, ` +
+      `${Math.round((tb / known.rated_tbw) * 100)}% of rated`);
+  }
+  return parts.join(' · ');
+}
+
+// Advisory severities to the badge tones the rest of the app uses. Kept as a map rather than
+// interpolated, so a severity the server adds later shows as "unknown" instead of a class that does
+// not exist — a badge with no styling is a badge nobody notices.
+const SEVERITY_TONE = { critical: 'bad', warning: 'caution', info: 'unknown' };
+
+/**
+ * A known-issue card (`FEATURES.md` A21).
+ *
+ * The detail is here rather than behind the link, because "you have a problem" without "and here is
+ * what to do about it" is worse than saying nothing. The link is for the vendor's own page, which is
+ * where the instruction will actually be.
+ */
+function advisoryCard(known) {
+  const plural = known.advisories.length > 1;
+  return el('div', { class: 'card stack panel-wide advisory' }, [
+    el('h2', { text: plural ? 'Known issues' : 'Known issue' }),
+    el('p', { class: 'muted', text: `From the knowledge base, matched on the model and firmware this ` +
+      `drive reports (${known.family}).` }),
+    ...known.advisories.map((a) => el('div', { class: 'advisory-item' }, [
+      el('div', { class: 'row', style: 'gap:var(--space-2);align-items:center' }, [
+        el('span', {
+          class: `badge badge-${SEVERITY_TONE[a.severity] || 'unknown'}`,
+          text: a.severity,
+        }),
+        el('strong', { text: a.title }),
+      ]),
+      a.firmware ? el('p', { class: 'muted', text: `Affects firmware ${a.firmware}.` }) : null,
+      a.detail ? el('p', { text: a.detail }) : null,
+      a.url ? el('a', {
+        href: a.url, target: '_blank', rel: 'noopener noreferrer', text: a.url,
+      }) : null,
+    ])),
   ]);
 }
 

@@ -162,6 +162,9 @@ alert.
 - [x] Prometheus `/metrics` exporter, opt-in and hand-written (`C6`) — unit-tested
 - [x] Weekly digest as a schedule action: one summary of the period instead of a message per
       event (`B13`) — unit-tested
+- [x] Drive knowledge base: rated endurance and known firmware advisories, as a bundled table plus
+      an opt-in refresh URL plus your own entries, with every figure carrying its source (`A21`) —
+      unit-tested
 - [x] Dockerfile, docker-compose (prod + dev), GitHub Actions CI
 - [x] Docker device-access validation on real hardware — a native NVMe, a USB-attached
       NVMe, and a USB-attached SATA SSD all read correctly; a drive with no S.M.A.R.T.

@@ -6,11 +6,25 @@ Notable changes per release. Format follows
 
 ## [Unreleased]
 
-Two Phase 4 items: the drive's own logs are now shown, and a self-test can be started, watched and
-stopped from the device page.
+Round 5: the drive knowledge base. Plus the two Phase 4 items already here — the drive's own logs are
+shown, and a self-test can be started, watched and stopped from the device page.
 
 ### Added
 
+- **Drive knowledge base (`A21`)** — rated endurance and known firmware advisories, in **three layers**
+  that win in order: a table bundled with the build, a copy fetched from a configurable URL, and your
+  own entries. The bundled file and the refreshable file are **the same file**, so there is one format,
+  one validator, and one thing for a contributor to learn — which is what lets the data outlive the
+  repository. The refresh is a **button in Settings, never a schedule**, because a knowledge base that
+  quietly polled a URL would be the first thing to break the zero-idle-cost invariant, for data that
+  changes a few times a year; the card shows the copy's age so pressing it is an informed decision.
+  Endurance is stored **per capacity**, because a 250 GB and a 4 TB drive in one family are rated
+  differently, and a capacity no bucket is close to gets *no* figure rather than a neighbour's. Every
+  figure carries its **source**, shown beside the number: a figure nobody can check is a figure nobody
+  should believe. Advisories appear only when the firmware matches — a drive that reported no firmware
+  cannot match a firmware-specific one — and the knowledge base **moves no verdict**, because a
+  hand-edited table that could move a verdict would make the verdict unaccountable. The format is
+  documented in `docs/KNOWLEDGE.md`.
 - **Weekly digest (`B13`)** — one summary of a period instead of a message per event: the fleet as it
   stands, what changed, what lost storage, how many scans ran, and what the ranking says to replace
   first. It is a **schedule with `action: digest`** rather than a setting with its own timer, because a

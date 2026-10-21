@@ -3,8 +3,10 @@ package httpapi
 import (
 	"encoding/json"
 	"net/http"
+	"strings"
 	"time"
 
+	"github.com/masieono/smart-serve/internal/knowledge"
 	"github.com/masieono/smart-serve/internal/store"
 )
 
@@ -30,6 +32,13 @@ type configBundle struct {
 	Devices   []bundleDevice    `json:"devices"`
 	Settings  map[string]string `json:"settings"`
 	Schedules []bundleSchedule  `json:"schedules,omitempty"`
+	// Knowledge is the user's own knowledge base entries (`FEATURES.md` A21), verbatim.
+	//
+	// Carried because they are *the user's data* — hand-typed figures for drives nobody else has
+	// written down — and a host migration that dropped them would drop the only copy. The fetched
+	// layer is deliberately absent: it is a cache of a URL the settings already carry, and a bundle
+	// holding a stale copy of somebody else's file would be worse than re-fetching it.
+	Knowledge string `json:"knowledge,omitempty"`
 }
 
 // bundleDevice is one drive's labels. Keyed by serial, which is the only identifier that survives a
@@ -99,6 +108,11 @@ func (s *Server) handleExportConfig(w http.ResponseWriter, r *http.Request) {
 			Label: sched.Label, Enabled: sched.Enabled,
 		})
 	}
+	// A read failure here is not fatal to the export: the rest of the bundle is worth having, and
+	// losing the labels because the knowledge layer could not be read would be the worse outcome.
+	if doc, err := s.store.GetKnowledgeDoc(r.Context(), store.KnowledgeOverrides); err == nil && doc != nil {
+		out.Knowledge = doc.Payload
+	}
 
 	download(w, "application/json", "config", "json")
 	// The header is already written, so an encode failure has nowhere to go but the log.
@@ -124,7 +138,7 @@ func (s *Server) handleImportConfig(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	applied := map[string]int{"devices": 0, "settings": 0, "schedules": 0}
+	applied := map[string]int{"devices": 0, "settings": 0, "schedules": 0, "knowledge": 0}
 
 	for _, d := range bundle.Devices {
 		if d.Serial == "" {
@@ -146,6 +160,22 @@ func (s *Server) handleImportConfig(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		applied["settings"] = len(bundle.Settings)
+	}
+
+	// Knowledge overrides are the user's own data, so they are *applied* when the file carries them
+	// and left alone when it does not — the same rule as labels. Validated first, because a bundle is
+	// a file from somewhere else and a bad layer would degrade every drive page rather than failing
+	// loudly here.
+	if strings.TrimSpace(bundle.Knowledge) != "" {
+		if _, err := knowledge.Parse([]byte(bundle.Knowledge)); err != nil {
+			writeError(w, http.StatusBadRequest, "the knowledge entries in this file are not usable: "+err.Error())
+			return
+		}
+		if err := s.store.PutKnowledgeDoc(r.Context(), store.KnowledgeOverrides, bundle.Knowledge, ""); err != nil {
+			s.fail(w, "import knowledge entries", err)
+			return
+		}
+		applied["knowledge"] = 1
 	}
 
 	// Only when the file carries them: a labels-only bundle must not wipe the schedule list.

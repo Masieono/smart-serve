@@ -644,10 +644,21 @@ here rather than remembered.
    drives; other people run twenty-four. A fixed number would be wrong for one of them, so the
    grouping size and the temperature delta that counts as "moving together" become settings, with
    defaults chosen for a small enclosure and a note about what raising them means.
-3. **`A21` data: community pull requests.** The curated layer needs rated TBW per model family,
-   which is published data but not machine-readable. The owner's drives are Western Digital,
-   Seagate and Samsung consumer/prosumer parts, which seeds the first entries and gives
-   contributors a shape to copy.
+3. **`A21` data: community pull requests, and three layers so the data can outlive the repo.**
+   The curated layer needs rated TBW per model family, which is published data but not
+   machine-readable. The owner's drives are Western Digital, Seagate and Samsung consumer/prosumer
+   parts, which seeds the first entries and gives contributors a shape to copy.
+   **Built as three layers** — a table bundled with the binary, a copy fetched from a configurable
+   URL, and the user's own entries — because "community pull requests" is a plan that depends on a
+   community, and the owner asked for the data to be maintainable by whoever is running it even if
+   the repository goes quiet. The bundled file and the refreshable file are **the same file**, so
+   there is one format, one validator and one thing to learn. The refresh is **a button, never a
+   timer**: the project's zero-idle-cost invariant (`DESIGN.md` §2.1) is worth more than freshness
+   for data that changes a few times a year, and the card shows the copy's age so pressing it is an
+   informed decision. The knowledge base **moves no verdict** — it supplies a denominator and a
+   card, and a hand-edited table that could move a verdict would make the verdict unaccountable.
+   The user's entries travel in the `C7` bundle; the fetched copy does not, because it is a cache of
+   a URL the settings already carry.
 4. **`D7` localization: deferred, and this ADR is where that is decided rather than assumed.**
    See below.
 5. **`C6` Prometheus: build it, off by default.** The owner does not run Prometheus but recognises
