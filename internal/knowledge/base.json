@@ -1,0 +1,124 @@
+{
+  "version": 1,
+  "updated": "2026-10-20",
+  "note": "Rated endurance and known advisories, keyed by model family. Figures are taken from the vendor's own datasheet or support page, named in each entry's `source` — check it before acting on a number, and prefer your drive's own reported wear where it has one. This table is deliberately short: an entry nobody can verify is worse than a missing one, because a missing one says so. Add your own in Settings, or edit this file and point the refresh URL at your copy.",
+  "drives": [
+    {
+      "family": "Samsung SSD 870 EVO",
+      "rated_tbw_by_capacity_gb": {
+        "250": 150,
+        "500": 300,
+        "1000": 600,
+        "2000": 1200,
+        "4000": 2400
+      },
+      "source": "Samsung 870 EVO datasheet, 2021",
+      "notes": "TBW scales with capacity; the 1 TB figure is the one usually quoted. The drive reports its own wear indicator, which is the better number to watch.",
+      "advisories": [
+        {
+          "firmware": "SVT01B6Q",
+          "severity": "info",
+          "title": "Early firmware; a later revision is available",
+          "detail": "Samsung has shipped firmware updates for this family since launch. Updating is a maintenance action rather than a fix for a specific defect, so it is informational: check the current version on Samsung's support page if you have never updated the drive.",
+          "url": "https://semiconductor.samsung.com/consumer-storage/support/tools/"
+        }
+      ]
+    },
+    {
+      "family": "Samsung SSD 860 EVO",
+      "rated_tbw_by_capacity_gb": {
+        "250": 150,
+        "500": 300,
+        "1000": 600,
+        "2000": 1200,
+        "4000": 2400
+      },
+      "source": "Samsung 860 EVO datasheet, 2018"
+    },
+    {
+      "family": "Samsung SSD 970 EVO Plus",
+      "rated_tbw_by_capacity_gb": {
+        "250": 150,
+        "500": 300,
+        "1000": 600,
+        "2000": 1200
+      },
+      "source": "Samsung 970 EVO Plus datasheet, 2019",
+      "notes": "NVMe, so the drive reports percentage_used directly and this is only a cross-check."
+    },
+    {
+      "family": "Samsung SSD 980",
+      "rated_tbw_by_capacity_gb": {
+        "250": 150,
+        "500": 300,
+        "1000": 600
+      },
+      "source": "Samsung 980 datasheet, 2021",
+      "notes": "Not the 980 PRO — that is a different family with higher ratings."
+    },
+    {
+      "family": "Crucial MX500",
+      "rated_tbw_by_capacity_gb": {
+        "250": 100,
+        "500": 180,
+        "1000": 360,
+        "2000": 700,
+        "4000": 1000
+      },
+      "source": "Crucial MX500 product brief"
+    },
+    {
+      "family": "WD Red (EFAX, SMR)",
+      "matches": [
+        "WD20EFAX",
+        "WD30EFAX",
+        "WD40EFAX",
+        "WD60EFAX",
+        "WD80EFAX"
+      ],
+      "rated_workload_tb_per_year": 180,
+      "source": "Western Digital Red datasheet; WD's 2020 statement on SMR in the Red line",
+      "notes": "These are the Red models WD shipped with shingled magnetic recording without saying so at launch. They work as single drives and are a poor choice in a RAID array, where a rebuild can take days and time out.",
+      "advisories": [
+        {
+          "severity": "warning",
+          "title": "SMR drive in a Red line that was sold as RAID-ready",
+          "detail": "Shingled recording rewrites neighbouring tracks, so sustained random writes are far slower than the drive's sequential speed suggests. In a RAID array that shows up as a rebuild that runs for days or drops out entirely. Western Digital confirmed the models and published a compatibility note after the fact. Check WD's current guidance before putting one of these in a pool.",
+          "url": "https://support-en.wd.com/app/answers/detailweb/a_id/30289"
+        }
+      ]
+    },
+    {
+      "family": "WD Red Plus",
+      "rated_workload_tb_per_year": 180,
+      "source": "Western Digital Red Plus datasheet"
+    },
+    {
+      "family": "WD Red Pro",
+      "rated_workload_tb_per_year": 300,
+      "source": "Western Digital Red Pro datasheet"
+    },
+    {
+      "family": "WD Black",
+      "rated_workload_tb_per_year": 300,
+      "source": "Western Digital Black datasheet"
+    },
+    {
+      "family": "Seagate IronWolf Pro",
+      "rated_workload_tb_per_year": 300,
+      "source": "Seagate IronWolf Pro datasheet"
+    },
+    {
+      "family": "Seagate IronWolf",
+      "rated_workload_tb_per_year": 180,
+      "source": "Seagate IronWolf datasheet",
+      "notes": "Rated workload, not a total: this is how much data the drive is expected to move per year for its warranty to stand."
+    },
+    {
+      "family": "Seagate Barracuda",
+      "rated_workload_tb_per_year": 55,
+      "source": "Seagate Barracuda datasheet",
+      "notes": "A desktop drive. Fine as one drive, and the workload rating is why it is not the drive to put in an array."
+    }
+  ]
+}
