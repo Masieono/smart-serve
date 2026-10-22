@@ -335,6 +335,10 @@ func (s *Server) handleGetDevice(w http.ResponseWriter, r *http.Request) {
 	resp := map[string]any{
 		"device":     device,
 		"projection": s.deviceProjection(r.Context(), serial),
+		// The tag this app treats as "on the bench" (`FEATURES.md` D11), sent here as well as with
+		// the list so the device page can offer the same thing as a checkbox rather than making the
+		// reader know the tag name and type it. The contract stays on the server.
+		"bench_tag": store.BenchTag,
 	}
 	if snap, err := s.store.LatestSnapshot(r.Context(), serial); err == nil && snap != nil {
 		resp["snapshot"] = map[string]any{

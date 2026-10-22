@@ -157,9 +157,14 @@ data_units_read, data_units_written, host_reads, host_writes, controller_busy_ti
 power_cycles, power_on_hours, unsafe_shutdowns, media_errors, num_err_log_entries,
 warning_temp_time, critical_comp_time`).
 
+`bench_tag` is the tag this app treats as "on the bench" (`FEATURES.md` D11). Sent here as well as
+with the list, so the notes editor can offer it as a **checkbox** rather than making the reader know
+the name and type it — the contract stays on the server either way.
+
 ```json
 {
   "device": { "...": "as above" },
+  "bench_tag": "bench",
   "snapshot": {
     "ts": "2025-10-12T10:17:20Z",
     "scan_id": 12,

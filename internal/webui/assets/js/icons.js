@@ -23,6 +23,8 @@ const PATHS = {
   save: '<path d="M5 3h11l3 3v15H5z"/><path d="M9 3v6h6V3"/>',
   chevron: '<path d="m9 6 6 6-6 6"/>',
   back: '<path d="m15 6-6 6 6 6"/>',
+  'arrow-up': '<path d="M12 20V5"/><path d="m5 11 7-6 7 6"/>',
+  'arrow-down': '<path d="M12 4v15"/><path d="m5 13 7 6 7-6"/>',
 };
 
 /** Build an icon element. Decorative by default (aria-hidden). */

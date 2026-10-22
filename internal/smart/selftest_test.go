@@ -63,3 +63,41 @@ func TestCommandFailureCountsOnlyTheLowThreeBits(t *testing.T) {
 		}
 	}
 }
+
+// A refusal has to be a sentence. smartctl prints nothing more than an exit status more often than
+// you would expect — a drive can refuse a self-test silently — and "smartctl exit status 4" leaves
+// the reader to go and look up what bit 2 means.
+func TestSelfTestRefusalNamesTheExitBit(t *testing.T) {
+	cases := map[int]string{
+		1: "did not parse",
+		2: "could not be opened",
+		4: "a SMART command failed",
+		5: "did not parse",
+	}
+	for status, want := range cases {
+		err := commandFailure(Result{ExitCode: status})
+		if err == nil {
+			t.Fatalf("exit status %d: no error", status)
+		}
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("exit status %d: error = %q, want it to mention %q", status, err, want)
+		}
+	}
+
+	// The drive's own words win when there are any, because they are the diagnosis and this is only
+	// a name for the bit.
+	err := commandFailure(Result{ExitCode: 4, Stderr: []byte("Invalid Field in Command")})
+	if err == nil || !strings.Contains(err.Error(), "Invalid Field in Command") {
+		t.Errorf("error = %v, want smartctl's own words passed through", err)
+	}
+}
+
+// The high bits describe the drive rather than the command, so a drive that is merely failing must
+// not be reported as a broken self-test — the same rule `commandFailure` already followed.
+func TestSelfTestIgnoresDriveConditionBits(t *testing.T) {
+	for _, status := range []int{0, 8, 16, 32, 64, 8 | 16 | 32 | 64} {
+		if err := commandFailure(Result{ExitCode: status}); err != nil {
+			t.Errorf("exit status %d: error = %v, want nil", status, err)
+		}
+	}
+}

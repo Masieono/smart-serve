@@ -91,6 +91,9 @@ function projectionBlock(p) {
 function draw(container, ctx, data, history) {
   const series = (history && history.series) || [];
   const d = data.device;
+  // The tag this app treats as "on the bench", sent with the payload so the notes dialog can offer
+  // it as a checkbox rather than making the reader know the name and type it (`FEATURES.md` D11).
+  const benchTag = data.bench_tag || '';
   const projection = data.projection || null;
   const snapshot = data.snapshot || null;
   const payload = snapshot && snapshot.attributes ? snapshot.attributes : null;
@@ -160,7 +163,7 @@ function draw(container, ctx, data, history) {
         onclick: () => ctx.scanDevice(d.serial) }, [icon('scan'), 'Scan']),
       el('button', { class: 'btn btn-sm', type: 'button', title: 'Export a report',
         onclick: () => exportDialog(d) }, [icon('download'), 'Export']),
-      el('button', { class: 'btn btn-sm', type: 'button', onclick: () => editNotes(ctx, d) }, [icon('save'), 'Notes']),
+      el('button', { class: 'btn btn-sm', type: 'button', onclick: () => editNotes(ctx, d, benchTag) }, [icon('save'), 'Notes']),
       // A drive with nothing wrong has nothing to acknowledge, so the control is absent rather than
       // present and refusing (FEATURES.md B7).
       d.health !== 'good'
@@ -993,7 +996,23 @@ async function unack(ctx, device, button) {
   }
 }
 
-function editNotes(ctx, device) {
+/** Whether a tag string holds a tag. The server's rule: comma-separated, trimmed, never a substring. */
+function hasTag(raw, tag) {
+  if (!tag) return false;
+  return String(raw || '').split(',')
+    .map((t) => t.trim().toLowerCase())
+    .includes(String(tag).toLowerCase());
+}
+
+/** The tag string with one tag added or removed, leaving the order of everything else alone. */
+function withTag(raw, tag, present) {
+  const parts = String(raw || '').split(',').map((t) => t.trim()).filter(Boolean);
+  const rest = parts.filter((t) => t.toLowerCase() !== String(tag).toLowerCase());
+  if (!present) return rest.join(',');
+  return [...rest, tag].join(',');
+}
+
+function editNotes(ctx, device, benchTag) {
   openDialog('Device notes', (body, close, foot) => {
     const name = el('input', { type: 'text', value: device.name || '', placeholder: 'e.g. boot, backup pool' });
     const bay = el('input', { type: 'text', value: device.bay || '', placeholder: 'e.g. bay 4, front top, USB port 2' });
@@ -1001,12 +1020,31 @@ function editNotes(ctx, device) {
     const notes = el('textarea', { value: device.notes || '', placeholder: 'Anything worth remembering about this drive' });
     const hidden = el('input', { type: 'checkbox', checked: Boolean(device.hidden) });
 
+    // "Being tested" as a checkbox rather than something the reader has to know to type. The tag is
+    // the mechanism (`FEATURES.md` D11); this is the concept in the words a person would use, and it
+    // belongs in the dialog that already describes the drive — which is where somebody would look.
+    // It is here rather than on the dashboard because a card explaining a tag you have not used is a
+    // card explaining nothing.
+    const bench = el('input', { type: 'checkbox', checked: hasTag(device.tags, benchTag) });
+    // Two controls for one value, so they are kept in step both ways. The tags field stays the
+    // source of truth: it can express things the checkbox cannot, and the payload is read from it.
+    bench.addEventListener('change', () => {
+      tags.value = withTag(tags.value, benchTag, bench.checked);
+    });
+    tags.addEventListener('input', () => {
+      bench.checked = hasTag(tags.value, benchTag);
+    });
+
     body.append(
       el('div', { class: 'field' }, [el('label', { text: 'Name' }), name]),
       el('div', { class: 'field' }, [el('label', { text: 'Bay' }), bay,
         el('p', { class: 'muted field-hint', text: 'Where the drive physically is. A serial ' +
           'identifies a drive; a bay finds it, which is the question at 3am.' })]),
       el('div', { class: 'field' }, [el('label', { text: 'Tags' }), tags]),
+      benchTag
+        ? el('label', { class: 'field-row' }, [bench,
+            el('span', { text: 'Being tested — left out of the fleet counts' })])
+        : null,
       el('div', { class: 'field' }, [el('label', { text: 'Notes' }), notes]),
       el('label', { class: 'field-row' }, [hidden, el('span', { text: 'Hide from the dashboard' })]),
     );

@@ -1,7 +1,7 @@
 // Dashboard: device cards, health summary, scan button (docs/UI.md §7.1).
 import { el, mount, fmtAgo, convertTemp, convertTempDelta, temperatureUnitName } from '../dom.js';
 import { api } from '../api.js';
-import { deviceCard, fleetTable, deviceTitle, countText, healthFilter, emptyState, skeletonCards, errorBox, transportLabel, toast, confirmDialog } from '../components.js';
+import { deviceCard, fleetTable, deviceTitle, countText, healthFilter, emptyState, skeletonCards, errorBox, transportLabel, toast, confirmDialog, openDialog } from '../components.js';
 import { icon } from '../icons.js';
 
 // Module-level so the choices survive navigating into a drive and back.
@@ -56,6 +56,19 @@ const SORTS = [
     value: (d) => (typeof d.score === 'number' && d.score >= 0 ? d.score : 999) },
   { key: 'transport', label: 'Transport', ascending: true, value: (d) => d.transport || '' },
 ];
+
+/**
+ * The order transports are listed in.
+ *
+ * A fixed order rather than alphabetical, so the control keeps its shape as drives come and go, and
+ * in the order an operator would say them. Anything unrecognised sorts after these, by name.
+ */
+const TRANSPORT_ORDER = ['sata', 'nvme', 'sas', 'usb'];
+
+function transportRank(value) {
+  const at = TRANSPORT_ORDER.indexOf(String(value || '').toLowerCase());
+  return at === -1 ? TRANSPORT_ORDER.length : at;
+}
 
 function nameOf(d) {
   return deviceTitle(d);
@@ -141,35 +154,114 @@ export function replaceFirstCard(ranking, ctx) {
 }
 
 /**
- * The fleet export links (`FEATURES.md` A23), or none.
+ * The fleet export (`FEATURES.md` A23), behind one button.
  *
- * Anchors with `download`, the same choice as the config export in Settings (`C7`): these are files
- * to keep, so the browser's own save dialog is the right one rather than this code holding the bytes.
+ * One control rather than two anchors. The format and the scope are a single decision made once, and
+ * two links at the end of a controls row read as two more ways to look at the page rather than as a
+ * file to keep. Putting them behind a dialog is also what gives each format room to say what it is
+ * *for* — "the inventory you sort when planning a purchase" belongs beside the choice, not in a
+ * tooltip nobody hovers.
  *
- * Two of them, because the formats answer different questions and neither is the other's fallback.
- * The CSV is the inventory you sort when planning a purchase; the page is the sheet you print or
- * attach when several drives are going back at once.
- *
- * None for a lone drive. With one drive the export is the single-drive report with fewer columns,
- * and that report is better for the one thing a lone drive needs. That is also why these sit in the
+ * None for a lone drive. With one drive the export is the single-drive report with fewer columns, and
+ * that report is better for the one thing a lone drive needs. That is also why it sits in the
  * controls row, which is drawn only when there is a fleet to control.
  */
-export function exportLinks(deviceCount) {
-  if (deviceCount < 2) return [];
-  return [
-    el('a', {
-      class: 'btn btn-sm',
-      href: api.fleetExportUrl('csv'),
-      download: 'smart-serve-fleet.csv',
-      title: 'Every drive as one spreadsheet row — sort by age, wear or verdict',
-    }, [icon('download'), 'Export CSV']),
-    el('a', {
-      class: 'btn btn-sm',
-      href: api.fleetExportUrl('html'),
-      download: 'smart-serve-fleet.html',
-      title: 'The whole fleet as one printable page, for a batch RMA or a support ticket',
-    }, [icon('download'), 'Export page']),
-  ];
+export function exportButton(devices, tags) {
+  if (devices.length < 2) return null;
+  return el('button', {
+    class: 'btn btn-sm',
+    type: 'button',
+    title: 'Save the fleet as a file',
+    onclick: () => exportDialog(devices, tags),
+  }, [icon('download'), 'Export…']);
+}
+
+/** The two formats, each with the question it answers rather than the extension it produces. */
+const EXPORT_FORMATS = [
+  { value: 'csv', label: 'CSV — a spreadsheet',
+    help: 'One row per drive with every column. The one to sort when planning a purchase.' },
+  { value: 'html', label: 'Printable page',
+    help: 'Every drive on one page. The sheet to print or attach when several go back at once.' },
+];
+
+function exportDialog(devices, tags) {
+  openDialog('Export the fleet', (body, close, foot) => {
+    const format = el('select', {}, EXPORT_FORMATS.map((f) =>
+      el('option', { value: f.value, text: f.label })));
+    const formatHelp = el('p', { class: 'muted field-hint' });
+    const syncFormat = () => {
+      const chosen = EXPORT_FORMATS.find((f) => f.value === format.value) || EXPORT_FORMATS[0];
+      formatHelp.textContent = chosen.help;
+    };
+    format.addEventListener('change', syncFormat);
+    syncFormat();
+
+    // Scope by tag, because that is the one narrowing the API offers and the one that means
+    // something: the dashboard's own filter is about what you are looking at, and an export that
+    // silently honoured it would hand you a file missing rows you never chose to exclude.
+    const scope = el('select', {}, [
+      el('option', { value: '', text: `The whole fleet (${devices.length})` }),
+      ...tags.map((tag) => el('option', { value: tag, text: `Only ${tag} (${countTag(devices, tag)})` })),
+    ]);
+
+    body.append(
+      el('div', { class: 'field' }, [el('label', { text: 'Format' }), format, formatHelp]),
+      tags.length
+        ? el('div', { class: 'field' }, [el('label', { text: 'Drives' }), scope])
+        : null,
+    );
+
+    foot.append(
+      el('button', { class: 'btn', type: 'button', text: 'Cancel', onclick: close }),
+      el('button', {
+        class: 'btn btn-primary',
+        type: 'button',
+        text: 'Export',
+        onclick: () => {
+          saveFile(api.fleetExportUrl(format.value, scope.value), exportName(format.value, scope.value));
+          close();
+        },
+      }),
+    );
+  });
+}
+
+/** How many drives carry a tag. The same comma-separated split the server uses. */
+function countTag(devices, tag) {
+  return devices.filter((d) => String(d.tags || '').split(',')
+    .map((t) => t.trim().toLowerCase()).includes(tag.toLowerCase())).length;
+}
+
+/** The name the browser saves under. Matches what the server sets, so the two cannot disagree. */
+function exportName(format, tag) {
+  const scope = tag ? `-${tag.replace(/[^A-Za-z0-9._-]+/g, '-')}` : '';
+  return `smart-serve-fleet${scope}.${format === 'csv' ? 'csv' : 'html'}`;
+}
+
+/**
+ * Save a URL as a file.
+ *
+ * An anchor with `download`, clicked and removed — the same mechanism the config export uses. These
+ * are files to keep, so the browser's own save dialog is the right one rather than this code holding
+ * the bytes.
+ */
+function saveFile(url, name) {
+  const link = el('a', { href: url, download: name, hidden: true });
+  document.body.append(link);
+  link.click();
+  link.remove();
+}
+
+/** The tags present on a fleet, in a stable order. */
+export function fleetTags(devices) {
+  const found = new Set();
+  for (const d of devices) {
+    for (const tag of String(d.tags || '').split(',')) {
+      const trimmed = tag.trim();
+      if (trimmed) found.add(trimmed);
+    }
+  }
+  return [...found].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
 }
 
 /**
@@ -255,17 +347,22 @@ export function benchSession(bench, ctx, benchTag) {
     el('div', { class: 'row' }, [
       el('h2', { text: 'Testing session' }),
       el('span', { class: 'spacer' }),
-      el('span', { class: 'muted', text: 'left out of the fleet counts' }),
+      el('span', { class: 'muted', text: countText(bench.length) }),
     ]),
-    el('p', { class: 'muted', text: `${countText(bench.length)} tagged ${benchTag}. They are listed ` +
-      'and exported like any other drive, but left out of the health counts above and out of the ' +
-      'replace-first ranking: a drive being tested failing is a result, not an alarm.' }),
-    el('ul', { class: 'bench-list' }, bench.map((d) => el('li', {}, [
-      el('button', {
-        class: 'link', type: 'button', onclick: () => ctx.openDevice(d.serial),
-      }, [deviceTitle(d)]),
-      el('span', { class: 'muted', text: [d.bay, d.model].filter(Boolean).join(' · ') }),
-    ]))),
+    // One line, and it leads with what the card is *for* rather than with the tag. The tag name is
+    // machinery — a reader who wants to know how a drive got here will find it in that drive's own
+    // tags — and everyone else needs to know what being here means.
+    el('p', { class: 'muted', text: 'Drives being tested rather than used. They are left out of the ' +
+      'health counts above: a drive that fails while you are testing it is a result, not an alarm.' }),
+    // Inline rather than one row each. The session *is* the batch, so every drive is still named —
+    // but eight rows of list for eight drives is a lot of card for a set of names, and the model is
+    // the thing worth keeping to hand.
+    el('div', { class: 'bench-chips' }, bench.map((d) => el('button', {
+      class: 'chip chip-link',
+      type: 'button',
+      title: [d.bay, d.model].filter(Boolean).join(' · ') || 'Open this drive',
+      onclick: () => ctx.openDevice(d.serial),
+    }, [deviceTitle(d)]))),
     el('div', { class: 'row bench-actions' }, [
       el('button', {
         class: 'btn btn-sm',
@@ -492,9 +589,11 @@ function draw(container, ctx, data) {
   // counts are a filter for the grid below, so they belong beside the thing they
   // filter rather than in a row of their own.
   //
-  // The transports actually present, rather than a vocabulary this app invented: a host with no
-  // SAS drives should not be offered "SAS" and then show nothing when it is picked.
-  const transportOptions = [...new Set(all.map((d) => d.transport || ''))].sort()
+  // The transports actually present, rather than a vocabulary this app invented: a host with no SAS
+  // drives should not be offered "SAS" and then show nothing when it is picked. Ordered by kind
+  // rather than alphabetically, so the control does not reshuffle as drives come and go.
+  const transportOptions = [...new Set(all.map((d) => d.transport || ''))]
+    .sort((a, b) => transportRank(a) - transportRank(b) || a.localeCompare(b))
     .map((t) => ({ value: t, label: transportLabel({ transport: t }) }));
 
   const sortSelect = el('select', {
@@ -507,16 +606,18 @@ function draw(container, ctx, data) {
     },
   }, SORTS.map((s) => el('option', { value: s.key, text: s.label, selected: s.key === sortKey })));
 
+  // The direction says what it is doing in words, and carries a real arrow. A bare ↑ in a ghost
+  // button beside a dropdown was the weakest possible way to say "this is the other half of the
+  // sort" — it read as decoration rather than as a control, which is exactly how it was reported.
   const direction = el('button', {
-    class: 'btn btn-sm btn-ghost',
+    class: 'btn btn-sm',
     type: 'button',
     title: ascending ? 'Ascending — click for descending' : 'Descending — click for ascending',
-    'aria-label': ascending ? 'Sort ascending' : 'Sort descending',
     onclick: () => {
       ascending = !ascending;
       draw(container, ctx, data);
     },
-  }, [ascending ? '↑' : '↓']);
+  }, [icon(ascending ? 'arrow-up' : 'arrow-down'), ascending ? 'Ascending' : 'Descending']);
 
   /** One half of the cards/table switch. */
   function viewButton(key, label) {
@@ -545,7 +646,7 @@ function draw(container, ctx, data) {
           paint();
         },
       }, [
-        el('option', { value: '', text: 'All transports', selected: transportFilter === '' }),
+        el('option', { value: '', text: 'All' }),
         ...transportOptions.map((t) => el('option', {
           value: t.value, text: t.label, selected: t.value === transportFilter,
         })),
@@ -556,8 +657,8 @@ function draw(container, ctx, data) {
   // it is the list with a heading on it.
   const canGroup = all.some((d) => String(d.tags || '').trim() !== '');
 
-  // The fleet export (`FEATURES.md` A23).
-  const exportControls = exportLinks(all.length);
+  // The fleet export (`FEATURES.md` A23), one button behind which the format and the scope live.
+  const exportControls = exportButton(all, fleetTags(all));
 
   const head = el('div', { class: 'card devices-head' }, [
     el('div', { class: 'devices-head-row' }, [
@@ -605,10 +706,19 @@ function draw(container, ctx, data) {
     // choice to make.
     all.length > 1
       ? el('div', { class: 'devices-controls' }, [
-          el('span', { class: 'muted', text: 'Sort' }),
-          sortSelect,
-          direction,
-          transportSelect,
+          // Sort as one labelled pair: the field and its direction are a single decision, and the
+          // label is what ties them together now that the direction says what it is doing in words.
+          el('div', { class: 'control-group' }, [
+            el('span', { class: 'control-label', text: 'Sort' }),
+            sortSelect,
+            direction,
+          ]),
+          transportSelect
+            ? el('div', { class: 'control-group' }, [
+                el('span', { class: 'control-label', text: 'Transport' }),
+                transportSelect,
+              ])
+            : null,
           // Cards for a handful of drives, a table for a rack. It sits at the far end because it
           // changes the shape of the answer rather than what is being asked.
           el('span', { class: 'spacer' }),
@@ -634,8 +744,10 @@ function draw(container, ctx, data) {
           // A rule, because "how is this shown" and "what happens to this list" are different
           // questions: an export is a file to keep, and sitting shoulder to shoulder with the view
           // switch it read as one more way to look at the page.
-          el('span', { class: 'controls-divider', 'aria-hidden': 'true' }),
-          ...exportControls,
+          exportControls
+            ? el('span', { class: 'controls-divider', 'aria-hidden': 'true' })
+            : null,
+          exportControls,
         ])
       : null,
     // One line rather than four. The two notes below are the answer to a question the counts above

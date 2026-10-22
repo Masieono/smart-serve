@@ -184,6 +184,20 @@ shown, and a self-test can be started, watched and stopped from the device page.
 
 ### Changed
 
+- **The fleet export is one button, not two links.** A dialog carries the format and the scope, which is
+  where each format can say what it is *for* — beside the choice it belongs to rather than in a tooltip
+  nobody hovers. Scope is a tag, deliberately not the dashboard's filter: a filter is about what you are
+  *looking at*, and an export that silently honoured it would hand you a file missing rows you never
+  chose to exclude.
+- **The sort direction says what it is doing.** A bare ↑ in a ghost button beside a dropdown read as
+  decoration rather than as the other half of the sort; it is a real arrow and the word now, in a
+  labelled pair with the field it belongs to. The transport filter has its own label too, offers "All"
+  rather than "All transports", and orders by kind rather than alphabetically so the control keeps its
+  shape as drives come and go.
+- **A drive joins the bench with a checkbox.** You had to know the word `bench` to find the feature at
+  all; the Notes dialog now carries **Being tested — left out of the fleet counts**, kept in step with
+  the tags field in both directions. The testing-session card is a line shorter, names its drives as
+  chips rather than one row each, and says what the state *means* instead of what the tag is called.
 - **The dashboard header is three rows instead of five.** The notes that explain the counts now sit
   beside them on one muted line rather than in rows of their own, and the standing instructions about
   rescanning and forgetting are gone — a line of help on every page load is read once and then only
@@ -203,6 +217,15 @@ shown, and a self-test can be started, watched and stopped from the device page.
 
 ### Fixed
 
+- **A refused long test no longer leaves a bare exit code.** `smartctl -t long` on a drive that does not
+  implement an extended self-test failed with "smartctl exit status 4" and nothing else, because
+  smartctl prints no message when a drive declines silently. The failure now names the bit in
+  smartctl's own vocabulary ("a SMART command failed"), passes the drive's words through when there are
+  any, and says outright when there are none — and the card disables the long button and explains,
+  rather than inviting a second attempt at something the drive has already declined. The short test
+  stays available, because a refused extended test says nothing about it. It is disabled for the life
+  of the card rather than remembered: "refused once" is not the same fact as "cannot", and nothing
+  smartctl reports in advance says which tests a drive supports.
 - **A self-test's result could vanish.** The result lives in the Drive logs card, which is drawn from
   the *last scan* — and a fifteen-second poll only ever sees a short test after it has finished. So a
   test that was over before the card's first reading never triggered the rescan that puts the outcome
@@ -241,6 +264,19 @@ shown, and a self-test can be started, watched and stopped from the device page.
 - **The channel editor no longer explains what its own Test button does.** The paragraph above the form
   said what the button's tooltip already said, and a sentence of reassurance above a form is read once
   and then only seen.
+
+### Documentation
+
+- **`docs/TESTING.md` is a test plan now, not a checklist.** Every test is a numbered procedure with the
+  steps and the expected result, because "check the dashboard" is not a reproducible instruction — and a
+  first pass through this app misses most of it, since a large part of the UI is conditional and a card
+  that is correctly absent looks exactly like a card that is broken. Pass 0 builds the data that turns
+  the conditions on and the later passes depend on it, so findings can be quoted by number ("3.5, on the
+  SN730: progress appeared but the percentage stayed at 0") and the procedure is the bug report.
+- **The known NVMe self-test gap is written down where it will be found** (`FEATURES.md` §A19 and the
+  plan's Pass 3): progress comes from the *ATA* self-test log, and smartctl's NVMe self-test log has
+  never been observed on this project's hardware. It is detected and named rather than guessed at, and
+  the raw output from a drive while a test is running is the fixture that would close it.
 
 ## [1.0.1] — 2026-10-18
 

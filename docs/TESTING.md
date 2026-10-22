@@ -1,126 +1,168 @@
-# Smart-Serve — Manual test checklist
+# Smart-Serve — manual test plan
 
-`go test ./...` and `node --test internal/webui/jstest/*.test.mjs` cover the rules. This file covers
-what a machine cannot: whether the thing that *should* appear appears at all, whether it says the
-right thing, and whether it is where you would look for it.
+`go test ./...` and `node --test internal/webui/jstest/*.test.mjs` cover the rules. This plan covers
+what they cannot: whether the right thing appears at all, whether it says the right thing, and whether
+it is where you would look for it.
 
-It exists because a first pass through this app misses a lot, and mostly for one reason — **a large
-part of the UI is conditional**. A card that is correctly absent on your fleet looks identical to a
-card that is broken, and the only way to tell them apart is to know what turns it on. Every entry
-below marked **(conditional)** says what it needs.
+**Every test is a numbered procedure.** Do the steps, compare against *Expect*. Anything that does not
+match is a finding — quote its number, and the procedure is the bug report.
 
-## Before you start: build the test data
+The passes build on each other, so **run Pass 0 first**. A large part of this UI is *conditional*, and
+a card that is correctly absent looks exactly like a card that is broken; Pass 0 makes the conditions
+true so the rest of the plan has something to look at.
 
-Most of what is missing from a first pass is missing because nothing has triggered it. Set this up
-first, or you will spend the pass looking at empty states.
+## Pass 0 — build the test data
 
-| What you need | What it turns on |
-|---|---|
-| A drive tagged `bench` (the tag name is a setting the server owns) | the **Testing session** card, the **Bench only** filter, the batch export |
-| Two tags, with one drive carrying both | **Group by tag**, and the "appears under each of them" note |
-| A bay recorded on two drives | the Bay column, the Bay sort, the bay row on a card |
-| A drive at **caution** | **Acknowledge** / **Un-acknowledge**, the **Replace first** shortlist, a digest at medium priority |
-| A drive at **bad** | the summary counts, Replace first, the digest's "Replace first" section |
-| A drive that is **disconnected** | the **Show N disconnected** toggle, the "Not connected" card |
-| A drive with **no S.M.A.R.T.** | the blocked-read / no-SMART notice and its compose snippet |
-| **Two or more scans**, hours apart | the **Trend** card, **Since the last scan**, **Outlook** |
-| **4+ drives in one tag group**, warmed together | the **Heating together** card |
-| At least one **notification channel** | the digest, the delivery log, maintenance windows |
+| # | Do | Expect |
+|---|---|---|
+| 0.1 | Press **Scan now**. | One card per drive, each with a verdict |
+| 0.2 | Open a drive → **Notes**. Set **Name** and **Bay** ("bay 4"). Save. | The card leads with the bay |
+| 0.3 | In the same dialog, tick **Being tested — left out of the fleet counts**. Save. | A **Testing session** card appears on the dashboard, and the drive leaves the health counts |
+| 0.4 | Untick it. Save. | The card goes, and the counts return |
+| 0.5 | On two drives, set **Tags** to `tank, spare` and `tank`. Save both. | A **Group by tag** control appears |
+| 0.6 | Tick **Being tested** on one drive again. | The batch card is back, and so is **Bench only** |
+| 0.7 | Add a **notification channel** (ntfy is the quickest). Send a test. | The channel is listed and the test arrives |
+| 0.8 | Create a schedule on a short interval (every 5 minutes). | It runs, and **Last run** fills in |
+| 0.9 | Let an hour pass, then scan again. | A **Trend** card and a **Since the last scan** card appear on a drive page |
 
-## Dashboard
+Two conditions Pass 0 cannot create, and the passes that need them say so: a drive at **caution** or
+**bad** (acknowledgement, the replace-first shortlist, a digest at medium priority), and a
+**disconnected** drive (unplug one). Keep a caution drive if you have one — it is the trigger for
+several cards, and `docs/SMART_INTERPRETATION.md` §4 has the thresholds to make one temporarily.
 
-- **Summary counts** filter the grid when clicked, and the filter survives navigating into a drive
-  and back. **(conditional)** The counts only render where there is a fleet.
-- **Search** — name, model, serial, device path, bay and mountpoint. `/` focuses it.
-- **Sort** — every field in the dropdown, and the direction toggle. Check the *default direction*
-  per field: capacity, temperature, age and last scan read as "biggest/hottest/oldest first", the
-  rest as A→Z.
-- **Table headers** sort too; clicking the sorted column reverses it.
-- **Cards / Table** — switch it, then **hard-refresh**: the table should still be the table. This is
-  stored in the database (`dashboard_view`), so it also survives a different browser.
-- **Group by tag** **(conditional — needs a tag)** — untagged drives come last, and a multi-tag drive
-  appears under each of its tags with the note explaining why the counts do not add up.
-- **Show N disconnected** **(conditional)** and **Bench only** **(conditional)**.
-- **Replace first** **(conditional — needs a drive that qualifies)** — capped at five, absent when
-  nothing does. It should never appear just because the fleet is large.
-- **Heating together** **(conditional — needs 4+ drives in one group rising together)** — check the
-  ratio (`3 of 4`), and that it never claims a cause.
-- **Testing session** **(conditional — needs a `bench`-tagged drive)** — `Test all`, `Export batch`
-  (a tag-scoped CSV) and `Forget all`, plus the note about the batch being left out of the counts.
-- **Export CSV** and **Export page** **(conditional — needs more than one drive)** — at the far end of
-  the controls row, past the rule.
-- **Rescan a card**, and confirm the page does not jump to the top when it finishes.
-- **The whole header should be three rows at most** (identity, controls, one note line) and two when
-  nothing conditional is on.
-- Empty state on a host with no drives discovered.
+## Pass 1 — the dashboard
 
-## Device page
+| # | Do | Expect |
+|---|---|---|
+| 1.1 | Click a **health count** (e.g. "2 healthy"). | The grid filters to those drives, and the count is highlighted |
+| 1.2 | Open a drive, then go back. | The filter is still applied |
+| 1.3 | Type `bay 4` into **Filter**. | Only that drive is listed |
+| 1.4 | Press `/`. | The filter box takes focus |
+| 1.5 | Set **Sort** to Capacity. | Biggest first, and the direction reads **Descending** |
+| 1.6 | Press the direction button. | The order reverses, and both its word and its arrow change |
+| 1.7 | Set **Sort** to Name. | A→Z, and the direction resets to **Ascending** without you touching it |
+| 1.8 | Set **Transport** to a value, then back to **All**. | Only that transport is listed; All restores |
+| 1.9 | Press **Table**. | One row per drive, and the switch shows Table pressed |
+| 1.10 | **Hard-refresh** the page (Ctrl-Shift-R). | Still the table |
+| 1.11 | Press **Group by tag**. | A heading per tag; untagged last; a multi-tag drive under each, with the note about the counts |
+| 1.12 | Press **Export…**. | A dialog with **Format** and **Drives**. Choose CSV, then Export — a file downloads |
+| 1.13 | Press **Export…** again and choose **Only tank**. | A file named for the tag, with only those drives |
+| 1.14 | Press **Bench only**. | Only the batch is listed |
+| 1.15 | Press **Show N disconnected** (needs an unplugged drive). | The missing drives appear, dimmed |
+| 1.16 | Rescan a drive from its card. | A toast, the card updates, and **the page does not jump to the top** |
 
-- **Verdict, score and grade**, and the rationale behind them.
-- **Knowledge base** **(conditional — needs a drive the table knows)** — the rated endurance line and
-  its source, and an advisory card when the firmware matches. See `KNOWLEDGE.md`.
-- **Since the last scan** **(conditional — needs two scans)** — including "nothing changed" and an
-  em dash for a value the drive did not report.
-- **Trend** **(conditional — needs history)** — the 7/30/90/all windows, the shared date axis, and the
-  faint rules through each plot. Hover and arrow keys. A drive that stopped being scanned should
-  leave a **visible gap**, not a line that ends at the right edge.
-- **Outlook** — the caveat is one line now, and the "Worsening" badge appears only when it is.
-- **Acknowledge / Un-acknowledge** **(conditional — needs a caution or bad drive)**. Ack it, then let
-  it get worse: the ack is spent the moment the verdict moves.
-- **Self-test** — the short and long buttons, the confirmation, the estimate. Then:
-  - a test that is **running** shows a percentage and a **Stop test** button;
-  - a test that **finished before the first reading** says so, and the card picks the result up;
-  - **Last test** shows the most recent finished result, with the drive's own verdict;
-  - a drive that **cannot self-test** says so instead of offering buttons.
-- **Drive logs** — both counts, and the self-test table when there is one.
-- **Attribute table** — the `?` help, flagged rows, `Unknown_Attribute` → "vendor specific", and the
-  NVMe table for an NVMe drive.
-- **Raw output** viewer, and the transport override + **Apply & rescan**.
-- **Notes / name / bay / tags / hidden** — save, and confirm the page reflects it. Save **twice**.
-- **Report export** in all four formats.
-- **Forget this drive** — behind a confirmation, and it returns to the dashboard.
-- The three degraded cases: **no S.M.A.R.T.**, a **blocked read**, and a **disconnected** drive.
+Cards that only appear under a condition: **Replace first** (a drive that qualifies), **Heating
+together** (4+ drives in one tag group rising together between two readings), **Testing session** and
+**Bench only** (a drive ticked **Being tested**).
 
-## Schedules
+## Pass 2 — one drive's page
 
-- The guided interval / daily / weekly / cron forms, the cron preview, and the validation messages.
-- **Action: digest** — the hint should say where the digest *goes* (your notification channels; the
-  schedule is the subscription). Pick scan and confirm the hint disappears.
-- **Run now**, enable/disable, edit, delete.
-- **Save twice** — the button must come back.
+| # | Do | Expect |
+|---|---|---|
+| 2.1 | Open a healthy drive. | Verdict, score, grade, and the reasons behind them |
+| 2.2 | Read the **Outlook** block. | One line of caveat, not a paragraph |
+| 2.3 | Change the **Trend** window 30 → 7 → All. | The plots change, the axis relabels, and **the page does not move** |
+| 2.4 | Hover a trend line, then focus one and press ←/→. | The readout follows the pointer and the keys; the marker sits on a reading |
+| 2.5 | Pick a date on the axis and follow it up through the plots. | A faint vertical rule runs through every plot at that date |
+| 2.6 | Scroll to **Drive logs**. | Both counts, and a self-test table when the drive has one |
+| 2.7 | Check the **attribute table**. | `?` explains each attribute; vendor rows are named, not `Unknown_Attribute` |
+| 2.8 | Press **Show raw output**. | smartctl's own document |
+| 2.9 | Press **Export**, once per format. | Four files, each in the format asked for |
+| 2.10 | Press **Notes**, change the name, **Save**. | The header updates. Press **Save** a second time — the button must come back |
+| 2.11 | On a caution drive: **Acknowledge**, then let the verdict move. | The ack is spent when the verdict changes, and the drive alerts again |
 
-## Notifications
+Cards that only appear under a condition: **Knowledge base** (a drive the table knows — see
+`KNOWLEDGE.md`), **Since the last scan** and **Trend** (two scans), **Acknowledge** (caution or bad),
+the no-S.M.A.R.T. notice (a drive that reports none, or a blocked read).
 
-- Channel types: ntfy, Gotify, Telegram, Discord, email, webhook. Event subscription checkboxes.
-- **Test in the editor** (unsaved settings) — press it **three times**. Then **Save twice**.
-- **Test on a saved channel** in the list.
-- **Delivery log**, and the maintenance-window card: a one-off window, a daily one, a weekly one, and
-  one scoped to specific drives. **(conditional)** The card is absent when there are no windows.
+## Pass 3 — self-tests
 
-## Settings
+The only part of the app that writes to a drive, and the only part that polls one. Do this pass on a
+spare drive if you have one.
 
-- **Save twice.** Then change the temperature unit with unsaved edits in the fields and confirm
-  nothing typed is reinterpreted.
-- **Knowledge base card** — `Refresh now` should not move the page. `Download the shipped table`,
-  the overrides editor (paste broken JSON and read the error), and `Discard the fetched copy`.
-- **Import / export** — export, then import the same file. Try a malformed file for the error text.
+| # | Do | Expect |
+|---|---|---|
+| 3.1 | On a SATA drive, press **Short test** and confirm. | A toast, then a percentage left and a **Stop test** button |
+| 3.2 | Wait for it to finish (a minute or two). | **Last test** appears with the drive's own verdict |
+| 3.3 | Reload the page. | **Last test** is still there, and the **Drive logs** table has the entry |
+| 3.4 | Start a short test, then press **Stop test** mid-run and confirm. | The test stops and the card returns to idle |
+| 3.5 | Press **Long test** on an **NVMe** drive. | Progress appears, *or* the card says the drive refused it **and greys the button out**. Never a bare "smartctl exit status 4" |
+| 3.6 | After 3.5 refuses, look at **Short test**. | Still usable — a refused long test says nothing about the short one |
+| 3.7 | Open a drive that cannot self-test. | It says so, with no buttons offered |
+| 3.8 | Start a test, navigate away, come back. | Progress picks up from the drive rather than from a clock |
+| 3.9 | Watch the network tab while a test runs, then navigate away. | A request every 15s while the card is on screen; **none** once it is not |
 
-## Cross-cutting
+**Known gap.** Progress is read from the *ATA* self-test log. On a drive that keeps an NVMe self-test
+log, the card says the log cannot be read and offers no progress, because the parser has never been
+written against real data. If you see that message, the raw output from that drive **while a test is
+running** is the fixture needed to fix it.
 
-- Theme and temperature unit persist, with no flash of the wrong one on load.
-- `s` scans, `/` focuses search, `?` shows help, `Esc` closes a dialog.
-- Narrow window: the sidebar collapses, the topbar toggle works, Scan stays reachable.
-- Behind a subpath (`/smart-serve/`) — nothing should 404.
-- **Nothing jumps the page**: refresh a card, rescan a drive, let a scan finish in the background.
-- No polling anywhere except the self-test card while a test it started is running and on screen.
+## Pass 4 — schedules and digests
+
+| # | Do | Expect |
+|---|---|---|
+| 4.1 | **New schedule** → Repeat: every few minutes. Save. | It appears, with a next run |
+| 4.2 | Press **Run now**. | A scan starts |
+| 4.3 | Edit it and switch Repeat to "On chosen days, at a time". | The time and day controls appear |
+| 4.4 | Switch Repeat to **Cron expression** and type `0 3 * * *`. | A plain-English preview of when that is |
+| 4.5 | Type nonsense into the cron field. | An error in the field, not after a round trip |
+| 4.6 | Set **Action** to "Send a digest of the period". | A hint appears saying **where the digest goes** |
+| 4.7 | Set it back to scan. | The hint disappears |
+| 4.8 | Save, then press **Save** again in the same dialog. | The button must come back |
+| 4.9 | Wait for a digest to fire. | It arrives at your channel, and the delivery log records it |
+
+## Pass 5 — notifications
+
+| # | Do | Expect |
+|---|---|---|
+| 5.1 | **New channel**, and open the type list. | ntfy, Gotify, Telegram, Discord, email, webhook |
+| 5.2 | Fill one in, then press **Test** three times. | Three test messages, and the button usable each time |
+| 5.3 | Press **Save**, then **Save** again. | The button must come back |
+| 5.4 | Press **Test** on the saved channel in the list. | A test arrives |
+| 5.5 | Tick some events and save, then untick them. | The chips on the card follow |
+| 5.6 | **Add** a maintenance window: one-off, now to +10 minutes. | It is listed and marked active |
+| 5.7 | Add a daily window and a weekly one. | Both listed, with their schedules in words |
+| 5.8 | Scroll to the **delivery log**. | Every test above is recorded there |
+
+The maintenance card is absent when there are no windows — that is the design, not a failure.
+
+## Pass 6 — settings and the knowledge base
+
+| # | Do | Expect |
+|---|---|---|
+| 6.1 | Change a threshold and press **Save settings**. | A toast. Press **Save** again — the button must come back |
+| 6.2 | Switch the temperature unit with an unsaved edit in a threshold field. | The number converts, and nothing typed is reinterpreted |
+| 6.3 | Pick a theme. | It applies at once, and survives a reload |
+| 6.4 | Press **Refresh now** on the knowledge base card. | A toast, the status line updates, and **the page does not jump** |
+| 6.5 | Press **Download the shipped table**. | A JSON file |
+| 6.6 | Paste `{"nope": 1}` into **Your own entries** and press Save. | The error is shown **beside the box**, naming the field |
+| 6.7 | Press **Discard the fetched copy** when one exists. | The status line drops back to the shipped count |
+| 6.8 | Press **Export** in Import and export. | A JSON bundle downloads |
+| 6.9 | Press **Import** and choose that file. | A confirmation first, then a summary of what was applied |
+
+## Pass 7 — cross-cutting
+
+| # | Do | Expect |
+|---|---|---|
+| 7.1 | Reload after setting a theme and a unit. | No flash of the wrong theme or the wrong unit |
+| 7.2 | Press `s`, `/`, `?`, `Esc`. | Scan; focus the filter; help; close a dialog |
+| 7.3 | Narrow the window below 640px. | The sidebar collapses, the toggle works, Scan stays reachable |
+| 7.4 | Let a scan finish while you are reading a drive page. | A toast, and **the page does not move** |
+| 7.5 | Watch the network tab while the app is idle. | Nothing. The only repeat request is the self-test card while a test runs |
+| 7.6 | Serve the app under a subpath (`/smart-serve/`). | Nothing 404s |
 
 ## When something is missing
 
-Check this order before calling it a bug:
+Check this order before calling it a finding:
 
-1. **Is it conditional?** Almost everything in this file is. The trigger is named beside it.
-2. **Is the data stale?** The device page is drawn from the last scan. A value that changed since
-   then appears after a rescan — that is the design, not a bug (`FEATURES.md` §E).
-3. **Did the drive report it?** A blank where a value should be is often the drive not reporting it.
-   The app renders those as an em dash on purpose, and `raw output` will show you what it sent.
+1. **Is it conditional?** Almost everything here is. The trigger is named beside it.
+2. **Is the data stale?** A drive page is drawn from the last scan. A value that changed since then
+   appears after a rescan — that is the design (`FEATURES.md` §E), not a bug.
+3. **Did the drive report it?** A blank is often the drive not reporting the value. Those render as an
+   em dash on purpose, and **raw output** shows what it sent.
+
+## Reporting a finding
+
+Quote the test number, what you did, and what you saw instead. The procedure is the bug report, so
+"3.5, on the SN730: progress appeared but the percentage stayed at 0" is enough to act on.
 

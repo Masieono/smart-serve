@@ -78,13 +78,24 @@ async function clickThrough(button) {
  * calls — the POST and the read that follows it — and they must not be confusable. A test that
  * asserted on a single shared payload could not tell the two apart.
  */
-function stubSelfTestApi({ running = null } = {}) {
+function stubSelfTestApi({ running = null, refuseLong = null } = {}) {
   const requests = [];
   globalThis.fetch = async (url, init = {}) => {
     const path = String(url);
     const body = init.body ? JSON.parse(init.body) : null;
     const method = init.method || 'GET';
     requests.push({ path, method, body });
+
+    // A drive that refuses an extended test, which is how the long button fails on hardware that
+    // does not implement one. Served as the API serves it: a 502 with smartctl's words.
+    if (refuseLong && method === 'POST' && body && body.kind === 'long') {
+      return {
+        ok: false,
+        status: 502,
+        statusText: 'Bad Gateway',
+        text: async () => JSON.stringify({ error: refuseLong }),
+      };
+    }
 
     let payload;
     if (path.endsWith('/selftest/abort')) {
@@ -388,6 +399,39 @@ test('a test that is over before the first reading still reaches the log', async
   assert.match(textOf(card), /no test in progress/);
   assert.deepEqual(ctx.rescanned, ['S'],
     'the outcome only reaches the log table after a rescan, so one has to be asked for');
+  stopPolling();
+});
+
+
+// A long test is refused by drives that do not implement an extended self-test. The button must stop
+// inviting a second attempt, and the card must say what happened — a raw "smartctl exit status 4" in
+// a toast leaves the reader to go and look up what bit 2 means.
+test('a refused long test disables the button and says why', async () => {
+  stopPolling();
+  stubSelfTestApi({ running: null, refuseLong: 'smartctl: a SMART command failed' });
+  const card = selfTestCard(stubCtx(), { serial: 'S' }, { self_test_supported: true, short_minutes: 2 });
+
+  const [, long] = buttonsOf(card);
+  await clickThrough(long);
+
+  assert.equal(long.disabled, true, 'the long button still invites a second attempt');
+  const text = textOf(card);
+  assert.match(text, /refused a long test/);
+  assert.match(text, /a SMART command failed/, 'the drive\'s own words are not passed through');
+  stopPolling();
+});
+
+// The short test is the fallback, and it must stay available: refusing an extended test says nothing
+// about the short one.
+test('a refused long test leaves the short test alone', async () => {
+  stopPolling();
+  stubSelfTestApi({ running: null, refuseLong: 'smartctl: a SMART command failed' });
+  const card = selfTestCard(stubCtx(), { serial: 'S' }, { self_test_supported: true, short_minutes: 2 });
+
+  const [short, long] = buttonsOf(card);
+  await clickThrough(long);
+
+  assert.equal(short.disabled, false, 'the short test was disabled by a long-test refusal');
   stopPolling();
 });
 

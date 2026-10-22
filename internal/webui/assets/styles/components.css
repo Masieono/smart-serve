@@ -793,6 +793,44 @@ a:hover {
   background: var(--border);
 }
 
+/* A labelled control: the word that names the decision, then the controls that make it. The label
+   is what ties a dropdown to the button beside it — without one, a direction arrow reads as
+   decoration rather than as the other half of the sort. */
+.control-group {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.control-label {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--muted);
+}
+
+/* The drives in a testing session, inline. Every drive is still named — the session *is* the batch
+   — but as chips rather than as one row each. */
+.bench-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+/* A chip that does something. The `.chip` shape is shared with the read-only ones. */
+.chip-link {
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--text-sm);
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.chip-link:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
 /* The shared date axis (`ADR-023`). It reads as the bottom of the card rather than as a line of text
    under it: a rule ties it to the plots above, and the same faint vertical rules continue through
    every plot (`spark-guide`), so a date can be followed up through all of them instead of guessed at

@@ -340,6 +340,16 @@ as a bare list entry.
   counts up and gets a number smaller than the list is owed the reason; that is the same rule
   as the disconnected toggle and the group-count note.
 
+  **Getting a drive onto the bench is a checkbox, not a tag you have to know to type.** The tag is
+  the mechanism; "being tested" is the concept, and the first pass found the mechanism was the only
+  thing on offer — you had to know the word `bench` to find the feature at all. The device's Notes
+  dialog now carries **Being tested — left out of the fleet counts**, kept in step with the tags field
+  both ways, and it is there because that is the dialog that already describes the drive, so it is
+  where somebody would look. It is deliberately *not* on the dashboard: a card explaining a tag you
+  have never used is a card explaining nothing. The card itself now says what the state *means*
+  rather than what the tag is called — a reader who wants to know how a drive got there will find it
+  in that drive's own tags.
+
   The batch's verbs — **Test all**, **Export batch**, **Forget all** — live on one card that
   appears only when the bench is non-empty, the same rule as the replace-first shortlist.
   Not on tag-group headings, which are drawn two different ways (card headings and a table

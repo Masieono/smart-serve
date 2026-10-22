@@ -11,7 +11,7 @@ import { installStubDom, StubNode, stubFetch } from './stub-dom.mjs';
 
 installStubDom();
 
-const { visibleDevices, groupByTag, exportLinks, benchSession, heatCard, render, setView } =
+const { visibleDevices, groupByTag, exportButton, fleetTags, benchSession, heatCard, render, setView } =
   await import('../assets/js/views/dashboard.js');
 
 /** Every string in a subtree, in document order. */
@@ -239,29 +239,32 @@ test('grouping keeps the order the list arrived in', () => {
   assert.deepEqual(inGroup(groupByTag(sorted), 'tank'), ['bad', 'good']);
 });
 
-// The fleet export (FEATURES.md A23). Anchors rather than buttons, because these are files to keep
-// and the browser's own save dialog is the right one to put them somewhere.
-test('the fleet export is two download links, one per format', () => {
-  const links = exportLinks(4);
-  assert.equal(links.length, 2);
-  assert.deepEqual(
-    links.map((a) => a.getAttribute('href')),
-    ['/api/devices/export?format=csv', '/api/devices/export?format=html'],
-  );
-
-  // The filename is part of the document: it is what the file is called in the folder it is saved
-  // to, months later, beside a dozen other exports. Both are distinct, so saving both works.
-  assert.deepEqual(
-    links.map((a) => a.getAttribute('download')),
-    ['smart-serve-fleet.csv', 'smart-serve-fleet.html'],
-  );
+// The fleet export (FEATURES.md A23). One button rather than two links: the format and the scope are
+// a single decision made once, and two anchors at the end of a controls row read as two more ways to
+// look at the page rather than as a file to keep.
+test('the fleet export is one button, not two links', () => {
+  const button = exportButton([drive({ serial: 'a' }), drive({ serial: 'b' })], []);
+  assert.ok(button, 'a fleet gets an export control');
+  assert.equal(button.tagName, 'BUTTON');
+  assert.match(textOf(button), /Export/);
 });
 
 // A lone drive gets the single-drive report instead — the same thing with fewer columns, and better
 // for the one thing a lone drive needs.
 test('a lone drive gets no fleet export', () => {
-  assert.deepEqual(exportLinks(1), []);
-  assert.deepEqual(exportLinks(0), []);
+  assert.equal(exportButton([drive({ serial: 'a' })], []), null);
+  assert.equal(exportButton([], []), null);
+});
+
+// The tags the export can be scoped to, listed once each and in a stable order so the dialog's
+// dropdown does not reshuffle between renders.
+test('fleetTags lists every tag once', () => {
+  const fleet = [
+    drive({ serial: 'a', tags: 'tank, spare' }),
+    drive({ serial: 'b', tags: 'spare,bench' }),
+    drive({ serial: 'c', tags: '   ' }),
+  ];
+  assert.deepEqual(fleetTags(fleet), ['bench', 'spare', 'tank']);
 });
 
 // The bench filter (`FEATURES.md` D11) reads the server's `on_bench` flag rather than the tag string,
@@ -279,9 +282,9 @@ test('the bench filter uses the server flag, not the tag string', () => {
 // The testing session card (`FEATURES.md` D11).
 //
 // Absent when the bench is empty — a panel that is always present stops being read — and when present
-// it lists every drive in the batch rather than a shortlist: the session *is* the batch, so
+// it names every drive in the batch rather than a shortlist: the session *is* the batch, so
 // truncating it would be answering a different question.
-test('the testing session lists the whole batch and offers its verbs', () => {
+test('the testing session names the whole batch and offers its verbs', () => {
   assert.equal(benchSession([], {}, 'bench'), null);
 
   const bench = [
@@ -292,8 +295,15 @@ test('the testing session lists the whole batch and offers its verbs', () => {
 
   const text = textOf(card);
   assert.match(text, /Testing session/);
-  assert.match(text, /2 drives tagged bench/);
+  assert.match(text, /2 drives/);
   for (const name of ['spare-1', 'spare-2']) assert.ok(text.includes(name), `missing ${name}`);
+
+  // Named as chips rather than as one row each: every drive is still there, in a fraction of the
+  // card. The tag name is deliberately not spelled out — it is the mechanism, and what a reader
+  // needs is what the state *means*.
+  const chips = card.all('button').filter((b) => b.className.includes('chip-link'));
+  assert.equal(chips.length, 2, 'the batch is not listed as chips');
+  assert.ok(!/tagged bench/.test(text), 'the card explains the tag rather than the state');
 
   // The batch's own sheet, scoped by tag: it cannot be the whole fleet's file under another name.
   const link = card.all('a')[0];

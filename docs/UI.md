@@ -185,6 +185,11 @@ picker offers exactly `ThemeNames`.
   identical-looking buttons make the reader check which one is pressed. The standing instructions
   about rescanning and forgetting are gone: a line of help on every page load is read once and then
   only takes up room, and both actions are labelled on the things they act on.
+  The sort field and its direction are one labelled pair, and the direction says **Ascending** or
+  **Descending** with a real arrow: a bare ↑ in a ghost button beside a dropdown read as decoration
+  rather than as the other half of the sort, which is exactly how it was reported. The transport filter
+  carries its own label, and lists only the transports present on this host — in a fixed order rather
+  than alphabetically, so the control keeps its shape as drives come and go.
 - **Two views** (`FEATURES.md` D8): Cards and Table, switched from the controls row. The card grid
   is right for four drives and wrong for twenty-four, so the table gives one row per drive with
   bay, verdict, score, transport, model, capacity, temperature, age and last scan. Its headers
@@ -210,15 +215,18 @@ picker offers exactly `ThemeNames`.
   rather than reading a screen carefully. Unset bays get no row at all — a gap in the bookkeeping
   is not a finding about the drive, and "Bay —" would read as a missing measurement (`FEATURES.md`
   D10).
-- **Export** (`FEATURES.md` A23): two links at the end of the controls row, after the view switch —
-  **Export CSV** and **Export page**. Anchors with `download`, the same choice as the config export
-  in Settings (`C7`), because these are files to keep and the browser's own save dialog is the right
-  one to put them somewhere. Two, because the formats answer different questions and neither is the
-  other's fallback: the CSV is the inventory you sort when planning a purchase, the page is the sheet
-  you print or attach when several drives are going back at once. Both are offered only when there is
-  a fleet — with one drive the export is the single-drive report with fewer columns, and that report
-  is better for the one thing a lone drive needs. They sit in the controls row for the same reason:
-  it is the row that appears when there is a fleet to control.
+- **Export** (`FEATURES.md` A23): one **Export…** button at the far end of the controls row, past a
+  rule, opening a dialog with the **format** and the **scope**. It was two links, and two links at the
+  end of a controls row read as two more ways to look at the page rather than as a file to keep — which
+  is the one thing an export is. The dialog is also where each format gets to say what it is *for*,
+  beside the choice it belongs to: the CSV is the inventory you sort when planning a purchase, the
+  printable page is the sheet you attach when several drives go back at once. Scope is a tag rather
+  than the dashboard's filter, deliberately — a filter is about what you are *looking at*, and an
+  export that silently honoured it would hand you a file missing rows you never chose to exclude. The
+  download is still an anchor with `download`, clicked and removed, because these are files to keep and
+  the browser's own save dialog is the right one. Offered only when there is a fleet: with one drive
+  the export is the single-drive report with fewer columns, and that report is better for the one thing
+  a lone drive needs.
 - **Schedule action** (`FEATURES.md` B13): the schedule editor's **Action** field chooses between
   "Scan the drives" and "Send a digest of the period", and the list has an **Action** column so a
   digest schedule is not mistaken for a scan. The two axes are independent — the timing controls below
@@ -248,6 +256,12 @@ picker offers exactly `ThemeNames`.
   ever sees the drive after it finished. A drive whose self-test log this app cannot read is told so
   rather than shown an empty panel: an empty panel and a test that never ran look identical, and only
   one of them is true.
+  A **long** test the drive refuses disables its own button and says so in the card, because a button
+  inviting a second attempt at something the drive has already declined is worse than no button. It is
+  disabled for the life of the card rather than remembered: "refused once" is not the same fact as
+  "cannot" — a drive can refuse a command it would take a minute later — and nothing smartctl reports
+  in advance says which tests a drive supports, so greying it out on a guess would hide a capability
+  that works. The short test stays available, because a refused extended test says nothing about it.
 - **Heating together** (`FEATURES.md` A25): a card that appears only when a group is actually moving,
   the same rule as the other two. One block per group, each naming the group, the ratio (`3 of 4
   drives`), the shared rise and the hottest current reading, with the drives as links to their pages.
@@ -256,15 +270,26 @@ picker offers exactly `ThemeNames`.
   diagnosis"**, and its wording deliberately names what moved and where to look and never what is
   wrong — a RAID rebuild heats everything too, and the reader knows whether one is running. It is
   ordered first of the three panels: a condition comes before a suggestion.
-- **Testing session** (`FEATURES.md` D11): a card that appears only when a drive carries the `bench`
-  tag, the same rule as the replace-first shortlist — a panel that is always present stops being read.
-  It names every drive in the batch (the session *is* the batch, so a shortlist of it would be
-  answering a different question) and carries the batch's three verbs: **Test all** (short self-tests,
-  sequential, confirmed first because a self-test is the only thing this app does that writes to a
-  drive), **Export batch** (the fleet CSV scoped to the tag, so the batch gets its own sheet), and
-  **Forget all** (one confirmation listing the drives, then a client-side loop, because a request
-  that deletes every drive matching a tag is one mis-click from clearing the fleet). Partial failures
-  are named per drive — "2 of 6 failed" tells you nothing about which two to go and look at.
+- **Testing session** (`FEATURES.md` D11): a card that appears only when a drive is being tested, the
+  same rule as the replace-first shortlist — a panel that is always present stops being read. It names
+  every drive in the batch as an inline chip (the session *is* the batch, so a shortlist of it would be
+  answering a different question, but eight rows of list for eight drives is a lot of card for a set of
+  names) and it says what the state *means* rather than what the tag is called: "Drives being tested
+  rather than used. They are left out of the health counts above: a drive that fails while you are
+  testing it is a result, not an alarm." The tag name is machinery, and a reader who wants to know how a
+  drive got here will find it in that drive's own tags. The card carries the batch's three verbs:
+  **Test all** (short self-tests, sequential, confirmed first because a self-test is the only thing this
+  app does that writes to a drive), **Export batch** (the fleet CSV scoped to the tag, so the batch gets
+  its own sheet), and **Forget all** (one confirmation listing the drives, then a client-side loop,
+  because a request that deletes every drive matching a tag is one mis-click from clearing the fleet).
+  Partial failures are named per drive — "2 of 6 failed" tells you nothing about which two to go and
+  look at.
+- **Getting a drive onto the bench is a checkbox, not a tag you have to know to type.** The device's
+  **Notes** dialog carries **Being tested — left out of the fleet counts**, and it and the tags field
+  are kept in step both ways. That is where the feature becomes discoverable: it is the dialog that
+  already describes the drive, so it is where somebody would look, and it states the consequence rather
+  than the mechanism. It is deliberately *not* on the dashboard — a card explaining a tag you have never
+  used is a card explaining nothing.
 - **Bench drives and the counts:** they are left out of the health summary, and the head says so
   ("6 are tagged bench and left out of those counts"), because a reader who adds the counts up and
   gets a number smaller than the list is owed the reason. They are **not** hidden: they stay in the

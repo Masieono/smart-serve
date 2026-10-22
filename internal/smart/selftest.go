@@ -3,6 +3,7 @@ package smart
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -93,10 +94,37 @@ func commandFailure(res Result) error {
 	if res.ExitCode&0x07 == 0 {
 		return nil
 	}
+	// "exit status 4" is not a sentence, and smartctl prints nothing more often than you would
+	// expect — a drive refusing a self-test can do it silently. So the bit is named in smartctl's
+	// own vocabulary, and the absence of a reason is stated rather than left as a bare number the
+	// reader has to go and look up.
+	detail := exitMeaning(res.ExitCode & 0x07)
 	if msg := messagesFrom(res.Stdout, res.Stderr); msg != "" {
-		return fmt.Errorf("smartctl exit status %d: %s", res.ExitCode, msg)
+		return fmt.Errorf("%s: %s", detail, msg)
 	}
-	return fmt.Errorf("smartctl exit status %d", res.ExitCode)
+	return fmt.Errorf("%s, and it gave no reason (smartctl exit status %d)", detail, res.ExitCode)
+}
+
+// exitMeaning names the low three exit bits in smartctl's own words.
+//
+// Only the low three describe the *command*; the rest describe the drive, and this is reached only
+// when one of the three is set. The wording is smartctl's man page rather than a paraphrase,
+// because a paraphrase of a failure this app cannot diagnose would be an invented one.
+func exitMeaning(bits int) string {
+	var parts []string
+	if bits&0x01 != 0 {
+		parts = append(parts, "the command line did not parse")
+	}
+	if bits&0x02 != 0 {
+		parts = append(parts, "the device could not be opened")
+	}
+	if bits&0x04 != 0 {
+		parts = append(parts, "a SMART command failed")
+	}
+	if len(parts) == 0 {
+		return "smartctl failed"
+	}
+	return "smartctl: " + strings.Join(parts, ", ")
 }
 
 // Messages returns smartctl's own words from a result, joined.

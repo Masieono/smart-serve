@@ -161,7 +161,20 @@ export function selfTestCard(ctx, device, logs) {
           await read();
         } catch (err) {
           toast(err.message, 'error');
-          button.disabled = false;
+          // A long test is refused by drives that do not implement an extended self-test, and the
+          // button inviting a second attempt is worse than no button: the answer will not change.
+          //
+          // Disabled here rather than remembered, and that is deliberate. "Refused once" is not the
+          // same fact as "cannot" — a drive can refuse a command it would take a minute later — and
+          // nothing smartctl reports in advance says which tests a drive supports. Greying the
+          // button out on a guess would hide a capability that works.
+          if (kind === 'long') {
+            button.disabled = true;
+            note.textContent = `This drive refused a long test — ${err.message} The short test `
+              + 'checks the electronics and a sample of the media, and is the one to fall back on.';
+          } else {
+            button.disabled = false;
+          }
         }
       },
     }, [icon('scan'), label]);
