@@ -717,6 +717,12 @@ a:hover {
   stroke-linecap: round;
 }
 
+/* Where the shared date axis's three labels fall, drawn through every plot in the card. Faint
+   enough to sit behind the data: it is a reference, not a reading. */
+.sparkline .spark-guide {
+  stroke: var(--border);
+}
+
 .sparkline .spark-good,
 .sparkline .spark-caution,
 .sparkline .spark-bad,
@@ -753,12 +759,54 @@ a:hover {
    sparkline: four charts in one window need one axis, and four would be noise. `space-between`
    puts the marks at the two ends and the middle, which is what makes the span readable without
    hovering anything. */
+/* The two ends of the controls row: how the list is shown, then what can be done with it. The rule
+   is what separates them — an export is a file to keep, and sitting beside the view switch it read
+   as one more way to look at the page. */
+.view-switch {
+  display: flex;
+}
+
+/* Joined rather than spaced, because the pair means "one of these two" and the shared edge is what
+   says so. The pressed half is already styled globally from `aria-pressed`. */
+.view-switch .btn + .btn {
+  margin-left: -1px;
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+}
+
+.view-switch .btn:first-child {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+/* A pressed segment has to win the shared edge, or the neighbour's border paints over it. */
+.view-switch .btn[aria-pressed="true"] {
+  position: relative;
+  z-index: 1;
+}
+
+.controls-divider {
+  align-self: stretch;
+  width: 1px;
+  min-height: 1.6em;
+  margin: 0 var(--space-2);
+  background: var(--border);
+}
+
+/* The shared date axis (`ADR-023`). It reads as the bottom of the card rather than as a line of text
+   under it: a rule ties it to the plots above, and the same faint vertical rules continue through
+   every plot (`spark-guide`), so a date can be followed up through all of them instead of guessed at
+   from a label at the bottom. A step larger than the readouts, because a date that has to be hunted
+   for is a date nobody uses. */
 .date-axis {
   display: flex;
   justify-content: space-between;
-  margin-top: var(--space-2);
-  font-size: var(--text-xs);
+  margin-top: var(--space-3);
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--border);
+  font-size: var(--text-sm);
   color: var(--muted);
+  font-variant-numeric: tabular-nums;
 }
 
 .trend-row + .trend-row {
@@ -1419,7 +1467,14 @@ input[type="checkbox"] {
   font-weight: 600;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  color: var(--text-muted);
+  color: var(--muted);
+}
+
+/* The last self-test result, under the buttons rather than in the log table above: "did the test I
+   ran pass?" is asked here, and the answer should be where the question was asked. */
+.selftest-last {
+  gap: var(--space-2);
+  font-size: var(--text-sm);
 }
 
 .projection-confidence {

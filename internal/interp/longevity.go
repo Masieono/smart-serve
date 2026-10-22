@@ -152,12 +152,13 @@ func wearProjection(obs []Observation) (Projection, bool) {
 	daysLeft := remaining / perDay
 
 	confidence := "low"
-	caveat := "Extrapolated from two readings. Wear is rarely linear — many drives hold " +
-		"a flat rate and then fall away at the end of life."
+	// Kept to one line where it is shown: a caveat long enough to wrap is a paragraph above a
+	// figure, and a paragraph above a figure stops being read. The rating's provenance is not lost
+	// with it — the knowledge base names the source of the rating beside the number it divides by.
+	caveat := "Extrapolated from two readings; wear is rarely linear."
 	if span >= wearGoodSpan {
 		confidence = "medium"
-		caveat = "Extrapolated from the observed rate over this window. Wear is rarely " +
-			"linear, and the rating is the manufacturer's, not a measurement."
+		caveat = "Extrapolated from the observed rate; wear is rarely linear."
 	}
 
 	return Projection{

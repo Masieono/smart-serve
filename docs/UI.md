@@ -176,6 +176,15 @@ picker offers exactly `ThemeNames`.
   with a band and act on it, and cannot do either with an unexplained number. It is absent when
   nothing is worth replacing, and capped at five — past a handful, "which one first?" stops being an
   answer. A shortlist, not a list.
+- **The header is three rows at most**, and each row has one job: the identity and the counts you
+  filter by, then the controls that arrange the list, then one muted line for the notes the counts
+  raise. The view switch and the exports are separated by a rule, because "how is this shown" and
+  "what happens to this list" are different questions — an export is a file to keep, and shoulder to
+  shoulder with the view switch it read as one more way to look at the page. The switch itself is a
+  segmented pair rather than two loose buttons, since it is a mutually exclusive choice and two
+  identical-looking buttons make the reader check which one is pressed. The standing instructions
+  about rescanning and forgetting are gone: a line of help on every page load is read once and then
+  only takes up room, and both actions are labelled on the things they act on.
 - **Two views** (`FEATURES.md` D8): Cards and Table, switched from the controls row. The card grid
   is right for four drives and wrong for twenty-four, so the table gives one row per drive with
   bay, verdict, score, transport, model, capacity, temperature, age and last scan. Its headers
@@ -229,6 +238,16 @@ picker offers exactly `ThemeNames`.
 - **Action buttons on notifications** (`FEATURES.md` B10): ntfy notifications carry an "Open drive" /
   "Open dashboard" button, from a new **Public URL** setting. Empty means no button — the app cannot
   know its own external address, and a wrong link is worse than none.
+- **Self-test** (`FEATURES.md` A19): a short and a long button, each behind a confirmation that says
+  what the test does and what it costs, with the drive's own estimate of the time. A running test
+  shows its own percentage remaining and a **Stop test** button. The card also carries the **last
+  finished result**: "did the test I ran pass?" is asked here, so the answer belongs here rather than
+  only in the log table above, which is drawn from the last scan. A test this card started that is
+  over before the first reading says so, and triggers the one rescan that puts its outcome into the
+  stored log — without that a short test left no trace anywhere, because a fifteen-second poll only
+  ever sees the drive after it finished. A drive whose self-test log this app cannot read is told so
+  rather than shown an empty panel: an empty panel and a test that never ran look identical, and only
+  one of them is true.
 - **Heating together** (`FEATURES.md` A25): a card that appears only when a group is actually moving,
   the same rule as the other two. One block per group, each naming the group, the ratio (`3 of 4
   drives`), the shared rise and the hottest current reading, with the drives as links to their pages.

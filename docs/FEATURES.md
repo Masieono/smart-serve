@@ -404,6 +404,14 @@ and all of them still hold.
   which smartctl sets only while a test runs. A drive that reports no percentage is
   never rendered as a test at 0%; a drive that cannot have its log read is told so
   instead of being offered a button that would fail.
+  **One gap, named rather than hidden.** Progress is read from the *ATA* self-test log.
+  smartctl's NVMe self-test log has never been observed on this project's hardware, so it is
+  detected and reported (`self_test_log_unread`) rather than guessed at: the card then says that
+  progress and past results cannot be shown on this drive, which is a different statement from
+  "no test is running" and the only one of the two a reader can act on. There are three cases,
+  and all three now say something — a drive whose log is read normally, a real WDC SN730 that
+  answers the log request with an error (reported as "this drive cannot run self-tests"), and a
+  drive that can test itself while keeping a log this app does not read.
 - **A long test needs a way out.** Added when the manual half was built. A long test
   runs for hours, so aborting is a first-class action rather than a footnote, and it
   sits behind a confirmation because stopping one cannot be undone.
@@ -412,6 +420,13 @@ and all of them still hold.
   when a test it was watching ends. It is guarded per card, and it has to be: the
   re-rendered card is drawn from stored logs that still show the test running, so an
   unguarded rescan would poll, rescan, poll, forever.
+  **A test the card *started* also counts, even if it never saw it running** — and that was a
+  real bug, reported as "I don't see the results of a short test I ran already". A short test on
+  a fast drive can be over before the first reading, so a card that waited to *see* a test
+  running never asked for the rescan, and the result reached the page only if the user thought to
+  press rescan themselves. The card now also shows the last finished result itself rather than
+  leaving it only in the log table above: "did the test I ran pass?" is asked at the card, and
+  the answer belongs where the question was.
 - **It lands last.** Docker device access had to be validated on real hardware first
   (`DEPLOYMENT.md`), because a self-test is the one operation where getting the device
   plumbing wrong actually matters. **That is done** — native NVMe, USB-attached NVMe

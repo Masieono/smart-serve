@@ -47,12 +47,17 @@ export function selfTestCard(ctx, device, logs) {
   const note = el('p', { class: 'muted selftest-note' });
   const actions = el('div', { class: 'row selftest-actions' });
   const progress = el('div', { class: 'selftest-progress', hidden: true });
+  // The last result the drive is still holding on to, shown whether or not a test is running. It
+  // answers "did the test I ran yesterday pass?", which is a different question from "is one running
+  // now?" — and it used to be answerable only by finding the right row in the log table above.
+  const result = el('div', { class: 'selftest-result' });
 
   const card = el('div', { class: 'card stack panel-wide selftest' }, [
     el('h2', { text: 'Self-test' }),
     note,
     actions,
     progress,
+    result,
   ]);
 
   if (logs && logs.self_test_supported === false) {
@@ -64,6 +69,9 @@ export function selfTestCard(ctx, device, logs) {
 
   const shortMinutes = logs ? logs.short_minutes : undefined;
   const extendedMinutes = logs ? logs.extended_minutes : undefined;
+  // A self-test log this app does not read: the test still runs on the drive, but neither its
+  // progress nor its result can be shown here. See `internal/smart/logs.go`.
+  const unreadLog = logs ? logs.self_test_log_unread : undefined;
 
   // Whether a test was in progress on the previous reading, and whether this card has already
   // recorded the one that ended. Both are per-card, and deliberately so: the rescan below finishes
@@ -71,13 +79,27 @@ export function selfTestCard(ctx, device, logs) {
   // remembered-forever guard would instead stop a *later* test from ever being recorded.
   let wasRunning = false;
   let recorded = false;
+  // Whether a test *this card* started is still waiting to be accounted for. It drives two things:
+  // the note that explains a "nothing is running" reading, and the single rescan that puts the
+  // outcome into the log table above — which is drawn from the last scan, so a short test that
+  // finished between two readings would otherwise leave no trace anywhere.
+  let awaitingResult = false;
+
+  const latest = logs && Array.isArray(logs.self_test_entries)
+    ? logs.self_test_entries.find((e) => e.remaining === undefined || e.remaining === null)
+    : null;
+  if (latest) mount(result, resultLine(latest));
 
   /** No test running: offer one, and say what it costs. */
   function showIdle() {
     stopPolling();
     clear(progress);
     progress.hidden = true;
-    note.textContent = idleNote(shortMinutes, extendedMinutes);
+    note.textContent = unreadLog
+      ? `This drive keeps its self-test log in a form this app does not read (${unreadLog}), so `
+        + 'progress and past results cannot be shown here. A test started from this button still '
+        + 'runs on the drive.'
+      : idleNote(shortMinutes, extendedMinutes);
     mount(actions, [
       runButton('Short test', 'short', shortMinutes,
         'Checks the electronics and a sample of the media. The drive stays usable throughout.'),
@@ -135,6 +157,7 @@ export function selfTestCard(ctx, device, logs) {
         try {
           const res = await api.startSelfTest(device.serial, kind);
           toast((res && res.note) || `${label} started`, 'good');
+          awaitingResult = true;
           await read();
         } catch (err) {
           toast(err.message, 'error');
@@ -186,13 +209,27 @@ export function selfTestCard(ctx, device, logs) {
       return;
     }
 
+    // A test that has stopped running needs one rescan to put its outcome into the log table above,
+    // which is drawn from the last scan. Three things reach here: a test this card watched finish, a
+    // test it started that finished before the first reading, and an abort. The middle one is why
+    // `awaitingResult` is part of this rather than only `wasRunning` — a short test on a fast drive
+    // can be over before the first reading, so a card that waited to *see* it running would never
+    // ask for the rescan, and the result would reach the page only if the user thought to press
+    // rescan themselves.
+    const needsScan = (wasRunning || awaitingResult) && !recorded;
+    const justStarted = awaitingResult;
+    wasRunning = false;
+    awaitingResult = false;
+
     showIdle();
-    // The log table above this card is drawn from the last scan, which predates whatever just
-    // happened to the test. One rescan puts the outcome in it — and it is needed after an abort
-    // too, or the stored log would go on claiming a test is running until the next scheduled scan
-    // replaced it.
-    if (wasRunning && !recorded) {
-      wasRunning = false;
+    if (justStarted && !unreadLog) {
+      // The drive reports no test in progress. A short test can finish before the first reading, in
+      // which case its result appears once the log has been re-read. Saying which of those it might
+      // be beats a button that appears to have done nothing.
+      note.textContent = 'The drive reports no test in progress. A short test can finish before '
+        + 'the first reading, in which case its result is above.';
+    }
+    if (needsScan) {
       recorded = true;
       ctx.scanDevice(device.serial);
     }
@@ -254,4 +291,27 @@ function fmtDuration(minutes) {
   const hours = Math.floor(n / 60);
   const rest = n % 60;
   return rest === 0 ? `${hours} hours` : `${hours} h ${rest} min`;
+}
+
+/**
+ * One finished test, in the drive's own words.
+ *
+ * The verdict is the drive's own `passed` flag and nothing else. A test the drive reports no verdict
+ * on is not a failure — rendering an absent flag as one would put a red badge on a drive that never
+ * said anything was wrong, and it is the same rule the rest of the app follows for absent values.
+ */
+function resultLine(entry) {
+  const passed = entry.passed === true;
+  const failed = entry.passed === false;
+  const tone = passed ? 'good' : failed ? 'bad' : 'unknown';
+  const outcome = passed ? 'passed' : failed ? 'failed' : 'no verdict';
+  return el('div', { class: 'row selftest-last' }, [
+    el('span', { class: 'muted', text: 'Last test' }),
+    el('span', { class: 'selftest-kind', text: entry.type || 'Self-test' }),
+    el('span', { class: `badge badge-${tone}`, text: outcome }),
+    el('span', { class: 'spacer' }),
+    entry.hours === undefined || entry.hours === null
+      ? null
+      : el('span', { class: 'muted', text: `at ${fmtInt(entry.hours)} hours` }),
+  ]);
 }

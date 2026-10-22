@@ -158,6 +158,10 @@ export function sparkline(points, opts = {}) {
     'aria-label': `${usable.length} readings, ${format(usable[0].value)} to ${format(usable[usable.length - 1].value)}` }, [
     svg(
       `<svg class="sparkline" viewBox="0 0 ${SPARK_WIDTH} ${height}" preserveAspectRatio="none" aria-hidden="true">` +
+        // Where the shared date axis's labels fall, drawn through every plot in the card. One axis
+        // at the bottom of the card is cheap, but a date on its own row is hard to carry up to a
+        // particular line; the same three positions in each plot are what make it readable.
+        axisGuides(height) +
         // Closed at the ends of the series rather than at the ends of the box: with a time axis the
         // line no longer reaches both edges, and an area stretched to the box would paint data
         // across a window the drive said nothing about.
@@ -233,6 +237,28 @@ export function sparkline(points, opts = {}) {
 export const SPARK_WIDTH = 240;
 
 /**
+ * How many labels the shared date axis carries.
+ *
+ * Exported because the axis and the rules drawn through each plot must agree about where the ticks
+ * are: two constants that drifted would put a date under the wrong part of a line, which is worse
+ * than having no axis at all.
+ */
+export const AXIS_TICKS = 3;
+
+/** Vertical rules at the positions the shared date axis labels, for one plot. */
+function axisGuides(height) {
+  const lines = [];
+  for (let i = 0; i < AXIS_TICKS; i += 1) {
+    const at = (SPARK_WIDTH * i) / (AXIS_TICKS - 1);
+    // Half a unit in from the ends: a stroke centred on the viewBox boundary is half clipped.
+    const x1 = Math.max(0.5, Math.min(SPARK_WIDTH - 0.5, at));
+    lines.push(`<line class="spark-guide" x1="${x1}" y1="0" x2="${x1}" y2="${height}"` +
+      ' vector-effect="non-scaling-stroke"/>');
+  }
+  return lines.join('');
+}
+
+/**
  * A labelled trend: current value, the change across the series, and the shape.
  *
  * Rows with fewer than two readings are dropped — a single point is not a trend.
@@ -268,7 +294,7 @@ export function trendRow(metric, points, opts = {}) {
  * would be noise. It exists so the span is readable *without hovering* — the old card could only
  * tell you its window by pointing at it, which is a poor way to read a chart.
  */
-export function dateAxis(window, ticks = 3) {
+export function dateAxis(window, ticks = AXIS_TICKS) {
   const { from, to } = window || {};
   if (!Number.isFinite(from) || !Number.isFinite(to) || to <= from) return null;
 

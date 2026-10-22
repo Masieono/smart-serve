@@ -117,6 +117,22 @@ function editSchedule(ctx, existing) {
     ]);
     action.value = (existing && existing.action) || 'scan';
 
+    // A digest has no destination of its own, so the modal has to say where it goes — that was the
+    // question the old one-line hint left open. It appears only for a digest: an explanation of a
+    // choice the reader has not made is noise on a form they are trying to fill in.
+    const actionHint = el('p', { class: 'muted field-hint' });
+    const syncActionHint = () => {
+      const digest = action.value === 'digest';
+      actionHint.hidden = !digest;
+      actionHint.textContent = digest
+        ? 'One summary of everything since this last ran, sent through your notification channels — '
+          + 'it has no destination of its own. A channel with no events ticked receives it; a '
+          + 'channel limited to particular events needs “digest” ticked.'
+        : '';
+    };
+    action.addEventListener('change', syncActionHint);
+    syncActionHint();
+
     const mode = el('select', {}, [
       el('option', { value: 'interval', text: 'Every few minutes / hours / days' }),
       el('option', { value: 'daily', text: 'On chosen days, at a time' }),
@@ -237,9 +253,7 @@ function editSchedule(ctx, existing) {
 
     body.append(
       el('div', { class: 'field' }, [el('label', { text: 'Label' }), label]),
-      el('div', { class: 'field' }, [el('label', { text: 'Action' }), action,
-        el('p', { class: 'muted field-hint', text: 'A digest sends one summary of what happened ' +
-          'since this last ran, instead of a message per event.' })]),
+      el('div', { class: 'field' }, [el('label', { text: 'Action' }), action, actionHint]),
       el('div', { class: 'field' }, [el('label', { text: 'Repeat' }), mode]),
       intervalRow,
       dailyRow,

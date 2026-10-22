@@ -2,6 +2,7 @@ package smart
 
 import (
 	"encoding/json"
+	"sort"
 	"strings"
 
 	"github.com/masieono/smart-serve/internal/model"
@@ -31,6 +32,11 @@ func ParseLogs(raw []byte) model.LogSummary {
 	}
 
 	var out model.LogSummary
+
+	// A self-test log the drive has that this parser does not read. Reported rather than ignored:
+	// the UI can then say that a test's progress and past results cannot be shown on this drive,
+	// instead of leaving a panel that stays empty — which looks exactly like a test that never ran.
+	out.SelfTestLogUnread = unreadSelfTestLog(raw)
 
 	// The error log. `-x` reads the ATA *extended* log, which is where modern drives put
 	// their errors; the summary log is the shorter one some drives answer instead, and it
@@ -109,6 +115,37 @@ func ParseLogs(raw []byte) model.LogSummary {
 	}
 
 	return out
+}
+
+// unreadSelfTestLog names a self-test log present in the document that this parser does not read.
+//
+// Detected rather than decoded, and that is the whole design. The shape of smartctl's NVMe self-test
+// log has never been observed on this project's hardware (`testdata/nvme-*.json` carry no self-test
+// data at all), and guessing it would produce a panel that renders nothing precisely when a drive
+// has something to say — the one moment it matters. Naming the gap is the useful half instead: a
+// drive whose test ran and left no trace in the UI is indistinguishable from a test that never ran,
+// and only one of those is true.
+//
+// The keys this parser *does* consume are excluded by name, so a drive whose log is read normally
+// can never be reported as unread.
+func unreadSelfTestLog(raw []byte) string {
+	var doc map[string]json.RawMessage
+	if json.Unmarshal(raw, &doc) != nil {
+		return ""
+	}
+	var found []string
+	for key := range doc {
+		if !strings.Contains(key, "self_test") || key == "ata_smart_self_test_log" {
+			continue
+		}
+		found = append(found, key)
+	}
+	if len(found) == 0 {
+		return ""
+	}
+	// Sorted, because a map's order is random and this string is shown to a person.
+	sort.Strings(found)
+	return strings.Join(found, ", ")
 }
 
 // ataLogCount returns the entry count from whichever variant of an ATA log the drive

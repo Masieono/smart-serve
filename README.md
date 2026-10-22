@@ -82,6 +82,8 @@ Then open `http://<host>:8080` and press **Scan**.
 | [`docs/REQUIREMENTS.md`](docs/REQUIREMENTS.md) | Requirements traceability, decisions, considerations, assumptions |
 | [`docs/FEATURES.md`](docs/FEATURES.md) | Full feature catalog & suggestions (tiers, idle-cost impact) |
 | [`docs/UI.md`](docs/UI.md) | UI/UX design: navigation, components, theming, screen specs, accessibility |
+| [`docs/KNOWLEDGE.md`](docs/KNOWLEDGE.md) | The drive knowledge base: file format, the three layers, what a pattern matches |
+| [`docs/TESTING.md`](docs/TESTING.md) | Manual test checklist, and the data to set up first — most of the UI is conditional |
 | [`docs/RELEASE.md`](docs/RELEASE.md) | Release checklist, screenshot list, image-size and arm64 verification notes |
 | [`CHANGELOG.md`](CHANGELOG.md) | What changed in each release |
 

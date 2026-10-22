@@ -211,3 +211,32 @@ func TestParseLogsToleratesRubbish(t *testing.T) {
 		}
 	}
 }
+
+// A self-test log the parser does not read must be *named* rather than silently dropped: the UI can
+// then say that progress and past results are unavailable on this drive, which is a different
+// statement from "no test has ever run" — and the only one of the two a reader can act on.
+//
+// This is the NVMe gap. smartctl's NVMe self-test log has never been observed on this project's
+// hardware, so it is detected rather than decoded: guessing the shape would produce a panel that
+// renders nothing precisely when a drive has something to say.
+func TestParseLogsNamesASelfTestLogItCannotRead(t *testing.T) {
+	got := ParseLogs([]byte(`{"nvme_self_test_log":{"table":[{"self_test_result":{"string":"Completed"}}]}}`))
+
+	if got.SelfTestLogUnread != "nvme_self_test_log" {
+		t.Errorf("SelfTestLogUnread = %q, want nvme_self_test_log", got.SelfTestLogUnread)
+	}
+	// Empty would mean the API drops the whole summary and the UI never hears about it.
+	if got.IsEmpty() {
+		t.Error("a summary carrying an unread self-test log reports itself as empty")
+	}
+}
+
+// The log this parser *does* read must never be reported as unread, or every ATA drive would claim
+// its progress and results are unavailable while showing them.
+func TestParseLogsDoesNotCallTheATALogUnread(t *testing.T) {
+	for _, fixture := range []string{"ata-850-evo-logs.json", "ata-bto-1tb-logs.json", "nvme-sn730-logs.json"} {
+		if got := ParseLogs(loadFixture(t, fixture)); got.SelfTestLogUnread != "" {
+			t.Errorf("%s: SelfTestLogUnread = %q, want empty", fixture, got.SelfTestLogUnread)
+		}
+	}
+}

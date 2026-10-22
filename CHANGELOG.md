@@ -182,8 +182,38 @@ shown, and a self-test can be started, watched and stopped from the device page.
   time scale as the line, so pointing at a chart now gives the reading nearest the pointer rather
   than one a fraction of the way through the array. Per-metric y-scaling is unchanged.
 
+### Changed
+
+- **The dashboard header is three rows instead of five.** The notes that explain the counts now sit
+  beside them on one muted line rather than in rows of their own, and the standing instructions about
+  rescanning and forgetting are gone — a line of help on every page load is read once and then only
+  takes up room. The view switch became a segmented pair, and a rule separates it from the two export
+  links: "how is this shown" and "what happens to this list" are different questions, and shoulder to
+  shoulder they read as one group.
+- **The trend card's date axis is legible, and carries up through the plots.** It was 12px muted text
+  under the card; it is a step larger now, on tabular figures, with a rule tying it to the plots — and
+  the same three positions are drawn as faint vertical rules through every sparkline, so a date can be
+  followed to a line rather than guessed at from a label at the bottom.
+- **The outlook caveat is one line.** It ran to three, and a paragraph above a figure stops being read.
+  The rating's provenance is not lost with it: the knowledge base names the source of the rating beside
+  the number it divides by.
+- **The schedule editor says where a digest goes.** It said what a digest *is*; the question left open
+  was where it is sent — your notification channels, because the schedule is the subscription. The hint
+  appears only when the action is a digest.
+
 ### Fixed
 
+- **A self-test's result could vanish.** The result lives in the Drive logs card, which is drawn from
+  the *last scan* — and a fifteen-second poll only ever sees a short test after it has finished. So a
+  test that was over before the card's first reading never triggered the rescan that puts the outcome
+  into the stored log, and the result reached the page only if the user thought to press rescan
+  themselves. The rescan now also fires for a test the card *started* but never saw running, and the
+  card shows the **last finished result** itself rather than leaving it only in the log table above.
+- **A self-test log this app cannot read is now named rather than silently empty.** Progress comes
+  from the ATA self-test log; smartctl's NVMe self-test log has never been observed on this project's
+  hardware, so it is *detected* (`self_test_log_unread`) rather than guessed at, and the card says
+  that progress and past results cannot be shown on this drive. That is a different statement from
+  "no test is running", and the only one of the two a reader can act on.
 - **A button worked once, then went dead.** Every async click handler that re-enabled its own button in
   a `finally` was reading `event.currentTarget`, which the DOM nulls the moment dispatch finishes — so
   the line threw a `TypeError` into an unhandled promise, silently, because nobody awaits a click

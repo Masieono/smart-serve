@@ -316,3 +316,78 @@ test('a card that has left the page stops polling', async () => {
     assert.deepEqual(requests, [], 'a detached card reads nothing at all');
   });
 });
+
+// --- what the card says about results ------------------------------------------
+//
+// Two things were missing here, both reported from a real drive: the card never said what the last
+// test did, and a test that finished before the first reading left no trace anywhere. The result
+// does appear in the Drive logs card, but that is drawn from the *last scan* — and a fifteen-second
+// poll only ever sees a short test after it has already finished.
+
+test('the card reports the last finished test', () => {
+  stopPolling();
+  const card = selfTestCard(stubCtx(), { serial: 'S' }, {
+    self_test_supported: true,
+    short_minutes: 2,
+    self_test_entries: [
+      { type: 'Short offline', status: 'Completed without error', passed: true, hours: 2116 },
+      { type: 'Short offline', status: 'Completed without error', passed: true, hours: 2000 },
+    ],
+  });
+
+  const text = textOf(card);
+  assert.match(text, /Last test/);
+  assert.match(text, /Short offline/);
+  assert.match(text, /passed/);
+  assert.match(text, /2,116 hours/);
+  stopPolling();
+});
+
+// A drive that reports no verdict is not a drive that failed. An absent `passed` is the same
+// distinction the rest of the app draws for absent values.
+test('an absent verdict is not rendered as a failure', () => {
+  stopPolling();
+  const card = selfTestCard(stubCtx(), { serial: 'S' }, {
+    self_test_supported: true,
+    self_test_entries: [{ type: 'Short offline', status: 'Completed without error' }],
+  });
+
+  const text = textOf(card);
+  assert.match(text, /no verdict/);
+  assert.ok(!/failed/.test(text), `an absent verdict rendered as a failure: ${text}`);
+  stopPolling();
+});
+
+// A self-test log this app does not read has to be stated. An empty panel and a test that never ran
+// look identical, and only one of them is true.
+test('a self-test log the app cannot read is stated', () => {
+  stopPolling();
+  const card = selfTestCard(stubCtx(), { serial: 'S' }, {
+    self_test_supported: true,
+    self_test_log_unread: 'nvme_self_test_log',
+  });
+
+  const text = textOf(card);
+  assert.match(text, /does not read/);
+  assert.match(text, /nvme_self_test_log/);
+  stopPolling();
+});
+
+// A test started here that is not running when the card next looks has to be explained, and the
+// stored log has to be refreshed. Without the rescan a short test leaves no trace at all, because
+// the poll only ever sees the drive after it has finished.
+test('a test that is over before the first reading still reaches the log', async () => {
+  stopPolling();
+  stubSelfTestApi({ running: null });
+  const ctx = stubCtx();
+  const card = selfTestCard(ctx, { serial: 'S' }, { self_test_supported: true, short_minutes: 2 });
+
+  const [run] = buttonsOf(card);
+  await clickThrough(run);
+
+  assert.match(textOf(card), /no test in progress/);
+  assert.deepEqual(ctx.rescanned, ['S'],
+    'the outcome only reaches the log table after a rescan, so one has to be asked for');
+  stopPolling();
+});
+

@@ -575,7 +575,8 @@ function draw(container, ctx, data) {
             class: 'btn btn-sm',
             type: 'button',
             'aria-pressed': showMissing ? 'true' : 'false',
-            title: 'Drives recorded earlier that were not present in the last scan',
+            title: 'Drives recorded earlier that were not present in the last scan. Open one to ' +
+              'forget it entirely.',
             onclick: () => {
               showMissing = !showMissing;
               draw(container, ctx, data);
@@ -623,29 +624,37 @@ function draw(container, ctx, data) {
                 },
               }, ['Group by tag'])
             : null,
-          viewButton('cards', 'Cards'),
-          viewButton('table', 'Table'),
-          // At the far end, after the view switch: these change what happens to the list rather than
-          // how it is shown, so they sit outside the sort-and-filter group.
+          // Cards or table, as one segmented switch rather than two loose buttons: they are a
+          // mutually exclusive choice, and two identical-looking buttons make the reader check
+          // which one is pressed to find out what the list is currently doing.
+          el('div', { class: 'view-switch', role: 'group', 'aria-label': 'List layout' }, [
+            viewButton('cards', 'Cards'),
+            viewButton('table', 'Table'),
+          ]),
+          // A rule, because "how is this shown" and "what happens to this list" are different
+          // questions: an export is a file to keep, and sitting shoulder to shoulder with the view
+          // switch it read as one more way to look at the page.
+          el('span', { class: 'controls-divider', 'aria-hidden': 'true' }),
           ...exportControls,
         ])
       : null,
-    el('div', { class: 'devices-head-sub muted', text: `Last scan ${fmtAgo(data.last_scan_ts)}` }),
-    // Stated rather than left to be discovered, because a reader who notices the counts do not add
-    // up will otherwise conclude the app is wrong.
-    grouped
-      ? el('div', { class: 'devices-head-sub muted', text: 'A drive with more than one tag appears ' +
-          'under each of them, so the group counts can add up to more than the fleet size.' })
-      : null,
-    // The same rule as the line above: the counts above describe the fleet, and a reader who adds
-    // them up and gets a number smaller than the list is owed the reason.
-    bench.length
-      ? el('div', { class: 'devices-head-sub muted', text: `${countText(bench.length)} are tagged ` +
-          `${benchTag} and left out of those counts — a drive being tested failing is a result ` +
-          'rather than an alarm. They are still listed below and still in every export.' })
-      : null,
-    el('div', { class: 'devices-head-sub muted', text: 'Rescan a single drive from its card. Open a ' +
-      'drive that is no longer connected to forget it entirely.' }),
+    // One line rather than four. The two notes below are the answer to a question the counts above
+    // raise — a reader who adds them up and gets the wrong number is owed the reason — so they
+    // belong beside those counts rather than in rows of their own. The standing instructions about
+    // rescanning and forgetting are gone: a line of help on every page load is read once and then
+    // only takes up room, and both actions are labelled on the things they act on.
+    el('div', { class: 'devices-head-sub muted' }, [
+      el('span', { text: `Last scan ${fmtAgo(data.last_scan_ts)}` }),
+      grouped
+        ? el('span', { text: ' · A drive with more than one tag appears under each of them, so the ' +
+            'group counts can add up to more than the fleet size.' })
+        : null,
+      bench.length
+        ? el('span', { text: ` · ${countText(bench.length)} are tagged ${benchTag} and left out of ` +
+            'those counts — a drive being tested failing is a result rather than an alarm. They are ' +
+            'still listed below and still in every export.' })
+        : null,
+    ]),
   ]);
 
   if (!all.length) {

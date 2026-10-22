@@ -24,6 +24,11 @@ type LogSummary struct {
 	// Note carries smartctl's own words when a log could not be read, because that is
 	// usually the whole explanation.
 	Note string `json:"note,omitempty"`
+	// SelfTestLogUnread names a self-test log the drive has that this app does not read, if any.
+	// Present means the drive may be able to test itself but its progress and past results cannot
+	// be shown here — a different statement from "this drive has no self-test log", and the only
+	// one of the two that the reader can act on.
+	SelfTestLogUnread string `json:"self_test_log_unread,omitempty"`
 
 	// ErrorEntries and SelfTestEntries are what the logs actually hold, in the order the
 	// drive reports them (newest first).
@@ -89,6 +94,7 @@ func (s LogSummary) IsEmpty() bool {
 		s.ShortMinutes == nil &&
 		s.ExtendedMinutes == nil &&
 		s.Note == "" &&
+		s.SelfTestLogUnread == "" &&
 		len(s.ErrorEntries) == 0 &&
 		len(s.SelfTestEntries) == 0
 }
