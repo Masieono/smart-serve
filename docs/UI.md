@@ -444,11 +444,13 @@ picker offers exactly `ThemeNames`.
   one destructive part (a file carrying schedules *replaces* the list) is the thing they most need
   to know. A malformed file reports what went wrong rather than surfacing `Unexpected token <`,
   which is the common failure and explains nothing.
-- **Three columns** at wide widths, from the shared `.panel-grid` (§6): a wide screen
-  shows the three cards side by side and a narrow one stacks them, with no breakpoint to
-  keep in sync. Each row keeps its label and explanation on the left and its control on
-  the right, so every value lands in one column; the columns halve the dead space between
-  them without making the controls cramped.
+- **One sheet with sections, not a grid of cards.** Four cards of different heights gave a ragged
+  bottom, and reaching the shortest one meant scrolling past the tallest — so the grid did not make the
+  page shorter, it made it uneven. Each section now lays its *own* rows out in two columns
+  (`.settings-rows`), which is where the height saving actually comes from: six threshold rows become
+  three. Each row still keeps its label and explanation on the left and its control on the right, so
+  every value lands in one column. Prose and action rows span both columns, because a paragraph
+  squeezed into one column of a two-column grid reads as a caption for the column beside it.
 - Numeric settings are a **list of rows**, not a grid of labelled boxes: the label and
   its explanation sit together on the left and the control is right-aligned, so every
   value lands in one column and the page can be scanned and compared at a glance. Each

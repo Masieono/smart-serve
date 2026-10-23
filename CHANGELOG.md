@@ -184,6 +184,16 @@ shown, and a self-test can be started, watched and stopped from the device page.
 
 ### Changed
 
+- **The settings page is one sheet with sections, not four cards.** Four cards of different heights gave
+  a ragged bottom, and reaching the shortest one meant scrolling past the tallest — so the grid did not
+  make the page shorter, it made it uneven. Sections in one surface let each section's rows sit in two
+  columns, which is where the height saving actually comes from. The knowledge card's paragraph of
+  self-explanation is gone with the restructure: the one thing in it that was not visible from the card
+  ("every figure names its source") now sits on the heading line.
+- **The raw smartctl output has a Copy button.** That output is what people paste into a bug report or a
+  forum thread, and a drag-select across a scrolling box is the thing the button exists to replace. It
+  falls back to selecting the text when `navigator.clipboard` is unavailable, which on a self-hosted app
+  over plain http it usually is — a Copy button that silently does nothing is worse than no button.
 - **The fleet export is one button, not two links.** A dialog carries the format and the scope, which is
   where each format can say what it is *for* — beside the choice it belongs to rather than in a tooltip
   nobody hovers. Scope is a tag, deliberately not the dashboard's filter: a filter is about what you are
@@ -196,8 +206,9 @@ shown, and a self-test can be started, watched and stopped from the device page.
   shape as drives come and go.
 - **A drive joins the bench with a checkbox.** You had to know the word `bench` to find the feature at
   all; the Notes dialog now carries **Being tested — left out of the fleet counts**, kept in step with
-  the tags field in both directions. The testing-session card is a line shorter, names its drives as
-  chips rather than one row each, and says what the state *means* instead of what the tag is called.
+  the tags field in both directions. The card is now **Drives in testing** with its explainer on the
+  title line rather than in a paragraph of its own, names its drives as chips rather than one row each,
+  and says what the state *means* instead of what the tag is called.
 - **The dashboard header is three rows instead of five.** The notes that explain the counts now sit
   beside them on one muted line rather than in rows of their own, and the standing instructions about
   rescanning and forgetting are gone — a line of help on every page load is read once and then only
@@ -217,6 +228,19 @@ shown, and a self-test can be started, watched and stopped from the device page.
 
 ### Fixed
 
+- **NVMe self-tests now show progress and results, and the run buttons stop inviting a refusal.** The
+  NVMe self-test log has a different shape from the ATA one in the one way that mattered: the test *in
+  progress* is a **header field** rather than a table row, and its progress is a separate number. A
+  parser that knew only the ATA log reported "no test running" for a drive that was mid-test — so the
+  card offered the run buttons again, and the drive refused the second one with a bare exit status.
+  That is the whole of "it looks successful but every test after that fails". Both logs are read now,
+  against a real WDC SN730 capture.
+- **A self-test log that cannot be read is no longer reported as a drive that cannot test itself.** The
+  same SN730 under smartctl 7.4 reported "Read Self-test Log failed" and under 7.5, with no hardware
+  change, reads the log fine — so concluding "this drive cannot run self-tests" from a failed *read*
+  was a confident statement about the wrong thing, and it told the reader to give up on a drive that
+  tests itself perfectly well. The unreadable case says exactly that, the card still offers the
+  buttons, and only a drive that *says* it does not implement self-tests is reported as unable to.
 - **A refused long test no longer leaves a bare exit code.** `smartctl -t long` on a drive that does not
   implement an extended self-test failed with "smartctl exit status 4" and nothing else, because
   smartctl prints no message when a drive declines silently. The failure now names the bit in

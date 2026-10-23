@@ -24,10 +24,11 @@ type LogSummary struct {
 	// Note carries smartctl's own words when a log could not be read, because that is
 	// usually the whole explanation.
 	Note string `json:"note,omitempty"`
-	// SelfTestLogUnread names a self-test log the drive has that this app does not read, if any.
-	// Present means the drive may be able to test itself but its progress and past results cannot
-	// be shown here — a different statement from "this drive has no self-test log", and the only
-	// one of the two that the reader can act on.
+	// SelfTestLogUnread explains why a drive's self-test log could not be read, if it could not be.
+	// Present means the drive may well be able to test itself but its progress and past results
+	// cannot be shown here — a different statement from "this drive has no self-test log", and the
+	// only one of the two that a reader can act on. Either smartctl's own words, or the name of a
+	// log in a form this app does not read.
 	SelfTestLogUnread string `json:"self_test_log_unread,omitempty"`
 
 	// ErrorEntries and SelfTestEntries are what the logs actually hold, in the order the

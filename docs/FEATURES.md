@@ -414,14 +414,20 @@ and all of them still hold.
   which smartctl sets only while a test runs. A drive that reports no percentage is
   never rendered as a test at 0%; a drive that cannot have its log read is told so
   instead of being offered a button that would fail.
-  **One gap, named rather than hidden.** Progress is read from the *ATA* self-test log.
-  smartctl's NVMe self-test log has never been observed on this project's hardware, so it is
-  detected and reported (`self_test_log_unread`) rather than guessed at: the card then says that
-  progress and past results cannot be shown on this drive, which is a different statement from
-  "no test is running" and the only one of the two a reader can act on. There are three cases,
-  and all three now say something — a drive whose log is read normally, a real WDC SN730 that
-  answers the log request with an error (reported as "this drive cannot run self-tests"), and a
-  drive that can test itself while keeping a log this app does not read.
+  **Both logs are read now, and the NVMe one is what closed this.** The NVMe self-test log has a
+  different shape from the ATA log in the one way that mattered: the test *in progress* is a header
+  field rather than a table row, and its progress is a separate number rather than a field on an
+  entry. A parser that knew only the ATA log therefore reported "no test running" for a drive that
+  was mid-test — and the card, believing it, offered the run buttons again, which the drive refused
+  with a bare exit status. That is what made this feature look broken on NVMe, and it was fixed
+  against a real WDC SN730 capture (`nvme-sn730-selftest.json`).
+  **A log that cannot be read is not a drive that cannot test itself.** The same SN730 under
+  smartctl 7.4 reported "Read Self-test Log failed" and under 7.5, with no hardware change, reads it
+  fine — so concluding "this drive cannot run self-tests" from a failed *read* was a confident
+  statement about the wrong thing, and it told the reader to give up on a drive that tests itself
+  perfectly well. The unreadable case is now reported as exactly that (`self_test_log_unread`), and
+  the card offers the buttons while saying that progress cannot be shown. Only a drive that *says* it
+  does not implement self-tests is reported as unable to.
 - **A long test needs a way out.** Added when the manual half was built. A long test
   runs for hours, so aborting is a first-class action rather than a footnote, and it
   sits behind a confirmation because stopping one cannot be undone.

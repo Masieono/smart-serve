@@ -38,6 +38,55 @@ func ParseLogs(raw []byte) model.LogSummary {
 	// instead of leaving a panel that stays empty — which looks exactly like a test that never ran.
 	out.SelfTestLogUnread = unreadSelfTestLog(raw)
 
+	// The drive's own answer to "do you implement self-tests?", when it gives one. A direct
+	// statement beats any inference drawn from whether a log could be read.
+	if c := r.NVMeAdminCommands; c != nil && c.SelfTest != nil {
+		out.SelfTestSupported = c.SelfTest
+	}
+
+	// The NVMe self-test log. A different shape from the ATA one in the way that mattered: the test
+	// in progress is a *header* field rather than a table row, so a parser that only knew the ATA log
+	// reported "no test running" for a drive that was mid-test — and the card, believing it, offered
+	// the run buttons again and the drive refused the second one.
+	if l := r.NVMeSelfTestLog; l != nil {
+		// A readable self-test log is the drive telling us it can test itself.
+		supported := true
+		out.SelfTestSupported = &supported
+
+		if op := l.CurrentSelfTestOperation; op != nil && op.Value != nil && *op.Value != 0 {
+			// The progress figure is a header field here, so it is turned into the same
+			// percentage-remaining the ATA log carries: `Running` keys on that field and nothing
+			// else, which is what keeps one rule for both transports.
+			remaining := 0
+			if l.CompletionPercent != nil {
+				remaining = 100 - *l.CompletionPercent
+			}
+			if remaining < 0 {
+				remaining = 0
+			}
+			out.SelfTestEntries = append(out.SelfTestEntries, model.SelfTestEntry{
+				Type:      nvmeOperationName(*op.Value, op.String),
+				Status:    op.String,
+				Remaining: &remaining,
+			})
+		}
+
+		for _, e := range l.Table {
+			out.SelfTestEntries = append(out.SelfTestEntries, model.SelfTestEntry{
+				Type:   enumString(e.SelfTestCode),
+				Status: enumString(e.SelfTestResult),
+				Passed: nvmePassed(e.SelfTestResult),
+				Hours:  e.PowerOnHours,
+			})
+		}
+		// The table is a bounded circular buffer, so its length is the count — and a table that is
+		// present but empty is a drive that has never run a test, which is worth saying.
+		if l.Table != nil {
+			count := int64(len(l.Table))
+			out.SelfTestCount = &count
+		}
+	}
+
 	// The error log. `-x` reads the ATA *extended* log, which is where modern drives put
 	// their errors; the summary log is the shorter one some drives answer instead, and it
 	// may be reported as supported while being permanently empty.
@@ -108,9 +157,17 @@ func ParseLogs(raw []byte) model.LogSummary {
 		if !strings.Contains(strings.ToLower(m.String), "self-test log failed") {
 			continue
 		}
-		unsupported := false
-		out.SelfTestSupported = &unsupported
-		out.Note = strings.TrimSpace(m.String)
+		// The *log* could not be read, which is not the same finding as a drive that cannot test
+		// itself — and this project has the receipts: the same SN730 under smartctl 7.4 reported
+		// exactly this, and under 7.5 reads the log fine. Concluding "this drive cannot run
+		// self-tests" from a failed read was a confident statement about the wrong thing, and it
+		// told the reader to give up on a drive that tests itself perfectly well.
+		//
+		// Set on both fields because two panels explain two different absences with the one
+		// sentence: the self-test card, and the logs card whose count is now missing.
+		msg := strings.TrimSpace(m.String)
+		out.SelfTestLogUnread = msg
+		out.Note = msg
 		break
 	}
 
@@ -135,7 +192,10 @@ func unreadSelfTestLog(raw []byte) string {
 	}
 	var found []string
 	for key := range doc {
-		if !strings.Contains(key, "self_test") || key == "ata_smart_self_test_log" {
+		// The two logs this parser *does* read, by name, so a drive whose log is read normally can
+		// never be reported as unread.
+		if !strings.Contains(key, "self_test") || key == "ata_smart_self_test_log" ||
+			key == "nvme_self_test_log" {
 			continue
 		}
 		found = append(found, key)
@@ -146,6 +206,67 @@ func unreadSelfTestLog(raw []byte) string {
 	// Sorted, because a map's order is random and this string is shown to a person.
 	sort.Strings(found)
 	return strings.Join(found, ", ")
+}
+
+// rawNVMeSelfTestLog is the NVMe self-test log. Verified against a real WDC SN730
+// (`nvme-sn730-selftest.json`), which is the fixture this parser was written against.
+//
+// Its shape differs from the ATA log in the one way that mattered: the test *in progress* is a
+// header field rather than a table row, and its progress is a separate number rather than a field on
+// an entry. Reading the ATA log, finding nothing, and reporting "no test running" is how an NVMe
+// drive mid-test came to look idle — which made the card offer the run buttons again, and the drive
+// refuse the second one with a bare exit status.
+type rawNVMeSelfTestLog struct {
+	CurrentSelfTestOperation *struct {
+		Value  *int   `json:"value"`
+		String string `json:"string"`
+	} `json:"current_self_test_operation"`
+	CompletionPercent *int                   `json:"current_self_test_completion_percent"`
+	Table             []rawNVMeSelfTestEntry `json:"table"`
+}
+
+// rawNVMeSelfTestEntry is one finished test. `self_test_code` says which test, `self_test_result`
+// says how it ended, and neither is shaped like the ATA log's fields.
+type rawNVMeSelfTestEntry struct {
+	SelfTestCode   *rawEnum `json:"self_test_code"`
+	SelfTestResult *rawEnum `json:"self_test_result"`
+	PowerOnHours   *int64   `json:"power_on_hours"`
+}
+
+// nvmeOperationName names a self-test in progress, from the NVMe base spec's Device Self-test
+// Operation values. The drive's own string is the fallback, because an unrecognised code is the
+// drive telling us about a test this app has not heard of, and its words beat a blank.
+func nvmeOperationName(value int, fallback string) string {
+	switch value {
+	case 1:
+		return "Short"
+	case 2:
+		return "Extended"
+	case 3:
+		return "Vendor specific"
+	}
+	return fallback
+}
+
+// nvmePassed reads the NVMe base spec's Device Self-test Result code.
+//
+// Only the two unambiguous ends are claimed. Codes 1–6 are **aborts** — a controller reset, a
+// format, a host abort — and an abort is not a failure of the drive, so they are left without a
+// verdict rather than rendered as one; the drive's own words are shown either way, which is where
+// "Aborted due to a Controller Level Reset" reads as exactly what it is.
+func nvmePassed(result *rawEnum) *bool {
+	if result == nil || result.Value == nil {
+		return nil
+	}
+	switch *result.Value {
+	case 0: // Completed without error.
+		yes := true
+		return &yes
+	case 7, 15: // Could not complete the operation; unknown.
+		no := false
+		return &no
+	}
+	return nil
 }
 
 // ataLogCount returns the entry count from whichever variant of an ATA log the drive
@@ -180,7 +301,13 @@ type rawLogDoc struct {
 	NVMeHealth     *struct {
 		NumErrLogEntries *int64 `json:"num_err_log_entries"`
 	} `json:"nvme_smart_health_information_log"`
-	Smartctl struct {
+	// SelfTest is the drive's own answer to "do you implement self-tests?" — a direct statement
+	// rather than an inference from whether a log could be read.
+	NVMeAdminCommands *struct {
+		SelfTest *bool `json:"self_test"`
+	} `json:"nvme_optional_admin_commands"`
+	NVMeSelfTestLog *rawNVMeSelfTestLog `json:"nvme_self_test_log"`
+	Smartctl        struct {
 		Messages []struct {
 			Severity string `json:"severity"`
 			String   string `json:"string"`
@@ -215,8 +342,9 @@ type rawATAEntry struct {
 }
 
 // rawEnum is smartctl's shape for anything with a machine value and a human string. A status
-// carries two extra fields that only the self-test log needs.
+// carries two extra fields that only the self-test log needs, and NVMe entries carry the value.
 type rawEnum struct {
+	Value            *int   `json:"value"`
 	String           string `json:"string"`
 	Passed           *bool  `json:"passed"`
 	RemainingPercent *int   `json:"remaining_percent"`

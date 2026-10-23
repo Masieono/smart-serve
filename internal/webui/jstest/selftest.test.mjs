@@ -379,7 +379,7 @@ test('a self-test log the app cannot read is stated', () => {
   });
 
   const text = textOf(card);
-  assert.match(text, /does not read/);
+  assert.match(text, /could not be read/);
   assert.match(text, /nvme_self_test_log/);
   stopPolling();
 });

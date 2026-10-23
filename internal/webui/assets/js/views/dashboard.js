@@ -344,16 +344,16 @@ export function benchSession(bench, ctx, benchTag) {
   if (!bench.length) return null;
 
   return el('div', { class: 'card stack bench-session' }, [
-    el('div', { class: 'row' }, [
-      el('h2', { text: 'Testing session' }),
+    // The explainer shares the title line rather than taking one of its own: it is a single clause
+    // about what being here means, and a paragraph on its own row cost more vertical space than it
+    // earned. The count sits at the far end, where a count belongs.
+    el('div', { class: 'row wrap' }, [
+      el('h2', { text: 'Drives in testing' }),
+      el('span', { class: 'muted', text: 'left out of the health counts — a drive that fails while ' +
+        'you are testing it is a result, not an alarm' }),
       el('span', { class: 'spacer' }),
       el('span', { class: 'muted', text: countText(bench.length) }),
     ]),
-    // One line, and it leads with what the card is *for* rather than with the tag. The tag name is
-    // machinery — a reader who wants to know how a drive got here will find it in that drive's own
-    // tags — and everyone else needs to know what being here means.
-    el('p', { class: 'muted', text: 'Drives being tested rather than used. They are left out of the ' +
-      'health counts above: a drive that fails while you are testing it is a result, not an alarm.' }),
     // Inline rather than one row each. The session *is* the batch, so every drive is still named —
     // but eight rows of list for eight drives is a lot of card for a set of names, and the model is
     // the thing worth keeping to hand.

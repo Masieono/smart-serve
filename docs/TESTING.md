@@ -86,16 +86,17 @@ spare drive if you have one.
 | 3.2 | Wait for it to finish (a minute or two). | **Last test** appears with the drive's own verdict |
 | 3.3 | Reload the page. | **Last test** is still there, and the **Drive logs** table has the entry |
 | 3.4 | Start a short test, then press **Stop test** mid-run and confirm. | The test stops and the card returns to idle |
-| 3.5 | Press **Long test** on an **NVMe** drive. | Progress appears, *or* the card says the drive refused it **and greys the button out**. Never a bare "smartctl exit status 4" |
-| 3.6 | After 3.5 refuses, look at **Short test**. | Still usable — a refused long test says nothing about the short one |
-| 3.7 | Open a drive that cannot self-test. | It says so, with no buttons offered |
-| 3.8 | Start a test, navigate away, come back. | Progress picks up from the drive rather than from a clock |
-| 3.9 | Watch the network tab while a test runs, then navigate away. | A request every 15s while the card is on screen; **none** once it is not |
+| 3.5 | On an **NVMe** drive, press **Short test** and confirm. | Progress and a **Stop test** button. Both logs are read now, so NVMe behaves like ATA |
+| 3.6 | While one is running, look at the card. | It offers **Stop test**, not the run buttons — so there is nothing to press twice and nothing for the drive to refuse |
+| 3.7 | Press **Long test** on a drive that refuses one. | The card says the drive refused it **and greys the button out** — never a bare "smartctl exit status 4" |
+| 3.8 | After 3.7, look at **Short test**. | Still usable — a refused long test says nothing about the short one |
+| 3.9 | Open a drive that cannot self-test. | It says so, with no buttons offered |
+| 3.10 | Start a test, navigate away, come back. | Progress picks up from the drive rather than from a clock |
+| 3.11 | Watch the network tab while a test runs, then navigate away. | A request every 15s while the card is on screen; **none** once it is not |
 
-**Known gap.** Progress is read from the *ATA* self-test log. On a drive that keeps an NVMe self-test
-log, the card says the log cannot be read and offers no progress, because the parser has never been
-written against real data. If you see that message, the raw output from that drive **while a test is
-running** is the fixture needed to fix it.
+**A drive whose self-test log cannot be read** says so and still offers the buttons: a log that failed
+to read is not a drive that failed to test. smartctl 7.4 could not read the SN730's NVMe self-test log
+and 7.5 can, with no hardware change — which is why the two are reported separately.
 
 ## Pass 4 — schedules and digests
 

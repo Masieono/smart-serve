@@ -96,9 +96,8 @@ export function selfTestCard(ctx, device, logs) {
     clear(progress);
     progress.hidden = true;
     note.textContent = unreadLog
-      ? `This drive keeps its self-test log in a form this app does not read (${unreadLog}), so `
-        + 'progress and past results cannot be shown here. A test started from this button still '
-        + 'runs on the drive.'
+      ? `This drive's self-test log could not be read (${unreadLog}), so progress and past results `
+        + 'cannot be shown here. A test started from this button still runs on the drive.'
       : idleNote(shortMinutes, extendedMinutes);
     mount(actions, [
       runButton('Short test', 'short', shortMinutes,

@@ -1,6 +1,7 @@
 package smart
 
 import (
+	"strings"
 	"testing"
 )
 
@@ -159,16 +160,18 @@ func TestRunningSelfTest(t *testing.T) {
 //
 //   - its SMART/Health log counts one error entry while the Error Information log emits no
 //     entries at all, with or without `-l error` — so the count is the only thing available;
-//   - it answers the self-test log request with an error, which is the sole signal that the
-//     drive has no self-test log. Nothing else in the document reports it.
+//   - it answers the self-test log request with an error, which says the *log* could not be read.
+//     That is not the same finding as a drive that cannot test itself, and the same drive under a
+//     newer smartctl reads the log fine — see `nvme-sn730-selftest.json`.
 func TestParseLogsNVMe(t *testing.T) {
 	got := ParseLogs(loadFixture(t, "nvme-sn730-logs.json"))
 
 	if got.ErrorCount == nil || *got.ErrorCount != 1 {
 		t.Errorf("ErrorCount = %v, want 1", got.ErrorCount)
 	}
-	if got.SelfTestSupported == nil || *got.SelfTestSupported {
-		t.Errorf("SelfTestSupported = %v, want false", got.SelfTestSupported)
+	if got.SelfTestSupported != nil {
+		t.Errorf("SelfTestSupported = %v, want nil — this document says nothing about whether the "+
+			"drive can test itself", got.SelfTestSupported)
 	}
 	if got.SelfTestCount != nil {
 		t.Errorf("SelfTestCount = %v, want nil — the drive reported none", got.SelfTestCount)
@@ -215,15 +218,11 @@ func TestParseLogsToleratesRubbish(t *testing.T) {
 // A self-test log the parser does not read must be *named* rather than silently dropped: the UI can
 // then say that progress and past results are unavailable on this drive, which is a different
 // statement from "no test has ever run" — and the only one of the two a reader can act on.
-//
-// This is the NVMe gap. smartctl's NVMe self-test log has never been observed on this project's
-// hardware, so it is detected rather than decoded: guessing the shape would produce a panel that
-// renders nothing precisely when a drive has something to say.
 func TestParseLogsNamesASelfTestLogItCannotRead(t *testing.T) {
-	got := ParseLogs([]byte(`{"nvme_self_test_log":{"table":[{"self_test_result":{"string":"Completed"}}]}}`))
+	got := ParseLogs([]byte(`{"vendor_self_test_log":{"table":[]}}`))
 
-	if got.SelfTestLogUnread != "nvme_self_test_log" {
-		t.Errorf("SelfTestLogUnread = %q, want nvme_self_test_log", got.SelfTestLogUnread)
+	if got.SelfTestLogUnread != "vendor_self_test_log" {
+		t.Errorf("SelfTestLogUnread = %q, want vendor_self_test_log", got.SelfTestLogUnread)
 	}
 	// Empty would mean the API drops the whole summary and the UI never hears about it.
 	if got.IsEmpty() {
@@ -231,12 +230,81 @@ func TestParseLogsNamesASelfTestLogItCannotRead(t *testing.T) {
 	}
 }
 
-// The log this parser *does* read must never be reported as unread, or every ATA drive would claim
-// its progress and results are unavailable while showing them.
-func TestParseLogsDoesNotCallTheATALogUnread(t *testing.T) {
-	for _, fixture := range []string{"ata-850-evo-logs.json", "ata-bto-1tb-logs.json", "nvme-sn730-logs.json"} {
+// The logs this parser *does* read must never be reported as unread, or a drive would claim its
+// progress and results are unavailable while showing them.
+func TestParseLogsDoesNotCallTheLogsItReadsUnread(t *testing.T) {
+	for _, fixture := range []string{
+		"ata-850-evo-logs.json", "ata-bto-1tb-logs.json", "nvme-sn730-selftest.json",
+	} {
 		if got := ParseLogs(loadFixture(t, fixture)); got.SelfTestLogUnread != "" {
 			t.Errorf("%s: SelfTestLogUnread = %q, want empty", fixture, got.SelfTestLogUnread)
 		}
+	}
+}
+
+// The NVMe self-test log, captured from a real WDC SN730 under smartctl 7.5. This is the fixture
+// that closed the gap `A19` had been carrying, and it is the whole reason the feature looked broken
+// on NVMe: the test *in progress* is a header field here, not a table row, so a parser that only
+// knew the ATA log reported "no test running" for a drive that was mid-test. The card, believing it,
+// offered the run buttons again — and the drive refused the second one.
+func TestParseLogsNVMeSelfTestLog(t *testing.T) {
+	got := ParseLogs(loadFixture(t, "nvme-sn730-selftest.json"))
+
+	if got.SelfTestSupported == nil || !*got.SelfTestSupported {
+		t.Errorf("SelfTestSupported = %v, want true — the drive says it implements self-tests",
+			got.SelfTestSupported)
+	}
+	if got.SelfTestLogUnread != "" {
+		t.Errorf("SelfTestLogUnread = %q, want empty: this log is read", got.SelfTestLogUnread)
+	}
+
+	// The test in progress, with the drive's own progress figure turned into a percentage left.
+	running := got.Running()
+	if running == nil {
+		t.Fatal("Running() = nil, but this drive has a short test in progress")
+	}
+	if running.Type != "Short" {
+		t.Errorf("Type = %q, want Short", running.Type)
+	}
+	if running.Status != "Short self-test in progress" {
+		t.Errorf("Status = %q, want the drive's own words", running.Status)
+	}
+	if running.Remaining == nil || *running.Remaining != 99 {
+		t.Errorf("Remaining = %v, want 99 — the log reports 1%% complete", running.Remaining)
+	}
+
+	// The finished results, newest first, in the drive's own vocabulary.
+	if got.SelfTestCount == nil || *got.SelfTestCount != 5 {
+		t.Errorf("SelfTestCount = %v, want 5", got.SelfTestCount)
+	}
+	latest := got.LatestFinished()
+	if latest == nil {
+		t.Fatal("LatestFinished() = nil")
+	}
+	if latest.Type != "Extended" {
+		t.Errorf("Type = %q, want Extended — the table is newest first", latest.Type)
+	}
+	if latest.Passed == nil || !*latest.Passed {
+		t.Errorf("Passed = %v, want true", latest.Passed)
+	}
+	if latest.Hours == nil || *latest.Hours != 29650 {
+		t.Errorf("Hours = %v, want 29650", latest.Hours)
+	}
+}
+
+// A self-test log smartctl could not *read* is not the same finding as a drive that cannot test
+// itself, and this project has the receipts: the fixture below is the same SN730 under smartctl 7.4,
+// which reported "Read Self-test Log failed" — and under 7.5, with no hardware change, reads it
+// fine. Concluding "this drive cannot run self-tests" from a failed read told the reader to give up
+// on a drive that tests itself perfectly well.
+func TestAnUnreadableLogIsNotAnUnsupportedDrive(t *testing.T) {
+	got := ParseLogs(loadFixture(t, "nvme-sn730-logs.json"))
+
+	if got.SelfTestSupported != nil {
+		t.Errorf("SelfTestSupported = %v, want nil — nothing said the drive cannot test itself",
+			got.SelfTestSupported)
+	}
+	if !strings.Contains(got.SelfTestLogUnread, "Read Self-test Log failed") {
+		t.Errorf("SelfTestLogUnread = %q, want smartctl's own words", got.SelfTestLogUnread)
 	}
 }

@@ -294,7 +294,7 @@ test('the testing session names the whole batch and offers its verbs', () => {
   const card = benchSession(bench, { openDevice: () => {} }, 'bench');
 
   const text = textOf(card);
-  assert.match(text, /Testing session/);
+  assert.match(text, /Drives in testing/);
   assert.match(text, /2 drives/);
   for (const name of ['spare-1', 'spare-2']) assert.ok(text.includes(name), `missing ${name}`);
 

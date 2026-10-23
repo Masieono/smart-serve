@@ -902,16 +902,57 @@ async function toggleRaw(device, button) {
     } catch {
       /* leave the raw text as-is */
     }
-    holder.append(el('pre', {
-      class: 'mono',
-      style: 'max-height:320px;overflow:auto;background:var(--surface-2);padding:var(--space-3);border-radius:var(--radius-sm)',
-    }, [pretty]));
+    const body = el('pre', { class: 'mono raw-output' }, [pretty]);
+    holder.append(
+      el('div', { class: 'raw-head' }, [
+        el('span', { class: 'muted', text: 'smartctl output, as the drive sent it' }),
+        el('span', { class: 'spacer' }),
+        copyButton(pretty, body),
+      ]),
+      body,
+    );
     holder.dataset.open = 'true';
     button.textContent = 'Hide raw output';
   } catch (err) {
     toast(err.message, 'error');
   } finally {
     button.disabled = false;
+  }
+}
+
+/**
+ * Copy a string to the clipboard.
+ *
+ * `navigator.clipboard` is unavailable on an insecure origin, which a self-hosted app on a LAN
+ * usually is — so the fallback is not optional. A Copy button that silently does nothing on plain
+ * http is worse than no button: it is the one feature this exists for, failing quietly.
+ */
+function copyButton(text, node) {
+  const button = el('button', { class: 'btn btn-sm', type: 'button', text: 'Copy' });
+  button.addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText(text);
+      toast('Raw output copied', 'good');
+    } catch {
+      // Selected instead, so Ctrl-C finishes the job. The raw output is what people paste into a
+      // bug report, and a drag-select across a scrolling box is the thing this button is for.
+      selectText(node);
+      toast('Could not copy automatically — the text is selected, press Ctrl-C', 'error');
+    }
+  });
+  return button;
+}
+
+/** Select a node's contents, for a browser that will not let us write to the clipboard. */
+function selectText(node) {
+  try {
+    const range = document.createRange();
+    range.selectNodeContents(node);
+    const selection = window.getSelection();
+    selection.removeAllRanges();
+    selection.addRange(range);
+  } catch {
+    /* nothing else to try; the toast has already said so */
   }
 }
 

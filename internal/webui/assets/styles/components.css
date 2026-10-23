@@ -416,6 +416,42 @@ a:hover {
   font-size: var(--text-xs);
 }
 
+/* The settings sheet: one card with sections, rather than a grid of cards.
+   Four cards of different heights gave a ragged bottom, and reaching the shortest one meant
+   scrolling past the tallest — so the grid did not make the page shorter, it made it uneven. Sections
+   in one surface let each section's rows sit in two columns, which is where the height saving
+   actually comes from, and there is nothing left to be uneven. */
+.settings-sheet {
+  gap: var(--space-5);
+}
+
+.settings-section + .settings-section {
+  padding-top: var(--space-5);
+  border-top: 1px solid var(--border);
+}
+
+.settings-section > h2 {
+  margin-bottom: var(--space-2);
+}
+
+.settings-rows {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 460px), 1fr));
+  gap: var(--space-2) var(--space-6);
+  align-items: start;
+}
+
+/* Prose and an action row span the grid: a paragraph squeezed into one column of a two-column grid
+   reads as a caption for the column beside it. */
+.settings-rows > .settings-span {
+  grid-column: 1 / -1;
+}
+
+/* The knowledge base section carries a JSON editor, which is a full-width thing. */
+.settings-section .knowledge-editor {
+  width: 100%;
+}
+
 /* --- cards ------------------------------------------------------------------ */
 
 .card {
@@ -803,9 +839,10 @@ a:hover {
 }
 
 .control-label {
-  font-size: var(--text-sm);
+  font-size: var(--text-xs);
   font-weight: 600;
   color: var(--muted);
+  white-space: nowrap;
 }
 
 /* The drives in a testing session, inline. Every drive is still named — the session *is* the batch
@@ -816,19 +853,41 @@ a:hover {
   gap: var(--space-2);
 }
 
-/* A chip that does something. The `.chip` shape is shared with the read-only ones. */
+/* A chip that does something. The `.chip` shape is shared with the read-only ones, so the font is
+   set explicitly rather than inherited: `font: inherit` on a button would take the card's size and
+   the chip beside it would be a different size. A clickable one gets a border and a little more
+   room, because a 2px-tall tap target is not a tap target. */
 .chip-link {
   cursor: pointer;
-  font: inherit;
-  font-size: var(--text-sm);
+  font-family: inherit;
+  font-size: var(--text-xs);
+  padding: var(--space-1) var(--space-2);
   border: 1px solid var(--border);
-  background: var(--surface-2);
   color: var(--text);
 }
 
 .chip-link:hover {
   border-color: var(--accent);
   color: var(--accent);
+}
+
+/* The raw smartctl document (`FEATURES.md` A10). A head row because the output is what people paste
+   into a bug report or a forum thread, and a Copy button is the difference between that being easy
+   and being a drag-select across a scrolling box. */
+.raw-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-2);
+}
+
+.raw-output {
+  max-height: 320px;
+  overflow: auto;
+  margin: 0;
+  padding: var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
 }
 
 /* The shared date axis (`ADR-023`). It reads as the bottom of the card rather than as a line of text
@@ -1195,9 +1254,13 @@ a:hover {
 
 /* A select in a control row sizes to its content. The global rule is `width: 100%`, which is
    right for a form field in a column and wrong for a toolbar — it would push every control onto
-   a line of its own. */
+   a line of its own.
+   `min-height` matches `.btn-sm` deliberately: without it the dropdowns sat a few pixels shorter
+   than the buttons beside them, which is small enough to read as a mistake rather than as a
+   difference. */
 .devices-controls select {
   width: auto;
+  min-height: 30px;
   padding: var(--space-1) var(--space-2);
   font-size: var(--text-xs);
 }

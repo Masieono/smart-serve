@@ -322,57 +322,51 @@ function draw(container, ctx, data, { carried = {}, unit: unitOverride } = {}) {
       save,
     ]),
 
-    // One grid for all three cards: auto-fit decides how many columns fit, so a wide
-    // screen gets three side by side and a narrow one stacks them. That is what keeps
-    // the gap between a label and its control from stretching across the page.
-    el('div', { class: 'panel-grid' }, [
-      el('div', { class: 'card stack' }, [
-        el('h2', { text: 'Health thresholds' }),
-        el('div', {}, [
-          ...thresholdRows,
-          settingRow('Caution on any sector problem',
-            'Flag a drive as soon as a single reallocated, pending or uncorrectable sector appears.',
-            warn),
-        ]),
+    // One sheet with sections, not four cards in a grid.
+    //
+    // The grid meant four different card heights and a ragged bottom, and reaching the shortest one
+    // meant scrolling past the tallest — so it did not make the page shorter, it made it uneven. A
+    // single surface whose sections lay their rows out in two columns does both jobs: it halves the
+    // height of the longest section, and there is nothing left to be uneven.
+    el('div', { class: 'card stack panel-wide settings-sheet' }, [
+      settingsSection('Health thresholds', [
+        ...thresholdRows,
+        settingRow('Caution on any sector problem',
+          'Flag a drive as soon as a single reallocated, pending or uncorrectable sector appears.',
+          warn),
       ]),
 
-      el('div', { class: 'card stack' }, [
-        el('h2', { text: 'Alerts and retention' }),
-        el('div', {}, [
-          ...operationRows,
-          settingRow('Public URL',
-            'Where this app is reachable from outside the host, used to put an "Open drive" button ' +
-            'on a notification. Leave it empty and no button is added — the app cannot know its own ' +
-            'external address, and a wrong link is worse than none.',
-            publicUrl),
-          settingRow('Prometheus metrics',
-            'Serve /metrics for a Prometheus scrape. Off by default: the endpoint itself costs ' +
-            'nothing, but turning it on invites another service to poll this app, and that is your ' +
-            'call rather than ours.',
-            prometheus),
-        ]),
+      settingsSection('Alerts and retention', [
+        ...operationRows,
+        settingRow('Public URL',
+          'Where this app is reachable from outside the host, used to put an "Open drive" button ' +
+          'on a notification. Leave it empty and no button is added — the app cannot know its own ' +
+          'external address, and a wrong link is worse than none.',
+          publicUrl),
+        settingRow('Prometheus metrics',
+          'Serve /metrics for a Prometheus scrape. Off by default: the endpoint itself costs ' +
+          'nothing, but turning it on invites another service to poll this app, and that is your ' +
+          'call rather than ours.',
+          prometheus),
       ]),
 
-      el('div', { class: 'card stack' }, [
-        el('h2', { text: 'Appearance' }),
-        el('div', {}, [
-          settingRow('Temperature unit',
-            'How drive temperatures are displayed. The threshold above follows this too. The stored value stays Celsius, which is what the drives report.',
-            unit),
-          themeRow,
-          ...customRows,
-          tintRow,
-        ]),
+      settingsSection('Appearance', [
+        settingRow('Temperature unit',
+          'How drive temperatures are displayed. The threshold above follows this too. The stored value stays Celsius, which is what the drives report.',
+          unit),
+        themeRow,
+        ...customRows,
+        tintRow,
       ]),
-      el('div', { class: 'card stack' }, [
-        el('h2', { text: 'Import and export' }),
-        el('p', { class: 'muted', text: 'Device labels, settings and schedules, as one JSON file. ' +
-          'For moving to another host: names, bays and tags live in the database, which survives a ' +
-          'restart but not a move.' }),
-        el('p', { class: 'muted', text: 'Notification channels are deliberately not included. Their ' +
-          'config holds tokens and passwords, and a backup file is exactly the thing that gets ' +
-          'emailed around.' }),
-        el('div', { class: 'row', style: 'gap:var(--space-2)' }, [
+
+      settingsSection('Import and export', [
+        el('p', { class: 'muted settings-span', text: 'Device labels, settings and schedules, as one ' +
+          'JSON file. For moving to another host: names, bays and tags live in the database, which ' +
+          'survives a restart but not a move.' }),
+        el('p', { class: 'muted settings-span', text: 'Notification channels are deliberately not ' +
+          'included. Their config holds tokens and passwords, and a backup file is exactly the ' +
+          'thing that gets emailed around.' }),
+        el('div', { class: 'row settings-span', style: 'gap:var(--space-2)' }, [
           // An anchor with `download`, not a button: this is a file to keep, and the browser's own
           // save dialog is the right one to use.
           el('a', {
@@ -385,14 +379,24 @@ function draw(container, ctx, data, { carried = {}, unit: unitOverride } = {}) {
         ]),
       ]),
 
-      // The knowledge base gets its own full-width row rather than a grid cell: it carries a JSON
-      // editor, and a text box squeezed into a 460px column is a text box nobody will use.
-      //
       // Read from `data`, not from the local `settings` map — that one is the stored settings, and
       // the knowledge status is its own payload.
-      knowledgeCard(data.knowledge, ctx, knowledgeUrl),
+      knowledgeSection(data.knowledge, ctx, knowledgeUrl),
     ]),
   );
+}
+
+/**
+ * One section of the settings sheet: a heading, a rule, and its rows.
+ *
+ * The rows are laid out by the stylesheet rather than here, because how many columns fit is a
+ * question about the window and this file has no business knowing the answer.
+ */
+function settingsSection(title, nodes) {
+  return el('section', { class: 'settings-section' }, [
+    el('h2', { text: title }),
+    el('div', { class: 'settings-rows' }, nodes),
+  ]);
 }
 
 /**
@@ -459,7 +463,7 @@ async function importConfig(ctx, button) {
  * a form that can only express what the form thought of. The parse error comes back verbatim and is
  * shown beside the box, which is the only place a message about a typo is worth anything.
  */
-function knowledgeCard(knowledge, ctx, urlInput) {
+function knowledgeSection(knowledge, ctx, urlInput) {
   const k = knowledge || {};
   const error = el('div', { class: 'knowledge-error', hidden: true });
   const editor = el('textarea', {
@@ -527,21 +531,28 @@ function knowledgeCard(knowledge, ctx, urlInput) {
     ctx.refresh();
   }));
 
-  return el('div', { class: 'card stack panel-wide knowledge' }, [
-    el('h2', { text: 'Knowledge base' }),
-    el('p', { class: 'muted', text: 'Rated endurance and known firmware advisories, per model ' +
-      'family. A figure nobody can check is a figure nobody should believe, so every entry names ' +
-      'its source and the app shows it beside the number.' }),
-    el('div', { class: 'muted knowledge-status', text: parts.join(' · ') }),
+  return el('section', { class: 'settings-section knowledge' }, [
+    // The heading line carries the status: how many families are known and how old the fetched copy
+    // is, is what you want to know *before* deciding whether to press Refresh, and a line of its own
+    // for it was a line the reader had to travel. The old paragraph explaining the feature is gone —
+    // "every figure names its source" is the one thing in it that is not visible from the card.
+    el('div', { class: 'row wrap' }, [
+      el('h2', { text: 'Knowledge base' }),
+      el('div', { class: 'muted knowledge-status', text: parts.join(' · ') }),
+      el('span', { class: 'spacer' }),
+      el('span', { class: 'muted', text: 'every figure names its source' }),
+    ]),
     k.cache_stale
       ? el('p', { class: 'muted knowledge-warn', text: 'The stored copy came from a different URL ' +
           'than the one below. Refresh to replace it, or discard it to fall back to the shipped ' +
           'table.' })
       : null,
-    settingRow('Refresh URL',
-      'Where to fetch an updated table from. Empty uses the published one, which is the file this ' +
-      'build already ships. Nothing is fetched on a schedule — only when you press Refresh.',
-      urlInput),
+    el('div', { class: 'settings-rows' }, [
+      settingRow('Refresh URL',
+        'Where to fetch an updated table from. Empty uses the published one, which is the file this ' +
+        'build already ships. Nothing is fetched on a schedule — only when you press Refresh.',
+        urlInput),
+    ]),
     el('div', { class: 'row knowledge-actions' }, [
       refresh,
       k.cache ? discard : null,
