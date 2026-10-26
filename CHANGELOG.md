@@ -184,6 +184,17 @@ shown, and a self-test can be started, watched and stopped from the device page.
 
 ### Changed
 
+- **The settings sheet is a single column of rows.** Two columns of rows turned out to be worse than the
+  cards it replaced: a row is a label, an explanation and a control, so one line of the page carried six
+  columns of text. The height is bought back where it belongs instead — the longest explanations are one
+  or two lines now rather than four, which is most of what made the page tall in the first place.
+- **Each self-test now says when it ran.** The log records *lifetime hours*, not a date, and "29,730 h"
+  on its own answers a question nobody asked. The history pairs every lifetime-hours reading with the
+  time it was taken, so a test is placed on a real clock ("2d ago") with the drive's own figure beside
+  it. A test older than the retained history shows its hours rather than a date, because inventing one
+  from a rate would be a number nobody could check.
+- **The bench card's explainer sits on the title's baseline.** Centring two different text sizes left
+  the smaller one floating above the line the eye was following, which reads as a mistake.
 - **The settings page is one sheet with sections, not four cards.** Four cards of different heights gave
   a ragged bottom, and reaching the shortest one meant scrolling past the tallest — so the grid did not
   make the page shorter, it made it uneven. Sections in one surface let each section's rows sit in two

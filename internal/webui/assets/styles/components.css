@@ -436,15 +436,17 @@ a:hover {
 
 .settings-rows {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 460px), 1fr));
-  gap: var(--space-2) var(--space-6);
+  grid-template-columns: 1fr;
+  gap: var(--space-3);
   align-items: start;
 }
 
-/* Prose and an action row span the grid: a paragraph squeezed into one column of a two-column grid
-   reads as a caption for the column beside it. */
-.settings-rows > .settings-span {
-  grid-column: 1 / -1;
+/* A settings row is a label, an explanation and a control, and the control stays right-aligned so
+   every value on the page lands in the same column — which is what makes the page scannable. The
+   rows are *not* laid out side by side: two columns of rows put a label, a help text and a slider
+   in each, so one line of the page carried six columns of text, and the eye had nowhere to go. */
+.settings-rows .setting-row {
+  align-items: baseline;
 }
 
 /* The knowledge base section carries a JSON editor, which is a full-width thing. */
@@ -843,6 +845,13 @@ a:hover {
   font-weight: 600;
   color: var(--muted);
   white-space: nowrap;
+}
+
+/* The bench card's explainer shares the title's baseline rather than being centred against it. At
+   two different text sizes, centring leaves the smaller text floating above the line the eye is
+   following, which reads as a mistake. */
+.bench-session .row {
+  align-items: baseline;
 }
 
 /* The drives in a testing session, inline. Every drive is still named — the session *is* the batch

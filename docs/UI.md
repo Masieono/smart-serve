@@ -444,13 +444,14 @@ picker offers exactly `ThemeNames`.
   one destructive part (a file carrying schedules *replaces* the list) is the thing they most need
   to know. A malformed file reports what went wrong rather than surfacing `Unexpected token <`,
   which is the common failure and explains nothing.
-- **One sheet with sections, not a grid of cards.** Four cards of different heights gave a ragged
-  bottom, and reaching the shortest one meant scrolling past the tallest — so the grid did not make the
-  page shorter, it made it uneven. Each section now lays its *own* rows out in two columns
-  (`.settings-rows`), which is where the height saving actually comes from: six threshold rows become
-  three. Each row still keeps its label and explanation on the left and its control on the right, so
-  every value lands in one column. Prose and action rows span both columns, because a paragraph
-  squeezed into one column of a two-column grid reads as a caption for the column beside it.
+- **One sheet with sections, in a single column.** Four cards of different heights gave a ragged bottom,
+  and reaching the shortest one meant scrolling past the tallest — so the grid did not make the page
+  shorter, it made it uneven. The first attempt at a fix laid each section's rows out in *two* columns,
+  and that was worse: a row is a label, an explanation and a control, so one line of the page carried six
+  columns of text and the eye had nowhere to go. Rows are one per line now — label and explanation on the
+  left, control right-aligned so every value lands in the same column — and the height is bought back
+  where it belongs: by keeping the explanations to one or two lines instead of four, which is most of
+  what made the page tall in the first place.
 - Numeric settings are a **list of rows**, not a grid of labelled boxes: the label and
   its explanation sit together on the left and the control is right-aligned, so every
   value lands in one column and the page can be scanned and compared at a glance. Each

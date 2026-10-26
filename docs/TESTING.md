@@ -64,7 +64,7 @@ together** (4+ drives in one tag group rising together between two readings), **
 | 2.3 | Change the **Trend** window 30 → 7 → All. | The plots change, the axis relabels, and **the page does not move** |
 | 2.4 | Hover a trend line, then focus one and press ←/→. | The readout follows the pointer and the keys; the marker sits on a reading |
 | 2.5 | Pick a date on the axis and follow it up through the plots. | A faint vertical rule runs through every plot at that date |
-| 2.6 | Scroll to **Drive logs**. | Both counts, and a self-test table when the drive has one |
+| 2.6 | Scroll to **Drive logs**. | Both counts, and a self-test table when the drive has one — each row dated, with the drive's own lifetime hours beside the date |
 | 2.7 | Check the **attribute table**. | `?` explains each attribute; vendor rows are named, not `Unknown_Attribute` |
 | 2.8 | Press **Show raw output**. | smartctl's own document |
 | 2.9 | Press **Export**, once per format. | Four files, each in the format asked for |

@@ -81,9 +81,8 @@ const OPERATIONS = [
   {
     key: 'retention_days',
     label: 'History retention',
-    help: 'Snapshots older than this are pruned after each scan. It also sets how far back the ' +
-      'trend and longevity estimates look, so a longer retention is a longer view as well as a ' +
-      'longer memory.',
+    help: 'Snapshots older than this are pruned. It also sets how far back the trend and longevity ' +
+      'estimates look — a longer retention is a longer view as well as a longer memory.',
     min: 7, max: 3650, step: 1, unit: 'days',
   },
   {
@@ -97,16 +96,15 @@ const OPERATIONS = [
   {
     key: 'correlation_min_drives',
     label: 'Correlated heat: drives that must move',
-    help: 'How many drives in one tag group have to heat up together before the app reports it as ' +
-      'one finding about the group rather than several about the drives. Raise it for a big ' +
-      'enclosure: 4 is a sixth of a 24-bay NAS and nearly all of a workstation.',
+    help: 'How many drives in one tag group must heat up together before the app reports one ' +
+      'finding about the group instead of several about the drives. Raise it for a big enclosure.',
     min: 2, max: 24, step: 1, unit: 'drives',
   },
   {
     key: 'correlation_delta_c',
     label: 'Correlated heat: the rise that counts',
-    help: 'How far a drive has to rise between two readings to count as having moved. A stopped ' +
-      'fan moves a whole chassis well past this; a warm afternoon usually does not.',
+    help: 'The rise between two readings that counts as a drive having moved. A stopped fan moves a ' +
+      'whole chassis past this; a warm afternoon does not.',
     // A span, not a reading: it scales with the unit but does not take the 32° offset.
     delta: true,
   },
@@ -339,20 +337,20 @@ function draw(container, ctx, data, { carried = {}, unit: unitOverride } = {}) {
       settingsSection('Alerts and retention', [
         ...operationRows,
         settingRow('Public URL',
-          'Where this app is reachable from outside the host, used to put an "Open drive" button ' +
-          'on a notification. Leave it empty and no button is added — the app cannot know its own ' +
-          'external address, and a wrong link is worse than none.',
+          'Where this app is reachable from outside the host, for the "Open drive" button on a ' +
+          'notification. Empty adds no button — the app cannot know its own address, and a wrong ' +
+          'link is worse than none.',
           publicUrl),
         settingRow('Prometheus metrics',
-          'Serve /metrics for a Prometheus scrape. Off by default: the endpoint itself costs ' +
-          'nothing, but turning it on invites another service to poll this app, and that is your ' +
-          'call rather than ours.',
+          'Serve /metrics for a Prometheus scrape. Off by default: the endpoint costs nothing, but ' +
+          'turning it on invites another service to poll this app.',
           prometheus),
       ]),
 
       settingsSection('Appearance', [
         settingRow('Temperature unit',
-          'How drive temperatures are displayed. The threshold above follows this too. The stored value stays Celsius, which is what the drives report.',
+          'How temperatures are displayed; the threshold above follows it. The stored value stays ' +
+          'Celsius, which is what the drives report.',
           unit),
         themeRow,
         ...customRows,
@@ -360,13 +358,13 @@ function draw(container, ctx, data, { carried = {}, unit: unitOverride } = {}) {
       ]),
 
       settingsSection('Import and export', [
-        el('p', { class: 'muted settings-span', text: 'Device labels, settings and schedules, as one ' +
-          'JSON file. For moving to another host: names, bays and tags live in the database, which ' +
-          'survives a restart but not a move.' }),
-        el('p', { class: 'muted settings-span', text: 'Notification channels are deliberately not ' +
-          'included. Their config holds tokens and passwords, and a backup file is exactly the ' +
-          'thing that gets emailed around.' }),
-        el('div', { class: 'row settings-span', style: 'gap:var(--space-2)' }, [
+        el('p', { class: 'muted', text: 'Device labels, settings and schedules, as one JSON file. For ' +
+          'moving to another host: names, bays and tags live in the database, which survives a ' +
+          'restart but not a move.' }),
+        el('p', { class: 'muted', text: 'Notification channels are deliberately not included. Their ' +
+          'config holds tokens and passwords, and a backup file is exactly the thing that gets ' +
+          'emailed around.' }),
+        el('div', { class: 'row', style: 'gap:var(--space-2)' }, [
           // An anchor with `download`, not a button: this is a file to keep, and the browser's own
           // save dialog is the right one to use.
           el('a', {

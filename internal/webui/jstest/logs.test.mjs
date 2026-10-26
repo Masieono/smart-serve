@@ -123,3 +123,37 @@ test('an error log with detail gets a table', () => {
   assert.match(text, /Uncorrectable/);
   assert.match(text, /1,200 h/);
 });
+
+// The self-test log records *lifetime hours*, not a date — that is all the drive keeps — and "2,116 h"
+// on its own answers a question nobody asked. The history pairs each lifetime-hours reading with the
+// time it was taken, so a test can be placed on a real clock; the raw figure stays beside it, because
+// that is what the drive actually said.
+test('a self-test is placed on a clock using the history', () => {
+  const now = Date.now();
+  const day = 86400000;
+  const text = textOf(logSummary(
+    { self_test_entries: [{ type: 'Short', status: 'Completed without error', passed: true, hours: 2116 }] },
+    [
+      { ts: new Date(now - 10 * day).toISOString(), value: 2000 },
+      { ts: new Date(now).toISOString(), value: 2200 },
+    ],
+  ));
+  // 2,116 is 58% of the way from 2,000 to 2,200, which leaves 42% of ten days: a little over four.
+  assert.match(text, /4d ago/);
+  assert.match(text, /2,116 h/);
+});
+
+// A test older than the retained history has no bracketing reading, so it says its hours rather than
+// inventing a date from a rate — a figure nobody could check.
+test('a test the history cannot place shows its hours', () => {
+  const text = textOf(logSummary(
+    { self_test_entries: [{ type: 'Short', status: 'Completed without error', hours: 100 }] },
+    [
+      { ts: '2026-10-01T00:00:00Z', value: 2000 },
+      { ts: '2026-10-02T00:00:00Z', value: 2100 },
+    ],
+  ));
+  assert.match(text, /100 h/);
+  assert.doesNotMatch(text, /ago/, 'a date was invented for a test nothing brackets');
+});
+

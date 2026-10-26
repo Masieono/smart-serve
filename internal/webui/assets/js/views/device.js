@@ -241,7 +241,7 @@ function draw(container, ctx, data, history) {
             onclick: (e) => toggleRaw(d, e.currentTarget) }, ['Show raw output']),
         ]),
         nvme ? nvmeTable(nvme) : attributeTable(attrs),
-        logSummary(d.logs),
+        logSummary(d.logs, seriesFor('power_on_hours', series)),
         el('div', { id: 'raw-holder' }),
       ]),
 
@@ -758,7 +758,7 @@ export function nvmeTable(n) {
  * A count of zero is worth showing: "this drive has never complained" is the answer to the
  * question that sent someone looking, and leaving it out would leave them wondering.
  */
-export function logSummary(logs) {
+export function logSummary(logs, hours = []) {
   if (!logs) return null;
 
   const rows = [];
@@ -796,7 +796,7 @@ export function logSummary(logs) {
         ]))),
       ]),
     ]),
-    selfTestEntries.length ? selfTestTable(selfTestEntries) : null,
+    selfTestEntries.length ? selfTestTable(selfTestEntries, hours) : null,
     detailed.length
       ? errorTable(detailed)
       : (errorEntries.length
@@ -811,21 +811,70 @@ export function logSummary(logs) {
 }
 
 /** The self-test log: what was run, how it ended, and when. */
-function selfTestTable(entries) {
+function selfTestTable(entries, hours) {
+  const clock = hoursClock(hours);
   return el('div', { class: 'table-wrap' }, [
     el('table', { class: 'data data-log' }, [
       el('thead', {}, [el('tr', {}, [
         el('th', { text: 'Self-test' }),
         el('th', { text: 'Result' }),
-        el('th', { class: 'num', text: 'At' }),
+        el('th', { class: 'num', text: 'When' }),
       ])]),
       el('tbody', {}, entries.map((e) => el('tr', {}, [
         el('td', { text: e.type || '—' }),
         el('td', {}, [selfTestResult(e)]),
-        el('td', { class: 'num', text: e.hours === undefined ? '—' : `${fmtInt(e.hours)} h` }),
+        el('td', { class: 'num' }, [whenCell(e, clock)]),
       ]))),
     ]),
   ]);
+}
+
+/**
+ * When each test ran, from the drive's own lifetime hours.
+ *
+ * The log records *lifetime hours*, not a date — that is all the drive keeps, and printing "29,730 h"
+ * on its own answers a question nobody asked. Every stored snapshot pairs a lifetime-hours reading
+ * with the time it was taken, so the hours can be placed on a real clock: the drive passed 29,651
+ * hours somewhere between the two scans that bracket that reading, and that is as precise as the
+ * evidence gets. The raw figure stays beside the date, because it is what the drive actually said.
+ *
+ * A test older than the retained history has no bracketing reading and shows its hours instead of a
+ * date. Inventing one from a rate would be a number nobody could check.
+ */
+function whenCell(entry, clock) {
+  if (entry.hours === undefined || entry.hours === null) {
+    return el('span', { class: 'muted', text: '—' });
+  }
+  const at = placeOnClock(entry.hours, clock);
+  const hours = el('span', { class: 'muted', text: `${fmtInt(entry.hours)} h` });
+  if (at === null) {
+    return el('span', { title: 'The drive records lifetime hours, and this test predates the ' +
+      'retained history', text: `${fmtInt(entry.hours)} h` });
+  }
+  return el('span', {}, [
+    el('span', { text: fmtAgo(new Date(at).toISOString()) }),
+    ' · ',
+    hours,
+  ]);
+}
+
+/** The history's lifetime-hours readings, oldest first, for placing a test on a clock. */
+function hoursClock(hours) {
+  return (hours || [])
+    .map((p) => ({ value: p.value, at: new Date(p.ts).getTime() }))
+    .filter((p) => Number.isFinite(p.value) && Number.isFinite(p.at))
+    .sort((a, b) => a.value - b.value);
+}
+
+/** The time the drive passed a given lifetime-hours reading, or null when nothing brackets it. */
+function placeOnClock(hours, clock) {
+  if (!clock || clock.length < 2) return null;
+  const older = clock.filter((p) => p.value <= hours).pop();
+  const newer = clock.find((p) => p.value >= hours);
+  if (!older || !newer) return null;
+  if (newer.value === older.value) return older.at;
+  const ratio = (hours - older.value) / (newer.value - older.value);
+  return older.at + ratio * (newer.at - older.at);
 }
 
 /**
