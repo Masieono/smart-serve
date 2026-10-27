@@ -42,8 +42,13 @@ export function stopPolling() {
  * `logs` is the log summary from the last scan, which is enough to draw the card without touching
  * the drive: whether it supports self-tests at all, its own time estimates, and — if a test was
  * already running when the drive was last scanned — the fact that one is.
+ *
+ * `onLogs` is called with the drive's log *as read live* whenever it changes. The panel above this
+ * card is drawn from the last scan, so a test that has just finished exists nowhere else until
+ * something rescans — and making a reader press the big Scan button to see the result of a test they
+ * just ran is the wrong place to put it.
  */
-export function selfTestCard(ctx, device, logs) {
+export function selfTestCard(ctx, device, logs, onLogs = null) {
   const note = el('p', { class: 'muted selftest-note' });
   const actions = el('div', { class: 'row selftest-actions' });
   const progress = el('div', { class: 'selftest-progress', hidden: true });
@@ -84,6 +89,15 @@ export function selfTestCard(ctx, device, logs) {
   // outcome into the log table above — which is drawn from the last scan, so a short test that
   // finished between two readings would otherwise leave no trace anywhere.
   let awaitingResult = false;
+  // When this card started a test, and which one. The drive's own estimate against this clock is the
+  // only progress figure available on a drive that does not report a percentage while a test runs.
+  let startedAt = null;
+  let startedKind = null;
+  // The last log the page was handed, so a poll that changes nothing does not touch the DOM.
+  let reportedLogs = '';
+  // The newest finished result when this card was drawn. A *new* one is how a test that finished on a
+  // drive which never reported it running gets noticed — the drive wrote a row, and that is evidence.
+  const baseline = finishedSignature(logs);
 
   const latest = logs && Array.isArray(logs.self_test_entries)
     ? logs.self_test_entries.find((e) => e.remaining === undefined || e.remaining === null)
@@ -138,34 +152,42 @@ export function selfTestCard(ctx, device, logs) {
   }
 
   /**
-   * A test this card started that the drive is not reporting.
+   * A test this card started that the drive is not reporting a percentage for.
    *
-   * "Nothing is running" and "this drive does not say how far along it is" are indistinguishable from
-   * here, and a card that fell back to the idle state looked like the button had done nothing — which
-   * is exactly how it was reported. So it says what it knows, keeps asking, and offers the rescan
-   * rather than performing one.
+   * Some drives only write a self-test log entry when a test *finishes*, so there is no figure to
+   * read while one runs — and "nothing is running" is indistinguishable from "this drive does not
+   * report progress", which is how a working test came to look like a button that did nothing.
+   *
+   * So it falls back to the only honest figure available: the drive's **own estimate** of how long
+   * its tests take, against the clock this card started one at. That is a different kind of number
+   * from the drive's percentage and the card says so — it is the drive's estimate, not a reading.
    */
   function showStarted() {
-    clear(progress);
-    progress.hidden = true;
-    note.textContent = 'Started. This drive is not reporting progress — not every drive does while a '
-      + `test runs — so the app cannot say how far along it is. It will keep asking every `
-      + `${Math.round(POLL_MS / 1000)} seconds.`;
+    const minutes = startedKind === 'long' ? extendedMinutes : shortMinutes;
+    const elapsed = startedAt === null ? 0 : Date.now() - startedAt;
+    note.textContent = 'Started. This drive does not report a percentage while a test runs, so there '
+      + `is nothing to read from it. It will keep asking every ${Math.round(POLL_MS / 1000)} `
+      + 'seconds, and the result appears above as soon as the drive writes one.';
     mount(actions, [
       el('button', {
         class: 'btn btn-danger', type: 'button', title: 'Stop the running test', onclick: stop,
       }, [icon('x'), 'Stop test']),
-      // The result is in the drive's log, and the table above is drawn from the last scan, so it
-      // appears there after a rescan. Offered rather than done automatically, because a rescan
-      // re-reads every drive and re-draws the page — and doing that unasked is what made this look
-      // like a jump to the top.
-      el('button', {
-        class: 'btn btn-sm',
-        type: 'button',
-        text: 'Rescan for the result',
-        title: 'Re-read this drive so the self-test log above shows the result',
-        onclick: () => ctx.scanDevice(device.serial),
-      }),
+    ]);
+
+    progress.hidden = false;
+    mount(progress, [
+      el('div', { class: 'row' }, [
+        el('span', { class: 'selftest-kind', text: startedKind === 'long' ? 'Long test' : 'Short test' }),
+        el('span', { class: 'spacer' }),
+        el('span', { class: 'muted', text: estimateText(elapsed, minutes) }),
+      ]),
+      // Only when the drive said how long its tests take. A bar with no basis would be a bar at an
+      // invented position, which is the thing this app does not do.
+      minutes
+        ? el('div', { class: 'meter', title: "The drive's own estimate, not a reading from it" }, [
+            el('div', { class: 'meter-fill', style: `width:${estimatePercent(elapsed, minutes)}%` }),
+          ])
+        : null,
     ]);
     schedule();
   }
@@ -189,6 +211,8 @@ export function selfTestCard(ctx, device, logs) {
         try {
           const res = await api.startSelfTest(device.serial, kind);
           toast((res && res.note) || `${label} started`, 'good');
+          startedAt = Date.now();
+          startedKind = kind;
           awaitingResult = true;
           await read();
         } catch (err) {
@@ -246,6 +270,22 @@ export function selfTestCard(ctx, device, logs) {
       return;
     }
 
+    // The drive's own log, read live. The panel above is drawn from the *last scan*, so a result
+    // that has just been written exists only here — and tying it to the big Scan button would make
+    // the reader re-read the whole fleet to see the outcome of one test.
+    const live = state && state.logs ? state.logs : null;
+    if (live) {
+      const done = finishedEntry(live.self_test_entries);
+      if (done) mount(result, resultLine(done));
+      if (onLogs) {
+        const signature = logSignature(live);
+        if (signature !== reportedLogs) {
+          reportedLogs = signature;
+          onLogs(live);
+        }
+      }
+    }
+
     const entry = state ? state.running : null;
     if (entry) {
       wasRunning = true;
@@ -257,20 +297,23 @@ export function selfTestCard(ctx, device, logs) {
       return;
     }
 
-    // This card started a test and the drive is not reporting one. It may have finished already, or
-    // the drive may not report progress at all — and nothing here can tell those apart. So the card
-    // says what it can see, keeps asking, and *offers* a rescan rather than performing one: a rescan
-    // re-reads every drive and re-draws the page, and doing that on a guess is what made this button
-    // look like it threw the reader to the top of the page.
-    if (awaitingResult && !unreadLog) {
+    // A test this card started has finished: the drive wrote a new result. On a drive that does not
+    // report a running test that is the *only* evidence one ran — and it is good evidence, because
+    // the drive wrote it.
+    const liveEnded = live ? finishedSignature(live) !== baseline : false;
+
+    // This card started a test and nothing has come of it yet. It may still be running, or the drive
+    // may not report progress at all — nothing here can tell those apart. So the card says what it
+    // can see and keeps asking, rather than guessing and rescanning the fleet on the strength of it.
+    if (awaitingResult && !unreadLog && !liveEnded) {
       showStarted();
       return;
     }
 
     // A test this card *watched* running has ended, and that transition is the evidence. One rescan
-    // puts its outcome into the log table above, which is drawn from the last scan. Guarded per card:
-    // the re-rendered card is drawn from stored logs that may still show the test running, so an
-    // unguarded rescan would poll, rescan, poll, forever.
+    // refreshes the stored document and lets the finished-test notification fire promptly. Guarded
+    // per card: the re-rendered card is drawn from stored logs that may still show the test running,
+    // so an unguarded rescan would poll, rescan, poll, forever.
     const ended = wasRunning;
     wasRunning = false;
     awaitingResult = false;
@@ -333,10 +376,53 @@ function idleNote(shortMinutes, extendedMinutes) {
 function fmtDuration(minutes) {
   const n = Number(minutes);
   if (!Number.isFinite(n) || n <= 0) return '';
-  if (n < 60) return `${fmtInt(n)} minutes`;
+  if (n < 60) return `${fmtInt(n)} minute${n === 1 ? '' : 's'}`;
   const hours = Math.floor(n / 60);
   const rest = n % 60;
-  return rest === 0 ? `${hours} hours` : `${hours} h ${rest} min`;
+  if (rest === 0) return `${hours} hour${hours === 1 ? '' : 's'}`;
+  return `${hours} h ${rest} min`;
+}
+
+/** The newest finished result a log holds, or null. */
+function finishedEntry(entries) {
+  return (entries || []).find((e) => e.remaining === undefined || e.remaining === null) || null;
+}
+
+/**
+ * A cheap identity for a log's newest finished result.
+ *
+ * Comparing this before and after a poll is how a test that finished on a drive which never reported
+ * it *running* gets noticed. Nothing else distinguishes "still going" from "over" on such a drive,
+ * and a new row is the drive saying so.
+ */
+function finishedSignature(summary) {
+  const done = finishedEntry(summary && summary.self_test_entries);
+  return done ? [done.type, done.status, done.hours].join('|') : '';
+}
+
+/** A cheap identity for a whole log, so a poll that changed nothing does not re-draw the panel. */
+function logSignature(summary) {
+  const first = (summary.self_test_entries || [])[0] || {};
+  return [summary.self_test_count, summary.error_count, first.type, first.status, first.hours].join('|');
+}
+
+/**
+ * How far along a test looks, as a percentage of the drive's own estimate.
+ *
+ * Capped short of full: the estimate is the drive's guess, and a bar sitting at 100% while the test
+ * is still running reads as a hang — the exact failure a progress figure exists to prevent.
+ */
+function estimatePercent(elapsedMs, minutes) {
+  const total = Number(minutes) * 60000;
+  if (!Number.isFinite(total) || total <= 0) return 0;
+  return Math.min(95, Math.round((elapsedMs / total) * 100));
+}
+
+/** The elapsed time, and the drive's estimate it is measured against. */
+function estimateText(elapsedMs, minutes) {
+  const elapsed = fmtDuration(Math.max(1, Math.round(elapsedMs / 60000)));
+  if (!minutes) return `running for ${elapsed}`;
+  return `running for ${elapsed} · the drive estimates about ${fmtDuration(minutes)}`;
 }
 
 /**

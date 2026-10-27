@@ -184,6 +184,12 @@ shown, and a self-test can be started, watched and stopped from the device page.
 
 ### Changed
 
+- **A drive that does not report self-test progress gets the drive's own estimate instead.** Some drives
+  only write a self-test log entry when a test *finishes*, so there was no figure to read while one ran
+  and the card had nothing to show for a test that was working perfectly well. It now shows the elapsed
+  time against the drive's own `polling_minutes`, labelled as the drive's estimate rather than a reading
+  from it, and capped short of full — a bar sitting at 100% while a test is still running reads as a
+  hang, which is the exact failure a progress figure exists to prevent.
 - **The self-test log is its own section inside the drive-logs card**: a heading and a rule, so the
   entries read as the detail under the summary rather than as more rows of the same table.
 - **The NVMe endurance slider goes down to 1%.** It bottomed out at 50, which made the setting
@@ -247,6 +253,12 @@ shown, and a self-test can be started, watched and stopped from the device page.
 
 ### Fixed
 
+- **A finished self-test's result reaches the page without a scan.** The drive-logs panel is drawn from
+  the last scan, so a test that had just finished existed nowhere on screen until the whole fleet was
+  re-read — which made one test's outcome look like it was tied to the big Scan button. The self-test
+  card already reads the drive *live* while a test runs, so it hands that log over and the panel redraws
+  from it. A test that finished on a drive which never reported it *running* is noticed the same way: a
+  new row in the drive's own log is the evidence, and the drive wrote it.
 - **A drive whose self-test log is the *standard* variant reported no self-test log at all.** smartctl
   nests the ATA self-test log under `standard` (the shorter log) or `extended`, and the parser only knew
   `extended` and `summary` — so such a drive showed no count, no entries, and no sign of the test it was

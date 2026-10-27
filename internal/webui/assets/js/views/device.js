@@ -94,6 +94,12 @@ function draw(container, ctx, data, history) {
   // The tag this app treats as "on the bench", sent with the payload so the notes dialog can offer
   // it as a checkbox rather than making the reader know the name and type it (`FEATURES.md` D11).
   const benchTag = data.bench_tag || '';
+
+  // The drive-logs panel, in a holder of its own so the self-test card can refresh it from a *live*
+  // read. The panel is otherwise drawn from the last scan, and re-reading the whole fleet to see the
+  // outcome of one test is the wrong thing to ask of the reader.
+  const logHolder = el('div', { class: 'log-holder' });
+  mount(logHolder, logSummary(d.logs, seriesFor('power_on_hours', series)));
   const projection = data.projection || null;
   const snapshot = data.snapshot || null;
   const payload = snapshot && snapshot.attributes ? snapshot.attributes : null;
@@ -241,13 +247,18 @@ function draw(container, ctx, data, history) {
             onclick: (e) => toggleRaw(d, e.currentTarget) }, ['Show raw output']),
         ]),
         nvme ? nvmeTable(nvme) : attributeTable(attrs),
-        logSummary(d.logs, seriesFor('power_on_hours', series)),
+        logHolder,
         el('div', { id: 'raw-holder' }),
       ]),
 
       // A19. The only control in the app that changes a drive, so it sits with the log it writes
       // to rather than up in the header with the read-only actions.
-      selfTestCard(ctx, d, d.logs),
+      //
+      // The fourth argument is how a finished test's result reaches the panel above without a scan:
+      // the card reads the drive live while a test runs, and hands over the log it read.
+      selfTestCard(ctx, d, d.logs, (fresh) => {
+        mount(logHolder, logSummary(fresh, seriesFor('power_on_hours', series)));
+      }),
     ]),
   );
 }

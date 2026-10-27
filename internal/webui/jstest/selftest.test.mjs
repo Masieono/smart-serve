@@ -78,7 +78,7 @@ async function clickThrough(button) {
  * calls — the POST and the read that follows it — and they must not be confusable. A test that
  * asserted on a single shared payload could not tell the two apart.
  */
-function stubSelfTestApi({ running = null, refuseLong = null } = {}) {
+function stubSelfTestApi({ running = null, refuseLong = null, logs = null } = {}) {
   const requests = [];
   globalThis.fetch = async (url, init = {}) => {
     const path = String(url);
@@ -103,7 +103,9 @@ function stubSelfTestApi({ running = null, refuseLong = null } = {}) {
     } else if (method === 'POST') {
       payload = { status: 'started', kind: body && body.kind, note: 'Please wait 2 minutes' };
     } else {
-      payload = { running };
+      // The GET carries the drive's logs read *live*, which is where a finished test's result exists
+      // until something rescans.
+      payload = logs ? { running, logs } : { running };
     }
     return { ok: true, status: 200, statusText: 'OK', text: async () => JSON.stringify(payload) };
   };
@@ -401,12 +403,66 @@ test('a test the drive never reports says so, and does not rescan', async () => 
 
   const text = textOf(card);
   assert.match(text, /Started\./);
-  assert.match(text, /not reporting progress/);
+  assert.match(text, /does not report a percentage/);
   assert.deepEqual(ctx.rescanned, [], 'a rescan was fired on a guess');
 
-  // The way out is offered rather than taken.
-  assert.ok(text.includes('Rescan for the result'), 'no way to pick the result up');
+  // The drive's own estimate against the clock, and labelled as an estimate rather than a reading.
+  assert.match(text, /running for 1 minute/);
+  assert.match(text, /estimates about 2 minutes/);
   assert.ok(text.includes('Stop test'), 'a running test cannot be stopped');
+  stopPolling();
+});
+
+// The drive's logs are read *live* while a test runs, and handed to the page. The panel above the card
+// is drawn from the last scan, so a result that has just been written exists only in the live read —
+// and re-reading the whole fleet to see one test's outcome is the wrong thing to ask of the reader.
+test('the live log is handed to the page', async () => {
+  stopPolling();
+  stubSelfTestApi({
+    running: null,
+    logs: {
+      self_test_count: 1,
+      self_test_entries: [{ type: 'Short', status: 'Completed without error', passed: true, hours: 42 }],
+    },
+  });
+  const seen = [];
+  const card = selfTestCard(
+    stubCtx(), { serial: 'S' }, { self_test_supported: true, short_minutes: 2 },
+    (fresh) => seen.push(fresh),
+  );
+
+  const [run] = buttonsOf(card);
+  await clickThrough(run);
+
+  assert.equal(seen.length, 1, 'the live log was not handed over');
+  assert.equal(seen[0].self_test_count, 1);
+  stopPolling();
+});
+
+// A test that finished on a drive which never reported it running: a *new* row in the drive's own log
+// is the evidence, and it is good evidence — the drive wrote it. Without this the card would wait
+// forever for a running test it will never see.
+test('a new result in the live log ends the wait', async () => {
+  stopPolling();
+  stubSelfTestApi({
+    running: null,
+    logs: {
+      self_test_entries: [{ type: 'Short', status: 'Completed without error', passed: true, hours: 99 }],
+    },
+  });
+  const card = selfTestCard(stubCtx(), { serial: 'S' }, {
+    self_test_supported: true,
+    short_minutes: 2,
+    self_test_entries: [{ type: 'Short', status: 'Completed without error', passed: true, hours: 42 }],
+  });
+
+  const [run] = buttonsOf(card);
+  await clickThrough(run);
+
+  const text = textOf(card);
+  assert.doesNotMatch(text, /Started\./, 'still waiting for a result the drive has written');
+  assert.match(text, /Last test/);
+  assert.match(text, /99 hours/);
   stopPolling();
 });
 
