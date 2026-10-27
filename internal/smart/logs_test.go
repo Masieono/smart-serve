@@ -242,6 +242,57 @@ func TestParseLogsDoesNotCallTheLogsItReadsUnread(t *testing.T) {
 	}
 }
 
+// A drive can report a test in progress in its *self-test execution status* rather than in the
+// self-test log. The ATA spec puts the percentage in that status byte, and a real 850 EVO reports it
+// nowhere else — so reading only the log left such a drive looking idle mid-test: no progress, and a
+// card that offered the run buttons again for a drive already testing itself.
+func TestParseLogsReadsTheSelfTestExecutionStatus(t *testing.T) {
+	got := ParseLogs([]byte(`{
+	  "ata_smart_data": {
+	    "self_test": {
+	      "status": { "value": 240, "string": "Self-test routine in progress",
+	                  "remaining_percent": 30, "passed": true },
+	      "polling_minutes": { "short": 2, "extended": 133 }
+	    },
+	    "capabilities": { "self_tests_supported": true }
+	  }
+	}`))
+
+	running := got.Running()
+	if running == nil {
+		t.Fatal("Running() = nil, but the drive's own status says a test is in progress")
+	}
+	if running.Remaining == nil || *running.Remaining != 30 {
+		t.Errorf("Remaining = %v, want 30", running.Remaining)
+	}
+	// The status object carries no test *type*, so the entry has none: the UI names it generically
+	// rather than this parser inventing one.
+	if running.Type != "" {
+		t.Errorf("Type = %q, want empty", running.Type)
+	}
+	// The drive's estimate is still read, so the card can say what a test costs.
+	if got.ShortMinutes == nil || *got.ShortMinutes != 2 {
+		t.Errorf("ShortMinutes = %v, want 2", got.ShortMinutes)
+	}
+}
+
+// That same field holds the *last* test's outcome when nothing is running, and that must not be read
+// as a test in progress. The signal is the percentage, which is only there while one executes.
+func TestParseLogsDoesNotMistakeALastOutcomeForARunningTest(t *testing.T) {
+	got := ParseLogs([]byte(`{
+	  "ata_smart_data": {
+	    "self_test": {
+	      "status": { "value": 0, "string": "completed without error", "passed": true },
+	      "polling_minutes": { "short": 2, "extended": 133 }
+	    }
+	  }
+	}`))
+
+	if r := got.Running(); r != nil {
+		t.Errorf("Running() = %+v, want nil — nothing is executing", r)
+	}
+}
+
 // The self-test log's *standard* variant, which is what a drive answers with when it does not keep
 // the extended one. Reading only `extended` and `summary` meant such a drive reported no self-test
 // log at all — no count, no entries, and no sign of the test it was running.

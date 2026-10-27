@@ -95,9 +95,9 @@ export function selfTestCard(ctx, device, logs, onLogs = null) {
   let startedKind = null;
   // The last log the page was handed, so a poll that changes nothing does not touch the DOM.
   let reportedLogs = '';
-  // The newest finished result when this card was drawn. A *new* one is how a test that finished on a
-  // drive which never reported it running gets noticed — the drive wrote a row, and that is evidence.
-  const baseline = finishedSignature(logs);
+  // The newest finished result when this card was drawn. Re-read from the drive before a test starts,
+  // because this card's copy comes from the last scan and is stale the moment a test has run since.
+  let baseline = finishedSignature(logs);
 
   const latest = logs && Array.isArray(logs.self_test_entries)
     ? logs.self_test_entries.find((e) => e.remaining === undefined || e.remaining === null)
@@ -209,6 +209,27 @@ export function selfTestCard(ctx, device, logs, onLogs = null) {
         if (!ok) return;
         button.disabled = true;
         try {
+          // Read the drive *before* asking it to do anything. Two reasons, both of them real:
+          //
+          //   - the baseline this card compares against has to be what the drive actually holds.
+          //     Taken from the last scan's copy it is stale the moment a test has run since — and a
+          //     stale baseline makes the very first look after starting look like a *finished* test,
+          //     which is how the card came to skip straight to idle and never show progress at all.
+          //   - a drive already testing itself refuses a second request, and "the drive refused it"
+          //     is a worse answer than not asking.
+          let before = null;
+          try {
+            before = await api.selfTest(device.serial);
+          } catch {
+            /* the start is worth more than the baseline; keep what we have */
+          }
+          if (before && before.running) {
+            toast('This drive is already running a self-test', 'error');
+            await read();
+            return;
+          }
+          if (before && before.logs) baseline = finishedSignature(before.logs);
+
           const res = await api.startSelfTest(device.serial, kind);
           toast((res && res.note) || `${label} started`, 'good');
           startedAt = Date.now();

@@ -253,6 +253,19 @@ shown, and a self-test can be started, watched and stopped from the device page.
 
 ### Fixed
 
+- **The self-test card's baseline is read from the drive, not from the last scan.** It was comparing the
+  live log against the copy the last scan recorded — which is stale the moment a test has run since — so
+  the first look after starting a test saw a "new" row that was not new, concluded the test was already
+  over, and skipped the in-progress state entirely. That is why no progress appeared and why the result
+  only showed up after a scan: the card never entered the state that polls for it.
+- **A self-test's progress is also read from the drive's own self-test-execution status.** The ATA spec
+  puts the percentage in the status byte of the SMART data structure, and drives differ about whether
+  they report a running test there, in the self-test log, or in both. Reading only the log left such a
+  drive looking idle mid-test. Both are read now, and the status field's *last outcome* is not mistaken
+  for a running test: the signal is the percentage, and that is only present while one executes.
+- **A drive already running a self-test is no longer asked to start a second one.** The card reads the
+  drive before asking it to do anything, so "this drive is already running a self-test" replaces the
+  drive's own refusal — which on an NVMe drive arrives as a bare exit status.
 - **A finished self-test's result reaches the page without a scan.** The drive-logs panel is drawn from
   the last scan, so a test that had just finished existed nowhere on screen until the whole fleet was
   re-read — which made one test's outcome look like it was tied to the big Scan button. The self-test

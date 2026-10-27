@@ -133,6 +133,15 @@ func ParseLogs(raw []byte) model.LogSummary {
 		})
 	}
 
+	// A test in progress is reported in one of two places, and drives differ about which. The
+	// self-test log's newest row carries `remaining_percent` while one runs — but so does the drive's
+	// own self-test-execution status in the SMART data structure, which is where the ATA spec puts it.
+	// Reading only the log meant a drive that reports it in the status field looked idle mid-test:
+	// no progress, and a card that offered the run buttons again for a drive already testing itself.
+	if st := ataRunning(r.ATASmartData); st != nil && !anyRunning(out.SelfTestEntries) {
+		out.SelfTestEntries = append([]model.SelfTestEntry{*st}, out.SelfTestEntries...)
+	}
+
 	if r.ATASmartData != nil {
 		if caps := r.ATASmartData.Capabilities; caps != nil {
 			supported := caps.SelfTestsSupported
@@ -208,6 +217,23 @@ func unreadSelfTestLog(raw []byte) string {
 	return strings.Join(found, ", ")
 }
 
+// rawATASmartData is the SMART Data structure's own summary of the drive.
+type rawATASmartData struct {
+	SelfTest *struct {
+		// Status is the drive's *self-test execution status*, which the ATA spec defines as reporting
+		// the currently executing test and how much of it is left. It also holds the last test's
+		// outcome when nothing is running, which is what `passed` and the string are for.
+		Status         *rawEnum `json:"status"`
+		PollingMinutes struct {
+			Short    int `json:"short"`
+			Extended int `json:"extended"`
+		} `json:"polling_minutes"`
+	} `json:"self_test"`
+	Capabilities *struct {
+		SelfTestsSupported bool `json:"self_tests_supported"`
+	} `json:"capabilities"`
+}
+
 // rawNVMeSelfTestLog is the NVMe self-test log. Verified against a real WDC SN730
 // (`nvme-sn730-selftest.json`), which is the fixture this parser was written against.
 //
@@ -231,6 +257,38 @@ type rawNVMeSelfTestEntry struct {
 	SelfTestCode   *rawEnum `json:"self_test_code"`
 	SelfTestResult *rawEnum `json:"self_test_result"`
 	PowerOnHours   *int64   `json:"power_on_hours"`
+}
+
+// ataRunning reads the drive's self-test-execution status as a running test, or nil.
+//
+// The signal is `remaining_percent`, the same one the self-test log rows use: the ATA spec puts the
+// percentage in the low nibble of that status byte only while a test executes, and smartctl leaves
+// the field out the rest of the time. The status object carries no test *type*, so the entry is left
+// without one and the UI falls back to calling it a self-test.
+func ataRunning(data *rawATASmartData) *model.SelfTestEntry {
+	if data == nil || data.SelfTest == nil || data.SelfTest.Status == nil {
+		return nil
+	}
+	s := data.SelfTest.Status
+	if s.RemainingPercent == nil {
+		// No percentage means nothing is executing; the field still holds the last test's outcome,
+		// which is a finished result rather than a running one.
+		return nil
+	}
+	return &model.SelfTestEntry{
+		Status:    enumString(s),
+		Remaining: s.RemainingPercent,
+	}
+}
+
+// anyRunning reports whether an entry is a test in progress.
+func anyRunning(entries []model.SelfTestEntry) bool {
+	for _, e := range entries {
+		if e.Remaining != nil {
+			return true
+		}
+	}
+	return false
 }
 
 // nvmeOperationName names a self-test in progress, from the NVMe base spec's Device Self-test
@@ -284,19 +342,9 @@ func ataLogCount(logs *rawATALogs) *int64 {
 }
 
 type rawLogDoc struct {
-	ATASmartData *struct {
-		SelfTest *struct {
-			PollingMinutes struct {
-				Short    int `json:"short"`
-				Extended int `json:"extended"`
-			} `json:"polling_minutes"`
-		} `json:"self_test"`
-		Capabilities *struct {
-			SelfTestsSupported bool `json:"self_tests_supported"`
-		} `json:"capabilities"`
-	} `json:"ata_smart_data"`
-	ATAErrorLog    *rawATALogs `json:"ata_smart_error_log"`
-	ATASelfTestLog *rawATALogs `json:"ata_smart_self_test_log"`
+	ATASmartData   *rawATASmartData `json:"ata_smart_data"`
+	ATAErrorLog    *rawATALogs      `json:"ata_smart_error_log"`
+	ATASelfTestLog *rawATALogs      `json:"ata_smart_self_test_log"`
 	NVMeHealth     *struct {
 		NumErrLogEntries *int64 `json:"num_err_log_entries"`
 	} `json:"nvme_smart_health_information_log"`

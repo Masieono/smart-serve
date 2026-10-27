@@ -80,6 +80,10 @@ async function clickThrough(button) {
  */
 function stubSelfTestApi({ running = null, refuseLong = null, logs = null } = {}) {
   const requests = [];
+  // `logs` may be a list, used in order and then held at the last — which is how a drive that gains a
+  // self-test row mid-test is modelled.
+  const sequence = Array.isArray(logs) ? logs : null;
+  let reads = 0;
   globalThis.fetch = async (url, init = {}) => {
     const path = String(url);
     const body = init.body ? JSON.parse(init.body) : null;
@@ -105,7 +109,9 @@ function stubSelfTestApi({ running = null, refuseLong = null, logs = null } = {}
     } else {
       // The GET carries the drive's logs read *live*, which is where a finished test's result exists
       // until something rescans.
-      payload = logs ? { running, logs } : { running };
+      const live = sequence ? sequence[Math.min(reads, sequence.length - 1)] : logs;
+      reads += 1;
+      payload = live ? { running, logs: live } : { running };
     }
     return { ok: true, status: 200, statusText: 'OK', text: async () => JSON.stringify(payload) };
   };
@@ -442,18 +448,26 @@ test('the live log is handed to the page', async () => {
 // A test that finished on a drive which never reported it running: a *new* row in the drive's own log
 // is the evidence, and it is good evidence — the drive wrote it. Without this the card would wait
 // forever for a running test it will never see.
+//
+// The baseline is taken from the drive just before the test starts, not from the last scan, so the
+// two reads here are the same log *before* the row appears and a log with it *after*.
 test('a new result in the live log ends the wait', async () => {
   stopPolling();
-  stubSelfTestApi({
-    running: null,
-    logs: {
-      self_test_entries: [{ type: 'Short', status: 'Completed without error', passed: true, hours: 99 }],
-    },
-  });
+  const before = {
+    self_test_entries: [{ type: 'Short', status: 'Completed without error', passed: true, hours: 42 }],
+  };
+  const after = {
+    self_test_count: 2,
+    self_test_entries: [
+      { type: 'Short', status: 'Completed without error', passed: true, hours: 99 },
+      { type: 'Short', status: 'Completed without error', passed: true, hours: 42 },
+    ],
+  };
+  stubSelfTestApi({ running: null, logs: [before, after] });
   const card = selfTestCard(stubCtx(), { serial: 'S' }, {
     self_test_supported: true,
     short_minutes: 2,
-    self_test_entries: [{ type: 'Short', status: 'Completed without error', passed: true, hours: 42 }],
+    self_test_entries: [{ type: 'Short', status: 'Completed without error', passed: true, hours: 41 }],
   });
 
   const [run] = buttonsOf(card);
