@@ -184,6 +184,10 @@ shown, and a self-test can be started, watched and stopped from the device page.
 
 ### Changed
 
+- **The self-test log is its own section inside the drive-logs card**: a heading and a rule, so the
+  entries read as the detail under the summary rather than as more rows of the same table.
+- **The NVMe endurance slider goes down to 1%.** It bottomed out at 50, which made the setting
+  impossible to exercise on anything but a nearly-worn drive.
 - **The self-test log dates each run.** The drive records *lifetime hours* rather than a date, and "4d
   ago" was the wrong shape for a log a reader scans for *which run* this was — a relative age moves every
   time the page is opened, and two rows four days apart read the same. Rows now carry an absolute stamp
@@ -243,6 +247,16 @@ shown, and a self-test can be started, watched and stopped from the device page.
 
 ### Fixed
 
+- **A drive whose self-test log is the *standard* variant reported no self-test log at all.** smartctl
+  nests the ATA self-test log under `standard` (the shorter log) or `extended`, and the parser only knew
+  `extended` and `summary` — so such a drive showed no count, no entries, and no sign of the test it was
+  running, which meant the card offered the run buttons again for a drive already testing itself. That is
+  the likely explanation for a SATA drive where a test "does not appear in the history at all".
+- **A threshold change now says that it needs a scan.** A verdict is worked out when a drive is *read*,
+  and the stored reading is what every page shows — so lowering a threshold changes nothing until the
+  next scan, and the settings page said "applied immediately", which was exactly the wrong thing to tell
+  somebody who had just lowered one and was waiting for an alert. The page says so now, and offers
+  **Scan now and re-check** beside the thresholds.
 - **A numeric table heading now lines up with its column.** `td.num` was right-aligned and `th.num` was
   not, so every numeric column had its heading sitting somewhere to the left of its figures, and the
   reader had to check whether a number belonged to the column they thought it did. The ATA attribute

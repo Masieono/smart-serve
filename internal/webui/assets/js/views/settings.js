@@ -67,7 +67,9 @@ const THRESHOLDS = [
     key: 'nvme_percentage_used_warn',
     label: 'NVMe endurance used → caution',
     help: 'Endurance consumed before an NVMe drive is flagged.',
-    min: 50, max: 100, step: 1, unit: '%',
+    // Down to 1 rather than 50: a drive at 60% used is a real drive somebody may want flagged, and
+    // the old floor made the setting untestable on anything but a nearly-worn drive.
+    min: 1, max: 100, step: 1, unit: '%',
   },
 ];
 
@@ -314,7 +316,8 @@ function draw(container, ctx, data, { carried = {}, unit: unitOverride } = {}) {
     el('div', { class: 'page-head' }, [
       el('div', {}, [
         el('h1', { text: 'Settings' }),
-        el('div', { class: 'sub', text: 'Stored in the database and applied immediately, so no restart is needed.' }),
+        el('div', { class: 'sub', text: 'Stored in the database, so no restart is needed. Health ' +
+          'thresholds are read by the scan, and apply from the next one.' }),
       ]),
       el('span', { class: 'spacer' }),
       save,
@@ -332,6 +335,20 @@ function draw(container, ctx, data, { carried = {}, unit: unitOverride } = {}) {
         settingRow('Caution on any sector problem',
           'Flag a drive as soon as a single reallocated, pending or uncorrectable sector appears.',
           warn),
+        // The one place on this page where "applied immediately" is not true, and the reason a
+        // lowered threshold looks like it did nothing: a verdict is worked out when a drive is
+        // *read*, and that reading is what the page shows. Changing a threshold changes nothing
+        // until the next one — so the page says so, and offers the scan rather than assuming it.
+        el('p', { class: 'muted settings-note', text: 'A verdict is worked out when a drive is read, ' +
+          'so a threshold changed here takes effect from the next scan.' }),
+        el('div', { class: 'row' }, [
+          el('button', {
+            class: 'btn btn-sm',
+            type: 'button',
+            title: 'Re-read every drive now, so the thresholds above are applied',
+            onclick: (event) => scanNow(event.currentTarget),
+          }, [icon('scan'), 'Scan now and re-check']),
+        ]),
       ]),
 
       settingsSection('Alerts and retention', [
@@ -395,6 +412,23 @@ function settingsSection(title, nodes) {
     el('h2', { text: title }),
     el('div', { class: 'settings-rows' }, nodes),
   ]);
+}
+
+/**
+ * Re-read the fleet so a threshold change takes effect.
+ *
+ * Offered rather than done on save: a scan reads every drive on the host, and starting one because
+ * somebody nudged a slider is a surprising amount of work to trigger by accident.
+ */
+async function scanNow(button) {
+  button.disabled = true;
+  try {
+    await api.scan();
+    toast('Scan started — verdicts update as each drive is read', 'good');
+  } catch (err) {
+    toast(err.message, 'error');
+    button.disabled = false;
+  }
 }
 
 /**

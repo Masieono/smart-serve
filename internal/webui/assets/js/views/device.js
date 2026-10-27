@@ -796,9 +796,20 @@ export function logSummary(logs, hours = []) {
         ]))),
       ]),
     ]),
-    selfTestEntries.length ? selfTestTable(selfTestEntries, hours) : null,
+    // The counts above are the summary; these are the entries, so they get their own heading and a
+    // rule. Without them the table read as more rows of the same thing, and the reader had to work
+    // out where the summary ended and the log began.
+    selfTestEntries.length
+      ? el('section', { class: 'log-section' }, [
+          el('h4', { text: 'Self-test log' }),
+          selfTestTable(selfTestEntries, hours),
+        ])
+      : null,
     detailed.length
-      ? errorTable(detailed)
+      ? el('section', { class: 'log-section' }, [
+          el('h4', { text: 'Error log' }),
+          errorTable(detailed),
+        ])
       : (errorEntries.length
         ? el('p', { class: 'muted', text: 'The drive records that an error happened but reports '
             + 'nothing about it beyond which entry it is.' })

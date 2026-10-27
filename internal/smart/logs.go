@@ -269,17 +269,16 @@ func nvmePassed(result *rawEnum) *bool {
 	return nil
 }
 
-// ataLogCount returns the entry count from whichever variant of an ATA log the drive
-// answered with, preferring the extended log.
+// ataLogCount returns the entry count from whichever variant of an ATA log the drive answered with,
+// preferring the extended log.
 func ataLogCount(logs *rawATALogs) *int64 {
 	if logs == nil {
 		return nil
 	}
-	if logs.Extended != nil && logs.Extended.Count != nil {
-		return logs.Extended.Count
-	}
-	if logs.Summary != nil && logs.Summary.Count != nil {
-		return logs.Summary.Count
+	for _, variant := range []*rawATALog{logs.Extended, logs.Standard, logs.Summary} {
+		if variant != nil && variant.Count != nil {
+			return variant.Count
+		}
 	}
 	return nil
 }
@@ -315,10 +314,17 @@ type rawLogDoc struct {
 	} `json:"smartctl"`
 }
 
-// rawATALogs is the shape both ATA logs share. smartctl nests each log under a log-type key
-// — `extended` for the comprehensive log `-x` reads, `summary` for the shorter one — so both
-// are checked rather than assuming the flag decided it.
+// rawATALogs is the shape both ATA logs share. smartctl nests each log under a log-type key, and
+// which key appears depends on the log *and* the drive:
+//
+//   - the error log answers `summary` (the shorter log) or `extended`;
+//   - the self-test log answers `standard` (the shorter one) or `extended`.
+//
+// Reading only `extended` and `summary` meant a drive whose self-test log is the `standard` variant
+// reported no self-test log at all — no count, no entries, and no sign of a test in progress, so the
+// card offered the run buttons again for a drive that was already testing itself.
 type rawATALogs struct {
+	Standard *rawATALog `json:"standard"`
 	Summary  *rawATALog `json:"summary"`
 	Extended *rawATALog `json:"extended"`
 }
@@ -355,11 +361,10 @@ func ataLogTable(logs *rawATALogs) []rawATAEntry {
 	if logs == nil {
 		return nil
 	}
-	if logs.Extended != nil && len(logs.Extended.Table) > 0 {
-		return logs.Extended.Table
-	}
-	if logs.Summary != nil && len(logs.Summary.Table) > 0 {
-		return logs.Summary.Table
+	for _, variant := range []*rawATALog{logs.Extended, logs.Standard, logs.Summary} {
+		if variant != nil && len(variant.Table) > 0 {
+			return variant.Table
+		}
 	}
 	return nil
 }

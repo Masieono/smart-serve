@@ -242,6 +242,53 @@ func TestParseLogsDoesNotCallTheLogsItReadsUnread(t *testing.T) {
 	}
 }
 
+// The self-test log's *standard* variant, which is what a drive answers with when it does not keep
+// the extended one. Reading only `extended` and `summary` meant such a drive reported no self-test
+// log at all — no count, no entries, and no sign of the test it was running.
+func TestParseLogsReadsTheStandardSelfTestLog(t *testing.T) {
+	got := ParseLogs([]byte(`{
+	  "ata_smart_self_test_log": {
+	    "standard": {
+	      "revision": 1,
+	      "count": 2,
+	      "table": [
+	        {
+	          "type": { "value": 1, "string": "Short offline" },
+	          "status": { "value": 240, "string": "Self-test routine in progress",
+	                      "remaining_percent": 40, "passed": true },
+	          "lifetime_hours": 3505
+	        },
+	        {
+	          "type": { "value": 1, "string": "Short offline" },
+	          "status": { "value": 0, "string": "Completed without error", "passed": true },
+	          "lifetime_hours": 3490
+	        }
+	      ]
+	    }
+	  }
+	}`))
+
+	if got.SelfTestCount == nil || *got.SelfTestCount != 2 {
+		t.Errorf("SelfTestCount = %v, want 2", got.SelfTestCount)
+	}
+
+	running := got.Running()
+	if running == nil {
+		t.Fatal("Running() = nil, but the standard log has a test in progress")
+	}
+	if running.Remaining == nil || *running.Remaining != 40 {
+		t.Errorf("Remaining = %v, want 40", running.Remaining)
+	}
+
+	done := got.LatestFinished()
+	if done == nil || done.Status != "Completed without error" {
+		t.Errorf("LatestFinished() = %+v", done)
+	}
+	if done.Hours == nil || *done.Hours != 3490 {
+		t.Errorf("Hours = %v, want 3490", done.Hours)
+	}
+}
+
 // The NVMe self-test log, captured from a real WDC SN730 under smartctl 7.5. This is the fixture
 // that closed the gap `A19` had been carrying, and it is the whole reason the feature looked broken
 // on NVMe: the test *in progress* is a header field here, not a table row, so a parser that only

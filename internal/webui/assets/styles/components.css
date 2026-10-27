@@ -416,6 +416,21 @@ a:hover {
   font-size: var(--text-xs);
 }
 
+/* The log panel's summary rows, then the entries themselves. A rule and a heading, because two
+   tables stacked with nothing between them read as one table that changed its mind halfway down. */
+.log-section {
+  margin-top: var(--space-4);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--border);
+}
+
+.log-section h4 {
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--muted);
+}
+
 /* The settings sheet: one card with sections, rather than a grid of cards.
    Four cards of different heights gave a ragged bottom, and reaching the shortest one meant
    scrolling past the tallest — so the grid did not make the page shorter, it made it uneven. Sections
@@ -447,6 +462,12 @@ a:hover {
    in each, so one line of the page carried six columns of text, and the eye had nowhere to go. */
 .settings-rows .setting-row {
   align-items: baseline;
+}
+
+/* A sentence inside the sheet rather than a row of its own: no margins, because the grid's own gap is
+   the spacing and a paragraph's default margins would double it. */
+.settings-note {
+  margin: 0;
 }
 
 /* The knowledge base section carries a JSON editor, which is a full-width thing. */
