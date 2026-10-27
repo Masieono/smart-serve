@@ -102,6 +102,22 @@ export function fmtDate(iso) {
   return Number.isNaN(d.getTime()) ? '—' : d.toLocaleDateString();
 }
 
+/**
+ * A date and time on one line, short enough for a table cell: "22 Oct, 14:32".
+ *
+ * A relative age ("4d ago") is the wrong thing for a log a reader is scanning for *which run* this
+ * was: it moves every time the page is opened, and two rows four days apart read the same. The
+ * absolute stamp is what lets somebody match a row against the night they left a test running.
+ */
+export function fmtStamp(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '—';
+  return d.toLocaleString(undefined, {
+    day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
+  });
+}
+
 export function fmtTime(iso) {
   if (!iso) return '—';
   const d = new Date(iso);

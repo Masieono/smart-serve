@@ -137,6 +137,39 @@ export function selfTestCard(ctx, device, logs) {
     ]);
   }
 
+  /**
+   * A test this card started that the drive is not reporting.
+   *
+   * "Nothing is running" and "this drive does not say how far along it is" are indistinguishable from
+   * here, and a card that fell back to the idle state looked like the button had done nothing — which
+   * is exactly how it was reported. So it says what it knows, keeps asking, and offers the rescan
+   * rather than performing one.
+   */
+  function showStarted() {
+    clear(progress);
+    progress.hidden = true;
+    note.textContent = 'Started. This drive is not reporting progress — not every drive does while a '
+      + `test runs — so the app cannot say how far along it is. It will keep asking every `
+      + `${Math.round(POLL_MS / 1000)} seconds.`;
+    mount(actions, [
+      el('button', {
+        class: 'btn btn-danger', type: 'button', title: 'Stop the running test', onclick: stop,
+      }, [icon('x'), 'Stop test']),
+      // The result is in the drive's log, and the table above is drawn from the last scan, so it
+      // appears there after a rescan. Offered rather than done automatically, because a rescan
+      // re-reads every drive and re-draws the page — and doing that unasked is what made this look
+      // like a jump to the top.
+      el('button', {
+        class: 'btn btn-sm',
+        type: 'button',
+        text: 'Rescan for the result',
+        title: 'Re-read this drive so the self-test log above shows the result',
+        onclick: () => ctx.scanDevice(device.serial),
+      }),
+    ]);
+    schedule();
+  }
+
   function runButton(label, kind, minutes, detail) {
     return el('button', {
       class: 'btn', type: 'button', title: detail,
@@ -216,32 +249,33 @@ export function selfTestCard(ctx, device, logs) {
     const entry = state ? state.running : null;
     if (entry) {
       wasRunning = true;
+      // Visibly running: there is nothing left to wait for, and the rescan is armed by the
+      // running → not-running transition instead.
+      awaitingResult = false;
       showRunning(entry);
       schedule();
       return;
     }
 
-    // A test that has stopped running needs one rescan to put its outcome into the log table above,
-    // which is drawn from the last scan. Three things reach here: a test this card watched finish, a
-    // test it started that finished before the first reading, and an abort. The middle one is why
-    // `awaitingResult` is part of this rather than only `wasRunning` — a short test on a fast drive
-    // can be over before the first reading, so a card that waited to *see* it running would never
-    // ask for the rescan, and the result would reach the page only if the user thought to press
-    // rescan themselves.
-    const needsScan = (wasRunning || awaitingResult) && !recorded;
-    const justStarted = awaitingResult;
+    // This card started a test and the drive is not reporting one. It may have finished already, or
+    // the drive may not report progress at all — and nothing here can tell those apart. So the card
+    // says what it can see, keeps asking, and *offers* a rescan rather than performing one: a rescan
+    // re-reads every drive and re-draws the page, and doing that on a guess is what made this button
+    // look like it threw the reader to the top of the page.
+    if (awaitingResult && !unreadLog) {
+      showStarted();
+      return;
+    }
+
+    // A test this card *watched* running has ended, and that transition is the evidence. One rescan
+    // puts its outcome into the log table above, which is drawn from the last scan. Guarded per card:
+    // the re-rendered card is drawn from stored logs that may still show the test running, so an
+    // unguarded rescan would poll, rescan, poll, forever.
+    const ended = wasRunning;
     wasRunning = false;
     awaitingResult = false;
-
     showIdle();
-    if (justStarted && !unreadLog) {
-      // The drive reports no test in progress. A short test can finish before the first reading, in
-      // which case its result appears once the log has been re-read. Saying which of those it might
-      // be beats a button that appears to have done nothing.
-      note.textContent = 'The drive reports no test in progress. A short test can finish before '
-        + 'the first reading, in which case its result is above.';
-    }
-    if (needsScan) {
+    if (ended && !recorded) {
       recorded = true;
       ctx.scanDevice(device.serial);
     }

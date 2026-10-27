@@ -1,7 +1,7 @@
 // Device detail (docs/UI.md §7.2).
 import {
-  el, mount, clear, fmtBytes, fmtDateTime, fmtAgo, fmtTemp, fmtHours, fmtInt, fmtScore, fmtCell, fmtMinutes,
-  scoreGrade, convertTemp, convertTempDelta, temperatureUnitName,
+  el, mount, clear, fmtBytes, fmtDateTime, fmtAgo, fmtStamp, fmtTemp, fmtHours, fmtInt, fmtScore, fmtCell,
+  fmtMinutes, scoreGrade, convertTemp, convertTempDelta, temperatureUnitName,
 } from '../dom.js';
 import { api } from '../api.js';
 import { verdictBadge, healthGauge, attributeTable, errorBox, openDialog, toast, transportLabel, trendRow, dateAxis, helpButton } from '../components.js';
@@ -845,14 +845,21 @@ function whenCell(entry, clock) {
   if (entry.hours === undefined || entry.hours === null) {
     return el('span', { class: 'muted', text: '—' });
   }
-  const at = placeOnClock(entry.hours, clock);
   const hours = el('span', { class: 'muted', text: `${fmtInt(entry.hours)} h` });
+  const at = placeOnClock(entry.hours, clock);
   if (at === null) {
-    return el('span', { title: 'The drive records lifetime hours, and this test predates the ' +
-      'retained history', text: `${fmtInt(entry.hours)} h` });
+    return el('span', {
+      title: 'The drive records lifetime hours, not a date, and this test predates the retained '
+        + 'history — so there is no scan to place it against.',
+      text: `${fmtInt(entry.hours)} h`,
+    });
   }
-  return el('span', {}, [
-    el('span', { text: fmtAgo(new Date(at).toISOString()) }),
+  const iso = new Date(at).toISOString();
+  return el('span', {
+    title: `The drive records lifetime hours rather than a date, so this is where those hours fall `
+      + `between the scans either side of it (${fmtAgo(iso)}). The figure beside it is the drive's own.`,
+  }, [
+    el('span', { text: fmtStamp(iso) }),
     ' · ',
     hours,
   ]);

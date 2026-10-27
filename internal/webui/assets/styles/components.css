@@ -1402,6 +1402,10 @@ table.data tbody tr:nth-child(even) {
   background: var(--surface-2);
 }
 
+/* Numeric cells and their headings, together. A right-aligned column under a left-aligned heading
+   does not line up, which makes the reader check whether the number belongs to the column they think
+   it does — the heading has to move with the column. */
+table.data th.num,
 table.data td.num {
   font-family: var(--font-mono);
   text-align: right;

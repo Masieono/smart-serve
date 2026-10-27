@@ -12,6 +12,7 @@ import { installStubDom, StubNode } from './stub-dom.mjs';
 installStubDom();
 
 const { logSummary } = await import('../assets/js/views/device.js');
+const { fmtStamp } = await import('../assets/js/dom.js');
 
 /** Every string in a subtree, in document order. */
 function textOf(node) {
@@ -139,8 +140,12 @@ test('a self-test is placed on a clock using the history', () => {
     ],
   ));
   // 2,116 is 58% of the way from 2,000 to 2,200, which leaves 42% of ten days: a little over four.
-  assert.match(text, /4d ago/);
+  assert.ok(text.includes(fmtStamp(new Date(now - 4.2 * day).toISOString())),
+    `the stamp is not where the hours fall: ${text}`);
   assert.match(text, /2,116 h/);
+  // An absolute stamp, not a relative age: the log is scanned for *which run* this was, and "4d ago"
+  // moves every time the page is opened.
+  assert.doesNotMatch(text, /ago/, 'the relative age belongs in the tooltip, not the cell');
 });
 
 // A test older than the retained history has no bracketing reading, so it says its hours rather than

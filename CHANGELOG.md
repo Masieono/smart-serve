@@ -184,6 +184,10 @@ shown, and a self-test can be started, watched and stopped from the device page.
 
 ### Changed
 
+- **The self-test log dates each run.** The drive records *lifetime hours* rather than a date, and "4d
+  ago" was the wrong shape for a log a reader scans for *which run* this was — a relative age moves every
+  time the page is opened, and two rows four days apart read the same. Rows now carry an absolute stamp
+  ("23 Oct, 09:30") with the drive's own hours beside it, and the tooltip says how the stamp was derived.
 - **The settings sheet is a single column of rows.** Two columns of rows turned out to be worse than the
   cards it replaced: a row is a label, an explanation and a control, so one line of the page carried six
   columns of text. The height is bought back where it belongs instead — the longest explanations are one
@@ -239,6 +243,17 @@ shown, and a self-test can be started, watched and stopped from the device page.
 
 ### Fixed
 
+- **A numeric table heading now lines up with its column.** `td.num` was right-aligned and `th.num` was
+  not, so every numeric column had its heading sitting somewhere to the left of its figures, and the
+  reader had to check whether a number belonged to the column they thought it did. The ATA attribute
+  table had the same bug with four columns of it.
+- **A self-test the drive does not report no longer looks like nothing happened — and no longer jumps the
+  page.** A drive that does not report progress while a test runs is indistinguishable from one where the
+  button did nothing, so the card fell back to its idle state and the app fired a rescan on that guess —
+  which re-reads every drive and re-draws the page, which is what made the short test throw the reader to
+  the top. It now says what it can see ("Started. This drive is not reporting progress…"), keeps asking
+  every 15 seconds, offers **Rescan for the result**, and keeps **Stop test** available. The automatic
+  rescan fires only on a running → not-running transition, which is evidence rather than a guess.
 - **NVMe self-tests now show progress and results, and the run buttons stop inviting a refusal.** The
   NVMe self-test log has a different shape from the ATA one in the one way that mattered: the test *in
   progress* is a **header field** rather than a table row, and its progress is a separate number. A

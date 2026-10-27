@@ -387,7 +387,10 @@ test('a self-test log the app cannot read is stated', () => {
 // A test started here that is not running when the card next looks has to be explained, and the
 // stored log has to be refreshed. Without the rescan a short test leaves no trace at all, because
 // the poll only ever sees the drive after it has finished.
-test('a test that is over before the first reading still reaches the log', async () => {
+// A test this card started that the drive never reports running. The card has to say *something* —
+// "the button did nothing" is how it was reported — and it must not rescan: a rescan re-reads every
+// drive and re-draws the page, and doing that on a guess is what made this look like a jump to the top.
+test('a test the drive never reports says so, and does not rescan', async () => {
   stopPolling();
   stubSelfTestApi({ running: null });
   const ctx = stubCtx();
@@ -396,9 +399,14 @@ test('a test that is over before the first reading still reaches the log', async
   const [run] = buttonsOf(card);
   await clickThrough(run);
 
-  assert.match(textOf(card), /no test in progress/);
-  assert.deepEqual(ctx.rescanned, ['S'],
-    'the outcome only reaches the log table after a rescan, so one has to be asked for');
+  const text = textOf(card);
+  assert.match(text, /Started\./);
+  assert.match(text, /not reporting progress/);
+  assert.deepEqual(ctx.rescanned, [], 'a rescan was fired on a guess');
+
+  // The way out is offered rather than taken.
+  assert.ok(text.includes('Rescan for the result'), 'no way to pick the result up');
+  assert.ok(text.includes('Stop test'), 'a running test cannot be stopped');
   stopPolling();
 });
 
