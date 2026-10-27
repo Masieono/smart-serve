@@ -135,8 +135,9 @@ test('every numeric setting gets a slider bound to its own range', async () => {
   await render(container);
 
   const sliders = container.all('input').filter((n) => n.className === 'setting-range');
-  // Five health thresholds, three operational settings, and the two correlated-heat tunables.
-  assert.equal(sliders.length, 10);
+  // Five health thresholds, three operational settings, the two correlated-heat tunables, and the
+  // self-test refresh interval.
+  assert.equal(sliders.length, 11);
 
   for (const slider of sliders) {
     const min = Number(slider.getAttribute('min'));
@@ -177,6 +178,14 @@ function unitPicker(container) {
 
 function saveButton(container) {
   return container.all('button').find((b) => /save/i.test(b.textContent));
+}
+
+/** The first button whose label is exactly this text. */
+function buttonLabelled(container, label) {
+  return container.all('button').find((b) => b.childNodes
+    .filter((n) => n.tagName === '#TEXT')
+    .map((n) => n.data)
+    .join('') === label);
 }
 
 const flush = () => new Promise((resolve) => setTimeout(resolve, 1));
@@ -258,6 +267,32 @@ test('the save payload carries every control the page renders', async () => {
   ]) {
     assert.ok(key in put.body, `${key} is rendered but never saved`);
   }
+});
+
+/**
+ * "I don't know what reasonable thresholds are" is a real thing to not know, and the shipped values
+ * are the answer to it. The button loads them into the controls rather than saving them, so a reader
+ * can see what recommended *means*, compare it with what they had, and change their mind.
+ */
+test('Reset to recommended loads the shipped values without saving them', async () => {
+  installStubDom();
+  const requests = [];
+  stubFetch({ settings: { temperature_threshold_c: '70', reallocated_bad_threshold: '3' } }, requests);
+
+  const container = document.createElement('div');
+  await render(container);
+
+  const threshold = () => container.all('input').find((n) =>
+    n.className === 'setting-number'
+    && n.getAttribute('aria-label') === 'Temperature caution threshold value');
+  assert.equal(threshold().value, '70', 'the stored value was not rendered first');
+
+  buttonLabelled(container, 'Reset to recommended').click();
+  await flush();
+
+  assert.equal(threshold().value, '55', 'the recommended value was not loaded');
+  assert.equal(requests.filter((r) => r.method === 'PUT').length, 0,
+    'the reset saved without being asked');
 });
 
 /**

@@ -8,6 +8,7 @@ import * as device from './views/device.js';
 import * as schedules from './views/schedules.js';
 import * as notifications from './views/notifications.js';
 import * as settings from './views/settings.js';
+import { setPollSeconds as setSelfTestRefresh } from './views/selftest.js';
 
 const NAV = [
   ['/', 'Devices', 'dashboard'],
@@ -241,6 +242,9 @@ async function loadDisplayPreferences() {
     // Same reason as the temperature unit, and the same place: a list that flashed cards and then
     // became a table would be worse than either one on its own.
     dashboard.setView(stored.dashboard_view);
+    // And again: a card that polls should start at the interval the user chose, not at the default
+    // and then change under them.
+    setSelfTestRefresh(stored.selftest_poll_seconds);
   } catch {
     /* keep the defaults; the first view will report the real error */
   }

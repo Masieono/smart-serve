@@ -112,7 +112,24 @@ const OPERATIONS = [
   },
 ];
 
-const ALL_SPECS = [...THRESHOLDS, ...OPERATIONS];
+/**
+ * How the app presents itself while it is working, rather than what it alerts on.
+ *
+ * Separate from the operations above because it belongs with Appearance in the sheet, and because
+ * "how often to refresh" is a different kind of decision from "when to warn me".
+ */
+const DISPLAY_SPECS = [
+  {
+    key: 'selftest_poll_seconds',
+    label: 'Self-test refresh',
+    help: 'How often the app re-reads a drive while a self-test runs. A long test moves a few percent ' +
+      'an hour, so a faster refresh mostly spends device reads — but a short test on a fast drive ' +
+      'moves visibly every couple of seconds.',
+    min: 2, max: 30, step: 1, unit: 'seconds',
+  },
+];
+
+const ALL_SPECS = [...THRESHOLDS, ...OPERATIONS, ...DISPLAY_SPECS];
 
 /**
  * Whether a setting's value is a temperature, and so follows the display unit.
@@ -148,6 +165,7 @@ const DEFAULTS = {
   squelch_seconds: '3600',
   correlation_min_drives: '4',
   correlation_delta_c: '8',
+  selftest_poll_seconds: '15',
   public_url: '',
   prometheus_enabled: 'false',
   knowledge_url: '',
@@ -181,8 +199,14 @@ function draw(container, ctx, data, { carried = {}, unit: unitOverride } = {}) {
 
   const thresholdRows = THRESHOLDS.map((spec) => sliderRow(spec, settings, renderUnit, carried, inputs));
   const operationRows = OPERATIONS.map((spec) => sliderRow(spec, settings, renderUnit, carried, inputs));
+  const displayRows = DISPLAY_SPECS.map((spec) => sliderRow(spec, settings, renderUnit, carried, inputs));
 
-  const warn = el('input', { type: 'checkbox', checked: settings.warn_on_any_nonzero === 'true' });
+  // Carried like the sliders, so "Reset to recommended" can move this one too rather than leaving it
+  // at whatever was stored while every number around it changed.
+  const warn = el('input', {
+    type: 'checkbox',
+    checked: (carried.warn_on_any_nonzero ?? settings.warn_on_any_nonzero) === 'true',
+  });
 
   // Off by default (`FEATURES.md` C6): the endpoint costs nothing by itself, but turning it on invites
   // another service to poll this app on a schedule, and that is the operator's decision rather than a
@@ -312,6 +336,22 @@ function draw(container, ctx, data, { carried = {}, unit: unitOverride } = {}) {
     },
   });
 
+  /**
+   * Load the shipped values into the controls, without saving them.
+   *
+   * Deliberately not saved. The point of the button is that somebody who does not know what a
+   * reasonable threshold *is* can see one, compare it with what they had, and change their mind — and
+   * a reset that wrote straight to the database would take that look away. Save is right there, and
+   * the note above it says the values take effect from the next scan.
+   */
+  function resetThresholds() {
+    // The checkbox too, or a reset would move every number and leave the one switch beside them alone.
+    const recommended = { warn_on_any_nonzero: DEFAULTS.warn_on_any_nonzero };
+    for (const spec of ALL_SPECS) recommended[spec.key] = displayValue(spec, DEFAULTS, renderUnit);
+    draw(container, ctx, data, { carried: recommended, unit: renderUnit });
+    toast('Recommended values loaded — press Save settings to apply them');
+  }
+
   mount(container,
     el('div', { class: 'page-head' }, [
       el('div', {}, [
@@ -345,6 +385,12 @@ function draw(container, ctx, data, { carried = {}, unit: unitOverride } = {}) {
           el('button', {
             class: 'btn btn-sm',
             type: 'button',
+            title: 'Load the shipped values into the controls above, without saving them',
+            onclick: () => resetThresholds(),
+          }, [icon('back'), 'Reset to recommended']),
+          el('button', {
+            class: 'btn btn-sm',
+            type: 'button',
             title: 'Re-read every drive now, so the thresholds above are applied',
             onclick: (event) => scanNow(event.currentTarget),
           }, [icon('scan'), 'Scan now and re-check']),
@@ -372,6 +418,7 @@ function draw(container, ctx, data, { carried = {}, unit: unitOverride } = {}) {
         themeRow,
         ...customRows,
         tintRow,
+        ...displayRows,
       ]),
 
       settingsSection('Import and export', [

@@ -12,7 +12,7 @@ import { installStubDom, stubFetch, StubNode } from './stub-dom.mjs';
 
 installStubDom();
 
-const { selfTestCard, stopPolling, POLL_MS } = await import('../assets/js/views/selftest.js');
+const { selfTestCard, stopPolling, setPollSeconds, POLL_MS } = await import('../assets/js/views/selftest.js');
 
 /** A stand-in for the view context, recording what the card asked of it. */
 function stubCtx() {
@@ -480,6 +480,30 @@ test('a new result in the live log ends the wait', async () => {
   stopPolling();
 });
 
+
+// The refresh interval is a setting rather than a constant because the trade belongs to the owner: a
+// short test on a fast drive moves visibly every couple of seconds, and a drive behind a bridge that
+// dislikes extra commands would rather be asked less often.
+test('the poll interval follows the stored setting', async () => {
+  await withFakeTimers(async (pending) => {
+    const logs = { self_test_entries: [{ type: 'Extended offline', remaining: 40 }] };
+
+    setPollSeconds(3);
+    selfTestCard(stubCtx(), { serial: 'S' }, logs);
+    assert.equal([...pending][0].ms, 3000, 'the stored interval was not used');
+    stopPolling();
+
+    // A value that cannot be honoured falls back to the default rather than being clamped: a stored
+    // zero would mean a poll every frame.
+    setPollSeconds('0');
+    selfTestCard(stubCtx(), { serial: 'S' }, logs);
+    assert.equal([...pending][0].ms, POLL_MS);
+    stopPolling();
+
+    // Module state, so it is put back for whatever test runs next.
+    setPollSeconds(POLL_MS / 1000);
+  });
+});
 
 // A long test is refused by drives that do not implement an extended self-test. The button must stop
 // inviting a second attempt, and the card must say what happened — a raw "smartctl exit status 4" in

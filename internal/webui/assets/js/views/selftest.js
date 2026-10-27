@@ -17,11 +17,29 @@ import { icon } from '../icons.js';
 /**
  * How often to ask the drive how far along it is.
  *
- * A long test on a large drive moves in single digits of percent per hour, so polling faster
- * would spend device reads and buy nothing visible. Fifteen seconds is still short enough that a
- * two-minute short test shows real movement.
+ * Fifteen seconds is the default because a long test on a large drive moves in single digits of
+ * percent per hour — polling faster spends device reads and buys nothing visible, and the drive is by
+ * definition already busy. It is a *setting* rather than a constant because the trade belongs to the
+ * owner: a short test on a fast drive shows real movement every couple of seconds, and a drive behind
+ * a bridge that dislikes extra commands would rather be asked less often.
  */
 export const POLL_MS = 15000;
+
+let pollSeconds = POLL_MS / 1000;
+
+/**
+ * The stored refresh interval, applied before the first render.
+ *
+ * Out-of-range and unreadable values fall back to the default rather than being clamped: a stored `0`
+ * would mean a poll every frame, and a value that is wrong because somebody edited the database is
+ * not a preference to honour.
+ */
+export function setPollSeconds(seconds) {
+  const n = Number(seconds);
+  pollSeconds = Number.isFinite(n) && n >= 1 && n <= 60 ? n : POLL_MS / 1000;
+}
+
+const pollMs = () => pollSeconds * 1000;
 
 /** The poll timer for the card on screen.
  *
@@ -124,7 +142,7 @@ export function selfTestCard(ctx, device, logs, onLogs = null) {
   /** A test running: say how far along, and offer the way out. */
   function showRunning(entry) {
     note.textContent = 'The drive is testing itself. You can keep using the app — progress is read '
-      + `from the drive every ${Math.round(POLL_MS / 1000)} seconds, and the test ends by itself.`;
+      + `from the drive every ${pollSeconds} seconds, and the test ends by itself.`;
     mount(actions, [
       el('button', {
         class: 'btn btn-danger', type: 'button',
@@ -166,7 +184,7 @@ export function selfTestCard(ctx, device, logs, onLogs = null) {
     const minutes = startedKind === 'long' ? extendedMinutes : shortMinutes;
     const elapsed = startedAt === null ? 0 : Date.now() - startedAt;
     note.textContent = 'Started. This drive does not report a percentage while a test runs, so there '
-      + `is nothing to read from it. It will keep asking every ${Math.round(POLL_MS / 1000)} `
+      + `is nothing to read from it. It will keep asking every ${pollSeconds} `
       + 'seconds, and the result appears above as soon as the drive writes one.';
     mount(actions, [
       el('button', {
@@ -348,7 +366,7 @@ export function selfTestCard(ctx, device, logs, onLogs = null) {
   /** Ask again later, unless the card has left the page in the meantime. */
   function schedule() {
     stopPolling();
-    timer = setTimeout(tick, POLL_MS);
+    timer = setTimeout(tick, pollMs());
   }
 
   async function tick() {

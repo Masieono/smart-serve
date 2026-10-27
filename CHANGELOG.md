@@ -11,6 +11,11 @@ shown, and a self-test can be started, watched and stopped from the device page.
 
 ### Added
 
+- **Reset to recommended**, beside the health thresholds: it loads the shipped values into the controls
+  and does not save them. That distinction is the point — somebody who does not know what a reasonable
+  threshold *is* can see one, compare it with what they had, and change their mind, which a reset that
+  wrote straight to the database would take away. Save is right there, and the note above it says the
+  values take effect from the next scan.
 - **Drive knowledge base (`A21`)** — rated endurance and known firmware advisories, in **three layers**
   that win in order: a table bundled with the build, a copy fetched from a configurable URL, and your
   own entries. The bundled file and the refreshable file are **the same file**, so there is one format,
@@ -184,6 +189,12 @@ shown, and a self-test can be started, watched and stopped from the device page.
 
 ### Changed
 
+- **The self-test refresh interval is a setting** (`selftest_poll_seconds`, 2–30 seconds, default 15). The
+  default was chosen because a long test moves in single digits of percent an hour, so polling faster
+  mostly spends device reads — but that is a trade the owner should get to make: a short test on a fast
+  drive moves visibly every couple of seconds, and a drive behind a bridge that dislikes extra commands
+  would rather be asked less often. It sits with Appearance, and the card's own note says which interval
+  is in use.
 - **A drive that does not report self-test progress gets the drive's own estimate instead.** Some drives
   only write a self-test log entry when a test *finishes*, so there was no figure to read while one ran
   and the card had nothing to show for a test that was working perfectly well. It now shows the elapsed

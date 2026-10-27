@@ -143,6 +143,7 @@ worse than no setting at all.
 | `theme_base` | `"dark"` | base for `custom`: `light` \| `dark` | `webui` |
 | `theme_accent` | `"#3b82f6"` | accent colour, read **only** when `theme` is `custom` | `webui` |
 | `theme_surface_tint` | `"neutral"` | `neutral` \| `slate` \| `warm` \| `cool`; remixes any theme's palette | `webui` |
+| `selftest_poll_seconds` | `15` | how often the self-test card re-reads a drive while a test runs, 1–60 (`FEATURES.md` A19). The cost is device reads, and a long test moves a few percent an hour — so a fast refresh mostly spends them | `webui` |
 | `dashboard_view` | `"cards"` | `cards` \| `table` — the shape of the fleet list (`FEATURES.md` D8). A display preference like the theme and the temperature unit rather than view state like the filter and the sort, so it survives a reload and travels in the config export | `webui` |
 | `maintenance_windows` | `[]` | JSON list of windows — see `NOTIFICATIONS.md` for the shape. One-off (`starts_at`/`ends_at`) or recurring (`daily`/`weekly` with a time of day), optionally scoped to serials | `notify` |
 
