@@ -1099,7 +1099,8 @@ function acknowledge(ctx, device, button) {
     // `button` is unused here but kept in the signature: the caller passes it, and a control that
     // silently does nothing while a request is in flight is worse than one that is briefly disabled.
     void button;
-  });
+    // A form: the note being typed is the whole reason the dialog is open.
+  }, { dismissOnBackdrop: false });
 }
 
 /** Remove an acknowledgement, so the drive alerts again on the next scan. */
@@ -1196,6 +1197,7 @@ function editNotes(ctx, device, benchTag) {
         },
       }),
     );
-  });
+    // A form: name, bay and tags, none of which should be lost to a click that missed a button.
+  }, { dismissOnBackdrop: false });
 }
 

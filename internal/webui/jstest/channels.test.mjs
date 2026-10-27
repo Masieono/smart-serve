@@ -1,9 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { installStubDom } from './stub-dom.mjs';
+import { installStubDom, StubNode } from './stub-dom.mjs';
 
 installStubDom();
-const { channelTypes, availableTypes, configFromValues, missingRequired } =
+const { channelTypes, availableTypes, configFromValues, missingRequired, render } =
   await import('../assets/js/views/notifications.js');
 
 // The Go registry must ship the same set; internal/notify/adapters_test.go pins the
@@ -69,4 +69,68 @@ test('every channel type requires at least one field', () => {
   for (const type of channelTypes()) {
     assert.notEqual(missingRequired(type, {}), null, `${type} can be saved with no configuration`);
   }
+});
+
+// --- the subscription line on a channel card -----------------------------------
+
+/** Serve the notifications view's four reads, routed by path. */
+function stubNotificationsApi(channels) {
+  globalThis.fetch = async (url) => {
+    const path = String(url);
+    const payload = path.includes('/api/channels') ? { channels }
+      : path.includes('/api/notifications')
+        ? { events: [], event_types: ['health_change'], channel_types: ['ntfy'], channel_env_vars: [] }
+        : path.includes('/api/settings') ? { settings: {} }
+          : { devices: [] };
+    return { ok: true, status: 200, statusText: 'OK', text: async () => JSON.stringify(payload) };
+  };
+}
+
+/** Every string in a subtree, in document order. */
+function textOf(node) {
+  const out = [];
+  const walk = (n) => {
+    for (const child of n.childNodes) {
+      if (!(child instanceof StubNode)) continue;
+      if (child.tagName === '#TEXT') out.push(child.data);
+      else if (child.textContent) out.push(child.textContent);
+      walk(child);
+    }
+  };
+  walk(node);
+  return out.join(' | ');
+}
+
+async function drawWith(channel) {
+  installStubDom();
+  stubNotificationsApi([channel]);
+  const container = new StubNode('div');
+  await render(container, { refresh() {} });
+  return textOf(container);
+}
+
+// An empty subscription is every event, not none of them: the setting lists what has been *narrowed
+// away*, so nothing listed means nothing excluded. The card said "No events subscribed", which
+// described the setting rather than its effect and read as a channel that would never speak — on
+// exactly the channel a digest gets set up on, where the digest arrives *because* nothing was
+// narrowed away.
+test('a channel with no events ticked is described as receiving everything', async () => {
+  const text = await drawWith({ id: 1, label: '4-hour digest', type: 'ntfy', enabled: true, events: '' });
+
+  assert.match(text, /Everything/, `the card should say what the channel receives: ${text}`);
+  assert.doesNotMatch(text, /No events subscribed/,
+    `an empty subscription is not nothing: ${text}`);
+  assert.match(text, /digest/, `the digest should be named, since that is what an empty list reaches: ${text}`);
+});
+
+// And a narrowed subscription still lists what it is narrowed to, rather than being summarised.
+test('a narrowed channel lists its events', async () => {
+  const text = await drawWith({
+    id: 1, label: 'pager', type: 'ntfy', enabled: true,
+    events: JSON.stringify(['health_change', 'self_test_result']),
+  });
+
+  assert.match(text, /health_change/);
+  assert.match(text, /self_test_result/);
+  assert.doesNotMatch(text, /Everything/, `a narrowed subscription is not everything: ${text}`);
 });

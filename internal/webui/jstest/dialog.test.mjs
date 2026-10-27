@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { installStubDom } from './stub-dom.mjs';
 
 installStubDom();
-const { confirmDialog } = await import('../assets/js/components.js');
+const { confirmDialog, openDialog } = await import('../assets/js/components.js');
 
 /** Open a confirm dialog and return its promise plus the dialog element. */
 function openConfirm(...args) {
@@ -59,4 +59,69 @@ test('confirmDialog waits for a decision instead of settling on its own', async 
 
   document.body.firstElementChild.all('button')[1].click();
   assert.equal(await promise, true);
+});
+
+// --- the backdrop is a press, not a click that ends up outside -----------------
+
+// A click whose target is the dialog and whose coordinates are outside its box used to be read as a
+// backdrop click, and that is not the same thing. Selecting text in a field, or dragging a number
+// spinner, ends with exactly that: the `click` fires on the nearest common ancestor of press and
+// release, which is the dialog, at coordinates past its edge. The schedule form was closing out from
+// under a half-filled one, so the press is what decides now.
+
+const BOX = { top: 100, left: 100, right: 400, bottom: 300, width: 300, height: 200 };
+const BACKDROP = { clientX: 10, clientY: 10 };
+
+/** Open a dialog with a known box, so "outside" means something. */
+function openInBox(options) {
+  const { dialog } = openDialog('Edit schedule', () => {}, options);
+  dialog.boundingBox = BOX;
+  return dialog;
+}
+
+test('a press on the backdrop dismisses the dialog', () => {
+  installStubDom();
+  const dialog = openInBox();
+
+  dialog.dispatch('pointerdown', BACKDROP);
+  dialog.dispatch('click', BACKDROP);
+
+  assert.equal(dialog.open, false, 'a click on the backdrop should still close the dialog');
+});
+
+test('a drag that starts inside the dialog does not dismiss it', () => {
+  installStubDom();
+  const dialog = openInBox();
+  const field = dialog.all('div')[0]; // anything inside the box
+
+  // The press lands on a field...
+  dialog.dispatch('pointerdown', { ...BACKDROP, target: field });
+  // ...and the release lands outside, which is what selecting text looks like.
+  dialog.dispatch('click', BACKDROP);
+
+  assert.equal(dialog.open, true, 'a drag out of the dialog must not close it');
+});
+
+test('a press inside the dialog never dismisses it', () => {
+  installStubDom();
+  const dialog = openInBox();
+  const inside = { clientX: 200, clientY: 200 };
+
+  dialog.dispatch('pointerdown', inside);
+  dialog.dispatch('click', inside);
+
+  assert.equal(dialog.open, true);
+});
+
+test('dismissOnBackdrop: false keeps a form open through a backdrop click', () => {
+  installStubDom();
+  const dialog = openInBox({ dismissOnBackdrop: false });
+
+  dialog.dispatch('pointerdown', BACKDROP);
+  dialog.dispatch('click', BACKDROP);
+  assert.equal(dialog.open, true, 'a form holding unsaved input must survive a stray click');
+
+  // Cancel and Escape are still there — the dialog is not stuck.
+  dialog.close();
+  assert.equal(dialog.open, false);
 });

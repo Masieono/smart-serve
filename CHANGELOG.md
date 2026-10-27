@@ -261,6 +261,12 @@ shown, and a self-test can be started, watched and stopped from the device page.
 - **The schedule editor says where a digest goes.** It said what a digest *is*; the question left open
   was where it is sent — your notification channels, because the schedule is the subscription. The hint
   appears only when the action is a digest.
+- **An exported report opens on the drive, not on the app.** The purpose and the provenance bracketed
+  the content: three lines about the document above the drive's identity and two more below the last
+  table, which is roughly eighty words of prose about the app around the data the file exists to carry.
+  Both facts are kept and both now sit together at the **foot** of every format — under a rule in the
+  text report, in the footer of the page, and as the last two rows of the spreadsheet — at about half
+  the length. Nothing above the serial number but the serial number.
 
 ### Fixed
 
@@ -364,6 +370,22 @@ shown, and a self-test can be started, watched and stopped from the device page.
 - **The channel editor no longer explains what its own Test button does.** The paragraph above the form
   said what the button's tooltip already said, and a sentence of reassurance above a form is read once
   and then only seen.
+- **A channel with nothing ticked no longer reads as a channel that will never speak.** The card said
+  "No events subscribed", which describes the *setting* rather than its effect: an empty subscription is
+  every event, because the list records what has been narrowed away and nothing listed means nothing
+  excluded. The card now reads **Everything** and names the two exceptions that do have to be ticked —
+  the scheduled-scan heartbeat and the group-heat finding — and the editor's hint names both, where it
+  had named only the heartbeat. The case is not rare, which is what made the wording costly: it is
+  exactly the channel a digest is set up on, and the digest arrives *because* nothing was narrowed away.
+- **A modal no longer vanishes mid-edit, and a form no longer closes on a stray click.** Two causes, one
+  symptom. A drag that began on a field and ended outside the dialog produced a `click` whose target was
+  the dialog (the nearest common ancestor of press and release) at coordinates outside its box — which is
+  exactly what a backdrop click looks like, so selecting text in the label field closed the schedule
+  editor out from under a half-filled form. Dismissal now turns on where the **press** landed, not where
+  the release did. And the editors — schedule, channel, maintenance window, device notes, acknowledge —
+  no longer close on a click outside them at all: only **Cancel** and `Esc` do, because a stray click
+  beside a form should cost the click rather than the form. Confirmations and the export picker still
+  dismiss on a backdrop click, where there is nothing to lose.
 
 ### Documentation
 

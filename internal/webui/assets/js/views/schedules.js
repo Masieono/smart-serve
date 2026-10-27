@@ -292,6 +292,9 @@ function editSchedule(ctx, existing) {
         }
       } }),
     );
-  });
+    // The form this option exists for. Setting up a digest means typing a label, picking an action
+    // and reading the preview, and the modal used to vanish if the pointer left the box mid-drag —
+    // see `openDialog`. Cancel and Escape still close it.
+  }, { dismissOnBackdrop: false });
 }
 

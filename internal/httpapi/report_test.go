@@ -94,6 +94,38 @@ func TestACleanDriveGetsNoEvidenceSections(t *testing.T) {
 	}
 }
 
+// The drive leads; the app's own words close.
+//
+// Both paragraphs used to bracket the content — the purpose above the identity, the provenance below
+// the tables — so a reader opening a warranty report met three lines about the *document* before the
+// drive's serial number, and two more after the last table. What a file is for is worth saying;
+// saying it first was the wrong place to say it.
+func TestTheReportLeadsWithTheDrive(t *testing.T) {
+	d := store.DeviceRecord{Serial: "SERIAL-9", Model: "Model X", Health: "good"}
+	snap := &store.Snapshot{}
+
+	for _, tc := range []struct{ format, body string }{
+		{"txt", renderTextReport(d, snap)},
+		{"html", renderHTMLReport(d, snap)},
+		{"csv", renderCSVReport(d, snap)},
+	} {
+		serial := strings.Index(tc.body, "SERIAL-9")
+		purpose := strings.Index(tc.body, "Warranty / RMA evidence")
+		if serial < 0 || purpose < 0 {
+			t.Fatalf("%s report has no serial (%d) or no purpose (%d):\n%s",
+				tc.format, serial, purpose, tc.body)
+		}
+		if purpose < serial {
+			t.Errorf("%s report opens on the app rather than on the drive:\n%s", tc.format, tc.body)
+		}
+		// Provenance is the other half of the same rule: `smartmontools` is where the numbers came
+		// from, which is a footnote to the numbers and not a preamble.
+		if i := strings.Index(tc.body, "smartmontools"); i >= 0 && i < serial {
+			t.Errorf("%s report names where its data came from before the drive:\n%s", tc.format, tc.body)
+		}
+	}
+}
+
 // The ids come from the interpreter, so a report cannot name a different set of attributes than the
 // verdict reads — and it reads their counts the interpreter's way, so it cannot print 0 for a drive
 // the verdict called failing.

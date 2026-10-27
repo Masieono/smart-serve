@@ -732,8 +732,12 @@ export function toast(message, kind = 'info') {
  * The footer is a separate slot rather than something the caller appends to the body
  * so action buttons stay visible however long the content gets: a Close button below
  * the fold is indistinguishable from having no way out at all.
+ *
+ * `dismissOnBackdrop` is off for a dialog holding unsaved input. A stray click beside a
+ * half-filled form then costs nothing but the click, and Cancel and Escape are both still
+ * there — which is the better half of that trade, because a closed form costs the form.
  */
-export function openDialog(title, render) {
+export function openDialog(title, render, { dismissOnBackdrop = true } = {}) {
   const body = el('div', { class: 'dialog-body' });
   const foot = el('div', { class: 'dialog-foot' });
   const dialog = el('dialog', { 'aria-label': title }, [
@@ -743,11 +747,23 @@ export function openDialog(title, render) {
   ]);
   dialog.addEventListener('close', () => dialog.remove());
 
-  // Clicking the backdrop dismisses. The click lands on the dialog element itself
-  // because its children cover the rest of the box — but a drag that starts inside
-  // and ends outside also targets it, so the coordinates are checked too.
+  // A press that starts on the backdrop dismisses; a drag that starts inside the dialog does
+  // not, however far it travels before it is released.
+  //
+  // The click lands on the dialog element itself, because its children cover the rest of the
+  // box, so the coordinates are checked too — but coordinates alone cannot tell the two apart.
+  // Selecting text in a field, or dragging a number spinner, ends with a click whose target is
+  // the dialog (the nearest common ancestor of press and release) and whose coordinates are
+  // outside it, which is exactly what a backdrop click looks like. That is what closed the
+  // schedule form out from under a half-filled one, so the *press* is what decides.
+  let pressedBackdrop = false;
+  dialog.addEventListener('pointerdown', (event) => {
+    pressedBackdrop = isBackdropClick(dialog, event);
+  });
   dialog.addEventListener('click', (event) => {
-    if (isBackdropClick(dialog, event)) dialog.close();
+    const onBackdrop = pressedBackdrop && isBackdropClick(dialog, event);
+    pressedBackdrop = false;
+    if (onBackdrop && dismissOnBackdrop) dialog.close();
   });
 
   const close = () => dialog.close();
@@ -757,7 +773,13 @@ export function openDialog(title, render) {
   return { dialog, close };
 }
 
-/** Whether a click should be read as a click on the modal backdrop. */
+/**
+ * Whether a press should be read as a press on the modal backdrop.
+ *
+ * A press *inside* the dialog's box is never one, even when it lands on the dialog element
+ * itself — the padding between the head, body and foot is dialog, not backdrop, and closing
+ * on a click there is the same lost form by a shorter route.
+ */
 export function isBackdropClick(dialog, event) {
   if (event.target !== dialog) return false;
   const box = dialog.getBoundingClientRect();

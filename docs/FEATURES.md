@@ -20,7 +20,7 @@ avoid idle cost.
 | A5 | Temperature, power-on hours, power cycles, capacity | MVP | 🔌 | |
 | A6 | Firmware version, serial, WWN, interface speed display | MVP | 💤 | from smartctl |
 | A7 | Human-readable drive age ("in service 4.2 years") | MVP | 💤 | derived from power-on hours |
-| A8 | Copy / export S.M.A.R.T. report | MVP | 💤 | **done** — plain text, self-contained web page, `field,value` spreadsheet, or JSON, chosen from an Export dialog |
+| A8 | Copy / export S.M.A.R.T. report | MVP | 💤 | **done** — plain text, self-contained web page, `field,value` spreadsheet, or JSON, chosen from an Export dialog. Every format **opens on the drive** and closes with what the file is for |
 | A9 | Health summary bar (n good / n caution / n bad) | MVP | 💤 | **done** — folded into the Devices header as a compact clickable list beside the title and search box |
 | A10 | Raw `smartctl` output viewer (diagnostics toggle) | MVP | 💤 | vital for USB bridge quirks |
 | A11 | Per-device transport override (`-d sat`, …) | MVP | 💤 | **done** — offered on the device page for any drive whose S.M.A.R.T. cannot be read, and shown as currently set |
@@ -39,7 +39,7 @@ avoid idle cost.
 | A24 | "Replace first" ranking (verdict + direction + remaining life, ordered, with reasons) | P2 | 💤 | **done** — a "Replace first" card, using bands rather than a weighted score so the reasons can be shown. See below |
 | A25 | Correlated-change detection (N drives in a group moving together → one alert about the enclosure) | P3 | 💤 | **done** — temperature only, because that is what an enclosure shares. Two settings, an opt-in notification, and wording that claims a correlation rather than a cause. See below |
 | A26 | Projection window follows retention (or becomes a setting) | P2 | 💤 | **done** — the projection, the worsening flag and the trend adjustment all use the `retention_days` setting. See below |
-| A27 | Warranty / RMA evidence pack (the exported report says what it is for) | P2 | 💤 | **done** — every format says what it is for, and names the evidence: the attributes failing the drive's *own* threshold, and the counters the app reads |
+| A27 | Warranty / RMA evidence pack (the exported report says what it is for) | P2 | 💤 | **done** — every format says what it is for, and names the evidence: the attributes failing the drive's *own* threshold, and the counters the app reads. The saying is at the **foot** of the file, so the drive's own data leads |
 
 ### A14/A16 — Longevity and the worsening badge
 
@@ -374,6 +374,16 @@ as a bare list entry.
   changed since the scan cannot make the two disagree. It claims evidence, not proof — a
   S.M.A.R.T. report is the drive's own account, and whether that is a warranty case is the
   vendor's call.
+- **The drive leads, the app closes** (`A8`, `A27`). The purpose and the provenance were
+  written *around* the content — three lines about the document above the drive's identity,
+  two about where the numbers came from below the last table — which put roughly eighty words
+  of prose about the app around the drive data the file exists to carry. Both facts were worth
+  keeping and the sandwich was not. They now sit together at the foot of every format, under a
+  rule in the text report and in the footer of the page, at half the length: the reader opened
+  the file for the drive, and what it is for is what they want once they have read it. The
+  spreadsheet follows the same order, because a `Purpose` row above the identity reads as a
+  heading for the sheet rather than a footnote to it. `TestTheReportLeadsWithTheDrive` pins it,
+  since "the report says what it is for" is satisfied by putting that sentence anywhere at all.
 - **One file for the whole fleet** (`A23`). Two formats, because they answer different
   questions and neither is the other's fallback: a **CSV** with one row per drive, which is
   what you sort when planning a purchase, and a **printable page**, which is what you attach

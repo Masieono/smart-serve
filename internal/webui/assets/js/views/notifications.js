@@ -84,9 +84,17 @@ function draw(container, ctx, data, log, settings, deviceData) {
         el('span', { class: `badge badge-${c.enabled ? 'good' : 'unknown'}`,
           text: c.enabled ? 'Enabled' : 'Disabled' }),
       ]),
+      // An empty subscription is not "nothing subscribed" — it is every event, which is what it has
+      // always meant (`notify.subscribed`). The old text described the *setting* rather than its
+      // effect, and read as a channel that would never speak: exactly the channel a digest gets set
+      // up on, where the digest arrives *because* nothing has been narrowed away.
       el('div', { class: 'row wrap' }, events.length
         ? events.map((e) => el('span', { class: 'chip', text: e }))
-        : [el('span', { class: 'muted', text: 'No events subscribed' })]),
+        : [
+            el('span', { class: 'chip', text: 'Everything' }),
+            el('span', { class: 'muted',
+              text: 'every alert and digest — the scheduled-scan heartbeat and group heat must be ticked' }),
+          ]),
       el('div', { class: 'row' }, [
         el('span', { class: 'spacer' }),
         el('button', { class: 'btn btn-sm', type: 'button', title: 'Send a test event',
@@ -400,7 +408,8 @@ function editWindow(ctx, windows, devices) {
         close();
       } }),
     );
-  });
+    // A form: a stray click beside it must not throw away a half-built window.
+  }, { dismissOnBackdrop: false });
 }
 
 /**
@@ -781,11 +790,15 @@ function editChannel(ctx, existing, eventTypes = EVENT_TYPES, serverTypes = null
       el('div', { class: 'field' }, [
         el('label', { text: 'Send me an alert when…' }),
         el('div', { class: 'stack', style: 'gap:var(--space-1)' }, eventRows),
-        // "Everything" is the default subscription, and it is about exceptions. The
-        // heartbeat is not one — it fires on every scheduled scan — so it has to be asked
-        // for, and the user needs to know that rather than wondering why it never arrives.
-        hint('Leaving every box unchecked means every alert above, except the ' +
-          'scheduled-scan heartbeat: that one fires on every scan, so it has to be ticked.'),
+        // "Everything" is the default subscription, and it is about exceptions. The heartbeat is
+        // not one — it fires on every scheduled scan — so it has to be asked for, and the user needs
+        // to know that rather than wondering why it never arrives. `group_heat` is opt-in for the
+        // same reason (`NOTIFICATIONS.md`), and the hint named only the heartbeat, so a channel with
+        // nothing ticked looked like it would receive a finding it would not. The digest is named
+        // too, because an empty subscription *does* receive it and the schedule that sends it gives
+        // no sign of which channels it reaches.
+        hint('Leaving every box unchecked means every alert above, plus every digest — except the ' +
+          'two that have to be ticked: the scheduled-scan heartbeat and the group-heat finding.'),
       ]),
       el('label', { class: 'field-row' }, [enabled, el('span', { text: 'Enabled' })]),
     );
@@ -856,7 +869,8 @@ function editChannel(ctx, existing, eventTypes = EVENT_TYPES, serverTypes = null
         }
       } }),
     );
-  });
+    // A form, and a long one: a mistyped URL or a pasted token is not worth losing to a stray click.
+  }, { dismissOnBackdrop: false });
 }
 
 function hint(text) {

@@ -142,7 +142,7 @@ picker offers exactly `ThemeNames`.
 | **Panel grid, capped** (`.panel-grid-pair`) | `.panel-grid` capped at two columns however wide the viewport gets — one below 1024px, two above. Auto-fit fits *four* 460px panels across a 2560px monitor, which squeezed the trend sparklines and the health-log table into columns too narrow for the type they carry. The device detail page uses this; settings keeps auto-fit, because three short cards genuinely do fit. |
 | **Scan button** | Primary action. States: idle · scanning (spinner + "3/5 devices") · done (toast). |
 | **Toasts** | Scan complete, saved, notification sent; auto-dismiss, stacked. |
-| **Dialogs / sheets** | Schedule editor, channel editor, maintenance window, transport override, export, confirmations. Full-screen sheets on mobile. |
+| **Dialogs / sheets** | Schedule editor, channel editor, maintenance window, device notes, acknowledge, export, confirmations. Full-screen sheets on mobile. A dialog holding unsaved input — every editor above — does **not** close on a click outside it; only **Cancel** and `Esc` do, because a stray click beside a half-filled form should cost the click rather than the form. Confirmations and the export picker still dismiss on a backdrop click, where there is nothing to lose. Dismissal turns on where the *press* landed, not where the release did: a drag that starts on a field and ends outside the box is a text selection, and it used to close the schedule editor mid-edit. |
 | **Empty states** | "No scan yet — press Scan to discover drives", "No devices found", "No schedules", "No history yet — trends appear once this drive has been scanned a few times". |
 | **Skeletons** | Placeholder shapes while data loads — never a blank screen. |
 | **Settings forms** | Inline validation; each field shows its **effective value, default, and source** (`env` or `db`, per `ADR-009`). |
@@ -419,6 +419,12 @@ picker offers exactly `ThemeNames`.
 
 ### 7.4 Notifications
 - Channel list with type icon, label, enabled toggle, "send test".
+- The card's subscription line says what the channel *receives*, not what is ticked. An empty
+  subscription is every event — the setting lists what has been narrowed away, so nothing listed
+  means nothing excluded — and the card reads **Everything** with the two exceptions named (the
+  scheduled-scan heartbeat and the group-heat finding) instead of "No events subscribed". That case
+  is not rare: it is exactly the channel a digest is set up on, and the digest arrives *because*
+  nothing was narrowed away.
 - Channel editor: type-specific fields (ntfy server/topic/token; webhook URL/method/
   headers); event-subscription checkboxes.
 - **Test** in the editor footer sends one event through the settings *as they stand on
