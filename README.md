@@ -9,6 +9,8 @@ at ~0% CPU and ~10–15 MB RAM. It only wakes up when you look at it, when you p
 **Scan**, or when a scheduled scan fires. No polling loops, no metrics scrapers, no
 database daemon.
 
+![The dashboard: one card per drive, with verdict, score and last scan](docs/images/dashboard.png)
+
 ## Feature highlights
 
 - **On-demand scanning** — a Scan button that immediately enumerates every connected
@@ -39,6 +41,22 @@ database daemon.
   requirement: dark / light / auto, Catppuccin, Dracula, Nord, Gruvbox, Synthwave,
   Hacker, Solarized, Tokyo Night and One Dark palettes, plus a custom accent colour —
   and a theme picker that never touches component code (`docs/UI.md`).
+
+## Screenshots
+
+**A device page** — verdict, score, identity, usage, and the trend sparklines.
+
+![The device page for a Samsung SSD](docs/images/device-page.png)
+
+**Attribute help** — every attribute the interpreter acts on carries a `?` explaining what it is
+and how to read it.
+
+![An attribute explanation open over the attribute table](docs/images/attribute-explanation.png)
+
+**A self-test running** — the one place the UI reads a drive live, and only while a test it
+started is still running.
+
+![The self-test card mid-test, with progress and a Stop test button](docs/images/selftest-progress.png)
 
 ## Quick start
 

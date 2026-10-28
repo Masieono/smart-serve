@@ -32,3 +32,8 @@ Thumbs.db
 .vscode/
 *.swp
 *~
+
+# --- Raw screenshots, before cropping ---
+# Cropped copies live in docs/images/ and are committed; these are the full-screen
+# captures with browser chrome in them, kept out of the history.
+/temp screenshots/
