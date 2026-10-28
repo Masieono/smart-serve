@@ -104,34 +104,32 @@ than what was planned.
   none — so an ATA drive falls back to the sector trend. Computed in
   `internal/interp/longevity.go`, exposed as `projection` on the device detail endpoint.
 3. **Notification adapters** — Gotify, Telegram, Discord, SMTP email. **Done.**
-4. **SMART self-test triggering** (offline/short/extended) — the first
-   hardware-affecting feature. **Unblocked and next to be built:** Docker device access is
-   validated on real hardware (`DEPLOYMENT.md`), which was the gate. It is opt-in and
-   never automatic, and a running test must show a progress reading, because a long test
-   on a large drive runs for hours (`FEATURES.md` A19, `ADR-017`).
+4. **SMART self-test triggering** (short/extended) — **done**, manual only. Short and long
+   tests, live progress, abort; opt-in and never automatic (`FEATURES.md` A19). *Scheduling*
+   one — staggered, one drive at a time — is not built; see Phase 4.
 5. **Squelch configuration** — user-tunable dedupe window. **Done** — the
    `squelch_seconds` setting.
-6. **In-app knowledge-base refresh** — an opt-in, user-pressed action to update the
-   drive knowledge base without waiting for a release (`ADR-011`). **Not started.**
+6. **In-app knowledge-base refresh** — **done.** An opt-in, user-pressed refresh from a URL,
+   plus your own entries, layered over the bundled table (`ADR-011`, `docs/KNOWLEDGE.md`).
 
 7. **Degradation trend detection** — **done.** A *Worsening* badge on the dashboard card
    and the device page fires when bad sectors are accumulating over the recent window
    (`FEATURES.md` A14/A15), and the charts and sparklines (`A15`) are done. The badge is
    deliberately about direction rather than verdict: a drive can be green today and still
    be the one worth replacing first.
-8. **Trend-aware health score** — refines the MVP score using history
-   (`FEATURES.md` A17). **Not started.**
+8. **Trend-aware health score** — **done.** A drive whose bad sectors are climbing loses up to
+   10 points, with the reason in the rationale (`FEATURES.md` A17).
 9. **Self-test scheduling + self-test log**, and **SMART error log** display
    (`FEATURES.md` A19/A20). `A20` **done**: the counts, the entries, the drive's own self-test
-   timings, and smartctl's message when a log cannot be read. The error log renders a table only
-   when its entries say something beyond which entry they are — on a drive smartctl does not
-   recognise they say nothing else, and the count says it better. `A19` is next, and remains the
-   only feature that writes to a drive.
-10. **Alert acknowledgement & maintenance/silence windows** (`FEATURES.md` B7/B8).
-    Maintenance windows **done**; acknowledgement **deferred** (`ADR-017`).
+   timings, and smartctl's message when a log cannot be read. `A19`'s manual half is done with
+   it (item 4). What remains is *scheduling*.
+10. **Alert acknowledgement & maintenance/silence windows** (`FEATURES.md` B7/B8) — **done**,
+    both. An acknowledgement is scoped to the verdict it was granted for, so it is spent the
+    moment the verdict moves, and it lives as columns on `device_notes` rather than the table
+    `ADR-017` proposed.
 11. **ntfy action buttons / priority / tags** and a per-channel event-subscription UI
-    (`FEATURES.md` B10/B12). Subscription UI **done**; ntfy action buttons **not
-    started**.
+    (`FEATURES.md` B10/B12) — **done**, all of it. The action button needs the `public_url`
+    setting, because the app cannot know its own external address.
 
 ## Phase 2.5 — "the NAS fleet"
 
@@ -139,6 +137,8 @@ Added after a review of what a NAS owner actually needs, which the MVP's
 workstation-with-four-drives sizing does not cover. Every item is a view over data the app
 already stores, so none of them adds idle cost. Per-item rationale is in `FEATURES.md`;
 the trade-offs are in `ADR-018`.
+
+**Status: all seven are built.**
 
 1. **Dense fleet table** (`D8`) — one sortable row per drive, ordered by risk, with the
    existing filter/sort work (`D5`) feeding it. The card grid stays for small hosts.
@@ -163,6 +163,12 @@ the trade-offs are in `ADR-018`.
 Everything below is wanted. This is the order it lands in, recorded in `ADR-023` so a later session
 resumes rather than re-decides. Each round is a shipping unit, and a UI consolidation pass follows
 each (`ADR-019`).
+
+**Status: rounds 1–6 are built.** Three things are not, and they are the whole of what is left:
+
+- `A19` **scheduling** — staggered, one drive at a time. Round 1 built the manual half.
+- **group-level routing** (round 6).
+- `D6` **side-by-side comparison** and **custom per-model attribute thresholds** (round 7).
 
 1. **The drive's own data, finished.** `A20` entry rendering, then `A19` self-test: the opt-in
    button first, scheduling after, staggered **one drive at a time** so a fleet does not start

@@ -154,7 +154,7 @@ schedule timezone and the missed-run policy. A threshold whose only reader is a
 `DefaultThresholds()` call at boot is a control that lies, which is exactly what this
 table exists to prevent.
 
-### Specified but not implemented
+### Settings keys that are not implemented
 
 Listed so the schema direction is frozen. A key that nothing reads lives here rather
 than in the table above, so "what does this setting do" never has two answers.
@@ -162,8 +162,8 @@ than in the table above, so "what does this setting do" never has two answers.
 | Key | Default | Meaning | Status |
 |---|---|---|---|
 | `health_score_enabled` | `true` | show the 0–100 score/grade (D13) | not implemented — the score is always computed and displayed |
-| `selftest_enabled` | `false` | allow self-test triggering — opt-in, hardware-affecting (D10) | not implemented |
-| `selftest_default_kind` | `"short"` | `short` \| `long` (D10) | not implemented |
+| `selftest_enabled` | `false` | allow self-test triggering — opt-in, hardware-affecting (D10) | not implemented — the opt-in is the button itself, so there is nothing to switch |
+| `selftest_default_kind` | `"short"` | `short` \| `long` (D10) | not implemented — the card offers both |
 | `report_export_formats` | `["txt"]` | enabled export formats (D11) | not implemented — all four formats are always offered |
 
 ### `scan_history` — one row per scan run (MVP: scan-history log, FEATURES A13)
@@ -185,11 +185,12 @@ than in the table above, so "what does this setting do" never has two answers.
 | `smart_d` | TEXT | e.g. `sat`, `usbjmicron`, `usbcypress` |
 | `updated_at` | INTEGER (unix ms) | |
 
-### Future tables (Phase 2 — specified now to freeze schema direction)
+### Acknowledgement — no table of its own
 
-- `alert_acknowledgements` (`event_key`, `acked_at`, `acked_by`, `expires_at`) —
-  mutes a known issue without changing the verdict. Deferred deliberately: at
-  single-host scale the state costs more to maintain than the noise it removes.
+`ADR-017` proposed an `alert_acknowledgements` table. What was built (`B7`) is three columns on
+`device_notes` — `ack_health`, `ack_note`, `ack_at`, added by migration `0009` — because there is
+one acknowledgement per drive and it expires with the *verdict* rather than on a timer. `ack_health`
+empty means "not acknowledged", so there is no third state to distinguish.
 
 Maintenance windows deliberately get **no table**: they are a short JSON list in the
 `maintenance_windows` setting, read once per dispatch pass and evaluated against the

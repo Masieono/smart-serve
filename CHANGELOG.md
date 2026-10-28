@@ -6,8 +6,11 @@ Notable changes per release. Format follows
 
 ## [Unreleased]
 
-Round 5: the drive knowledge base. Plus the two Phase 4 items already here — the drive's own logs are
-shown, and a self-test can be started, watched and stopped from the device page.
+The drive's own data, the fleet tier, the knowledge base, and the notification polish. Self-tests
+can be started, watched and stopped from the device page, and the drive's error and self-test logs
+are rendered. The dashboard gained filtering, sorting, a dense table, tag grouping and a "replace
+first" ranking. Each drive and the whole fleet export as a warranty evidence pack. Alerts gained
+acknowledgement, action buttons back into the app, and a weekly digest.
 
 ### Added
 

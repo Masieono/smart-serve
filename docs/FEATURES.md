@@ -9,6 +9,10 @@ timers while the app is idle.
 💤 adds no idle cost · 🔌 only active during a scan · ⚠ needs an opt-in guard to
 avoid idle cost.
 
+**Status** lives in the Notes column. Every feature in tiers A–D is shipped except `D6` and
+`D7`, which say so. A blank Notes cell means the entry predates the column, not that the
+feature is missing.
+
 ## A. Core reporting (the S.M.A.R.T. mission)
 
 | # | Feature | Tier | Idle | Notes |
@@ -503,8 +507,8 @@ and all of them still hold.
 | D3 | Responsive mobile layout | MVP | 💤 | |
 | D4 | Hide / unhide devices, and forget one entirely | MVP | 💤 | escape hatch for unreadable bridges; **forget** is for the plug-in-once workflow |
 | D5 | Filter & sort devices (health, name, transport) | P2 | 💤 | **done** — a sort field with a direction toggle, a transport filter built from the transports actually present, and search that covers the bay. See `UI.md` §7.1 |
-| D6 | Side-by-side multi-device comparison | P3 | 💤 | |
-| D7 | Localization (multi-language) | P3 | 💤 | CDI parity |
+| D6 | Side-by-side multi-device comparison | P3 | 💤 | **not built** — `SCOPE.md` Phase 4 round 7 |
+| D7 | Localization (multi-language) | P3 | 💤 | **not built, and deferred** — the cost is extracting every string and keeping every locale in step, which is only worth it for a translator who will maintain the result (`ADR-023`) |
 | D8 | Dense fleet table view (one row per drive, sortable by risk) | P2 | 💤 | **done** — a Cards/Table switch on the dashboard; the table carries bay, verdict, score, transport, model, capacity, temperature, age and last scan, with sortable headers. See `UI.md` §7.1 |
 | D9 | Device grouping by tag/pool, dashboard grouped | P2 | 💤 | **done** — a "Group by tag" toggle, offered only when something is tagged. A drive with several tags appears under each of them. See below |
 | D10 | Bay/slot field (physical location on the card and in the report) | P2 | 💤 | **done** — a free-text `bay` in the device's notes, shown first on the card and in the report. See below |

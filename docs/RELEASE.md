@@ -24,15 +24,17 @@ each one. Written for v1.0.0; reusable afterwards.
 - [x] Documentation reconciled with the code: the image base (`ADR-020`), and notification
       secret handling — `ADR-021` recorded the gap, and `ADR-022` built the mechanism rather
       than shipping a description of its absence.
-- [ ] **Flip the GHCR package to public.** This is a *separate* switch from repository
-      visibility: **Package settings → Danger Zone → Change visibility**. Until it is done,
-      `docker compose pull` fails for everyone who has not authenticated, which includes
-      everyone reading the README for the first time.
+- [x] **The GHCR package is public.** A *separate* switch from repository visibility
+      (**Package settings → Danger Zone → Change visibility**). While it is off,
+      `docker compose pull` fails for everyone who has not authenticated — which includes
+      everyone reading the README for the first time. Re-check it without credentials:
+      `curl -s 'https://ghcr.io/token?scope=repository:masieono/smart-serve:pull&service=ghcr.io'`
+      returns a token when the package is public and `401` when it is not.
 - [x] Image size measured and published: **14.8 MB content, 53.5 MB on disk**
       (`docker image ls` on the homelab host, 2026-10-17). Recorded in `README.md`,
       `DEPLOYMENT.md` and `ADR-020`.
-- [ ] Add screenshots (below).
-- [ ] Tag `v1.0.0` and create the Release.
+- [ ] Add screenshots (below). **The only open item on this list.**
+- [x] Tag `v1.0.0` and create the Release.
 
 ## Screenshots to take
 

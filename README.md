@@ -121,56 +121,42 @@ they run in CI on every push whether or not you run them yourself.
 
 ## Project status
 
-**MVP complete.** The documents in `docs/` define the planning, scope, and design of
-the application. All decisions are recorded in
-[`docs/REQUIREMENTS.md`](docs/REQUIREMENTS.md) (decisions D1–D27; considerations
-C1–C24 all confirmed or resolved) and [`docs/DECISIONS.md`](docs/DECISIONS.md)
-(ADR-001–ADR-020). Image: `ghcr.io/masieono/smart-serve`. CI: GitHub Actions.
+**MVP complete, plus the Phase 2 and Phase 2.5 tiers.** Every `SCOPE.md` MVP item is built,
+along with history and trending, longevity estimates, the fleet views, the drive's own logs
+and self-tests, the knowledge base, and the notification work. What is *not* built — and why —
+is listed in [`docs/SCOPE.md`](docs/SCOPE.md).
 
-Every `SCOPE.md` MVP item is built, and the Phase 2 work delivered so far is
-history/trending, remaining-longevity estimates with a degradation warning, the
-notification adapters (Gotify, Telegram, Discord, SMTP), maintenance windows, and the
-theme palettes. The remaining work is SMART self-tests — deliberately last, because a
-self-test is the only feature that writes to a drive (`docs/FEATURES.md` A19).
+Decisions are recorded in [`docs/REQUIREMENTS.md`](docs/REQUIREMENTS.md) (D1–D27, C1–C24) and
+[`docs/DECISIONS.md`](docs/DECISIONS.md) (ADR-001–ADR-023). Image:
+`ghcr.io/masieono/smart-serve`. CI: GitHub Actions.
 
-## Implementation status
+### What is built
 
-The core loop works end to end: discover, interpret, persist, display, schedule,
-alert.
+- **The core loop** — discover, interpret, persist, display, schedule, alert. Go module and
+  domain model, the interpretation engine (verdicts, 0–100 score, longevity projection),
+  smartctl/lsblk wrappers, scan orchestration, SQLite persistence, HTTP API + SSE, and the web
+  UI. All unit-tested (`internal/…`).
+- **The drive's own data** — self-test (short/long, live progress, abort), the error and
+  self-test logs, and the raw `smartctl` output (`A19`/`A20`).
+- **Notifications** — ntfy, Gotify, Telegram, Discord, SMTP and webhooks; transition events
+  with squelching, maintenance windows, per-channel subscriptions, acknowledgement, action
+  buttons, and a weekly digest as a schedule action (`B1`–`B13`).
+- **Export** — per drive as text / web page / spreadsheet / JSON, and the whole fleet as one
+  CSV or one printable page (`A8`/`A23`/`A27`).
+- **Fleet views** — filter and sort, a dense table, grouping by tag, bay/slot, a "replace
+  first" ranking, correlated-change detection, and a testing session for bench drives
+  (`D5`/`D8`/`D9`/`D10`/`D11`/`A24`/`A25`).
+- **Knowledge base** — rated endurance and known firmware advisories: a bundled table, an
+  opt-in refresh, and your own entries, every figure carrying its source (`A21`).
+- **Ops** — Dockerfile, compose (prod + dev), GitHub Actions CI, Prometheus `/metrics` (off by
+  default), config import/export, and multi-arch (amd64/arm64) images.
 
-- [x] Go module + domain model (`internal/model`)
-- [x] Interpretation engine: verdicts + 0–100 health score (`internal/interp`) — unit-tested
-- [x] smartctl/lsblk wrappers, JSON parsing, device discovery (`internal/smart`) — unit-tested
-- [x] Scan orchestration + `smart-serve scan` CLI (`internal/scan`, `cmd/smartserve`)
-- [x] SQLite persistence + migrations (`internal/store`) — unit-tested
-- [x] HTTP API + SSE (`internal/httpapi`, `internal/events`) — unit-tested
-- [x] Web UI (`internal/webui`) — dashboard, device detail with trend sparklines,
-      schedules, notifications, settings; light/dark/auto, Catppuccin, Dracula, Nord
-      and Gruvbox palettes, plus a custom accent colour
-- [x] Scheduler (`internal/sched`) — interval + cron, in-process, sleeps to the next
-      boundary rather than ticking — unit-tested
-- [x] Notifications (`internal/notify`) — ntfy, Gotify, Telegram, Discord, SMTP and
-      webhooks; transition-based alerts, squelching, maintenance windows, delivery
-      log, channel test — unit-tested
-- [x] Multi-format report export (`txt` / `html` / `csv` / `json`), saying what it is for and
-      naming the evidence for a warranty claim (`A27`) — unit-tested
-- [x] Fleet-wide export as one CSV or one printable page (`A23`) — unit-tested
-- [x] Testing session: tag a batch of bench drives, test them, export the batch, forget them
-      (`D11`) — unit-tested
-- [x] Correlated-change detection: several drives in one group heating together is one finding
-      about what they share (`A25`) — unit-tested
-- [x] Alert acknowledgement: silence a known condition without hiding the verdict (`B7`), and
-      notification action buttons back into the app (`B10`) — unit-tested
-- [x] Prometheus `/metrics` exporter, opt-in and hand-written (`C6`) — unit-tested
-- [x] Weekly digest as a schedule action: one summary of the period instead of a message per
-      event (`B13`) — unit-tested
-- [x] Drive knowledge base: rated endurance and known firmware advisories, as a bundled table plus
-      an opt-in refresh URL plus your own entries, with every figure carrying its source (`A21`) —
-      unit-tested
-- [x] Dockerfile, docker-compose (prod + dev), GitHub Actions CI
-- [x] Docker device-access validation on real hardware — a native NVMe, a USB-attached
-      NVMe, and a USB-attached SATA SSD all read correctly; a drive with no S.M.A.R.T.
-      is reported as such rather than as a failure (`docs/DEPLOYMENT.md`)
+### Validated on real hardware
+
+Device access works against a native NVMe, a USB-attached NVMe, a USB-attached SATA SSD, a
+native SATA SSD, and a USB flash drive that reports no S.M.A.R.T. at all — which is reported as
+such rather than as a failure (`docs/DEPLOYMENT.md`). Measured idle cost on a long-running
+instance with no browser open: **0.00% CPU, 13.4 MiB RSS**.
 
 ## License
 
