@@ -397,7 +397,10 @@ saves. The bundle says so in its own `note`, so a file found later explains itse
 ## Schedules
 
 - `GET /api/schedules` — every schedule. Each carries `kind` (*when* it runs: `interval` or `cron`)
-  and `action` (*what* happens: `scan` or `digest`, `FEATURES.md` B13).
+  and `action` (*what* happens: `scan`, `digest` or `selftest`, `FEATURES.md` B13, A19).
+  The response also carries `selftest_pass` — `{running, done, total, current}` — while a scheduled
+  self-test pass is draining, so the page can say what it is doing rather than leaving the reader to
+  infer it from a `last_run` that has already passed.
 - `POST /api/schedules` / `PUT /api/schedules/{id}` — body
   `{ "label": "weekly", "kind": "cron", "cron": "0 9 * * 1", "action": "digest", "enabled": true }`.
   An omitted or empty `action` means `scan`, which is what every schedule did before `B13`; anything
@@ -407,6 +410,13 @@ saves. The bundle says so in its own `note`, so a file found later explains itse
   `action: digest` sends **one summary of the period since this schedule last ran** instead of
   scanning — see `NOTIFICATIONS.md` for what is in it. A digest schedule that has never run summarises
   the last seven days.
+
+  `action: selftest` runs a self-test on **every drive that can take one**, one drive at a time in
+  serial order, and carries `selftest_kind` (`short` or `long`, default `short`). It is the only
+  schedule that writes to a drive (`ADR-024`). The fire queues a pass and returns: a pass takes hours,
+  so it is not bounded by the scan timeout, and a fire that arrives while one is still draining is
+  logged and skipped rather than queued twice. Each drive is re-read as its test finishes, so the
+  result is stored and notified by the same path a manual test uses.
 
 - `GET /api/schedules` — list (includes `last_run` and `next_run`).
 - `POST /api/schedules` — create: `{ "kind": "interval", "every_seconds": 21600, "label": "every 6h" }`

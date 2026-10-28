@@ -155,8 +155,20 @@ acknowledgement, action buttons back into the app, and a weekly digest.
   own, the test kind is an allow-list of two strings, and both actions sit behind a confirmation.
   Progress is the drive's own percentage remaining rather than a figure derived from a clock, and a
   drive that cannot have its self-test log read is told so instead of being offered a button that
-  would only fail. Scheduling is not part of this — a fleet-wide schedule needs
-  one-drive-at-a-time staggering first.
+  would only fail.
+- **Scheduled self-tests (`A19`, second half)** — a schedule action that tests **every drive that can
+  take one, one drive at a time**, in serial order. The staggering is the whole feature: twenty-four
+  long tests starting together is an I/O meltdown, so the fire *queues* a pass and returns rather than
+  running it inline — a pass takes hours, and the scheduler is one goroutine every other schedule
+  shares. The test kind is per schedule (`short` or `long`), because a short test is minutes and a long
+  one is hours, and that is not a choice to make on somebody's behalf. A drive that is already testing
+  itself is skipped rather than asked and refused; a drive whose log cannot be read mid-test is *waited
+  for* rather than treated as finished; and a drive that never reports progress gets its own
+  `polling_minutes` as a floor before the pass believes the test is over. Each drive is re-read as its
+  test finishes, so the result is stored and notified by the same path a manual test uses. Stopping the
+  app stops the pass but **not the drive** — hours of work that is doing the right thing is not waste.
+  The schedules page says what a running pass is doing, because a `last_run` that has already passed
+  tells a reader nothing. See `ADR-024`.
 - **Drive logs (`A20`)** — the error log and the self-test log are rendered, with the drive's own
   self-test time estimates and smartctl's words when a log cannot be read.
 

@@ -54,8 +54,15 @@ type bundleDevice struct {
 
 // bundleSchedule is one schedule, without the bookkeeping fields: last-run and next-run are facts
 // about the install being exported, not configuration.
+//
+// `Action` and `SelfTestKind` are carried. They were not, and that was a bug rather than a saving: a
+// schedule has two axes, and a bundle that carried only the timing one turned a digest schedule into
+// a scan schedule on import — silently, and in the direction of *doing something to the drives*
+// rather than of doing nothing.
 type bundleSchedule struct {
 	Kind         string `json:"kind"`
+	Action       string `json:"action,omitempty"`
+	SelfTestKind string `json:"selftest_kind,omitempty"`
 	EverySeconds *int64 `json:"every_seconds,omitempty"`
 	Cron         string `json:"cron,omitempty"`
 	Label        string `json:"label,omitempty"`
@@ -104,7 +111,8 @@ func (s *Server) handleExportConfig(w http.ResponseWriter, r *http.Request) {
 	}
 	for _, sched := range schedules {
 		out.Schedules = append(out.Schedules, bundleSchedule{
-			Kind: sched.Kind, EverySeconds: sched.EverySeconds, Cron: sched.Cron,
+			Kind: sched.Kind, Action: sched.Action, SelfTestKind: sched.SelfTestKind,
+			EverySeconds: sched.EverySeconds, Cron: sched.Cron,
 			Label: sched.Label, Enabled: sched.Enabled,
 		})
 	}
@@ -183,7 +191,8 @@ func (s *Server) handleImportConfig(w http.ResponseWriter, r *http.Request) {
 		schedules := make([]store.Schedule, 0, len(bundle.Schedules))
 		for _, sched := range bundle.Schedules {
 			schedules = append(schedules, store.Schedule{
-				Kind: sched.Kind, EverySeconds: sched.EverySeconds, Cron: sched.Cron,
+				Kind: sched.Kind, Action: sched.Action, SelfTestKind: sched.SelfTestKind,
+				EverySeconds: sched.EverySeconds, Cron: sched.Cron,
 				Label: sched.Label, Enabled: sched.Enabled,
 			})
 		}

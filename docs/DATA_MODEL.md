@@ -78,7 +78,8 @@ history — is one file that can be backed up with `cp` while the app is stopped
 | `id` | INTEGER PK | |
 | `enabled` | INTEGER DEFAULT 1 | |
 | `kind` | TEXT | *when* it runs: `interval` or `cron` |
-| `action` | TEXT NOT NULL DEFAULT `'scan'` | *what* happens when it fires (migration 0010, `FEATURES.md` B13): `scan` or `digest`. A separate axis from `kind`, so a digest inherits cron, time zones and the missed-run policy instead of duplicating them. An empty or absent value means `scan`, which is what every row written before migration 0010 meant |
+| `action` | TEXT NOT NULL DEFAULT `'scan'` | *what* happens when it fires (migrations 0010, 0012; `FEATURES.md` B13, A19): `scan`, `digest` or `selftest`. A separate axis from `kind`, so a digest inherits cron, time zones and the missed-run policy instead of duplicating them. An empty or absent value means `scan`, which is what every row written before migration 0010 meant |
+| `selftest_kind` | TEXT NOT NULL DEFAULT `'short'` | for `action = 'selftest'` (migration 0012, `ADR-024`): `short` or `long`. Stored rather than implied, because a short test is minutes and a long test is hours — the schedule should not pick that for the user. Normalised on read, and anything unrecognised becomes `short`: guessing wrong towards *long* would be hours of I/O per drive |
 | `every_seconds` | INTEGER NULL | for `interval` |
 | `cron` | TEXT NULL | 5-field cron for `cron` (evaluated by a Go cron library) |
 | `label` | TEXT | user-friendly name |

@@ -111,6 +111,15 @@ and 7.5 can, with no hardware change — which is why the two are reported separ
 | 4.7 | Set it back to scan. | The hint disappears |
 | 4.8 | Save, then press **Save** again in the same dialog. | The button must come back |
 | 4.9 | Wait for a digest to fire. | It arrives at your channel, and the delivery log records it |
+| 4.10 | Set **Action** to "Run a self-test on each drive". | A **Test** picker appears (short / long), and the hint says it runs one drive at a time and writes to the drives |
+| 4.11 | Set it back to scan. | Both the picker and the hint disappear |
+| 4.12 | Save it with a short interval (every 5 minutes) and **Test** = short. | The list shows **Self-test · short** in the Action column |
+| 4.13 | Press **Run now**, then look at the schedules page. | A notice above the table: "Self-tests running — 0 of N drives done", naming the drive it is testing |
+| 4.14 | Watch two drives, or one, while the pass runs. | **Only one drive is testing at a time**, and the next starts only after the previous one finishes |
+| 4.15 | Open the drive that is testing. | Its self-test card shows the test in progress, with **Stop test** |
+| 4.16 | Let a drive's test finish. | The drive is re-read on its own — the result appears without a scan, and `self_test_result` notifies if a channel subscribes |
+| 4.17 | Press **Run now** again while the pass is still draining. | The fire is skipped, and the app log says a pass is still running — no second pass |
+| 4.18 | Restart the app mid-pass. | The pass stops; the drive that was testing keeps testing. The next fire skips a drive already testing itself |
 
 ## Pass 5 — notifications
 

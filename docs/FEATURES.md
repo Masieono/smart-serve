@@ -35,7 +35,7 @@ feature is missing.
 | A16 | Remaining-longevity estimate (NVMe / SSD / HDD) | P2 | 💤 | **done** — see below, with confidence labels |
 | A17 | Health score 0–100 + letter grade | MVP/P2 | 💤 | **done, trend-aware** — the score is lowered by up to 10 points for a drive whose bad sectors are climbing, with the reason in the rationale. See below |
 | A18 | Snapshot diff ("what changed since last scan") | P2 | 💤 | **done** — a "Since the last scan" card on the device page. The server decides which attribute movements are findings, so the diff cannot disagree with the verdict. See below |
-| A19 | SMART self-test (manual short/long + scheduled) + self-test log | P2 | 💤 | **manual done** — short/long, live progress, abort; opt-in only, never automatic. Scheduling still to come. See below |
+| A19 | SMART self-test (manual short/long + scheduled) + self-test log | P2 | 💤 | **done** — short/long, live progress, abort, and a `selftest` schedule action that runs one drive at a time; opt-in only, never automatic. See below |
 | A20 | SMART error log display | P2 | 💤 | **done** — the error and self-test log *counts* and *entries*, the drive's own self-test timings, and smartctl's words when a log cannot be read. See below |
 | A21 | Drive knowledge base (rated TBW, known firmware advisories) | P3 | 💤 | **done** — a bundled table, an opt-in refresh from a URL, and your own entries. Rated endurance on the device page, advisories only when the firmware matches, and every figure carries its source. Never fetched on a schedule. See below |
 | A22 | Usable support for drives with no S.M.A.R.T. (USB flash drives, card readers) | P2 | 💤 | **done** — see below |

@@ -8,6 +8,7 @@ package sched
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -15,6 +16,7 @@ import (
 
 	"github.com/masieono/smart-serve/internal/events"
 	"github.com/masieono/smart-serve/internal/scan"
+	"github.com/masieono/smart-serve/internal/selftest"
 	"github.com/masieono/smart-serve/internal/store"
 )
 
@@ -30,6 +32,16 @@ type Runner interface {
 // have to supply a digest sender, and vice versa.
 type Digester interface {
 	SendDigest(ctx context.Context, sched store.Schedule) error
+}
+
+// SelfTester runs a scheduled self-test pass (`FEATURES.md` A19). *selftest.Runner satisfies it.
+//
+// A third dependency for the same reason as the second: the action decides what a fire means, and a
+// caller that has no business writing to drives should not have to supply something that does.
+type SelfTester interface {
+	// StartQueue begins a pass and returns how many drives it queued. It returns 0 with a nil error
+	// when there was nothing eligible, and `selftest.ErrAlreadyRunning` when a pass is draining.
+	StartQueue(ctx context.Context, kind string) (int, error)
 }
 
 // retryInterval is how far a schedule is advanced when its next boundary cannot
@@ -50,18 +62,22 @@ type Options struct {
 	// Digester sends a scheduled digest (`FEATURES.md` B13). Without it, a digest schedule logs that
 	// it has nowhere to send and still advances, rather than failing or spinning.
 	Digester Digester
-	Logger   *slog.Logger
+	// SelfTester runs a scheduled self-test pass (`FEATURES.md` A19). Without it, a self-test schedule
+	// logs that it has nowhere to run and still advances.
+	SelfTester SelfTester
+	Logger     *slog.Logger
 	// Now overrides the clock in tests.
 	Now func() time.Time
 }
 
 // Scheduler wakes at the next due schedule and runs it.
 type Scheduler struct {
-	store    *store.Store
-	runner   Runner
-	digester Digester
-	hub      *events.Hub
-	log      *slog.Logger
+	store      *store.Store
+	runner     Runner
+	digester   Digester
+	selfTester SelfTester
+	hub        *events.Hub
+	log        *slog.Logger
 
 	loc             *time.Location
 	missedRunPolicy string
@@ -74,7 +90,7 @@ type Scheduler struct {
 // New builds a scheduler.
 func New(st *store.Store, r Runner, hub *events.Hub, opts Options) *Scheduler {
 	s := &Scheduler{
-		store: st, runner: r, digester: opts.Digester, hub: hub, log: opts.Logger,
+		store: st, runner: r, digester: opts.Digester, selfTester: opts.SelfTester, hub: hub, log: opts.Logger,
 		loc: opts.Location, missedRunPolicy: opts.MissedRunPolicy,
 		scanTimeout: opts.ScanTimeout, now: opts.Now,
 		wake: make(chan struct{}, 1),
@@ -309,6 +325,31 @@ func (s *Scheduler) sendDigest(ctx context.Context, sched store.Schedule) {
 	}
 }
 
+// startSelfTest begins a pass over every drive that can take one (`FEATURES.md` A19, `ADR-024`).
+//
+// Queued rather than run here, because a pass takes hours and the scheduler is one goroutine every
+// other schedule shares. A fire that arrives while a pass is still draining is logged and skipped:
+// two overlapping passes would test the same drives twice, and the second one would find each drive
+// already testing itself and skip it anyway — so the honest thing is to say so up front.
+func (s *Scheduler) startSelfTest(ctx context.Context, sched store.Schedule) {
+	if s.selfTester == nil {
+		s.log.Warn("self-test schedule has nowhere to run", "schedule", sched.ID)
+		return
+	}
+	queued, err := s.selfTester.StartQueue(ctx, sched.SelfTestKind)
+	switch {
+	case errors.Is(err, selftest.ErrAlreadyRunning):
+		s.log.Info("self-test schedule skipped: a pass is still running", "schedule", sched.ID)
+	case err != nil:
+		s.log.Warn("self-test schedule could not start", "schedule", sched.ID, "err", err)
+	case queued == 0:
+		s.log.Info("self-test schedule found no drive it could test", "schedule", sched.ID)
+	default:
+		s.log.Info("self-test pass queued", "schedule", sched.ID, "drives", queued,
+			"kind", sched.SelfTestKind)
+	}
+}
+
 // fire runs one scheduled action and advances the schedule. The run is recorded
 // even when the scan fails, so a broken scanner keeps firing on its interval —
 // and, per the event catalog, keeps saying so.
@@ -327,15 +368,20 @@ func (s *Scheduler) fire(ctx context.Context, id int64) {
 	s.log.Info("running scheduled action", "schedule", id, "action", sched.Action)
 	s.hub.Publish("schedule_fired", map[string]any{"schedule_id": id})
 
-	// The work must not be cancelled by an unrelated request context, but it is
-	// still bounded.
-	runCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), s.scanTimeout)
-	defer cancel()
-
+	// A self-test pass is *not* bounded by the scan timeout: it runs for as long as the drives take,
+	// which is hours, and it has its own queue and its own reason to stop (`ADR-024`). Everything
+	// else must not be cancelled by an unrelated request context, but is still bounded.
 	var res scan.Result
-	if sched.Action == store.ActionDigest {
+	switch {
+	case sched.Action == store.ActionSelfTest:
+		s.startSelfTest(ctx, *sched)
+	case sched.Action == store.ActionDigest:
+		runCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), s.scanTimeout)
+		defer cancel()
 		s.sendDigest(runCtx, *sched)
-	} else {
+	default:
+		runCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), s.scanTimeout)
+		defer cancel()
 		var rerr error
 		res, _, rerr = s.runner.Scan(runCtx, scan.Trigger{Kind: "schedule", ScheduleID: id})
 		if rerr != nil {

@@ -128,12 +128,17 @@ type Schedule struct {
 	Enabled bool
 	// Kind is *when* it runs: interval | cron.
 	Kind string
-	// Action is *what* happens when it does: scan | digest (`FEATURES.md` B13).
+	// Action is *what* happens when it does: scan | digest | selftest (`FEATURES.md` B13, A19).
 	//
 	// Two axes rather than a third kind, so a digest inherits every timing feature the scan schedules
 	// already have — cron, time zones, the missed-run policy — instead of duplicating them. An empty
 	// Action means "scan", which is what every row written before migration 0010 meant.
-	Action       string
+	Action string
+	// SelfTestKind is *short* or *long*, and only means anything when Action is `selftest`. Kept
+	// beside the action rather than folded into it so the choice can change without rewriting the
+	// schedule's identity, and normalised on read so an unknown value degrades to the safe one
+	// (`ADR-024`).
+	SelfTestKind string
 	EverySeconds *int64
 	Cron         string
 	Label        string
@@ -142,12 +147,21 @@ type Schedule struct {
 	CreatedAt    time.Time
 }
 
-// Schedule actions (`FEATURES.md` B13).
+// Schedule actions (`FEATURES.md` B13, A19).
 const (
 	// ActionScan runs a scan, which is what a schedule has always done.
 	ActionScan = "scan"
 	// ActionDigest sends one summary of the period instead of a message per event.
 	ActionDigest = "digest"
+	// ActionSelfTest runs a self-test on every drive that can take one, one drive at a time.
+	ActionSelfTest = "selftest"
+)
+
+// Self-test kinds a schedule may ask for (`A19`). Short is the default everywhere, because a long
+// test on a large drive runs for hours.
+const (
+	SelfTestShort = "short"
+	SelfTestLong  = "long"
 )
 
 // scheduleAction normalises a stored action, so a row from before migration 0010 and a request that
@@ -159,10 +173,22 @@ func scheduleAction(action string) string {
 	return action
 }
 
+// scheduleSelfTestKind normalises a stored self-test kind.
+//
+// Anything unrecognised becomes `short`, which is the same rule the API and the UI apply. A value
+// that silently meant *long* would turn a mistyped column into hours of I/O on every drive in the
+// fleet, and the failure mode of guessing wrong is asymmetric — so it guesses the cheap way.
+func scheduleSelfTestKind(kind string) string {
+	if strings.EqualFold(strings.TrimSpace(kind), SelfTestLong) {
+		return SelfTestLong
+	}
+	return SelfTestShort
+}
+
 // ListSchedules returns every schedule, oldest first.
 func (s *Store) ListSchedules(ctx context.Context) ([]Schedule, error) {
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT id, enabled, kind, action, every_seconds, cron, label, last_run, next_run, created_at
+		SELECT id, enabled, kind, action, selftest_kind, every_seconds, cron, label, last_run, next_run, created_at
 		FROM scan_schedules ORDER BY id`)
 	if err != nil {
 		return nil, err
@@ -183,7 +209,7 @@ func (s *Store) ListSchedules(ctx context.Context) ([]Schedule, error) {
 // GetSchedule returns one schedule, or nil when it does not exist.
 func (s *Store) GetSchedule(ctx context.Context, id int64) (*Schedule, error) {
 	sched, err := scanSchedule(s.db.QueryRowContext(ctx, `
-		SELECT id, enabled, kind, action, every_seconds, cron, label, last_run, next_run, created_at
+		SELECT id, enabled, kind, action, selftest_kind, every_seconds, cron, label, last_run, next_run, created_at
 		FROM scan_schedules WHERE id = ?`, id))
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
@@ -198,9 +224,10 @@ func (s *Store) GetSchedule(ctx context.Context, id int64) (*Schedule, error) {
 func (s *Store) CreateSchedule(ctx context.Context, sched Schedule) (int64, error) {
 	res, err := s.db.ExecContext(ctx, `
 		INSERT INTO scan_schedules
-			(enabled, kind, action, every_seconds, cron, label, last_run, next_run, created_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			(enabled, kind, action, selftest_kind, every_seconds, cron, label, last_run, next_run, created_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		boolInt(sched.Enabled), sched.Kind, scheduleAction(sched.Action),
+		scheduleSelfTestKind(sched.SelfTestKind),
 		nullInt64(sched.EverySeconds), sched.Cron,
 		sched.Label, ptrMS(sched.LastRun), ptrMS(sched.NextRun), time.Now().UnixMilli())
 	if err != nil {
@@ -213,10 +240,11 @@ func (s *Store) CreateSchedule(ctx context.Context, sched Schedule) (int64, erro
 func (s *Store) UpdateSchedule(ctx context.Context, sched Schedule) error {
 	_, err := s.db.ExecContext(ctx, `
 		UPDATE scan_schedules
-		SET enabled = ?, kind = ?, action = ?, every_seconds = ?, cron = ?, label = ?,
+		SET enabled = ?, kind = ?, action = ?, selftest_kind = ?, every_seconds = ?, cron = ?, label = ?,
 		    last_run = ?, next_run = ?
 		WHERE id = ?`,
 		boolInt(sched.Enabled), sched.Kind, scheduleAction(sched.Action),
+		scheduleSelfTestKind(sched.SelfTestKind),
 		nullInt64(sched.EverySeconds), sched.Cron,
 		sched.Label, ptrMS(sched.LastRun), ptrMS(sched.NextRun), sched.ID)
 	if err != nil {
@@ -279,9 +307,10 @@ func (s *Store) ReplaceSchedules(ctx context.Context, schedules []Schedule) erro
 	for _, sched := range schedules {
 		if _, err := tx.ExecContext(ctx, `
 			INSERT INTO scan_schedules
-				(enabled, kind, action, every_seconds, cron, label, last_run, next_run, created_at)
-			VALUES (?, ?, ?, ?, ?, ?, NULL, NULL, ?)`,
+				(enabled, kind, action, selftest_kind, every_seconds, cron, label, last_run, next_run, created_at)
+			VALUES (?, ?, ?, ?, ?, ?, ?, NULL, NULL, ?)`,
 			boolInt(sched.Enabled), sched.Kind, scheduleAction(sched.Action),
+			scheduleSelfTestKind(sched.SelfTestKind),
 			nullInt64(sched.EverySeconds), sched.Cron,
 			sched.Label, time.Now().UnixMilli()); err != nil {
 			return fmt.Errorf("insert schedule %q: %w", sched.Label, err)
@@ -298,13 +327,15 @@ func scanSchedule(r rowScanner) (Schedule, error) {
 		lastRun, nextRun sql.NullInt64
 		createdAt        int64
 	)
-	err := r.Scan(&sched.ID, &enabled, &sched.Kind, &sched.Action, &every, &sched.Cron, &sched.Label,
+	err := r.Scan(&sched.ID, &enabled, &sched.Kind, &sched.Action, &sched.SelfTestKind,
+		&every, &sched.Cron, &sched.Label,
 		&lastRun, &nextRun, &createdAt)
 	if err != nil {
 		return sched, err
 	}
 	sched.Enabled = enabled != 0
 	sched.Action = scheduleAction(sched.Action)
+	sched.SelfTestKind = scheduleSelfTestKind(sched.SelfTestKind)
 	if every.Valid {
 		v := every.Int64
 		sched.EverySeconds = &v

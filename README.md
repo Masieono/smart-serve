@@ -154,8 +154,8 @@ Decisions are recorded in [`docs/REQUIREMENTS.md`](docs/REQUIREMENTS.md) (D1–D
   domain model, the interpretation engine (verdicts, 0–100 score, longevity projection),
   smartctl/lsblk wrappers, scan orchestration, SQLite persistence, HTTP API + SSE, and the web
   UI. All unit-tested (`internal/…`).
-- **The drive's own data** — self-test (short/long, live progress, abort), the error and
-  self-test logs, and the raw `smartctl` output (`A19`/`A20`).
+- **The drive's own data** — self-test (short/long, live progress, abort, and a schedule that runs
+  one drive at a time), the error and self-test logs, and the raw `smartctl` output (`A19`/`A20`).
 - **Notifications** — ntfy, Gotify, Telegram, Discord, SMTP and webhooks; transition events
   with squelching, maintenance windows, per-channel subscriptions, acknowledgement, action
   buttons, and a weekly digest as a schedule action (`B1`–`B13`).

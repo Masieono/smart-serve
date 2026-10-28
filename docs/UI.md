@@ -412,10 +412,16 @@ picker offers exactly `ThemeNames`.
 - **Notes editor:** free-form notes + tags; optimistic save with rollback.
 
 ### 7.3 Schedules
-- List of schedules: label, kind (interval/cron), next run, last run, enable toggle,
+- List of schedules: label, action, kind (interval/cron), next run, last run, enable toggle,
   "run now", edit, delete.
 - Editor dialog: interval picker **or** cron expression with a plain-English preview
-  ("every day at 03:00").
+  ("every day at 03:00"), and an **Action** of *Scan the drives*, *Send a digest of the period* or
+  *Run a self-test on each drive*. The self-test action adds a **Test** picker (short or long) and a
+  hint naming the two things that make it different: it runs one drive at a time, and it is the only
+  schedule that writes to the drives.
+- While a self-test pass is draining, a **notice** above the table says how many drives are done and
+  which one is testing now. A pass runs for hours, so a `last run` that has already passed is not
+  enough for a reader to know what is happening. See `ADR-024`.
 
 ### 7.4 Notifications
 - Channel list with type icon, label, enabled toggle, "send test".

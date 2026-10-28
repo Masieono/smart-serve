@@ -15,6 +15,7 @@ import (
 	"github.com/masieono/smart-serve/internal/events"
 	"github.com/masieono/smart-serve/internal/notify"
 	"github.com/masieono/smart-serve/internal/scan"
+	"github.com/masieono/smart-serve/internal/selftest"
 	"github.com/masieono/smart-serve/internal/smart"
 	"github.com/masieono/smart-serve/internal/store"
 )
@@ -53,6 +54,19 @@ type Options struct {
 	// makes itself — the self-test ones. Without it the shipped default is used, which would
 	// quietly ignore SMARTSERVE_COMMAND_TIMEOUT for exactly those calls.
 	CommandTimeout func(ctx context.Context) time.Duration
+	// SelfTests, when set, reports what a scheduled self-test pass is doing. Without it the
+	// schedules page simply says nothing about a pass.
+	SelfTests SelfTests
+}
+
+// SelfTests reports on a scheduled self-test pass (`FEATURES.md` A19). *selftest.Runner satisfies it.
+//
+// Read-only here on purpose. The API can start a self-test on *one* drive, and can report on a pass,
+// but starting a pass is a schedule's action rather than a button: a pass writes to every drive in
+// the fleet, and the only thing that should be able to do that unattended is a schedule the user
+// wrote (`ADR-024`).
+type SelfTests interface {
+	Progress() selftest.Progress
 }
 
 // Server is the HTTP API.
@@ -64,6 +78,7 @@ type Server struct {
 	version   string
 	scheduler Scheduler
 	notifier  Notifier
+	selfTests SelfTests
 	handler   http.Handler
 
 	// commandTimeoutFn resolves the per-command timeout for the smartctl calls this package
@@ -93,7 +108,7 @@ func New(st *store.Store, sc *scan.Manager, hub *events.Hub, opts Options) *Serv
 	}
 	s := &Server{
 		store: st, scanner: sc, hub: hub, log: logger, version: opts.Version,
-		scheduler: opts.Scheduler, notifier: opts.Notifier,
+		scheduler: opts.Scheduler, notifier: opts.Notifier, selfTests: opts.SelfTests,
 		commandTimeoutFn: opts.CommandTimeout,
 	}
 

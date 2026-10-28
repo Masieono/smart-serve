@@ -22,6 +22,7 @@ import (
 	"github.com/masieono/smart-serve/internal/notify"
 	"github.com/masieono/smart-serve/internal/scan"
 	"github.com/masieono/smart-serve/internal/sched"
+	"github.com/masieono/smart-serve/internal/selftest"
 	"github.com/masieono/smart-serve/internal/smart"
 	"github.com/masieono/smart-serve/internal/store"
 	"github.com/masieono/smart-serve/internal/webui"
@@ -164,15 +165,30 @@ func runServe() error {
 	dispatcher := notify.NewDispatcher(st, registry, notify.DispatcherOptions{Logger: logger})
 	manager.OnPostScan(notify.NewNotifier(st, dispatcher, cfg.Version, logger).OnScan)
 
+	// Scheduled self-tests (`FEATURES.md` A19, `ADR-024`): a pass over every drive that can take one,
+	// one drive at a time. It re-reads each drive as its test finishes, so the result is stored and
+	// notified by the same path a manual test uses — and the fleet is never re-read while a test is
+	// running on it, because the queue serialises the rescans too.
+	selfTests := selftest.New(selftest.Options{
+		Store:          st,
+		Rescanner:      manager,
+		Driver:         selftest.Driver{Start: smart.StartSelfTest, Read: smart.ReadSelfTestLog},
+		CommandTimeout: scanner.CommandTimeout,
+		Logger:         logger,
+	})
+
 	// The scheduler owns scheduled scans (ADR-004). It sleeps to the next due
 	// schedule rather than ticking, so it costs nothing while idle. The timezone and
 	// missed-run policy are read from settings, with the environment as the seed.
 	//
 	// It also owns digest schedules (`FEATURES.md` B13): a weekly summary is the same timing problem
-	// as a scan on a schedule, so it rides the same machinery rather than a second timer.
+	// as a scan on a schedule, so it rides the same machinery rather than a second timer. And it owns
+	// self-test schedules (`A19`) for the same reason — the *timing* is shared, while the work is
+	// queued rather than run inline, because a pass takes hours.
 	scheduler := sched.New(st, manager, hub, sched.Options{
 		MissedRunPolicy: cfg.MissedRunPolicy,
 		Digester:        notify.NewDigestSender(st, dispatcher, cfg.Version, logger),
+		SelfTester:      selfTests,
 		Logger:          logger,
 	})
 	go scheduler.Run(ctx)
@@ -202,6 +218,9 @@ func runServe() error {
 		UI:        ui,
 		Scheduler: scheduler,
 		Notifier:  dispatcher,
+		// So the schedules page can say what a running self-test pass is doing. A pass takes hours
+		// and writes to drives, so "it fired" is not enough for a reader to know what happened.
+		SelfTests: selfTests,
 		// The self-test endpoints call smartctl directly, so they resolve the same timeout the
 		// scans do rather than falling back to the default and ignoring the setting.
 		CommandTimeout: scanner.CommandTimeout,

@@ -773,6 +773,81 @@ cases, which is the only thing keeping two implementations of one rule honest. (
 superseded, not contradicted: it remains the record of how the gap was found and why the
 documentation was corrected in the meantime.
 
+## ADR-024: A scheduled self-test rides the schedule table, and the queue is its own machinery
+
+**Context.** `A19` shipped in two halves: the button first, scheduling second (`ADR-023`). The button
+is a request the user makes; a schedule is a maintenance routine that runs unattended, and it is the
+only path by which this app writes to a drive without somebody pressing something. `ADR-023` left one
+instruction for this half — *"a scheduled self-test must run one drive at a time, in a defined order.
+That is worth designing deliberately rather than bolting on"* — and one warning: scheduling through
+the scan scheduler was **"rejected for now"**, because *"scans take seconds and self-tests take hours,
+and the staggering requirement means the two want different machinery."*
+
+**Decision — the timing is shared, the work is not.** A self-test is a third `action` on
+`scan_schedules` (`scan`, `digest`, `selftest`), with a `selftest_kind` column. The *timing* problem is
+identical to a scan's or a digest's — cron, time zones, the missed-run policy — and `B13` already
+settled that a second axis on the same table beats a second timer. What `ADR-023` was right about is
+the *work*: a fire does not run the pass, it **queues** it and returns. A pass takes hours, the
+scheduler is one goroutine every other schedule shares, and a fire that blocked it would stop every
+other schedule for a day.
+
+**Decision — one drive at a time, in serial order.** The queue is the whole reason the feature needed
+designing: twenty-four long tests starting together is an I/O meltdown. The order is by **serial**
+because a serial is stable, unique and not something the user can edit — renaming a drive or moving it
+to another bay must not reorder a queue that is already draining. Risk order was considered and
+rejected: the "replace first" ranking is about replacement, and testing the worst drive first would
+make the queue's order change under the user's feet as verdicts moved.
+
+**Decision — the drive's own estimate is a floor, not a timer.** A pass waits until the drive reports
+no test running, polling once a minute. But some drives write nothing to their log until a test
+*finishes* — the same blind spot the self-test card has — so "no test running" cannot be believed
+immediately: the pass waits the drive's own `polling_minutes` for that kind of test first (clamped to
+a two-minute floor and an eight-hour ceiling). A poll that *does* report the test running is
+authoritative and extends the wait indefinitely, because a running test is evidence and a clock is
+not. This is also why the kind is stored per schedule rather than defaulted once: a short drive's
+two-minute estimate would end a twenty-hour test after two minutes.
+
+**Decision — the pass stops with the process; the drive does not.** On shutdown the queue stops
+starting new drives, and the drive that is mid-test keeps testing. Aborting it would throw away hours
+of work that is doing exactly what it was asked to do, and the drive's own log is the record — the
+next scan picks the result up either way. For the same reason a pass is *not* bounded by the scan
+timeout, which is the one thing that made "different machinery" unavoidable: `fire` wraps scans and
+digests in a ten-minute deadline, and it deliberately does not wrap this.
+
+**Decision — a finished test is re-read, not notified from here.** When a drive's test ends, the pass
+scans that drive. That stores the result and lets the notification path that already exists (`B9`) see
+a new result where there was none. Notifying from the runner would mean a second copy of that
+comparison, and the two would drift. It also means the device page is current without anyone pressing
+anything. The rescans are serialised by the queue itself, so the fleet is never re-read while a test
+is running on it.
+
+**Decision — no scope selector.** Every drive that can take one, and that is the only option. A fleet
+owner wants all of them; the bench workflow's **Test all** already covers "just this batch"; and a
+selector on a schedule is a second place for the same decision to be made. A drive that cannot be
+tested is skipped rather than asked and refused, and the reason is a named string (`WhyNot`) so it can
+be shown rather than silently omitted.
+
+**Alternatives.**
+- *A separate table and timer for self-tests* — rejected. It duplicates cron, time zones and the
+  missed-run policy, which is exactly what `B13` refused to do for digests.
+- *Run the pass inline in `fire`* — rejected: it blocks every other schedule for hours.
+- *Wait on the drive's estimate instead of polling* — rejected. The estimate is the drive's guess, and
+  starting the next drive on a guess is how two tests end up running at once.
+- *Poll every 15 seconds, like the card* — rejected. The card is watched by someone; a pass is not, and
+  a minute is exact enough when the shortest test is two minutes.
+- *Abort the drive on shutdown* — rejected: it destroys the work rather than the schedule.
+- *A scope selector (bench only, by tag, hand-picked drives)* — rejected for now: a second place for
+  one decision, and the batch case has a button already.
+
+**Consequences.** (+) a monthly self-test on a fleet is one schedule rather than twenty-four manual
+runs, and the fleet is never re-read while it is happening; the schedule table gains an action rather
+than the app gaining a timer, so nothing new polls while idle. (−) the app now has a second
+long-running background operation beside the scheduler, and its state is in memory: a restart mid-pass
+loses the queue, and the drives not yet started wait for the next fire. That is the right failure — the
+next fire skips a drive already testing itself — but it is a behaviour worth knowing rather than
+discovering. (±) `ADR-023`'s "rejected for now" is partly reversed and partly vindicated: the timing
+was shareable and the work was not, and separating the two is what made it possible.
+
 
 
 

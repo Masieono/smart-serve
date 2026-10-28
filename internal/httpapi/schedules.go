@@ -57,10 +57,13 @@ type scheduleJSON struct {
 	ID      int64  `json:"id"`
 	Enabled bool   `json:"enabled"`
 	Kind    string `json:"kind"`
-	// Action is what happens when the schedule fires (`FEATURES.md` B13): "scan" or "digest". Sent
-	// and accepted rather than implied, because the two produce completely different things from the
-	// same timing.
-	Action       string  `json:"action"`
+	// Action is what happens when the schedule fires (`FEATURES.md` B13, A19): "scan", "digest" or
+	// "selftest". Sent and accepted rather than implied, because they produce completely different
+	// things from the same timing.
+	Action string `json:"action"`
+	// SelfTestKind is "short" or "long", and only means anything for a self-test schedule (`A19`).
+	// Sent back so the editor shows what the schedule will actually do rather than a default.
+	SelfTestKind string  `json:"selftest_kind,omitempty"`
 	EverySeconds *int64  `json:"every_seconds,omitempty"`
 	Cron         string  `json:"cron,omitempty"`
 	Label        string  `json:"label"`
@@ -72,6 +75,7 @@ type scheduleJSON struct {
 func toScheduleJSON(sched store.Schedule) scheduleJSON {
 	out := scheduleJSON{
 		ID: sched.ID, Enabled: sched.Enabled, Kind: sched.Kind, Action: sched.Action,
+		SelfTestKind: sched.SelfTestKind,
 		EverySeconds: sched.EverySeconds, Cron: sched.Cron, Label: sched.Label,
 		CreatedAt: rfc3339(sched.CreatedAt),
 	}
@@ -96,7 +100,13 @@ func (s *Server) handleListSchedules(w http.ResponseWriter, r *http.Request) {
 	for _, sched := range schedules {
 		out = append(out, toScheduleJSON(sched))
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"schedules": out})
+	payload := map[string]any{"schedules": out}
+	// A self-test pass runs for hours and writes to drives, so the page says what it is doing rather
+	// than leaving the reader to infer it from a "last run" that has already passed.
+	if s.selfTests != nil {
+		payload["selftest_pass"] = s.selfTests.Progress()
+	}
+	writeJSON(w, http.StatusOK, payload)
 }
 
 func (s *Server) handleCreateSchedule(w http.ResponseWriter, r *http.Request) {
@@ -114,6 +124,7 @@ func (s *Server) handleCreateSchedule(w http.ResponseWriter, r *http.Request) {
 	}
 	id, err := s.store.CreateSchedule(r.Context(), store.Schedule{
 		Enabled: body.Enabled, Kind: body.Kind, Action: body.Action,
+		SelfTestKind: body.SelfTestKind,
 		EverySeconds: body.EverySeconds,
 		Cron:         body.Cron, Label: body.Label,
 	})
@@ -156,6 +167,9 @@ func (s *Server) handleUpdateSchedule(w http.ResponseWriter, r *http.Request) {
 	}
 	if body.Action != "" {
 		existing.Action = body.Action
+	}
+	if body.SelfTestKind != "" {
+		existing.SelfTestKind = body.SelfTestKind
 	}
 	if body.Kind != "" {
 		existing.Kind = body.Kind
@@ -242,17 +256,17 @@ func (s *Server) handleRunSchedule(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusAccepted, map[string]any{"status": "started", "schedule_id": id})
 }
 
-// validateScheduleAction checks the *what* half of a schedule (`FEATURES.md` B13).
+// validateScheduleAction checks the *what* half of a schedule (`FEATURES.md` B13, A19).
 //
 // An empty action means "scan", which is what a schedule has always done and what a client written
-// before this existed will send. Anything else has to be one of the two, so a typo cannot create a
+// before this existed will send. Anything else has to be one of the three, so a typo cannot create a
 // schedule that quietly does nothing when it fires.
 func validateScheduleAction(action string) string {
 	switch strings.TrimSpace(action) {
-	case "", store.ActionScan, store.ActionDigest:
+	case "", store.ActionScan, store.ActionDigest, store.ActionSelfTest:
 		return ""
 	default:
-		return "action must be scan or digest"
+		return "action must be scan, digest or selftest"
 	}
 }
 

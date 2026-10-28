@@ -284,6 +284,55 @@ func TestImportWithSchedulesReplacesThem(t *testing.T) {
 	}
 }
 
+// A schedule's *action* has to survive an export and import, and it did not: the bundle carried the
+// timing axis and not the action, so a digest schedule came back as a scan schedule — silently, and
+// in the direction of doing something to the drives rather than of doing nothing. A self-test
+// schedule is the same failure with a worse ending.
+func TestASchedulesActionSurvivesAMigration(t *testing.T) {
+	srv, st, _, _ := newTestServer(t, Options{})
+	every := int64(86400)
+	if _, err := st.CreateSchedule(context.Background(), store.Schedule{
+		Enabled: true, Kind: "interval", EverySeconds: &every, Label: "summary",
+		Action: store.ActionDigest,
+	}); err != nil {
+		t.Fatalf("CreateSchedule: %v", err)
+	}
+	if _, err := st.CreateSchedule(context.Background(), store.Schedule{
+		Enabled: true, Kind: "cron", Cron: "0 4 1 * *", Label: "monthly test",
+		Action: store.ActionSelfTest, SelfTestKind: store.SelfTestLong,
+	}); err != nil {
+		t.Fatalf("CreateSchedule: %v", err)
+	}
+
+	// Out, and back into a *different* install — which is the only way a round trip means anything.
+	body, err := json.Marshal(exportBundle(t, srv))
+	if err != nil {
+		t.Fatal(err)
+	}
+	freshSrv, fresh, _, _ := newTestServer(t, Options{})
+	if rec := importBundle(t, freshSrv, string(body)); rec.Code != http.StatusOK {
+		t.Fatalf("import status = %d, body %s", rec.Code, rec.Body.String())
+	}
+
+	schedules, err := fresh.ListSchedules(context.Background())
+	if err != nil {
+		t.Fatalf("ListSchedules: %v", err)
+	}
+	got := map[string]store.Schedule{}
+	for _, s := range schedules {
+		got[s.Label] = s
+	}
+	if got["summary"].Action != store.ActionDigest {
+		t.Errorf("summary action = %q, want digest", got["summary"].Action)
+	}
+	if got["monthly test"].Action != store.ActionSelfTest {
+		t.Errorf("monthly test action = %q, want selftest", got["monthly test"].Action)
+	}
+	if got["monthly test"].SelfTestKind != store.SelfTestLong {
+		t.Errorf("monthly test kind = %q, want long", got["monthly test"].SelfTestKind)
+	}
+}
+
 // An empty array is a file that carries schedules and has none — different from a file that does
 // not mention them at all.
 func TestAnEmptyScheduleListIsRespected(t *testing.T) {

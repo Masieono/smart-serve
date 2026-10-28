@@ -104,9 +104,9 @@ than what was planned.
   none — so an ATA drive falls back to the sector trend. Computed in
   `internal/interp/longevity.go`, exposed as `projection` on the device detail endpoint.
 3. **Notification adapters** — Gotify, Telegram, Discord, SMTP email. **Done.**
-4. **SMART self-test triggering** (short/extended) — **done**, manual only. Short and long
-   tests, live progress, abort; opt-in and never automatic (`FEATURES.md` A19). *Scheduling*
-   one — staggered, one drive at a time — is not built; see Phase 4.
+4. **SMART self-test triggering** (short/extended) — **done**, including scheduling. Short and long
+   tests, live progress, abort, and a `selftest` schedule action that runs one drive at a time
+   (`FEATURES.md` A19, `ADR-024`).
 5. **Squelch configuration** — user-tunable dedupe window. **Done** — the
    `squelch_seconds` setting.
 6. **In-app knowledge-base refresh** — **done.** An opt-in, user-pressed refresh from a URL,
@@ -121,8 +121,7 @@ than what was planned.
    10 points, with the reason in the rationale (`FEATURES.md` A17).
 9. **Self-test scheduling + self-test log**, and **SMART error log** display
    (`FEATURES.md` A19/A20). `A20` **done**: the counts, the entries, the drive's own self-test
-   timings, and smartctl's message when a log cannot be read. `A19`'s manual half is done with
-   it (item 4). What remains is *scheduling*.
+   timings, and smartctl's message when a log cannot be read. `A19` is done with it (item 4).
 10. **Alert acknowledgement & maintenance/silence windows** (`FEATURES.md` B7/B8) — **done**,
     both. An acknowledgement is scoped to the verdict it was granted for, so it is spent the
     moment the verdict moves, and it lives as columns on `device_notes` rather than the table
@@ -164,9 +163,9 @@ Everything below is wanted. This is the order it lands in, recorded in `ADR-023`
 resumes rather than re-decides. Each round is a shipping unit, and a UI consolidation pass follows
 each (`ADR-019`).
 
-**Status: rounds 1–6 are built.** Three things are not, and they are the whole of what is left:
+**Status: rounds 1–6 are built, `A19` scheduling included.** Two things are not, and they are the
+whole of what is left:
 
-- `A19` **scheduling** — staggered, one drive at a time. Round 1 built the manual half.
 - **group-level routing** (round 6).
 - `D6` **side-by-side comparison** and **custom per-model attribute thresholds** (round 7).
 
