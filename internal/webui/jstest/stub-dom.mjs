@@ -189,6 +189,24 @@ export class StubNode {
     return null;
   }
 
+  /**
+   * The slice of `Element.querySelector` the views use: a tag name, optionally with one class.
+   *
+   * Not a selector engine — just the forms that appear in the views. It is here because the
+   * channel editor reads its own checkbox state back out of the DOM (`row.querySelector('input')`)
+   * when it builds a save payload, and without this the whole save path was untestable: every save
+   * threw a `TypeError` that the editor's own `catch` turned into a "Save failed" toast, so a test
+   * could only ever have seen a form that looked like it worked and a request that never left.
+   */
+  querySelector(selector) {
+    const [tag, className] = String(selector).split('.');
+    return this.find((n) => {
+      if (tag && n.tagName !== tag.toUpperCase()) return false;
+      if (className && !String(n.className).split(/\s+/).includes(className)) return false;
+      return true;
+    });
+  }
+
   /** Every descendant with the given tag, in document order. */
   all(tag) {
     const out = [];

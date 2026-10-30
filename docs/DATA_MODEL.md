@@ -96,6 +96,7 @@ history — is one file that can be backed up with `cp` while the app is stopped
 | `config` | TEXT | type-specific JSON (see NOTIFICATIONS.md) |
 | `enabled` | INTEGER DEFAULT 1 | |
 | `events` | TEXT | JSON list of subscribed event types; default: all |
+| `scope_groups` | TEXT DEFAULT `'[]'` | JSON list of tag names this channel is about (`B12`); default: every group. Named to avoid the SQL keyword `GROUPS` |
 
 ### `notification_log` — delivery history + squelch bookkeeping
 

@@ -435,8 +435,12 @@ takes effect immediately instead of at the next sleep boundary.
 ## Notification channels
 
 - `GET /api/channels`
-- `POST /api/channels` — `{ "type": "ntfy", "label": "alerts", "config": { "server": "https://ntfy.sh", "topic": "my-smart-alerts" }, "events": ["health_change", "temperature_high", "device_disappeared"] }`.
-  An empty or absent `events` array means "every event". The config is validated
+- `POST /api/channels` — `{ "type": "ntfy", "label": "alerts", "config": { "server": "https://ntfy.sh", "topic": "my-smart-alerts" }, "events": ["health_change", "temperature_high", "device_disappeared"], "scope_groups": ["tank"] }`.
+  An empty or absent `events` array means "every event", and an empty or absent `scope_groups` array
+  means **every group** — the two filters are independent, and both have to admit an event for it to
+  be sent (`FEATURES.md` B12, `NOTIFICATIONS.md`). `scope_groups` is stored normalised: trimmed,
+  blanks dropped and de-duplicated case-insensitively, so the empty list is the only value that
+  means "every group". The config is validated
   against the channel type's sender, so a missing topic or a malformed URL is a
   `400` at the point of editing. Config shapes per type are in `NOTIFICATIONS.md`.
 - `PUT /api/channels/{id}` — update (same validation).
@@ -456,18 +460,22 @@ takes effect immediately instead of at the next sleep boundary.
 
 ### Channel objects and environment overrides
 
-A channel object carries two fields beyond its stored configuration (`ADR-022`):
+A channel object carries two fields beyond its stored configuration (`ADR-022`), plus the two
+filters it delivers through:
 
 ```json
 {
   "id": 1, "type": "ntfy", "label": "Critical alerts",
   "config": { "server": "https://ntfy.sh", "topic": "alerts" },
-  "enabled": true, "events": ["health_change"],
+  "enabled": true, "events": ["health_change"], "scope_groups": ["tank"],
   "env_prefix": "SMARTSERVE_CHANNEL_CRITICAL_ALERTS",
   "sources": { "token": "environment" }
 }
 ```
 
+- `events` and `scope_groups` are the two independent filters: *what happened*, and *to which drives*.
+  Both have to admit an event for it to be sent (`FEATURES.md` B12). An empty `scope_groups` is every
+  group, and a fleet-level event is never filtered by it.
 - `env_prefix` is the prefix this channel's fields are overridden by, derived from its label.
   It is returned so the editor can *show* the variable names instead of leaving them to be
   guessed, and so renaming a channel reads as a rename.

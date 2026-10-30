@@ -163,10 +163,8 @@ Everything below is wanted. This is the order it lands in, recorded in `ADR-023`
 resumes rather than re-decides. Each round is a shipping unit, and a UI consolidation pass follows
 each (`ADR-019`).
 
-**Status: rounds 1–6 are built, `A19` scheduling included.** Two things are not, and they are the
-whole of what is left:
+**Status: rounds 1–7 are built.** One thing is not, and it is the whole of what is left:
 
-- **group-level routing** (round 6).
 - `D6` **side-by-side comparison** and **custom per-model attribute thresholds** (round 7).
 
 1. **The drive's own data, finished.** `A20` entry rendering, then `A19` self-test: the opt-in
@@ -183,7 +181,7 @@ whole of what is left:
 5. **Knowledge base.** `A21`, seeded from the owner's Western Digital, Seagate and Samsung drives
    and grown by community pull requests.
 6. **Notifications polish.** `B7` acknowledgement, `B10` ntfy action buttons, `B13` weekly digest,
-   group-level routing.
+   **group-level routing** (`B12`, the second axis on a channel: *which drives* it is about).
 7. **Interfaces and last mile.** `C6` Prometheus `/metrics` (off by default), `D6` side-by-side
    comparison, custom per-model attribute thresholds.
 

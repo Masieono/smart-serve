@@ -130,6 +130,11 @@ and 7.5 can, with no hardware change — which is why the two are reported separ
 | 5.3 | Press **Save**, then **Save** again. | The button must come back |
 | 5.4 | Press **Test** on the saved channel in the list. | A test arrives |
 | 5.5 | Tick some events and save, then untick them. | The chips on the card follow |
+| 5.5a | Tag two drives `tank` and one `bench` on the dashboard, then open a channel and look at **Only drives in these groups**. | One checkbox per group in use, none ticked |
+| 5.5b | Tick `tank`, save, and look at the card. | **Only drives tagged** · `tank` — and the events line is unchanged |
+| 5.5c | Reopen the editor without changing anything and save again. | `tank` is still ticked — the scope must not be quietly widened |
+| 5.5d | Untick `tank` and save. | The card is back to **Every group** |
+| 5.5e | Press **Test** on the scoped channel. | A test arrives: the scope must not make a channel untestable |
 | 5.6 | **Add** a maintenance window: one-off, now to +10 minutes. | It is listed and marked active |
 | 5.7 | Add a daily window and a weekly one. | Both listed, with their schedules in words |
 | 5.8 | Scroll to the **delivery log**. | Every test above is recorded there |

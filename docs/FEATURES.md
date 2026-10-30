@@ -481,7 +481,7 @@ and all of them still hold.
 | B9 | Self-test result notifications (pass/fail) | P2 | 💤 | **done** — one `self_test_result` event, high priority on a failure, deduped on the drive's own result identity. See `NOTIFICATIONS.md` |
 | B10 | ntfy action buttons ("Open dashboard"), priority, tags | P2 | 💤 | **done** — priority and tags were already there; the action button needs a `public_url` setting, because the app cannot know its own external address and a wrong link is worse than none |
 | B11 | Gotify / Telegram / Discord / SMTP adapters | P2 | 💤 | **done** — each a small `Sender`; the editor is data-driven, so adding another is a data change |
-| B12 | Per-channel event subscription UI | P2 | 💤 | **done** — checkboxes per channel, served from the server's event list so the two cannot drift |
+| B12 | Per-channel event subscription UI | P2 | 💤 | **done** — checkboxes per channel, served from the server's event list so the two cannot drift. Extended with a **group scope**: a channel also names *which drives* it is about, so a `tank` channel and a bench channel can both want `health_change` and still never see each other's drives. An empty list is every group, a fleet-level event (failed scan, digest, heartbeat) is never filtered, and `Test` ignores it. See `NOTIFICATIONS.md` |
 | B13 | Weekly digest (one summary instead of per-event) | P3 | 💤 | **done** — a schedule with `action: digest`, so it rides the scheduler rather than a second timer. One message naming the fleet, what changed, and what to act on. See `NOTIFICATIONS.md` |
 
 ## C. Operations & deployment

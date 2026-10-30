@@ -117,7 +117,7 @@ cannot know its own external address, and guessing `localhost` would produce a b
 nobody while looking like a feature — so with no setting there is no button at all. That is the same
 reasoning as the em dash on screen: a wrong value is worse than an honest absence.
 
-
+### Subscriptions, and the two events that are opt-in
 
 A channel with no subscriptions ticked receives **every** event. That default is about
 exceptions — a verdict changed, a drive vanished, a scan failed — and each of those is
@@ -138,6 +138,41 @@ find it noisy never receives it. A false "your enclosure is overheating" is wors
 eight true per-drive alerts it is meant to explain.
 
 An explicit `"*"` subscription still means everything, including both of those.
+
+### Group scope (`FEATURES.md` B12)
+
+A channel has **two** filters, and they answer different questions. `events` says *what happened*; a
+new `scope_groups` says *to which drives*. Both have to admit an event for it to be sent, so a
+`tank` channel and a bench channel can both subscribe to `health_change` and still never see each
+other's drives — which is the whole point: sending everything to everyone and letting the reader
+work out which alerts are theirs is how a fleet's alerts stop being read.
+
+**An empty list is every group**, exactly like an empty event subscription. The setting lists what
+has been *narrowed away*, nothing listed means nothing excluded, and every channel that existed
+before this did nothing differently after it. A malformed or unreadable value reads the same way,
+and that direction is chosen deliberately: a filter that fails open is a nuisance, and one that
+fails closed is a monitoring outage nobody notices.
+
+**The scope filters drives, not events.** A failed scan, a heartbeat and a digest are about the
+fleet, so there is no group to match them against and they are not filtered at all. The alternative
+was worse than it looks: scope a channel to `tank` and it would silently stop telling you that
+scheduled scans were failing — a silence caused by an unrelated setting. A `group_heat` event is the
+one event that names a group rather than a drive, so it is matched on that group: a channel watching
+one pool has no business being told about another enclosure.
+
+**Test ignores it**, like it ignores everything else. A synthetic test event carries no real drive,
+so a scoped channel would otherwise be impossible to test — and the question Test answers is "does
+this channel work", not "is this drive mine".
+
+A skipped event is recorded **nowhere** in the delivery log. It is a property of the channel — shown
+on its card — rather than something that happened, and a row for every event-and-channel
+combination that did not apply would bury the deliveries that did.
+
+The groups offered are the tags actually in use, derived from the drives (`tags.js`, the same helper
+the dashboard's export scope uses). There is deliberately no table of groups: `D9` settled that a tag
+is free text, and a second place to maintain the same list is how the two come to disagree. Tags are
+compared case-insensitively, like every other question about tags (`store.HasTag`), so a stored
+`Tank` matches a drive tagged `tank`.
 
 #### What "found nothing to report" means exactly
 

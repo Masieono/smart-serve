@@ -773,6 +773,79 @@ cases, which is the only thing keeping two implementations of one rule honest. (
 superseded, not contradicted: it remains the record of how the gap was found and why the
 documentation was corrected in the meantime.
 
+## ADR-025: A channel is scoped by event *and* by group, and the group filter fails open
+
+**Context.** `B12` shipped as "per-channel event subscription UI": checkboxes saying which *kinds* of
+thing a channel wants. Round 6 of the roadmap then named a second item — **group-level routing** —
+and named it nowhere else. No ADR, no `FEATURES.md` entry, no note: a label in a list and nothing
+behind it. So it was put to the user rather than guessed, because the two plausible readings are
+different features with different schemas.
+
+**Decision — it means "only these groups", on the channel.** A channel gains a second list beside its
+event subscription, and both have to admit an event for it to be sent. A `tank` channel and a bench
+channel can both want `health_change` and never see each other's drives. The alternative reading — a
+group owning its own channels — was considered and declined: it makes a tag a delivery object rather
+than a label, and it has to answer what happens to an *untagged* drive's events, which is the
+question that turns a routing option into a second delivery model. The smaller reading answers the
+question people actually have ("send this pool's alerts there") and leaves the larger one open.
+
+**Decision — an empty list is every group.** The setting lists what has been *narrowed away*, exactly
+like the event subscription beside it, so every channel that existed before this behaves identically
+after it. A malformed or unreadable value reads the same way, and that direction is the point rather
+than an accident: a filter that fails open is a nuisance, and one that fails closed is a monitoring
+outage nobody notices. The store normalises on the way in so the empty list is the *only* thing that
+means "everything" — without it, a stored `["", " tank "]` would be a scope matching no drive at all.
+
+**Decision — the scope filters drives, not events.** A failed scan, a heartbeat and a digest are about
+the fleet; there is no group to match them against, so they pass unfiltered. Excluding them was the
+obvious symmetric reading and it is a trap: scoping a channel to `tank` would silently stop it
+reporting that scheduled scans were failing, and the user would have no reason to connect the two.
+`group_heat` is the one event that names a group rather than a drive, so it is matched on that group —
+a channel watching one pool has no business hearing about another enclosure.
+
+**Decision — Test ignores the scope.** `SendTest` already bypassed subscriptions and squelching, and
+the scope joins them. The question Test answers is "does this channel work", and a synthetic event
+carries no real drive, so a scoped channel would otherwise be impossible to test — the feature would
+have broken the tool for diagnosing it. The rule is written into `inScope` as well as into `SendTest`,
+so the two cannot come to disagree about it.
+
+**Decision — a skipped event is recorded nowhere.** Not `squelched`, not `failed`: nothing. The
+delivery log is the record of what a channel *did*, and a row for every event-and-channel combination
+that did not apply would bury the deliveries that did. The scope is a property of the channel, and the
+channel's own card shows it.
+
+**Decision — the groups are derived, never stored.** There is no table of groups. A tag is free text
+on a drive (`D9`), so the list of groups *is* the list of tags in use, read from the drives. A second
+place to maintain the same list is how the two come to disagree — and it is the same question the
+dashboard already asks when it offers tags to scope an export to, which is why the helper moved to
+`tags.js` and both now call it. That move also fixed a latent difference: the dashboard's list
+de-duplicated case-*sensitively*, so `Tank` and `tank` were two entries, while every comparison the
+app makes about tags ignores case (`store.HasTag`). Two checkboxes that do the same thing is a small
+bug; a scope that lists a group twice is a confusing one.
+
+**Alternatives.**
+- *A group owning its channels* — declined, above. Not wrong, just larger, and it needs an answer for
+  untagged drives that this does not.
+- *A `groups` table, maintained by the user* — rejected: `D9` settled that a tag is free text, and a
+  tag that is not on any drive is a group with nothing in it.
+- *A separate `channel_group_scope` join table* — rejected. A JSON column already exists next to it
+  (`events`) doing the same job, and the list is small, opaque and never queried by.
+- *Filtering fleet-level events too* — rejected: it makes an unrelated setting able to silence the one
+  alert that says the monitoring itself is broken.
+- *Logging every skip as `squelched`* — rejected: it would fill the log with rows that describe
+  nothing, on every scan, for every channel.
+- *Naming the column `groups`* — rejected: `GROUPS` is a SQL keyword (window-function grammar) and
+  every use would need quoting.
+
+**Consequences.** (+) the fleet can be split across channels without splitting the fleet, which is what
+makes alerts about a twenty-four-drive box readable; the second axis costs one column, one filter and
+one field in the editor, because the subscription UI and the event catalog were already there. (−) the
+delivery path now has two filters, and a reader has to know both to predict what a channel receives —
+mitigated by the card stating both lines in the same "what has been narrowed away" form. (±) the
+declined reading is not foreclosed: a group with its own channels could sit on top of this, since a
+group's channel set is exactly a scope plus a reason.
+
+
 ## ADR-024: A scheduled self-test rides the schedule table, and the queue is its own machinery
 
 **Context.** `A19` shipped in two halves: the button first, scheduling second (`ADR-023`). The button

@@ -169,6 +169,17 @@ acknowledgement, action buttons back into the app, and a weekly digest.
   app stops the pass but **not the drive** — hours of work that is doing the right thing is not waste.
   The schedules page says what a running pass is doing, because a `last_run` that has already passed
   tells a reader nothing. See `ADR-024`.
+- **Group-scoped channels (`B12`, second half)** — a channel now has two filters, and they answer
+  different questions. The event list says *what happened*; a new **group scope** says *to which
+  drives*. Tick `tank` and that channel hears about the tank and nothing else, even while a bench
+  channel subscribing to the same events hears only about the bench — which is the difference
+  between alerts somebody reads and alerts they learn to skip. An empty list is every group, so every
+  existing channel behaves exactly as it did. Three decisions are worth naming: a **fleet-level event
+  is never filtered** (scope a channel to a pool and it must still tell you that scheduled scans are
+  failing); a `group_heat` finding is matched on the group it names, because that is what it is about;
+  and **Test ignores the scope**, because the question Test answers is "does this channel work".
+  The groups offered are the tags actually in use, and the helper that lists them is now shared with
+  the dashboard's export scope — one question, one implementation.
 - **Drive logs (`A20`)** — the error log and the self-test log are rendered, with the drive's own
   self-test time estimates and smartctl's words when a log cannot be read.
 
@@ -285,6 +296,12 @@ acknowledgement, action buttons back into the app, and a weekly digest.
 
 ### Fixed
 
+- **The JS test DOM stub had no `querySelector`, so the channel editor's whole save path was
+  untestable.** The editor reads its own checkbox state back out of the DOM to build a save payload,
+  which threw a `TypeError` under the stub — and the editor's own `catch` turned that into a "Save
+  failed" toast, so a test could only ever have seen a form that looked like it worked and a request
+  that never left. Found by the first test that asserted on a payload rather than on the rendered
+  result. The stub now implements the slice the views use.
 - **The self-test card's baseline is read from the drive, not from the last scan.** It was comparing the
   live log against the copy the last scan recorded — which is stale the moment a test has run since — so
   the first look after starting a test saw a "new" row that was not new, concluded the test was already

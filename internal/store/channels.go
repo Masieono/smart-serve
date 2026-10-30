@@ -3,8 +3,10 @@ package store
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -16,12 +18,20 @@ type Channel struct {
 	Config  string // type-specific JSON (docs/NOTIFICATIONS.md)
 	Enabled bool
 	Events  string // JSON array of subscribed event types
+	// ScopeGroups is a JSON array of tag names this channel is about (`FEATURES.md` B12). An
+	// empty list means every group, which is what it has always meant in practice and what an
+	// install that never touches the setting keeps getting.
+	//
+	// The second axis on a channel, and a different question from `Events`: that one says *what
+	// happened*, this one says *to which drives*. A `tank` channel and a bench channel can
+	// therefore both subscribe to `health_change` and still never see each other's drives.
+	ScopeGroups string
 }
 
 // ListChannels returns every notification channel.
 func (s *Store) ListChannels(ctx context.Context) ([]Channel, error) {
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT id, type, label, config, enabled, events
+		SELECT id, type, label, config, enabled, events, scope_groups
 		FROM notification_channels ORDER BY id`)
 	if err != nil {
 		return nil, err
@@ -42,7 +52,7 @@ func (s *Store) ListChannels(ctx context.Context) ([]Channel, error) {
 // GetChannel returns one channel, or nil when it does not exist.
 func (s *Store) GetChannel(ctx context.Context, id int64) (*Channel, error) {
 	c, err := scanChannel(s.db.QueryRowContext(ctx, `
-		SELECT id, type, label, config, enabled, events
+		SELECT id, type, label, config, enabled, events, scope_groups
 		FROM notification_channels WHERE id = ?`, id))
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
@@ -56,9 +66,9 @@ func (s *Store) GetChannel(ctx context.Context, id int64) (*Channel, error) {
 // CreateChannel inserts a channel and returns its id.
 func (s *Store) CreateChannel(ctx context.Context, c Channel) (int64, error) {
 	res, err := s.db.ExecContext(ctx, `
-		INSERT INTO notification_channels (type, label, config, enabled, events)
-		VALUES (?, ?, ?, ?, ?)`,
-		c.Type, c.Label, c.Config, boolInt(c.Enabled), c.Events)
+		INSERT INTO notification_channels (type, label, config, enabled, events, scope_groups)
+		VALUES (?, ?, ?, ?, ?, ?)`,
+		c.Type, c.Label, c.Config, boolInt(c.Enabled), c.Events, normalizeScopeGroups(c.ScopeGroups))
 	if err != nil {
 		return 0, fmt.Errorf("create channel: %w", err)
 	}
@@ -69,9 +79,10 @@ func (s *Store) CreateChannel(ctx context.Context, c Channel) (int64, error) {
 func (s *Store) UpdateChannel(ctx context.Context, c Channel) error {
 	_, err := s.db.ExecContext(ctx, `
 		UPDATE notification_channels
-		SET type = ?, label = ?, config = ?, enabled = ?, events = ?
+		SET type = ?, label = ?, config = ?, enabled = ?, events = ?, scope_groups = ?
 		WHERE id = ?`,
-		c.Type, c.Label, c.Config, boolInt(c.Enabled), c.Events, c.ID)
+		c.Type, c.Label, c.Config, boolInt(c.Enabled), c.Events,
+		normalizeScopeGroups(c.ScopeGroups), c.ID)
 	if err != nil {
 		return fmt.Errorf("update channel %d: %w", c.ID, err)
 	}
@@ -84,12 +95,49 @@ func (s *Store) DeleteChannel(ctx context.Context, id int64) error {
 	return err
 }
 
+// normalizeScopeGroups puts a channel's group scope into the one stored form: a JSON array of
+// trimmed, non-empty, case-insensitively unique tag names.
+//
+// It exists so that the *empty* list is the only thing that means "every group". Without it a
+// caller could store `["", " tank "]` and get a scope that matches nothing — the one direction a
+// filter must never fail in, because a channel that silently stops speaking is indistinguishable
+// from a quiet fleet. A malformed or unparseable value collapses to the empty list for the same
+// reason: garbage reads as "no narrowing", which is loud rather than silent.
+func normalizeScopeGroups(raw string) string {
+	var list []string
+	if err := json.Unmarshal([]byte(raw), &list); err != nil {
+		return "[]"
+	}
+	seen := make(map[string]bool, len(list))
+	out := make([]string, 0, len(list))
+	for _, g := range list {
+		g = strings.TrimSpace(g)
+		if g == "" {
+			continue
+		}
+		key := strings.ToLower(g)
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+		out = append(out, g)
+	}
+	if len(out) == 0 {
+		return "[]"
+	}
+	encoded, err := json.Marshal(out)
+	if err != nil {
+		return "[]"
+	}
+	return string(encoded)
+}
+
 func scanChannel(r rowScanner) (Channel, error) {
 	var (
 		c       Channel
 		enabled int64
 	)
-	if err := r.Scan(&c.ID, &c.Type, &c.Label, &c.Config, &enabled, &c.Events); err != nil {
+	if err := r.Scan(&c.ID, &c.Type, &c.Label, &c.Config, &enabled, &c.Events, &c.ScopeGroups); err != nil {
 		return c, err
 	}
 	c.Enabled = enabled != 0

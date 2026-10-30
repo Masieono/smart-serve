@@ -127,6 +127,12 @@ type Event struct {
 	// consumer wants. They only shape the human-readable output.
 	key      string
 	tempUnit string
+	// tags is the drive's own tag string, used for group-scoped channels (`FEATURES.md` B12) and
+	// deliberately not on the wire. Which groups a drive belongs to is this app's bookkeeping, and
+	// a consumer that re-implemented the scope from a payload field would be a second copy of a
+	// routing rule — the failure `ADR-022` named for the environment-variable naming rule, with
+	// the same symptom: two implementations of one rule, drifting.
+	tags string
 	// baseURL is where this deployment is reachable, used to build a link back into the app
 	// (`FEATURES.md` B10). Also private: it is a property of the deployment rather than of the
 	// event, and putting it on the wire would invite a consumer to depend on it.
@@ -501,14 +507,14 @@ func (d *Dispatcher) Dispatch(ctx context.Context, events []Event) {
 			// The channel's configuration is unusable, so every event it subscribes to would
 			// fail. Record that per event rather than sending nothing and saying nothing.
 			for _, ev := range events {
-				if subscribed(ch.Events, ev.Type) {
+				if subscribed(ch.Events, ev.Type) && inScope(ch.ScopeGroups, ev) {
 					d.record(ctx, ch.ID, ev, OutcomeFailed, cfgErr.Error())
 				}
 			}
 			continue
 		}
 		for _, ev := range events {
-			if !subscribed(ch.Events, ev.Type) {
+			if !subscribed(ch.Events, ev.Type) || !inScope(ch.ScopeGroups, ev) {
 				continue
 			}
 			d.deliver(ctx, ch, sender, cfg, ev, p)
@@ -538,8 +544,12 @@ func (d *Dispatcher) newPass(ctx context.Context) pass {
 }
 
 // SendTest delivers a synthetic event to one channel, bypassing subscription
-// filters and squelching (docs/NOTIFICATIONS.md). It reports the real outcome so
+// filters, group scope and squelching (docs/NOTIFICATIONS.md). It reports the real outcome so
 // the UI can show *why* a channel is not working.
+//
+// Every filter is bypassed, and the scope is not an exception: the question Test answers is "does
+// this channel work", and a test event carries no drive, so a scoped channel would otherwise be
+// impossible to test at all.
 //
 // A channel with no id is an unsaved draft straight from the editor. It is still sent,
 // but not recorded: there is no stored channel to attribute a delivery-log row to, and
@@ -641,6 +651,67 @@ func subscribed(eventsJSON, typ string) bool {
 	}
 	for _, t := range list {
 		if t == typ || t == "*" {
+			return true
+		}
+	}
+	return false
+}
+
+// inScope reports whether a channel's group scope admits an event (`FEATURES.md` B12).
+//
+// This is the second filter on a channel, and a different question from `subscribed`: that one
+// asks *what happened*, this one asks *to which drives*. Both have to admit an event for it to be
+// sent.
+//
+// Three rules, in order:
+//
+//  1. **An empty or unreadable scope is every group.** The setting lists what has been narrowed
+//     away, exactly like the event subscription, so nothing listed means nothing excluded. A
+//     malformed value reads the same way, because the direction a filter fails in matters: a
+//     channel that hears too much is a nuisance, and one that silently stops speaking is a
+//     monitoring outage nobody notices.
+//
+//  2. **An event that names no drive passes.** A failed scan, a heartbeat and a digest are about
+//     the fleet, not about a drive in it, so there is no group to match them against — and
+//     excluding them would mean scoping a channel to `tank` quietly also stopped it reporting that
+//     scans were failing. The scope answers "which drives", and these are not about a drive. A
+//     synthetic test event is the same case even though it carries a serial: it is a made-up drive,
+//     and `SendTest` bypasses this filter anyway — naming it here is what stops the two paths from
+//     being able to disagree about whether a channel can be tested.
+//
+//  3. **Otherwise the event's drive or group is matched, case-insensitively.** `group_heat` is
+//     matched on the group it names rather than on a drive, because the finding *is* about the
+//     group: a channel that watches `tank` has no business being told about `bench`'s enclosure.
+//
+// A skipped event is recorded nowhere, deliberately. It is a property of the channel — visible on
+// its card — rather than something that happened, and a row per event per channel would bury the
+// deliveries that did happen.
+func inScope(scopeJSON string, ev Event) bool {
+	var scope []string
+	if err := json.Unmarshal([]byte(scopeJSON), &scope); err != nil || len(scope) == 0 {
+		return true
+	}
+
+	if ev.Group != "" {
+		return matchesGroup(scope, ev.Group)
+	}
+	// No drive, or no real one: a fleet-level event or a test, which the scope cannot speak about.
+	if ev.Serial == "" || ev.Test {
+		return true
+	}
+	for _, tag := range store.TagList(ev.tags) {
+		if matchesGroup(scope, tag) {
+			return true
+		}
+	}
+	return false
+}
+
+// matchesGroup reports whether any name in the scope is want, ignoring case — the same comparison
+// `store.HasTag` makes, for the same reason: tags are typed by hand.
+func matchesGroup(scope []string, want string) bool {
+	for _, g := range scope {
+		if strings.EqualFold(strings.TrimSpace(g), want) {
 			return true
 		}
 	}

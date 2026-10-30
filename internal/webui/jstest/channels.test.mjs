@@ -134,3 +134,151 @@ test('a narrowed channel lists its events', async () => {
   assert.match(text, /self_test_result/);
   assert.doesNotMatch(text, /Everything/, `a narrowed subscription is not everything: ${text}`);
 });
+// --- the group scope (FEATURES.md B12) -----------------------------------------
+
+/** Serve the notifications view's four reads, routed by path, recording what was sent. */
+function stubApi(channels, devices = [], requests = null) {
+  globalThis.fetch = async (url, init = {}) => {
+    const path = String(url);
+    if (requests) {
+      let body = null;
+      try {
+        body = init.body ? JSON.parse(init.body) : null;
+      } catch {
+        body = null; // not JSON; leave it unrecorded rather than throwing
+      }
+      requests.push({ url: path, method: init.method || 'GET', body });
+    }
+    const payload = path.includes('/api/channels') ? { channels }
+      : path.includes('/api/notifications')
+        ? { events: [], event_types: ['health_change'], channel_types: ['ntfy'], channel_env_vars: [] }
+        : path.includes('/api/settings') ? { settings: {} }
+          : { devices };
+    return { ok: true, status: 200, statusText: 'OK', text: async () => JSON.stringify(payload) };
+  };
+}
+
+/** The dialog the last `openDialog` opened. */
+function lastDialog() {
+  const dialogs = document.body.all('dialog');
+  return dialogs[dialogs.length - 1];
+}
+
+const flush = () => new Promise((resolve) => setTimeout(resolve, 1));
+
+// An unscoped channel is every group, and it has to say so. A card that showed nothing where the
+// scope goes would read as a channel that hears about no drives at all, which is the opposite of
+// the truth and exactly the confusion the events line already had to be fixed for.
+test('an unscoped channel is described as covering every group', async () => {
+  const text = await drawWith({ id: 1, label: 'alerts', type: 'ntfy', enabled: true, events: '', scope_groups: '[]' });
+
+  assert.match(text, /Every group/, `the card should say what the scope is: ${text}`);
+  assert.doesNotMatch(text, /Only drives tagged/, `nothing is narrowed: ${text}`);
+});
+
+test('a scoped channel names the groups it is about', async () => {
+  const text = await drawWith({
+    id: 1, label: 'tank alerts', type: 'ntfy', enabled: true, events: '[]',
+    scope_groups: JSON.stringify(['tank', 'parity']),
+  });
+
+  assert.match(text, /Only drives tagged/);
+  assert.match(text, /tank/);
+  assert.match(text, /parity/);
+  assert.doesNotMatch(text, /Every group/, `a scoped channel is not every group: ${text}`);
+});
+
+
+// The editor offers the fleet's groups and saves the ticked ones. The default is every group, so
+// nothing is ticked — the same shape as the event list above it, deliberately.
+test('the editor offers the fleet groups and saves the ticked ones', async () => {
+  const requests = [];
+  installStubDom();
+  stubApi(
+    [{ id: 7, type: 'ntfy', label: 'alerts', enabled: true, config: '{"topic":"t"}', events: '[]', scope_groups: '[]' }],
+    [{ serial: 'a', tags: 'tank, spare' }, { serial: 'b', tags: 'bench' }, { serial: 'c' }],
+    requests,
+  );
+
+  const container = new StubNode('div');
+  await render(container, { refresh() {} });
+
+  const edit = container.find((n) => n.getAttribute('title') === 'Edit');
+  assert.ok(edit, 'the card should offer an Edit button');
+  edit.click();
+
+  const dialog = lastDialog();
+  assert.ok(dialog, 'Edit should have opened a dialog');
+
+  const groups = dialog.all('input').filter((box) => box.dataset.group);
+  assert.deepEqual(groups.map((box) => box.dataset.group), ['bench', 'spare', 'tank'],
+    'the editor should offer every group in the fleet, in the shared stable order');
+  assert.ok(groups.every((box) => !box.checked), 'nothing is narrowed by default');
+
+  groups.find((box) => box.dataset.group === 'tank').checked = true;
+
+  const save = dialog.all('button').find((b) => b.textContent === 'Save');
+  assert.ok(save, 'the dialog should offer Save');
+  save.click();
+  await flush();
+
+  const put = requests.find((r) => r.method === 'PUT');
+  assert.ok(put, `the save should have been sent: ${JSON.stringify(requests)}`);
+  assert.deepEqual(put.body.scope_groups, ['tank']);
+  // And the other axis is untouched by it — the two are independent settings.
+  assert.deepEqual(put.body.events, []);
+});
+
+// A channel already scoped comes back with its boxes ticked, so saving it again is not how a scope
+// gets silently widened to the whole fleet.
+test('an existing scope is shown as ticked', async () => {
+  installStubDom();
+  stubApi(
+    [{ id: 7, type: 'ntfy', label: 'alerts', enabled: true, config: '{"topic":"t"}', events: '[]', scope_groups: '["tank"]' }],
+    [{ serial: 'a', tags: 'tank' }, { serial: 'b', tags: 'bench' }],
+  );
+
+  const container = new StubNode('div');
+  await render(container, { refresh() {} });
+  container.find((n) => n.getAttribute('title') === 'Edit').click();
+
+  const groups = lastDialog().all('input').filter((box) => box.dataset.group);
+  assert.deepEqual(
+    groups.filter((box) => box.checked).map((box) => box.dataset.group),
+    ['tank'],
+  );
+});
+
+// The scope is compared case-insensitively on the server, so a stored `Tank` has to tick the box
+// labelled `tank` — otherwise the setting would look like it had been lost.
+test('a stored scope matches a group whatever the case', async () => {
+  installStubDom();
+  stubApi(
+    [{ id: 7, type: 'ntfy', label: 'alerts', enabled: true, config: '{"topic":"t"}', events: '[]', scope_groups: '["TANK"]' }],
+    [{ serial: 'a', tags: 'tank' }],
+  );
+
+  const container = new StubNode('div');
+  await render(container, { refresh() {} });
+  container.find((n) => n.getAttribute('title') === 'Edit').click();
+
+  const groups = lastDialog().all('input').filter((box) => box.dataset.group);
+  assert.deepEqual(groups.filter((box) => box.checked).map((box) => box.dataset.group), ['tank']);
+});
+
+// An install that has never grouped anything is told how to, rather than shown an empty list of
+// groups to choose from.
+test('with no groups at all the editor explains how to get some', async () => {
+  installStubDom();
+  stubApi([{ id: 7, type: 'ntfy', label: 'alerts', enabled: true, config: '{"topic":"t"}', events: '[]' }], []);
+
+  const container = new StubNode('div');
+  await render(container, { refresh() {} });
+  container.find((n) => n.getAttribute('title') === 'Edit').click();
+
+  const dialog = lastDialog();
+  assert.equal(dialog.all('input').filter((box) => box.dataset.group).length, 0,
+    'there are no groups to offer');
+  assert.match(textOf(dialog), /No groups yet/, 'the editor should say how to create one');
+});
+

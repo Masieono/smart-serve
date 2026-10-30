@@ -431,8 +431,15 @@ picker offers exactly `ThemeNames`.
   scheduled-scan heartbeat and the group-heat finding) instead of "No events subscribed". That case
   is not rare: it is exactly the channel a digest is set up on, and the digest arrives *because*
   nothing was narrowed away.
+- The card carries a **second** line for the group scope (`FEATURES.md` B12), read the same way: a
+  scoped channel says **Only drives tagged** and names them, and an unscoped one says **Every group**
+  rather than nothing at all — silence there would read as a channel about no drives, which is the
+  opposite of the truth.
 - Channel editor: type-specific fields (ntfy server/topic/token; webhook URL/method/
-  headers); event-subscription checkboxes.
+  headers); event-subscription checkboxes; and a **group scope** — one checkbox per tag in use, with
+  the same "nothing ticked means everything" default as the events above it. Offered only when the
+  fleet actually has tags; otherwise the field explains how to create one, because an empty list of
+  groups to choose from answers nothing.
 - **Test** in the editor footer sends one event through the settings *as they stand on
   screen*, saved or not, via `POST /api/channels/test` (`API.md`). It deliberately does
   not save and does not close the dialog: the point is to fix a misconfigured token or

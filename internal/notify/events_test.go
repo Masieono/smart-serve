@@ -878,3 +878,30 @@ func TestASelfTestWithNoVerdictIsNotAFailure(t *testing.T) {
 		t.Errorf("SelfTestPassed = %v, want absent", ev.SelfTestPassed)
 	}
 }
+
+// --- the drive's groups travel with the event (FEATURES.md B12) ----------------
+
+// A group-scoped channel can only decide whether an event is its own if the event says which drives
+// it is about. `inScope` reads a private field, so nothing but this test would notice if `Collect`
+// stopped filling it — and the symptom would be a channel scoped to one pool receiving the whole
+// fleet, which is the exact thing the scope exists to prevent.
+func TestCollectedEventsCarryTheDrivesGroups(t *testing.T) {
+	ev := onlyEvent(t, Collect(report(
+		states(state("S1", "good", withTags("tank, parity"), withTemp(35))),
+		states(state("S1", "bad", withTags("tank, parity"), withTemp(35))),
+	), CollectOptions{}), EventHealthChange)
+
+	if ev.tags != "tank, parity" {
+		t.Errorf("tags = %q, want the drive's own tag string", ev.tags)
+	}
+	// The scope is a routing decision rather than a fact about the drive, so it stays off the wire
+	// — a consumer re-implementing the filter from a payload field is how two copies of one rule
+	// come to disagree.
+	raw, err := json.Marshal(ev)
+	if err != nil {
+		t.Fatalf("Marshal: %v", err)
+	}
+	if strings.Contains(string(raw), "tank") {
+		t.Errorf("payload = %s, want the drive's groups kept out of it", raw)
+	}
+}

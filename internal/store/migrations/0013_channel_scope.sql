@@ -1,0 +1,23 @@
+-- 0013_channel_scope.sql — which drives a channel is about.
+--
+-- Group-level routing (`FEATURES.md` B12, round 6). A channel has always been scoped by *event*:
+-- `events` says which kinds of thing it wants to hear about. It could not be scoped by *drive*, so
+-- a fleet owner with a `tank` pool and a bench had one choice — send everything to everyone, and
+-- let the reader work out which alerts are theirs.
+--
+-- `scope_groups` is a JSON array of tag names, read the same way `events` is: an empty list means
+-- **every** group, so nothing is narrowed away by default and every existing row keeps receiving
+-- exactly what it receives today. That default is the safe direction as well as the compatible one
+-- — a channel whose scope is empty or unreadable hears too much rather than silently nothing.
+--
+-- Named `scope_groups` rather than `groups` because `GROUPS` is a SQL keyword (it is part of the
+-- window-function grammar) and a column named after one would have to be quoted at every use. The
+-- name also says what it is: a *scope*, not the list of groups that exist. Which groups exist is
+-- derived from the drives' own tags (`store.TagList`), and there is deliberately no table for them
+-- — `D9` settled that a tag is free text, and a second place to maintain the same list is how the
+-- two come to disagree.
+--
+-- Tags are compared case-insensitively, like every other question about tags (`store.HasTag`),
+-- because they are typed by hand and `Bench` is the same intention as `bench`.
+
+ALTER TABLE notification_channels ADD COLUMN scope_groups TEXT NOT NULL DEFAULT '[]';

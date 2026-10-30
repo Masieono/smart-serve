@@ -16,6 +16,10 @@ type channelJSON struct {
 	Config  json.RawMessage `json:"config"`
 	Enabled bool            `json:"enabled"`
 	Events  json.RawMessage `json:"events"`
+	// ScopeGroups is the JSON array of tag names this channel is about (`FEATURES.md` B12). An
+	// empty list means every group. Sent back so the editor shows what the channel will actually
+	// receive rather than a blank that reads like "nothing".
+	ScopeGroups json.RawMessage `json:"scope_groups"`
 	// EnvPrefix is the prefix a deployment uses to override this channel's fields, derived
 	// from the label (`ADR-022`). The UI shows it so the variable name never has to be
 	// guessed, and so renaming a channel is visible rather than silently breaking the
@@ -34,7 +38,8 @@ func toChannelJSON(c store.Channel) channelJSON {
 	out := channelJSON{
 		ID: c.ID, Type: c.Type, Label: c.Label,
 		Config: rawOrNull(c.Config), Enabled: c.Enabled, Events: rawOrNull(c.Events),
-		EnvPrefix: notify.EnvPrefix(c.Label),
+		ScopeGroups: rawOrNull(c.ScopeGroups),
+		EnvPrefix:   notify.EnvPrefix(c.Label),
 	}
 	cfg := map[string]any{}
 	if err := json.Unmarshal([]byte(c.Config), &cfg); err == nil {
@@ -49,18 +54,25 @@ type channelBody struct {
 	Config  json.RawMessage `json:"config"`
 	Enabled *bool           `json:"enabled"`
 	Events  json.RawMessage `json:"events"`
+	// ScopeGroups is the tag names to narrow this channel to (`FEATURES.md` B12); an empty or
+	// absent list means every group. Normalised by the store, which is also where the empty list
+	// is defined as the only value that means "everything".
+	ScopeGroups json.RawMessage `json:"scope_groups"`
 }
 
 func (b channelBody) toStore(id int64) store.Channel {
 	c := store.Channel{
 		ID: id, Type: b.Type, Label: b.Label,
-		Config: "{}", Events: "[]", Enabled: true,
+		Config: "{}", Events: "[]", ScopeGroups: "[]", Enabled: true,
 	}
 	if len(b.Config) > 0 {
 		c.Config = string(b.Config)
 	}
 	if len(b.Events) > 0 {
 		c.Events = string(b.Events)
+	}
+	if len(b.ScopeGroups) > 0 {
+		c.ScopeGroups = string(b.ScopeGroups)
 	}
 	if b.Enabled != nil {
 		c.Enabled = *b.Enabled

@@ -3,6 +3,9 @@ import { el, mount, fmtAgo, convertTemp, convertTempDelta, temperatureUnitName }
 import { api } from '../api.js';
 import { deviceCard, fleetTable, deviceTitle, countText, healthFilter, emptyState, skeletonCards, errorBox, transportLabel, toast, confirmDialog, openDialog } from '../components.js';
 import { icon } from '../icons.js';
+// Tag handling is shared with the notification editor's group scope (`FEATURES.md` B12), because
+// "which groups are there" is one question and two answers to it is one answer too many.
+import { fleetTags, tagList } from '../tags.js';
 
 // Module-level so the choices survive navigating into a drive and back.
 let filter = null;
@@ -252,17 +255,8 @@ function saveFile(url, name) {
   link.remove();
 }
 
-/** The tags present on a fleet, in a stable order. */
-export function fleetTags(devices) {
-  const found = new Set();
-  for (const d of devices) {
-    for (const tag of String(d.tags || '').split(',')) {
-      const trimmed = tag.trim();
-      if (trimmed) found.add(trimmed);
-    }
-  }
-  return [...found].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
-}
+/** The tags present on a fleet, in a stable order (`tags.js`). */
+export { fleetTags };
 
 /**
  * The enclosure heat card (`FEATURES.md` A25), or null when nothing is moving together.
@@ -484,7 +478,7 @@ export function groupByTag(shown) {
   const untagged = [];
 
   for (const d of shown) {
-    const tags = String(d.tags || '').split(',').map((t) => t.trim()).filter(Boolean);
+    const tags = tagList(d.tags);
     if (!tags.length) {
       untagged.push(d);
       continue;

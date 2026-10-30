@@ -47,6 +47,10 @@ func Collect(rep scan.PostScan, opts CollectOptions) []Event {
 			Serial: st.Serial, DeviceName: st.Name, DeviceModel: st.Model,
 			TemperatureC: st.TemperatureC, ScanTS: ts, Version: opts.Version,
 			tempUnit: opts.TemperatureUnit, baseURL: opts.BaseURL,
+			// Carried so a group-scoped channel can decide whether this drive is one of its own
+			// (`FEATURES.md` B12). Every per-drive event goes through here, which is why it is set
+			// once rather than at each site.
+			tags: st.Tags,
 		}
 	}
 

@@ -232,6 +232,76 @@ func TestNotificationsEndpointListsTheLogAndTypes(t *testing.T) {
 	}
 }
 
+// `B12`: a channel's group scope has to survive a save and a read. If it did not, the editor would
+// show every box unticked on a channel that is actually narrowed — and the next Save would quietly
+// widen it to the whole fleet, which is the kind of change nobody would think to look for.
+func TestChannelGroupScopeRoundTrips(t *testing.T) {
+	srv, st, _, _ := newTestServer(t, Options{})
+	id := createChannel(t, srv,
+		`{"type":"ntfy","label":"tank alerts","config":{"topic":"t"},"events":["health_change"],"scope_groups":["tank"," Bench ","tank"]}`)
+
+	// The store first, because that is what delivery reads.
+	stored, err := st.GetChannel(context.Background(), id)
+	if err != nil {
+		t.Fatalf("GetChannel: %v", err)
+	}
+	if stored == nil {
+		t.Fatal("the channel was not stored")
+	}
+	if want := `["tank","Bench"]`; stored.ScopeGroups != want {
+		t.Errorf("stored scope = %s, want %s", stored.ScopeGroups, want)
+	}
+
+	// And the API, because that is what the editor reads back.
+	rec := do(t, srv, http.MethodGet, "/api/channels", "", nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("list status = %d", rec.Code)
+	}
+	var resp struct {
+		Channels []struct {
+			ID          int64    `json:"id"`
+			ScopeGroups []string `json:"scope_groups"`
+		} `json:"channels"`
+	}
+	decodeBody(t, rec, &resp)
+	if len(resp.Channels) != 1 || resp.Channels[0].ID != id {
+		t.Fatalf("channels = %+v, want one with id %d", resp.Channels, id)
+	}
+	if got := resp.Channels[0].ScopeGroups; len(got) != 2 || got[0] != "tank" || got[1] != "Bench" {
+		t.Errorf("scope_groups = %v, want [tank Bench]", got)
+	}
+
+	// An update replaces the scope rather than merging with it, so unticking a group is how it is
+	// removed.
+	rec = do(t, srv, http.MethodPut, fmt.Sprintf("/api/channels/%d", id),
+		`{"type":"ntfy","label":"tank alerts","config":{"topic":"t"},"scope_groups":[]}`, nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("update status = %d, body = %s", rec.Code, rec.Body.String())
+	}
+	updated, err := st.GetChannel(context.Background(), id)
+	if err != nil {
+		t.Fatalf("GetChannel: %v", err)
+	}
+	if updated.ScopeGroups != "[]" {
+		t.Errorf("scope = %s, want the narrowed scope cleared", updated.ScopeGroups)
+	}
+}
+
+// A channel saved without a scope is every group, which is what an existing install has and what a
+// caller that does not know about the field must keep getting.
+func TestAChannelWithNoScopeMeansEveryGroup(t *testing.T) {
+	srv, st, _, _ := newTestServer(t, Options{})
+	id := createChannel(t, srv, `{"type":"ntfy","label":"plain","config":{"topic":"t"}}`)
+
+	stored, err := st.GetChannel(context.Background(), id)
+	if err != nil {
+		t.Fatalf("GetChannel: %v", err)
+	}
+	if stored.ScopeGroups != "[]" {
+		t.Errorf("scope = %q, want [] for a channel that never mentioned groups", stored.ScopeGroups)
+	}
+}
+
 // Run now must not fire a scan when a scheduler owns the timings — it hands the
 // work over, so last-run and next-run are recorded by the same path as a timed
 // fire.

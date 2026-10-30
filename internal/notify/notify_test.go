@@ -158,6 +158,119 @@ func testDispatcher(st Store, sender Sender, opts DispatcherOptions) *Dispatcher
 
 func discardLogger() *slog.Logger { return slog.New(slog.NewTextHandler(io.Discard, nil)) }
 
+// --- group scope (FEATURES.md B12) --------------------------------------------
+
+// The rule, in full. Three decisions are being pinned here and each of them is a way the feature
+// could be wrong in a way nobody would notice for a month.
+func TestInScope(t *testing.T) {
+	drive := func(tags string) Event {
+		return Event{Type: EventHealthChange, Serial: "S1", tags: tags}
+	}
+	cases := []struct {
+		name  string
+		scope string
+		ev    Event
+		want  bool
+	}{
+		// An empty scope is every group, which is the only reason an existing install keeps
+		// receiving exactly what it receives today.
+		{"no scope at all", "", drive("tank"), true},
+		{"an empty list", "[]", drive("tank"), true},
+		{"an untagged drive is still in scope when nothing is narrowed", "", drive(""), true},
+		// Garbage reads as "no narrowing": a bug must not be able to silence a channel.
+		{"a malformed scope", "not json", drive("tank"), true},
+		{"a scope that is not an array", `{"tank":true}`, drive("tank"), true},
+
+		{"a matching tag", `["tank"]`, drive("tank"), true},
+		{"one of several tags", `["tank"]`, drive("backup,tank"), true},
+		{"a non-matching tag", `["tank"]`, drive("backup"), false},
+		{"an untagged drive", `["tank"]`, drive(""), false},
+		{"whitespace around a stored tag", `["tank"]`, drive(" tank , backup "), true},
+		{"case, in the scope", `["Tank"]`, drive("tank"), true},
+		{"case, on the drive", `["tank"]`, drive("TANK"), true},
+		{"one of several scoped groups", `["media","tank"]`, drive("tank"), true},
+		{"a stored scope with padding", `[" tank "]`, drive("tank"), true},
+
+		// A fleet-level event is not about a drive, so the scope has nothing to say about it.
+		// Scoping a channel to `tank` must not also stop it reporting that scans are failing.
+		{"a failed scan", `["tank"]`, Event{Type: EventScanFailure}, true},
+		{"a heartbeat", `["tank"]`, Event{Type: EventScanSuccess}, true},
+		{"a digest", `["tank"]`, Event{Type: EventDigest}, true},
+		// A test event carries no drive either, which is what makes a scoped channel testable.
+		{"a test event", `["tank"]`, TestEvent("v"), true},
+
+		// `group_heat` is matched on the group it names rather than on a drive: the finding *is*
+		// about the group, and a channel watching one pool has no business hearing about another's
+		// enclosure.
+		{"group heat in scope", `["tank"]`, Event{Type: EventGroupHeat, Group: "tank"}, true},
+		{"group heat out of scope", `["tank"]`, Event{Type: EventGroupHeat, Group: "bench"}, false},
+		{"group heat, case-insensitively", `["Tank"]`, Event{Type: EventGroupHeat, Group: "tank"}, true},
+		// The group wins over any drive tags, because a group-heat event has none.
+		{"group heat with no scope", "", Event{Type: EventGroupHeat, Group: "bench"}, true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := inScope(tc.scope, tc.ev); got != tc.want {
+				t.Errorf("inScope(%q, %+v) = %v, want %v", tc.scope, tc.ev, got, tc.want)
+			}
+		})
+	}
+}
+
+// The scope is a filter beside the subscription, not instead of it: both have to admit an event.
+func TestDispatchAppliesTheGroupScope(t *testing.T) {
+	st := newFakeStore(
+		store.Channel{ID: 1, Type: "rec", Label: "everything", Enabled: true, Config: `{"name":"all"}`, Events: "[]"},
+		store.Channel{ID: 2, Type: "rec", Label: "tank only", Enabled: true, Config: `{"name":"tank"}`, Events: "[]", ScopeGroups: `["tank"]`},
+	)
+	sender := &recordingSender{typ: "rec"}
+	d := testDispatcher(st, sender, DispatcherOptions{})
+
+	d.Dispatch(context.Background(), []Event{
+		{Type: EventHealthChange, Serial: "S1", tags: "bench"},
+		{Type: EventHealthChange, Serial: "S2", tags: "tank"},
+	})
+
+	// Three, not four: the `tank` channel heard about S2 and not S1, and the unscoped channel heard
+	// about both.
+	if got := sender.attempts(); len(got) != 3 {
+		t.Fatalf("attempts = %v, want 3", got)
+	}
+	if got := sender.attempts(); got[0] != "all" || got[1] != "all" || got[2] != "tank" {
+		t.Errorf("attempts = %v, want all, all, tank", got)
+	}
+
+	// And nothing is logged for the skipped combination. A skip is a property of the channel, which
+	// its own card shows, rather than something that happened — a row per event per channel would
+	// bury the deliveries that did happen.
+	entries := st.entries()
+	if len(entries) != 3 {
+		t.Fatalf("log entries = %d, want 3", len(entries))
+	}
+	for _, e := range entries {
+		if e.channelID == 2 && e.eventKey == EventHealthChange+":S1:bench" {
+			t.Errorf("the out-of-scope event was logged: %+v", e)
+		}
+	}
+}
+
+// A fleet-level event reaches a scoped channel. This is the footgun the rule exists to avoid: scope
+// a channel to a pool, and it must still be able to tell you the scans are failing.
+func TestAFleetEventReachesAScopedChannel(t *testing.T) {
+	st := newFakeStore(store.Channel{
+		ID: 1, Type: "rec", Label: "tank only", Enabled: true, Config: `{"name":"tank"}`,
+		Events: `["scan_failure"]`, ScopeGroups: `["tank"]`,
+	})
+	sender := &recordingSender{typ: "rec"}
+	d := testDispatcher(st, sender, DispatcherOptions{})
+
+	d.Dispatch(context.Background(), []Event{{Type: EventScanFailure, ScheduleID: 3}})
+
+	if sender.count() != 1 {
+		t.Errorf("deliveries = %d, want the failed scan to arrive", sender.count())
+	}
+}
+
 // --- dispatcher ---------------------------------------------------------------
 
 func TestDispatchHonoursEnabledAndSubscriptions(t *testing.T) {

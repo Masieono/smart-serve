@@ -157,8 +157,8 @@ Decisions are recorded in [`docs/REQUIREMENTS.md`](docs/REQUIREMENTS.md) (D1–D
 - **The drive's own data** — self-test (short/long, live progress, abort, and a schedule that runs
   one drive at a time), the error and self-test logs, and the raw `smartctl` output (`A19`/`A20`).
 - **Notifications** — ntfy, Gotify, Telegram, Discord, SMTP and webhooks; transition events
-  with squelching, maintenance windows, per-channel subscriptions, acknowledgement, action
-  buttons, and a weekly digest as a schedule action (`B1`–`B13`).
+  with squelching, maintenance windows, per-channel subscriptions and group scoping,
+  acknowledgement, action buttons, and a weekly digest as a schedule action (`B1`–`B13`).
 - **Export** — per drive as text / web page / spreadsheet / JSON, and the whole fleet as one
   CSV or one printable page (`A8`/`A23`/`A27`).
 - **Fleet views** — filter and sort, a dense table, grouping by tag, bay/slot, a "replace

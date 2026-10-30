@@ -3,6 +3,9 @@ import { el, mount, fmtAgo, fmtDateTime } from '../dom.js';
 import { api } from '../api.js';
 import { emptyState, errorBox, openDialog, confirmDialog, toast } from '../components.js';
 import { icon } from '../icons.js';
+// The groups a channel can be scoped to are the tags in use, which the dashboard asks for too
+// (`tags.js`) — one question, one implementation.
+import { fleetTags } from '../tags.js';
 
 // Fallback for the event catalog; the API is the source of truth so a new event
 // type shows up in the subscription checkboxes without a UI change.
@@ -37,7 +40,7 @@ export async function render(container, ctx) {
   }
 }
 
-function parseEvents(raw) {
+function parseList(raw) {
   try {
     const list = JSON.parse(raw);
     return Array.isArray(list) ? list : [];
@@ -56,13 +59,21 @@ function draw(container, ctx, data, log, settings, deviceData) {
   const envVarList = (log && log.channel_env_vars) || null;
   const windows = parseWindows(settings && settings.settings && settings.settings.maintenance_windows);
   const devices = ((deviceData && deviceData.devices) || []).filter((d) => d.serial);
+  // Everything the channel editor needs, gathered once. An options object rather than five
+  // positional arguments: they are all "what the server offers", and adding a sixth is how a
+  // reader ends up counting commas at a call site to find out which one is the env var list.
+  const catalog = {
+    eventTypes, serverTypes: typeList, envVarList,
+    // The groups a channel can be scoped to, which are the tags actually in use.
+    groups: fleetTags(devices),
+  };
   const head = el('div', { class: 'page-head' }, [
     el('div', {}, [
       el('h1', { text: 'Notifications' }),
       el('div', { class: 'sub', text: 'Alerts fire on health transitions, never on every scan.' }),
     ]),
     el('span', { class: 'spacer' }),
-    el('button', { class: 'btn btn-primary', type: 'button', onclick: () => editChannel(ctx, null, eventTypes, typeList, envVarList) },
+    el('button', { class: 'btn btn-primary', type: 'button', onclick: () => editChannel(ctx, null, catalog) },
       [icon('plus'), 'New channel']),
   ]);
 
@@ -74,7 +85,8 @@ function draw(container, ctx, data, log, settings, deviceData) {
   }
 
   mount(container, head, el('div', { class: 'card-grid' }, channels.map((c) => {
-    const events = parseEvents(c.events);
+    const events = parseList(c.events);
+    const scope = parseList(c.scope_groups);
     return el('article', { class: 'card stack' }, [
       el('div', { class: 'row' }, [
         el('div', { style: 'flex:1;min-width:0' }, [
@@ -95,6 +107,15 @@ function draw(container, ctx, data, log, settings, deviceData) {
             el('span', { class: 'muted',
               text: 'every alert and digest — the scheduled-scan heartbeat and group heat must be ticked' }),
           ]),
+      // The second axis, shown the same way as the first: what has been *narrowed away*. A scoped
+      // channel says which drives it is about, and an unscoped one says so rather than saying
+      // nothing — silence here would read as "no drives", which is the opposite of the truth.
+      el('div', { class: 'row wrap' }, scope.length
+        ? [
+            el('span', { class: 'muted', text: 'Only drives tagged' }),
+            ...scope.map((g) => el('span', { class: 'chip', text: g })),
+          ]
+        : [el('span', { class: 'chip', text: 'Every group' })]),
       el('div', { class: 'row' }, [
         el('span', { class: 'spacer' }),
         el('button', { class: 'btn btn-sm', type: 'button', title: 'Send a test event',
@@ -115,7 +136,7 @@ function draw(container, ctx, data, log, settings, deviceData) {
             }
           } }, ['Test']),
         el('button', { class: 'btn btn-sm btn-ghost', type: 'button', title: 'Edit',
-          onclick: () => editChannel(ctx, c, eventTypes, typeList, envVarList) }, [icon('settings')]),
+          onclick: () => editChannel(ctx, c, catalog) }, [icon('settings')]),
         el('button', { class: 'btn btn-sm btn-ghost', type: 'button', title: 'Delete',
           onclick: async () => {
             if (!(await confirmDialog('Delete channel', `Delete "${c.label || c.type}"?`, 'Delete'))) return;
@@ -661,7 +682,13 @@ export function channelTypes() {
 }
 
 
-function editChannel(ctx, existing, eventTypes = EVENT_TYPES, serverTypes = null, envVarList = null) {
+function editChannel(ctx, existing, catalog = {}) {
+  const {
+    eventTypes = EVENT_TYPES,
+    serverTypes = null,
+    envVarList = null,
+    groups: groupList = [],
+  } = catalog || {};
   const saved = parseConfig(existing && existing.config);
   const offered = availableTypes(serverTypes);
 
@@ -759,11 +786,21 @@ function editChannel(ctx, existing, eventTypes = EVENT_TYPES, serverTypes = null
 
     const enabled = el('input', { type: 'checkbox', checked: existing ? existing.enabled : true });
 
-    const subscribed = new Set(parseEvents(existing && existing.events));
+    const subscribed = new Set(parseList(existing && existing.events));
     const eventRows = eventTypes.map((name) => {
       const box = el('input', { type: 'checkbox', checked: subscribed.has(name) });
       box.dataset.event = name;
       return el('label', { class: 'field-row' }, [box, el('span', { text: EVENT_LABELS[name] || name })]);
+    });
+
+    // The second axis (`FEATURES.md` B12): which drives this channel is about. Same shape as the
+    // event list above and the same default — an empty list is every group — because it is the same
+    // kind of setting, and a reader who has understood one has understood the other.
+    const scoped = new Set(parseList(existing && existing.scope_groups).map((g) => g.toLowerCase()));
+    const groupRows = groupList.map((name) => {
+      const box = el('input', { type: 'checkbox', checked: scoped.has(name.toLowerCase()) });
+      box.dataset.group = name;
+      return el('label', { class: 'field-row' }, [box, el('span', { text: name })]);
     });
 
     function buildConfig() {
@@ -800,6 +837,21 @@ function editChannel(ctx, existing, eventTypes = EVENT_TYPES, serverTypes = null
         hint('Leaving every box unchecked means every alert above, plus every digest — except the ' +
           'two that have to be ticked: the scheduled-scan heartbeat and the group-heat finding.'),
       ]),
+      // Offered only when the fleet actually has tags, so an install that has never grouped
+      // anything is not shown an empty list of groups to choose from — the same reasoning as the
+      // dashboard's group toggle.
+      groupList.length
+        ? el('div', { class: 'field' }, [
+            el('label', { text: 'Only drives in these groups' }),
+            el('div', { class: 'stack', style: 'gap:var(--space-1)' }, groupRows),
+            hint('Leaving every box unchecked means every group. A failed scan and a digest are ' +
+              'about the whole fleet, so they arrive whichever groups are ticked here.'),
+          ])
+        : el('div', { class: 'field' }, [
+            el('label', { text: 'Only drives in these groups' }),
+            hint('No groups yet. Tag drives on the dashboard — “tank”, “bench” — to be able to ' +
+              'send one channel only their alerts.'),
+          ]),
       el('label', { class: 'field-row' }, [enabled, el('span', { text: 'Enabled' })]),
     );
 
@@ -811,6 +863,9 @@ function editChannel(ctx, existing, eventTypes = EVENT_TYPES, serverTypes = null
         events: eventRows
           .filter((row) => row.querySelector('input').checked)
           .map((row) => row.querySelector('input').dataset.event),
+        scope_groups: groupRows
+          .filter((row) => row.querySelector('input').checked)
+          .map((row) => row.querySelector('input').dataset.group),
         enabled: enabled.checked,
       };
     }
