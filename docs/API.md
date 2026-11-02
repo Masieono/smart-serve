@@ -522,6 +522,12 @@ stop demanding a value that is never going to be typed into the form (`ADR-022`)
   and its source (`env` or `db`). Appearance keys: `theme`, `theme_base`,
   `theme_accent`, `theme_surface_tint` (`UI.md` §5). `maintenance_windows` is the
   JSON list described in `NOTIFICATIONS.md`; it has no endpoint of its own.
+  `model_thresholds` is the other structured value — a JSON object of model → the
+  threshold keys above (`FEATURES.md` A3). It is **validated on save**: a value that is
+  not an object of objects, or that names a threshold that does not exist, is a `400`
+  naming the key. Every other key is a scalar the scan parses and falls back from, which
+  is the right shape for a scalar and the wrong one here — a typo'd key would otherwise
+  be stored, shown in the editor, and never read by anything.
 
 ## Diagnostics & operations
 

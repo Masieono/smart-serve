@@ -123,8 +123,8 @@ func runServe() error {
 		TimeoutFunc: func(ctx context.Context) time.Duration {
 			return secondsSetting(settings(ctx), "command_timeout_seconds")
 		},
-		ThresholdsFunc: func(ctx context.Context) interp.Thresholds {
-			return interp.FromSettings(settings(ctx))
+		ThresholdsFunc: func(ctx context.Context) interp.ModelThresholds {
+			return interp.ModelThresholdsFromSettings(settings(ctx))
 		},
 	}
 	manager := scan.NewManager(scanner, st, hub)

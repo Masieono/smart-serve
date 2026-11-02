@@ -470,8 +470,9 @@ a:hover {
   margin: 0;
 }
 
-/* The knowledge base section carries a JSON editor, which is a full-width thing. */
-.settings-section .knowledge-editor {
+/* A JSON editor inside the settings sheet — the knowledge overrides and the per-model thresholds —
+   which is a full-width thing. */
+.settings-section .settings-editor {
   width: 100%;
 }
 
@@ -542,7 +543,7 @@ a:hover {
   padding-left: var(--space-3);
 }
 
-.knowledge-error {
+.settings-error {
   border-left: 3px solid var(--bad, #dc2626);
   padding-left: var(--space-3);
   color: var(--bad, #dc2626);
@@ -551,7 +552,7 @@ a:hover {
   overflow-wrap: anywhere;
 }
 
-.knowledge-editor {
+.settings-editor {
   width: 100%;
   font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
   font-size: var(--text-sm);

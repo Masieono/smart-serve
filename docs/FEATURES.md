@@ -19,7 +19,7 @@ feature is missing.
 |---|---|---|---|---|
 | A1 | Device list with `lsblk` parity (internal + USB) | MVP | 🔌 | lsblk is source of truth |
 | A2 | On-demand **Scan** button with live SSE progress | MVP | 🔌 | |
-| A3 | Device detail: full attribute table (value/worst/threshold/raw) | MVP | 💤 | CrystalDiskInfo layout |
+| A3 | Device detail: full attribute table (value/worst/threshold/raw) | MVP | 💤 | CrystalDiskInfo layout. **Thresholds can also be set per drive model** — the global defaults are a compromise across everything in one box, and an entry says "this model, except…". It moves the verdict only: the report's evidence stays the drive's own manufacturer threshold (`A27`) |
 | A4 | Overall verdict Good/Caution/Bad with plain-language rationale | MVP | 🔌 | |
 | A5 | Temperature, power-on hours, power cycles, capacity | MVP | 🔌 | |
 | A6 | Firmware version, serial, WWN, interface speed display | MVP | 💤 | from smartctl |

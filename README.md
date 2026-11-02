@@ -21,7 +21,9 @@ database daemon.
 - **CrystalDiskInfo-style readouts** — Good / Caution / Bad verdicts per drive, per-
   attribute detail, temperature, a 0–100 health score, and per-metric trend
   sparklines (health score, temperature, power-on hours, wear) with a 7/30/90-day
-  range selector.
+  range selector. The thresholds behind a verdict are tunable, globally **or per drive
+  model** — a consumer SSD and an enterprise drive do not agree on what a worrying
+  reallocated-sector count is.
 - **Drive naming & notes** — name your drives ("boot", "backup pool") and save free-form
   notes per device. Identity is keyed by serial number, so notes survive reboots, replug
   events, and device-letter changes.

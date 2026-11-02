@@ -18,10 +18,10 @@ func TestResolveUsesThePerScanFuncs(t *testing.T) {
 		TimeoutFunc: func(context.Context) time.Duration {
 			return 42 * time.Second
 		},
-		ThresholdsFunc: func(context.Context) interp.Thresholds {
+		ThresholdsFunc: func(context.Context) interp.ModelThresholds {
 			tuned := interp.DefaultThresholds()
 			tuned.PendingBad = 2
-			return tuned
+			return interp.NewModelThresholds(tuned, nil)
 		},
 	}
 
@@ -29,8 +29,8 @@ func TestResolveUsesThePerScanFuncs(t *testing.T) {
 	if timeout != 42*time.Second {
 		t.Errorf("timeout = %v, want the per-scan value", timeout)
 	}
-	if thresholds.PendingBad != 2 {
-		t.Errorf("PendingBad = %d, want the per-scan value", thresholds.PendingBad)
+	if thresholds.Base().PendingBad != 2 {
+		t.Errorf("PendingBad = %d, want the per-scan value", thresholds.Base().PendingBad)
 	}
 }
 
@@ -41,8 +41,8 @@ func TestResolveFallsBackToTheFields(t *testing.T) {
 	if timeout != s.Timeout {
 		t.Errorf("timeout = %v, want the field value %v", timeout, s.Timeout)
 	}
-	if thresholds != s.Thresholds {
-		t.Errorf("thresholds = %+v, want the field value", thresholds)
+	if thresholds.Base() != s.Thresholds {
+		t.Errorf("thresholds = %+v, want the field value", thresholds.Base())
 	}
 }
 

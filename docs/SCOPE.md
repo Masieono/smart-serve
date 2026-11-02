@@ -165,7 +165,7 @@ each (`ADR-019`).
 
 **Status: rounds 1–7 are built.** One thing is not, and it is the whole of what is left:
 
-- `D6` **side-by-side comparison** and **custom per-model attribute thresholds** (round 7).
+- `D6` **side-by-side comparison** (round 7).
 
 1. **The drive's own data, finished.** `A20` entry rendering, then `A19` self-test: the opt-in
    button first, scheduling after, staggered **one drive at a time** so a fleet does not start
@@ -183,7 +183,8 @@ each (`ADR-019`).
 6. **Notifications polish.** `B7` acknowledgement, `B10` ntfy action buttons, `B13` weekly digest,
    **group-level routing** (`B12`, the second axis on a channel: *which drives* it is about).
 7. **Interfaces and last mile.** `C6` Prometheus `/metrics` (off by default), `D6` side-by-side
-   comparison, custom per-model attribute thresholds.
+   comparison, **custom per-model attribute thresholds** (`A3`: the same six threshold keys, per
+   drive model, resolved against the model and family the drive reports).
 
 **Deferred, and the one item deliberately left out of the above:** `D7` localization. The expensive
 part is not the translations but extracting every string and keeping every locale in step, and that

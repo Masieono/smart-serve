@@ -160,6 +160,7 @@ const DEFAULTS = {
   uncorrectable_bad_threshold: '10',
   warn_on_any_nonzero: 'true',
   nvme_percentage_used_warn: '90',
+  model_thresholds: '',
   retention_days: '180',
   notification_log_retention_days: '30',
   squelch_seconds: '3600',
@@ -179,10 +180,13 @@ const DEFAULTS = {
 export async function render(container, ctx) {
   mount(container, el('div', { class: 'skeleton', style: 'width:30%;height:24px' }));
   try {
-    // Both in one round trip: the knowledge card is part of the page, and a second request that
-    // arrived after the first render would make the page jump.
-    const [settings, knowledge] = await Promise.all([api.settings(), api.knowledge()]);
-    draw(container, ctx, { ...settings, knowledge });
+    // All three in one round trip: the knowledge card is part of the page, and the per-model
+    // threshold editor lists the models actually in the fleet. A second request that arrived after
+    // the first render would make the page jump.
+    const [settings, knowledge, devices] = await Promise.all([
+      api.settings(), api.knowledge(), api.devices(),
+    ]);
+    draw(container, ctx, { ...settings, knowledge, devices });
   } catch (err) {
     mount(container, errorBox(`Could not load settings: ${err.message}`));
   }
@@ -297,6 +301,21 @@ function draw(container, ctx, data, { carried = {}, unit: unitOverride } = {}) {
   }
   syncThemeRows();
 
+  // The values on screen, as the seed for a new per-model entry. Celsius for the temperature,
+  // because that is what gets stored and what the parser reads — the display unit is a rendering
+  // choice, and seeding a Fahrenheit number would be seeding 130 °C.
+  const thresholdValues = () => {
+    const out = { warn_on_any_nonzero: warn.checked ? 'true' : 'false' };
+    for (const spec of THRESHOLDS) {
+      const raw = Number(inputs[spec.key].value);
+      if (!Number.isFinite(raw)) continue;
+      out[spec.key] = String(fromDisplay(spec, raw, renderUnit));
+    }
+    return out;
+  };
+
+  const perModel = perModelSection(settings, data.devices, thresholdValues);
+
   const save = el('button', {
     class: 'btn btn-primary',
     type: 'button',
@@ -308,6 +327,7 @@ function draw(container, ctx, data, { carried = {}, unit: unitOverride } = {}) {
         public_url: publicUrl.value.trim(),
         prometheus_enabled: prometheus.checked ? 'true' : 'false',
         knowledge_url: knowledgeUrl.value.trim(),
+        model_thresholds: perModel.value(),
         ...currentTheme(),
       };
       for (const spec of ALL_SPECS) {
@@ -325,10 +345,15 @@ function draw(container, ctx, data, { carried = {}, unit: unitOverride } = {}) {
       button.disabled = true;
       try {
         await api.putSettings(payload);
+        perModel.showError('');
         ctx.setTemperatureUnit(payload.temperature_unit);
         applyTheme(payload);
         toast('Settings saved', 'good');
       } catch (err) {
+        // Shown beside the box as well as in the toast: the one error this save can produce names a
+        // JSON field, and a toast is gone before it has been read. The same reasoning as the
+        // knowledge editor below.
+        perModel.showError(err.message);
         toast(err.message, 'error');
       } finally {
         button.disabled = false;
@@ -396,6 +421,8 @@ function draw(container, ctx, data, { carried = {}, unit: unitOverride } = {}) {
           }, [icon('scan'), 'Scan now and re-check']),
         ]),
       ]),
+
+      perModel.node,
 
       settingsSection('Alerts and retention', [
         ...operationRows,
@@ -544,10 +571,10 @@ async function importConfig(ctx, button) {
  */
 function knowledgeSection(knowledge, ctx, urlInput) {
   const k = knowledge || {};
-  const error = el('div', { class: 'knowledge-error', hidden: true });
+  const error = el('div', { class: 'settings-error', hidden: true });
   const editor = el('textarea', {
     rows: '7',
-    class: 'knowledge-editor',
+    class: 'settings-editor',
     'aria-label': 'Your knowledge base entries',
     placeholder: '{\n  "version": 1,\n  "drives": [\n    { "family": "My Drive 9000", "rated_tbw": 600, "source": "the datasheet in the box" }\n  ]\n}',
     value: (k.overrides && k.overrides.payload) || '',
@@ -661,6 +688,121 @@ function knowledgeSection(knowledge, ctx, urlInput) {
     ]),
   ]);
 }
+/**
+ * The models present in a fleet, once each and in a stable order.
+ *
+ * Taken from the drives rather than from an endpoint of its own, because there is nothing to ask
+ * for: the models in the fleet *are* the list, and a stored list of models would be a second thing
+ * to keep in step with the drives. Sorted case-insensitively so the seed output is stable.
+ */
+export function fleetModels(deviceData) {
+  const found = new Map();
+  for (const device of (deviceData && deviceData.devices) || []) {
+    const model = String((device && device.model) || '').trim();
+    if (!model) continue;
+    const key = model.toLowerCase();
+    if (!found.has(key)) found.set(key, model);
+  }
+  return [...found.values()].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
+}
+
+/**
+ * Seeds the per-model editor with one entry per model in the fleet, at the values currently on
+ * screen — the common edit is "one number is wrong for one model", and this is what makes that edit
+ * one number rather than a schema to write from memory.
+ *
+ * It **merges** rather than replaces: an entry already in the editor is kept, and only models with
+ * no entry are added. A seed button that discarded hand-written overrides would be one press away
+ * from losing them, and the button says "load", not "reset".
+ *
+ * Pure, and exported, so the merge and the ordering can be tested without a DOM.
+ */
+export function seedModelThresholds(existing, models, values) {
+  let current = {};
+  try {
+    const parsed = JSON.parse(existing || '{}');
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) current = parsed;
+  } catch {
+    current = {};
+  }
+  const have = new Set(Object.keys(current).map((k) => k.toLowerCase()));
+  const out = { ...current };
+  for (const model of models) {
+    if (have.has(model.toLowerCase())) continue;
+    out[model] = { ...values };
+  }
+  return out;
+}
+
+/**
+ * The per-model health thresholds (`FEATURES.md` A3).
+ *
+ * A JSON editor rather than a table of inputs, and the same shape as the knowledge overrides above —
+ * deliberately, because it is the same kind of thing: a small structured setting that most people
+ * never touch, and that the few who do want to write precisely. The seed button is what makes it
+ * usable: the common edit is one number for one model, and the seed produces exactly that.
+ *
+ * The values are the **same setting names** the sliders above use, so there is one vocabulary for
+ * these six numbers rather than two. The server validates both the shape and the names on save —
+ * a typo'd key would otherwise be stored, shown here, and never read by anything.
+ */
+function perModelSection(settings, deviceData, currentValues) {
+  const error = el('div', { class: 'settings-error', hidden: true });
+  const editor = el('textarea', {
+    rows: '6',
+    class: 'settings-editor',
+    'aria-label': 'Per-model health thresholds',
+    placeholder: '{\n  "870 EVO": { "reallocated_bad_threshold": "1" }\n}',
+    value: settings.model_thresholds || '',
+  });
+
+  const showError = (message) => {
+    error.textContent = message;
+    error.hidden = !message;
+  };
+
+  const models = fleetModels(deviceData);
+  const seed = el('button', {
+    class: 'btn btn-sm', type: 'button', text: 'Load the fleet’s models',
+    title: 'Add an entry for every model in the fleet, at the values set above. ' +
+      'Anything already in the box is kept.',
+    onclick: () => {
+      editor.value = JSON.stringify(seedModelThresholds(editor.value, models, currentValues()), null, 2);
+      showError('');
+    },
+  });
+  seed.disabled = models.length === 0;
+
+  return {
+    node: el('section', { class: 'settings-section' }, [
+      el('h2', { text: 'Per-model thresholds' }),
+      el('div', { class: 'settings-rows' }, [
+        el('div', { class: 'field' }, [
+          el('p', { class: 'muted field-hint', text: 'The thresholds above, except for one model. ' +
+            'A drive is matched on its model or its family, case-insensitively, and a number left ' +
+            'out here falls back to the value above. If two entries match the same drive the ' +
+            'longer name wins, so name them precisely rather than overlapping.' }),
+          editor,
+        ]),
+      ]),
+      error,
+      el('div', { class: 'row knowledge-actions' }, [
+        seed,
+        el('span', { class: 'muted', text: models.length
+          ? `${models.length} model${models.length === 1 ? '' : 's'} in the fleet`
+          : 'no drives read yet' }),
+        el('button', {
+          class: 'btn btn-sm btn-ghost', type: 'button', text: 'Clear',
+          onclick: () => { editor.value = ''; showError(''); },
+        }),
+      ]),
+    ]),
+    value: () => editor.value.trim(),
+    showError,
+  };
+}
+
+
 
 function settingRow(label, help, control) {
   return el('div', { class: 'setting-row' }, [

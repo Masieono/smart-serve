@@ -845,6 +845,76 @@ mitigated by the card stating both lines in the same "what has been narrowed awa
 declined reading is not foreclosed: a group with its own channels could sit on top of this, since a
 group's channel set is exactly a scope plus a reason.
 
+## ADR-026: Per-model thresholds are the same six numbers, resolved per drive
+
+**Context.** Round 7 of the roadmap named "custom per-model attribute thresholds" and nothing else —
+no `FEATURES.md` entry, no note. What exists is a set of six **global** settings
+(`interp.Thresholds`: a temperature, three sector counts, an NVMe wear figure and a "warn on any
+non-zero" switch) read once per scan and applied to every drive.
+
+**Decision — the same six numbers, per model, and nothing new.** A `model_thresholds` setting holds a
+JSON object of model → the same six setting names. An entry overrides the numbers it names and
+inherits the rest, so it reads as "this model, except…". The names are deliberately the *same* ones
+the global settings use, parsed by the *same* function: one vocabulary for one set of numbers, and
+one place where a setting name becomes a field. An override map is simply a settings map for one
+model, which is why `applyThresholdSetting` is a switch and not two parsers.
+
+**Decision — resolved per drive, not per scan.** The scanner used to resolve thresholds once and hand
+the same set to every drive. It now resolves a *resolver* once per scan and asks it per drive, because
+the model is not known until the drive has been read. Reading the settings once per scan and then
+asking per drive also keeps a twenty-four-drive scan to one trip to the settings table rather than
+twenty-four.
+
+**Decision — the report does not move.** `A27` requires the exported evidence to name the attributes
+failing the **drive's own manufacturer threshold**, which the drive publishes itself. These thresholds
+change the verdict this app reaches and nothing else. The two were already separate paths, and keeping
+them separate is what stops a user's tuning from rewriting an RMA argument — the tuning is an opinion,
+and the report is evidence.
+
+**Decision — matched on the model *or* the family, longest pattern wins.** smartctl puts the
+informative string in one or the other depending on the drive: a Samsung reports a family, a WD reports
+only a model with a part number in it. If two patterns match, the longer one wins — the same tie-break
+`knowledge.Find` uses when two entries match one drive. It is a tie-break rather than a measure of
+specificity, and the sharp edge is worth naming rather than hiding: a *broad* pattern that happens to
+be long (`Samsung SSD`) beats a *narrow* short one (`870 EVO`). The remedy is the user's and it is
+cheap — name patterns so they do not overlap — which is why the rule is documented in the editor
+rather than worked around in code.
+
+**Decision — validated on save, tolerated on read.** The value is the only setting with structure, and
+the failure it would otherwise hide is the quietest in the app: valid JSON, a successful save, a row
+in the editor, and a number that nothing ever reads. So `PUT /api/settings` refuses a value that is
+not an object of objects or that names a threshold that does not exist, with a message naming the key.
+A malformed value that is already stored reads as "no overrides" rather than stopping scans: the point
+of the feature is to judge drives, and refusing to scan because a setting is broken would be worse
+than the broken setting.
+
+**Alternatives.**
+- *A new table keyed by model* — rejected. The value is a handful of numbers read by one consumer, and
+  a table would add migrations and queries for something the settings map already holds. It is also
+  the one shape that would make "the same six names" harder to keep.
+- *A struct of pointers per field* — rejected: a second parser, a second set of rules about what
+  "unset" looks like, and a way for the override names to drift from the global ones.
+- *Merging into the knowledge base's model entries* (`A21`) — considered, and it is where this would
+  go if it grew. Declined for now because the knowledge base is a *published table with sources*
+  (`every figure names its source`), and a user's private tuning is not a sourced figure. Putting it
+  there would also mean the overrides editor and this one became the same editor with two meanings.
+- *A table of inputs in the settings sheet* — deferred, not rejected. The JSON editor plus a seed
+  button gets the common edit to one number for one model, which is the bar; a table is the obvious
+  next step if this gets used, and it would need its own CSS.
+- *Per-drive thresholds* — rejected. Two drives of one model should be judged the same way, or the
+  app is reporting on its own bookkeeping rather than on the drives.
+
+**Consequences.** (+) a mixed fleet can be judged sensibly without silencing the drives that matter;
+the feature costs one settings key, one resolver and one editor, and reuses the parser, the names and
+the matching rule that already existed. (−) the settings page now has two JSON editors, which is one
+more than is comfortable, and a user can still write a pattern that overlaps another — the rule is
+documented in the editor rather than enforced, because enforcing it would mean refusing an entry that
+is perfectly well defined. (±) `interp` now owns a matcher that `knowledge` also has, in a smaller
+shape; sharing it would mean `interp` depending on the knowledge table's package, which is the wrong
+direction for a string rule, so the two are kept in step by documentation rather than by a shared
+function.
+
+
 
 ## ADR-024: A scheduled self-test rides the schedule table, and the queue is its own machinery
 

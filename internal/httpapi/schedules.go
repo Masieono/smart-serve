@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/masieono/smart-serve/internal/interp"
 	"github.com/masieono/smart-serve/internal/scan"
 	"github.com/masieono/smart-serve/internal/store"
 )
@@ -35,6 +36,16 @@ func (s *Server) handlePutSettings(w http.ResponseWriter, r *http.Request) {
 	var body map[string]string
 	if !decodeJSON(w, r, &body) {
 		return
+	}
+	// The one setting with structure is checked here rather than stored and tolerated, because the
+	// failure it hides is the quietest in the app: valid JSON with a typo'd key saves, appears in the
+	// editor, and is never read by anything. Everything else is a single value the scan parses and
+	// falls back from, which is the right shape for a scalar.
+	if raw, ok := body[interp.ModelThresholdsSetting]; ok {
+		if err := interp.ValidateModelThresholds(raw); err != nil {
+			writeError(w, http.StatusBadRequest, "Per-model thresholds: "+err.Error())
+			return
+		}
 	}
 	if err := s.store.SetSettings(r.Context(), body); err != nil {
 		s.fail(w, "put settings", err)

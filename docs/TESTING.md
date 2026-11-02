@@ -154,6 +154,11 @@ The maintenance card is absent when there are no windows — that is the design,
 | 6.7 | Press **Discard the fetched copy** when one exists. | The status line drops back to the shipped count |
 | 6.8 | Press **Export** in Import and export. | A JSON bundle downloads |
 | 6.9 | Press **Import** and choose that file. | A confirmation first, then a summary of what was applied |
+| 6.10 | Scroll to **Per-model thresholds** and press **Load the fleet's models**. | One entry per model in the fleet, at the values on the sliders above |
+| 6.11 | Change one number in one entry and press **Save settings**. | A toast. Reload — the change is still there |
+| 6.12 | Press **Load the fleet's models** again. | The entry you edited is **kept**, not overwritten |
+| 6.13 | Type a threshold name that does not exist (`"reallocated_bad"`) and save. | An error **beside the box** naming the key, and nothing saved |
+| 6.14 | Change one model's temperature threshold, save, and **Scan now**. | That model is judged by its own number; the other drives are unchanged |
 
 ## Pass 7 — cross-cutting
 

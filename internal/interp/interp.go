@@ -44,25 +44,46 @@ func DefaultThresholds() Thresholds {
 // the UI).
 func FromSettings(settings map[string]string) Thresholds {
 	t := DefaultThresholds()
-	if v, ok := settingInt(settings, "temperature_threshold_c"); ok {
-		t.TemperatureC = v
-	}
-	if v, ok := settingInt(settings, "reallocated_bad_threshold"); ok {
-		t.ReallocatedBad = v
-	}
-	if v, ok := settingInt(settings, "pending_bad_threshold"); ok {
-		t.PendingBad = v
-	}
-	if v, ok := settingInt(settings, "uncorrectable_bad_threshold"); ok {
-		t.UncorrectableBad = v
-	}
-	if v, ok := settingInt(settings, "nvme_percentage_used_warn"); ok {
-		t.NVMePercentageUsedWarn = v
-	}
-	if v, ok := settingBool(settings, "warn_on_any_nonzero"); ok {
-		t.WarnOnAnyNonZero = v
+	for key := range settings {
+		applyThresholdSetting(&t, settings, key)
 	}
 	return t
+}
+
+// applyThresholdSetting tunes one field from one setting, ignoring a name it does not recognise or a
+// value it cannot parse.
+//
+// One switch rather than a lookup table because the fields are two different types — five ints and a
+// bool — and because this is the **only** place a threshold setting name becomes a field. That is
+// what lets the per-model overrides (`modelthresholds.go`) use the same names with no second
+// vocabulary: an override map is simply a settings map for one model.
+func applyThresholdSetting(t *Thresholds, settings map[string]string, key string) {
+	switch key {
+	case "temperature_threshold_c":
+		if v, ok := settingInt(settings, key); ok {
+			t.TemperatureC = v
+		}
+	case "reallocated_bad_threshold":
+		if v, ok := settingInt(settings, key); ok {
+			t.ReallocatedBad = v
+		}
+	case "pending_bad_threshold":
+		if v, ok := settingInt(settings, key); ok {
+			t.PendingBad = v
+		}
+	case "uncorrectable_bad_threshold":
+		if v, ok := settingInt(settings, key); ok {
+			t.UncorrectableBad = v
+		}
+	case "nvme_percentage_used_warn":
+		if v, ok := settingInt(settings, key); ok {
+			t.NVMePercentageUsedWarn = v
+		}
+	case "warn_on_any_nonzero":
+		if v, ok := settingBool(settings, key); ok {
+			t.WarnOnAnyNonZero = v
+		}
+	}
 }
 
 // settingInt reads a positive integer setting.

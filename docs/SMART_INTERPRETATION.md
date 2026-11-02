@@ -94,6 +94,13 @@ All thresholds in this algorithm (`temp_threshold`, the `10`-count Bad threshold
 and `warn_on_any_nonzero`) are **configurable in the Settings UI** with these
 defaults (`DATA_MODEL.md`, `ADR-009`); the values shown are the shipped defaults.
 
+They can also be set **per drive model** (`model_thresholds`, `FEATURES.md` A3). The
+defaults are a compromise across everything in one box — a consumer SSD and an
+enterprise drive do not agree on what a worrying reallocated-sector count is — so an
+entry overrides one model and inherits the rest. It changes the **verdict** and nothing
+else: the report's evidence is still the drive's own manufacturer threshold, which the
+drive publishes itself (`A27`).
+
 See §8 for the derived 0–100 **health score** shown alongside the verdict.
 
 Rules:

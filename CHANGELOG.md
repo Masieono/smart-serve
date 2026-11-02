@@ -180,6 +180,18 @@ acknowledgement, action buttons back into the app, and a weekly digest.
   and **Test ignores the scope**, because the question Test answers is "does this channel work".
   The groups offered are the tags actually in use, and the helper that lists them is now shared with
   the dashboard's export scope — one question, one implementation.
+- **Per-model health thresholds (`A3`)** — the six interpretation thresholds, **per drive model**. The
+  defaults are a compromise across everything in one box: a consumer SSD and an enterprise drive do
+  not agree on what a worrying reallocated-sector count is, and one number cannot be right for both.
+  The alternative was to keep tuning the global numbers until the loudest drive was quiet, which is
+  how a monitor ends up blind to the drive that matters. An entry names a model (matched on the model
+  *or* the family, case-insensitively) and the numbers that differ; everything else is inherited, so
+  an entry reads as "this model, except…". The Settings page seeds an entry for every model in the
+  fleet at the values currently on screen, because the common edit is one number for one model.
+  It moves the **verdict** and nothing else: the exported report still names the attributes failing
+  the drive's *own* manufacturer threshold, so tuning never rewrites an RMA argument. The value is
+  validated on save — a typo'd key is a `400` naming it, rather than a row that is stored, shown and
+  never read. See `ADR-026`.
 - **Drive logs (`A20`)** — the error log and the self-test log are rendered, with the drive's own
   self-test time estimates and smartctl's words when a log cannot be read.
 

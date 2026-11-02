@@ -44,9 +44,11 @@ test('the knowledge card reports every layer', async () => {
   }
 
   // The overrides editor holds what is stored, so a save round-trips rather than blanking it.
-  const editors = container.all('textarea').filter((n) => n.className === 'knowledge-editor');
-  assert.equal(editors.length, 1);
-  assert.equal(editors[0].value, KNOWLEDGE.overrides.payload);
+  const editors = container.all('textarea').filter((n) => n.className === 'settings-editor');
+  assert.equal(editors.length, 2, 'the knowledge overrides and the per-model thresholds');
+  const knowledgeEditor = editors.find((n) => n.getAttribute('aria-label') === 'Your knowledge base entries');
+  assert.ok(knowledgeEditor, 'no knowledge editor');
+  assert.equal(knowledgeEditor.value, KNOWLEDGE.overrides.payload);
 
   // The shipped table is offered as a download, which is how somebody starts their own copy to point
   // the URL at.
@@ -321,5 +323,163 @@ test('Save is usable again after it has been pressed', async () => {
   save.click();
   await flush();
   assert.equal(requests.filter((r) => r.method === 'PUT').length, 2, 'the second press did not save');
+});
+
+
+
+// --- per-model thresholds (FEATURES.md A3) -------------------------------------
+
+const { fleetModels, seedModelThresholds } = settings;
+
+const FLEET = {
+  devices: [
+    { serial: 'a', model: 'Samsung SSD 870 EVO' },
+    { serial: 'b', model: 'samsung ssd 870 evo' },
+    { serial: 'c', model: 'WDC WD40EFRX' },
+    { serial: 'd', model: '   ' },
+    { serial: 'e' },
+  ],
+};
+
+test('fleetModels lists each model once, in a stable order', () => {
+  assert.deepEqual(fleetModels(FLEET), ['Samsung SSD 870 EVO', 'WDC WD40EFRX']);
+  assert.deepEqual(fleetModels({}), []);
+  assert.deepEqual(fleetModels(undefined), []);
+});
+
+const VALUES = {
+  temperature_threshold_c: '55',
+  reallocated_bad_threshold: '10',
+  pending_bad_threshold: '10',
+  uncorrectable_bad_threshold: '10',
+  nvme_percentage_used_warn: '90',
+  warn_on_any_nonzero: 'true',
+};
+
+test('the seed writes one entry per model at the values on screen', () => {
+  assert.deepEqual(seedModelThresholds('', ['870 EVO', 'WD40EFRX'], VALUES), {
+    '870 EVO': VALUES,
+    WD40EFRX: VALUES,
+  });
+});
+
+// The common edit is one number for one model, so the seed must not throw away what is already
+// there — a button labelled "load" that discarded hand-written overrides would be one press away
+// from losing them.
+test('the seed keeps entries that are already there', () => {
+  const existing = JSON.stringify({
+    '870 EVO': { reallocated_bad_threshold: '1' },
+    'Old Drive': { pending_bad_threshold: '3' },
+  });
+  const seeded = seedModelThresholds(existing, ['870 EVO', 'WD40EFRX'], VALUES);
+
+  assert.deepEqual(seeded['870 EVO'], { reallocated_bad_threshold: '1' });
+  assert.deepEqual(seeded['Old Drive'], { pending_bad_threshold: '3' },
+    "an entry for a drive that is no longer plugged in is still the user's");
+  assert.deepEqual(seeded.WD40EFRX, VALUES);
+});
+
+// A model already listed under a different capitalisation is the same model: every comparison the
+// app makes about models ignores case, so seeding `samsung ssd 870 evo` beside `Samsung SSD 870 EVO`
+// would be two entries for one drive.
+test('the seed matches an existing entry case-insensitively', () => {
+  const seeded = seedModelThresholds(
+    JSON.stringify({ 'SAMSUNG SSD 870 EVO': { pending_bad_threshold: '2' } }),
+    ['Samsung SSD 870 EVO'], VALUES);
+
+  assert.deepEqual(Object.keys(seeded), ['SAMSUNG SSD 870 EVO']);
+});
+
+
+// The editor is part of the page's single Save, so its contents have to reach the payload — and the
+// temperature has to be sent in Celsius, because that is what the parser reads. Seeding a Fahrenheit
+// number would seed 130 °C.
+test('the per-model editor is saved with the rest of the settings', async () => {
+  installStubDom();
+  const requests = [];
+  stubFetch({ settings: {}, ...KNOWLEDGE, devices: FLEET.devices }, requests);
+
+  const container = document.createElement('div');
+  await settings.render(container, ctx);
+
+  const editor = container
+    .all('textarea')
+    .find((n) => n.getAttribute('aria-label') === 'Per-model health thresholds');
+  assert.ok(editor, 'the page should carry a per-model threshold editor');
+
+  // Seeding is the only way to get an entry without typing JSON by hand, which is the whole reason
+  // the button exists.
+  const seed = container.all('button').find((b) => b.textContent === 'Load the fleet’s models');
+  assert.ok(seed, 'the page should offer the seed');
+  assert.equal(seed.disabled, false, 'the fleet has models, so the seed should be usable');
+  seed.click();
+  assert.match(editor.value, /Samsung SSD 870 EVO/, 'the seed did not name the fleet models');
+
+  container.all('button').find((b) => b.textContent === 'Save settings').click();
+  await flush();
+
+  const put = requests.find((r) => r.method === 'PUT');
+  assert.ok(put, `the save should have been sent: ${JSON.stringify(requests)}`);
+  const stored = JSON.parse(put.body.model_thresholds);
+  assert.deepEqual(Object.keys(stored).sort(), ['Samsung SSD 870 EVO', 'WDC WD40EFRX']);
+  assert.equal(stored['Samsung SSD 870 EVO'].temperature_threshold_c, '55',
+    'the threshold should be seeded in Celsius');
+});
+
+// With nothing read yet there is nothing to seed, and a button that does nothing when pressed is
+// worse than one that says so.
+test('the seed is disabled when the fleet has no models', async () => {
+  installStubDom();
+  stubFetch({ settings: {}, ...KNOWLEDGE, devices: [] });
+
+  const container = document.createElement('div');
+  await settings.render(container, ctx);
+
+  const seed = container.all('button').find((b) => b.textContent === 'Load the fleet’s models');
+  assert.ok(seed, 'the seed should still be offered, so the feature is discoverable');
+  assert.equal(seed.disabled, true, 'there is nothing to seed from');
+});
+
+// A rejected save shows the reason beside the box as well as in a toast: the message names a JSON
+// field, and a toast is gone before it has been read.
+test('a rejected per-model value is shown beside the editor', async () => {
+  installStubDom();
+  globalThis.fetch = async (url, init = {}) => {
+    if ((init.method || 'GET') === 'PUT') {
+      return {
+        ok: false,
+        status: 400,
+        statusText: 'Bad Request',
+        text: async () => JSON.stringify({ error: 'Per-model thresholds: unknown threshold "nope"' }),
+      };
+    }
+    return {
+      ok: true,
+      status: 200,
+      statusText: 'OK',
+      text: async () => JSON.stringify({ settings: {}, ...KNOWLEDGE, devices: [] }),
+    };
+  };
+
+  const container = document.createElement('div');
+  await settings.render(container, ctx);
+
+  container.all('button').find((b) => b.textContent === 'Save settings').click();
+  await flush();
+
+  const shown = container
+    .all('div')
+    .filter((n) => n.className === 'settings-error' && !n.hidden)
+    .map((n) => n.textContent);
+  assert.ok(shown.some((t) => t.includes('unknown threshold')),
+    `the reason should be shown beside the editor, got ${JSON.stringify(shown)}`);
+});
+
+// Nonsense in the box is not a reason to refuse to help: the seed falls back to an empty starting
+// point rather than throwing at somebody mid-edit.
+test('the seed survives a box that is not JSON', () => {
+  assert.deepEqual(seedModelThresholds('not json', ['870 EVO'], VALUES), { '870 EVO': VALUES });
+  assert.deepEqual(seedModelThresholds('[]', ['870 EVO'], VALUES), { '870 EVO': VALUES });
+  assert.deepEqual(seedModelThresholds(null, [], VALUES), {});
 });
 

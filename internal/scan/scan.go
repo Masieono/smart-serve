@@ -35,7 +35,13 @@ type Scanner struct {
 	// ThresholdsFunc, when set, supplies the interpretation thresholds for each
 	// scan. Without it the shipped defaults would silently ignore the settings the
 	// user edits in the UI.
-	ThresholdsFunc func(ctx context.Context) interp.Thresholds
+	//
+	// It resolves once per scan and returns a *resolver* rather than a set, because the thresholds
+	// can now depend on the drive: a per-model override (`FEATURES.md` A3) means the model decides
+	// which numbers apply, and the model is not known until the drive has been read. Reading the
+	// settings once per scan and then asking per drive also keeps a twenty-four-drive scan to one
+	// trip to the settings table rather than twenty-four.
+	ThresholdsFunc func(ctx context.Context) interp.ModelThresholds
 }
 
 // New returns a Scanner with the shipped defaults.
@@ -128,24 +134,24 @@ func (s *Scanner) CommandTimeout(ctx context.Context) time.Duration {
 	return t
 }
 
-// resolve returns the timeout and thresholds to use for one scan, consulting the
+// resolve returns the timeout and threshold resolver to use for one scan, consulting the
 // per-scan Funcs when they are set. Keeping this separate from Run means the
 // resolution can be tested without shelling out to lsblk and smartctl.
-func (s *Scanner) resolve(ctx context.Context) (time.Duration, interp.Thresholds) {
+func (s *Scanner) resolve(ctx context.Context) (time.Duration, interp.ModelThresholds) {
 	timeout := s.Timeout
 	if s.TimeoutFunc != nil {
 		if v := s.TimeoutFunc(ctx); v > 0 {
 			timeout = v
 		}
 	}
-	thresholds := s.Thresholds
+	thresholds := interp.NewModelThresholds(s.Thresholds, nil)
 	if s.ThresholdsFunc != nil {
 		thresholds = s.ThresholdsFunc(ctx)
 	}
 	return timeout, thresholds
 }
 
-func (s *Scanner) scanOne(ctx context.Context, d smart.Discovered, timeout time.Duration, thresholds interp.Thresholds) Device {
+func (s *Scanner) scanOne(ctx context.Context, d smart.Discovered, timeout time.Duration, thresholds interp.ModelThresholds) Device {
 	res := Device{Discovered: d}
 
 	args := []string{"-x", "--json"}
@@ -158,14 +164,14 @@ func (s *Scanner) scanOne(ctx context.Context, d smart.Discovered, timeout time.
 	res.Raw = cmdRes.Stdout
 	if err != nil {
 		res.Error = err.Error()
-		res.Health = interp.Evaluate(nil, thresholds)
+		res.Health = interp.Evaluate(nil, thresholds.Base())
 		return res
 	}
 
 	sd, perr := smart.ParseSMART(cmdRes.Stdout)
 	if perr != nil {
 		res.Error = perr.Error()
-		res.Health = interp.Evaluate(nil, thresholds)
+		res.Health = interp.Evaluate(nil, thresholds.Base())
 		return res
 	}
 	if sd.Bus == "" {
@@ -181,7 +187,9 @@ func (s *Scanner) scanOne(ctx context.Context, d smart.Discovered, timeout time.
 		}
 	}
 	res.Data = sd
-	res.Health = interp.Evaluate(sd, thresholds)
+	// Per drive, because a per-model override means the model decides which numbers apply
+	// (`FEATURES.md` A3). A drive that reported no model falls back to the global set.
+	res.Health = interp.Evaluate(sd, thresholds.For(sd.Model, sd.ModelFamily))
 	return res
 }
 
