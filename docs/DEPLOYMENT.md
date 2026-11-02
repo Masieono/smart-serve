@@ -161,6 +161,28 @@ SSE requires `proxy_buffering off` and HTTP/1.1 — noted here because it is the
 most common reverse-proxy misconfiguration. Built-in basic auth is a Phase 2
 feature (`SCOPE.md`).
 
+## Updating an existing install
+
+The image is published as `latest` and as the version. On the host:
+
+```sh
+cd /path/to/your/compose/file
+docker compose pull
+docker compose up -d
+docker compose logs --tail=20 smart-serve   # the startup probe line
+```
+
+`docker compose pull` is the step that matters: `docker compose up -d` alone reuses the local image,
+so an install that skips the pull keeps running whatever it already had.
+
+Check the sidebar footer says the new version. That is the one thing the tag proves, and a
+`0.0.0-dev` there means the image was built without a `VERSION` build-arg. To pin rather than track
+`latest`, set `image: ghcr.io/masieono/smart-serve:1.1.0`.
+
+**Nothing else is required.** The database migrates itself on start, and the changelog says when a
+release adds migrations. To roll back, pin the previous tag and pull again — the schema is additive,
+so an older binary ignores columns it does not know about.
+
 ## Data & backup
 
 - All state lives in one SQLite file: `/data/smartserve.db` (+ `-wal`/`-shm`).

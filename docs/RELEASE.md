@@ -46,10 +46,16 @@ side-by-side comparison. `SCOPE.md` Phase 4 is complete and `FEATURES.md` §H ha
 - **`D7` localization.** Deferred, not dropped: the cost is extracting every string and keeping every
   locale in step, which is only worth doing for a translator who will maintain the result
   (`ADR-023`, `SCOPE.md`).
-- **NVMe self-test progress.** The card reads progress from the ATA self-test log; smartctl's NVMe
-  self-test log has never been observed on this project's hardware, so it is detected and named
-  rather than guessed at. The raw output from a drive while a test runs is the fixture that closes it
-  (`FEATURES.md` A19, `TESTING.md` Pass 3).
+- **Error-log entry *lists* are not rendered.** The counts are, and the self-test entries are, but
+  smartctl emits no entry list at all when a log is empty — and neither drive available to this
+  project has ever logged an error, so the *populated* shape has never been observed. Guessing it
+  would produce a panel that renders nothing precisely when a drive has something to say. The raw
+  document is stored verbatim and the panel says so, so nothing is lost; rendering lands when a
+  populated log is captured (`FEATURES.md` A20).
+- **An attribute row cannot be marked "the verdict blamed this".** `interp.Penalty` carries a
+  free-text reason but no attribute id, so the attribute table can only mark rows the *drive itself*
+  flags. Adding an optional id would make it exact and retire the last UI-side judgement
+  (`FEATURES.md` A12).
 - **arm64 has never been run.** CI builds it on every pull request; nothing has executed it on ARM
   hardware. The Raspberry Pi procedure below is how that closes, and it needs hardware rather than
   code (`SCOPE.md`).
