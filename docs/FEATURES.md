@@ -9,9 +9,22 @@ timers while the app is idle.
 💤 adds no idle cost · 🔌 only active during a scan · ⚠ needs an opt-in guard to
 avoid idle cost.
 
-**Status** lives in the Notes column. Every feature in tiers A–D is shipped except `D6` and
-`D7`, which say so. A blank Notes cell means the entry predates the column, not that the
-feature is missing.
+**Status** lives in the Notes column. Every feature in tiers A–D is shipped except `D7`, which says
+so. A blank Notes cell means the entry predates the column, not that the feature is missing.
+
+**What is left in the whole app**, gathered here because it was previously spread across five files:
+
+| What | Where it is recorded | Why it is open |
+|---|---|---|
+| `D7` localization | `SCOPE.md`, `ADR-023` | Deferred, not dropped: extracting every string and keeping every locale in step is only worth doing for a translator who will maintain the result |
+| Error-log **entry lists** (`A20`) | §A20 above | The counts and the self-test entries are shown; smartctl emits no list at all for an empty log, and neither drive available here has ever logged an error, so the populated shape has never been captured |
+| An attribute id on `interp.Penalty` (`A12`) | §A12 above | The score breakdown carries a free-text reason and no attribute id, so a row cannot be marked "the verdict blamed this" |
+| arm64 on real hardware | `SCOPE.md`, `RELEASE.md` | CI builds it on every pull request; nothing has executed it on ARM |
+| Multi-user accounts / roles | `SCOPE.md` Phase 3 | **Conflicts with `D23`** — authentication is delegated to a reverse proxy, so this needs that decision revisited rather than built |
+
+Everything else recorded in these documents is either shipped or an **explicit non-goal** — writing
+to drives, RAID-controller passthrough, udev hot-plug detection, host CPU/RAM metrics, and built-in
+authentication (`SCOPE.md` §Explicit non-goals). Those are decisions, not backlog.
 
 ## A. Core reporting (the S.M.A.R.T. mission)
 
