@@ -168,6 +168,13 @@ The maintenance card is absent when there are no windows — that is the design,
 | 7.2 | Press `s`, `/`, `?`, `Esc`. | Scan; focus the filter; help; close a dialog |
 | 7.3 | Narrow the window below 640px. | The sidebar collapses, the toggle works, Scan stays reachable |
 | 7.4 | Let a scan finish while you are reading a drive page. | A toast, and **the page does not move** |
+| 7.5 | Switch the list to **Table**, tick two drives, and press **Compare 2**. | A dialog with one column per drive, aligned by attribute id |
+| 7.6 | Read the sector rows. | The normalised value with the **raw count beneath it**, so a drive with bad sectors is visible |
+| 7.7 | Tick a third drive and compare again. | Three columns, in the order they were ticked |
+| 7.8 | Try to tick a seventh drive. | The **Compare** button says why it will not go: at most six at once |
+| 7.9 | Compare a SATA drive with an NVMe one. | The ATA rows show an em dash for the NVMe column, never a zero |
+| 7.10 | Scroll a comparison sideways. | The attribute column stays put |
+| 7.11 | Open a drive, go back, and look at the table. | The ticks are still there |
 | 7.5 | Watch the network tab while the app is idle. | Nothing. The only repeat request is the self-test card while a test runs |
 | 7.6 | Serve the app under a subpath (`/smart-serve/`). | Nothing 404s |
 

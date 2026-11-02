@@ -535,6 +535,17 @@ stop demanding a value that is never going to be typed into the form (`ADR-022`)
   orchestrator liveness probes.
 - `GET /api/scans` — scan-history log (`FEATURES.md` A13): id, trigger
   (`manual`/`schedule`), start/end, duration, per-device ok/fail counts, error.
+- `GET /api/compare?serials=a,b,c` — two to six drives' attribute tables, **aligned by attribute
+  id** (`FEATURES.md` D6). The serials are the columns, in the order given; duplicates are dropped
+  and the order is kept, because that is the order the user picked them in. Returns `drives` (one
+  per column: serial, name, model, bay, verdict, score, temperature, capacity, power-on hours, wear),
+  `rows` (the union of attribute ids, ordered by id, each with one cell per drive), and `nvme` (one
+  entry per drive, nil for an ATA drive). A cell is **null** when that drive does not have the
+  attribute — an NVMe drive does not have "Reallocated Sector Count: 0" — and a row carries
+  `differs` (the present cells disagree about the value *or* the raw count) and `flagged` (some drive
+  is at or below its **own** threshold for it, the same rule the exports use). Errors: `400` for
+  fewer than two or more than six drives, `404` naming a serial nobody has. The alignment lives here
+  rather than in the browser because the alignment *is* the feature (`ADR-027`).
 - `GET /api/devices/{serial}/raw` — raw `smartctl --json` (and the exact command
   line used) from the last scan; the diagnostics escape hatch for USB bridges
   (`FEATURES.md` A10). Served from the stored per-device output, so it survives a

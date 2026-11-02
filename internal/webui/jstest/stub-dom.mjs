@@ -86,6 +86,11 @@ export class StubNode {
     for (const handler of [...(this.listeners.get(type) || [])]) {
       handler(dispatchEvent);
     }
+    // The `on<type>` property too, which is what `el()` sets when a view passes `onchange` or
+    // `oninput` rather than registering a listener. A real dispatch invokes both, so a stub that
+    // fired only the listeners would make every `oninput` handler untestable.
+    const property = this[`on${type}`];
+    if (typeof property === 'function') property(dispatchEvent);
     dispatchEvent.done();
   }
 

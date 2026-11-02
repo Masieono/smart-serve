@@ -507,7 +507,7 @@ and all of them still hold.
 | D3 | Responsive mobile layout | MVP | 💤 | |
 | D4 | Hide / unhide devices, and forget one entirely | MVP | 💤 | escape hatch for unreadable bridges; **forget** is for the plug-in-once workflow |
 | D5 | Filter & sort devices (health, name, transport) | P2 | 💤 | **done** — a sort field with a direction toggle, a transport filter built from the transports actually present, and search that covers the bay. See `UI.md` §7.1 |
-| D6 | Side-by-side multi-device comparison | P3 | 💤 | **not built** — `SCOPE.md` Phase 4 round 7 |
+| D6 | Side-by-side multi-device comparison | P3 | 💤 | **done** — tick two to six drives in the fleet table and compare their attribute tables, aligned by attribute id, with the rows the drives disagree about and the cells a drive has flagged called out. The alignment is server-side (`GET /api/compare`) because the alignment *is* the feature: two drives of one model report their attributes in whatever order smartctl felt like. See `ADR-027` |
 | D7 | Localization (multi-language) | P3 | 💤 | **not built, and deferred** — the cost is extracting every string and keeping every locale in step, which is only worth it for a translator who will maintain the result (`ADR-023`) |
 | D8 | Dense fleet table view (one row per drive, sortable by risk) | P2 | 💤 | **done** — a Cards/Table switch on the dashboard; the table carries bay, verdict, score, transport, model, capacity, temperature, age and last scan, with sortable headers. See `UI.md` §7.1 |
 | D9 | Device grouping by tag/pool, dashboard grouped | P2 | 💤 | **done** — a "Group by tag" toggle, offered only when something is tagged. A drive with several tags appears under each of them. See below |

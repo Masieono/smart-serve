@@ -140,6 +140,9 @@ func (s *Server) routes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /metrics", s.handleMetrics)
 
 	mux.HandleFunc("GET /api/devices", s.handleListDevices)
+	// Comparing drives (`FEATURES.md` D6). Aligned server-side because the alignment is the
+	// feature, and because it needs every drive's stored attribute blob.
+	mux.HandleFunc("GET /api/compare", s.handleCompare)
 	// The fleet export (`FEATURES.md` A23). Registered beside the device routes because that is what
 	// it exports; a literal segment is more specific than `{serial}`, so the mux picks this one.
 	mux.HandleFunc("GET /api/devices/export", s.handleExportFleet)

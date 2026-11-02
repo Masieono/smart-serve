@@ -517,6 +517,23 @@ picker offers exactly `ThemeNames`.
   with a `data:` href and `download`, which is how somebody starts their own copy to point the
   refresh URL at.
 
+### 7.6 Side-by-side comparison (`FEATURES.md` D6)
+- The dense fleet table carries an **optional select box column** — only that view, and only when
+  the caller asks for it. Tick two to six drives and a **Compare N** button appears in the toolbar
+  beside the export controls; the selection survives opening a drive and coming back, because that is
+  exactly when somebody is picking a second drive.
+- The comparison opens in a **dialog**, not a route: it is a look rather than a place, and a URL for
+  it is one people bookmark into a 404 after replacing a drive. Columns are the drives in the order
+  they were ticked.
+- The table is aligned **by attribute id** and comes from the server (`GET /api/compare`). Rows are
+  marked in two weights: a **flagged** cell is the drive's *own* threshold (loud), and a **differing**
+  row is one the drives disagree about (quiet). The count of rows worth reading is stated above the
+  table.
+- A cell shows the normalised value, with the **raw count beneath it when the two differ** — a healthy
+  drive reports `100` for reallocated sectors whatever the real count is, so the raw is the number
+  that carries the finding. A drive that does not have an attribute shows an em dash, never a zero.
+- The attribute column is sticky, so it stays put while the drive columns scroll sideways.
+
 ## 8. Interaction & feedback
 
 - **Optimistic UI** for all mutations (notes, schedules, settings) with rollback +

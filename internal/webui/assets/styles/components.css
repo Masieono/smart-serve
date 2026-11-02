@@ -1990,6 +1990,73 @@ tr.attr-flagged > td {
 }
 
 /* The snapshot diff (`FEATURES.md` A18). One "was → now" line per field that moved, with the
+
+/* --- side-by-side comparison (FEATURES.md D6) ------------------------------- */
+
+.compare-summary {
+  gap: var(--space-1);
+  margin-bottom: var(--space-3);
+}
+
+/* The attribute column is the one a reader scans down, so it stays put while the drive columns
+   scroll sideways. Without it a wide comparison is a table whose left edge — the only thing that
+   says what each row *is* — has scrolled away. */
+.compare-table th.compare-attr,
+.compare-table td.compare-attr {
+  position: sticky;
+  left: 0;
+  background: var(--surface);
+  white-space: nowrap;
+}
+
+.compare-table tbody tr:nth-child(even) td.compare-attr {
+  background: var(--surface-2);
+}
+
+.compare-id {
+  display: inline-block;
+  min-width: 2.5em;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.compare-drive {
+  font-weight: 600;
+}
+
+/* Two weights of finding, deliberately different. A flagged cell is the *drive's own* alarm and is
+   loud; a differing row is context and is quiet — marking both the same way would make the one
+   thing worth reading look like the twenty that are not. */
+.compare-flagged td {
+  background: color-mix(in srgb, var(--bad, #dc2626) 8%, transparent);
+}
+
+.compare-cell-flagged {
+  color: var(--bad, #dc2626);
+  font-weight: 600;
+}
+
+/* The worst value among the drives that publish a threshold for this attribute — the drive to look
+   at first, when nothing has been flagged yet. */
+.compare-cell-worst {
+  text-decoration: underline dotted;
+  text-underline-offset: 3px;
+}
+
+/* The raw count under the normalised value, only when the two differ — the sector counters where
+   "100" is the same on a healthy drive and a failing one. Quiet, because the value above it is what
+   the reader is scanning. */
+.compare-raw {
+  display: block;
+  font-size: var(--text-xs);
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.compare-differs td:not(.compare-attr) {
+  font-weight: 600;
+}
+
    field name fixed-width so the arrows line up down the card and the whole list reads as a
    column rather than as prose. */
 .change-list {

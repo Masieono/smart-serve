@@ -914,6 +914,77 @@ shape; sharing it would mean `interp` depending on the knowledge table's package
 direction for a string rule, so the two are kept in step by documentation rather than by a shared
 function.
 
+## ADR-027: A comparison is aligned by the server, and it marks two different things
+
+**Context.** `D6` — "side-by-side multi-device comparison" — was the last item on the roadmap and, like
+the two before it, a name with no design behind it. The drives' attribute tables exist on the device
+page; what did not exist was any way to look at two of them at once.
+
+**Decision — the alignment is the feature, and it lives in Go.** `GET /api/compare?serials=a,b,c`
+returns the union of the selected drives' attribute ids, ordered by id, with one cell per drive. This
+is not a rendering detail to be done in the browser: two drives of the same model report their
+attributes in whatever order smartctl felt like, a mixed ATA/NVMe selection has attributes only some
+of the drives have, and vendors rename attributes between models. The union, the ordering, the
+"these disagree" marking and the drive's-own-threshold flag are all decisions, and decisions live
+where they can be tested.
+
+**Decision — absence is an absence.** A drive that does not have an attribute gets a null cell, which
+the UI renders as an em dash. Filling it with a zero would be this app inventing a reading, and on an
+NVMe drive — which has no ATA attributes at all — it would invent a whole column of them. A row with
+only one present cell cannot "differ" for the same reason: absence is not a disagreement.
+
+**Decision — two markers, at two weights.** A **flagged** cell is the drive's own threshold for that
+attribute (`A27`'s rule, the same one the exports use) and is loud; a **differing** row is one where
+the present cells disagree and is quiet. Marking both the same way would make the one thing worth
+reading look like the twenty that are not. The count of rows worth reading is stated above the table,
+so a reader knows whether what is in front of them is the whole story.
+
+**Decision — the value *and* the raw count.** A cell shows the normalised value, and beneath it the
+raw count when the two differ. This one is not cosmetic: a healthy drive reports `100` for reallocated
+sectors whatever the real count is, so `100` beside `100` would call a drive with twelve bad sectors
+identical to a clean one — hiding exactly the finding a comparison is opened to find. Where the two
+are the same number (temperature, most attributes) printing it twice is noise, so it is conditional.
+
+**Decision — six columns at most, and a dialog rather than a page.** Six because a comparison is read
+*across* rows: beyond a handful of columns the reader is matching numbers against a header they have
+scrolled away from, which is the thing the comparison exists to avoid. Enforced in the API because it
+is a resource limit as much as a readability one — the response carries a full attribute table per
+drive. A dialog rather than a route because a comparison is a *look*, not a place: a route would mean
+a URL that only makes sense with a query string and a back button that returns you to a list you have
+already left.
+
+**Decision — selection lives in the table, and only in the table.** The dense fleet table gains an
+optional checkbox column, off unless the caller asks for it. Cards do not: a checkbox on every card is
+a control on the page's main reading surface, and comparing is a thing you do while looking at the
+list, not while reading one drive. The selection survives opening a drive and coming back, which is
+exactly when somebody is picking a second drive.
+
+**Alternatives.**
+- *Align in the browser from N device payloads* — rejected. It would be N requests, and the rule
+  would live in a file with no tests for it. The app already builds its reports server-side for the
+  same reason.
+- *A separate page with a route* — rejected: a comparison is transient, and a URL for it is a URL
+  people will bookmark into a 404 after they replace a drive.
+- *Show `value/worst/threshold/raw` as four columns per drive, CrystalDiskInfo-style* — rejected for a
+  comparison specifically. That layout is right on a page about **one** drive, where the columns line
+  up down a page; multiplied by six drives it is twenty-four columns and no row is readable.
+- *Mark only the flagged cells* — rejected: a comparison where nothing is flagged yet is exactly when
+  somebody wants to know which drive is drifting, and that is the "differs" question.
+- *Mark every differing row loudly* — rejected: most rows of two healthy drives of one model differ
+  (temperature, power-on hours), and a table that is entirely highlighted highlights nothing.
+- *Refuse a mixed ATA/NVMe comparison* — rejected. Comparing a SATA drive with an NVMe one is a real
+  question ("which do I keep?"), and the answer is a table with two populated halves rather than a
+  refusal.
+
+**Consequences.** (+) the last roadmap item is done, and the alignment rule — the part that would
+otherwise be a silent source of wrong tables — is tested in one place. (−) the fleet table now has an
+optional twelfth column and the dashboard holds a selection set in module state, so a comparison
+survives a navigation that changes nothing about it; clearing it is a tick rather than a button, which
+is the cheap half of that trade. (±) the API is the app's first endpoint whose whole job is to answer
+a *question about several drives at once* rather than to serve a resource; if a second one appears,
+the pattern is worth naming rather than repeating.
+
+
 
 
 ## ADR-024: A scheduled self-test rides the schedule table, and the queue is its own machinery

@@ -6,6 +6,9 @@ import { icon } from '../icons.js';
 // Tag handling is shared with the notification editor's group scope (`FEATURES.md` B12), because
 // "which groups are there" is one question and two answers to it is one answer too many.
 import { fleetTags, tagList } from '../tags.js';
+// The side-by-side comparison (`FEATURES.md` D6) is its own module: the dialog, the table and the
+// "which cell is worst" rule are all about comparing, and none of them belong in the dashboard.
+import { compareButton, addToCompare } from './compare.js';
 
 // Module-level so the choices survive navigating into a drive and back.
 let filter = null;
@@ -15,6 +18,10 @@ let transportFilter = '';
 let sortKey = 'health';
 let ascending = true;
 let view = 'cards';
+// The drives ticked for comparison (`FEATURES.md` D6). Module-level for the same reason as the
+// filter: it survives opening a drive and coming back, which is exactly when somebody is picking a
+// second drive to compare against.
+let selected = new Set();
 let grouped = false;
 let benchOnly = false;
 
@@ -742,6 +749,9 @@ function draw(container, ctx, data) {
             ? el('span', { class: 'controls-divider', 'aria-hidden': 'true' })
             : null,
           exportControls,
+          // Appears only once there is something to compare, and sits at the far end because it is
+          // about the drives you picked rather than about the list you are looking at.
+          compareButton(selected, ctx),
         ])
       : null,
     // One line rather than four. The two notes below are the answer to a question the counts above
@@ -798,6 +808,15 @@ function draw(container, ctx, data) {
         sortKey, ascending, groups, onOpen: ctx.openDevice,
         onScan: (serial) => ctx.scanDevice(serial),
         onSort: sortFromHeader,
+        // Selecting is offered only in the table, which is the dense view where comparing is worth
+        // doing. A checkbox on every card would be a control on the page's main reading surface.
+        selected,
+        onSelect: (serial, checked) => {
+          selected = addToCompare(selected, serial, checked);
+          // Redrawn so the Compare button appears and its count follows the ticks. The page is
+          // already in memory, so this is a re-render rather than a reload.
+          draw(container, ctx, data);
+        },
       }));
       return;
     }

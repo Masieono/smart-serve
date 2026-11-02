@@ -192,6 +192,16 @@ acknowledgement, action buttons back into the app, and a weekly digest.
   the drive's *own* manufacturer threshold, so tuning never rewrites an RMA argument. The value is
   validated on save — a typo'd key is a `400` naming it, rather than a row that is stored, shown and
   never read. See `ADR-026`.
+- **Side-by-side drive comparison (`D6`)** — tick two to six drives in the fleet table and read their
+  attribute tables side by side. The **alignment is the feature**, not a rendering detail: two drives
+  of one model report their attributes in whatever order smartctl felt like, so the union of ids,
+  their order and the "these disagree" marking are decided server-side where they can be tested. Rows
+  are marked in two weights — a **flagged** cell is the drive's *own* threshold and is loud, a
+  **differing** row is context and is quiet — because marking both the same way would make the one
+  thing worth reading look like the twenty that are not. A drive that does not have an attribute
+  shows an em dash rather than a zero, and the raw count is shown under the normalised value when the
+  two differ: a healthy drive reports `100` for reallocated sectors whatever the real count is, so
+  `100` beside `100` would hide the drive with twelve bad sectors. See `ADR-027`.
 - **Drive logs (`A20`)** — the error log and the self-test log are rendered, with the drive's own
   self-test time estimates and smartctl's words when a log cannot be read.
 

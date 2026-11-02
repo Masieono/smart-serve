@@ -83,6 +83,10 @@ export const api = {
   testChannelConfig: (c) => request('POST', '/api/channels/test', c),
   notifications: (limit = 25) => request('GET', `/api/notifications?limit=${limit}`),
 
+  // Comparing drives (FEATURES.md D6). The serials are the columns, in the order given, and the
+  // alignment comes back done — the server owns that rule, because it is the feature.
+  compare: (serials) => request('GET', `/api/compare?serials=${serials.map(encodeURIComponent).join(',')}`),
+
   eventsUrl: () => appPath('/api/events'),
 
   // Import/export (FEATURES.md C7). The export is a URL rather than a fetch: it is a download, and

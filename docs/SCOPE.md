@@ -163,9 +163,7 @@ Everything below is wanted. This is the order it lands in, recorded in `ADR-023`
 resumes rather than re-decides. Each round is a shipping unit, and a UI consolidation pass follows
 each (`ADR-019`).
 
-**Status: rounds 1–7 are built.** One thing is not, and it is the whole of what is left:
-
-- `D6` **side-by-side comparison** (round 7).
+**Status: every roadmap item in this phase is built.** Nothing is outstanding.
 
 1. **The drive's own data, finished.** `A20` entry rendering, then `A19` self-test: the opt-in
    button first, scheduling after, staggered **one drive at a time** so a fleet does not start
@@ -182,8 +180,9 @@ each (`ADR-019`).
    and grown by community pull requests.
 6. **Notifications polish.** `B7` acknowledgement, `B10` ntfy action buttons, `B13` weekly digest,
    **group-level routing** (`B12`, the second axis on a channel: *which drives* it is about).
-7. **Interfaces and last mile.** `C6` Prometheus `/metrics` (off by default), `D6` side-by-side
-   comparison, **custom per-model attribute thresholds** (`A3`: the same six threshold keys, per
+7. **Interfaces and last mile.** `C6` Prometheus `/metrics` (off by default), `D6` **side-by-side
+   comparison** (tick two to six drives in the fleet table; their attribute tables aligned by
+   attribute id), **custom per-model attribute thresholds** (`A3`: the same six threshold keys, per
    drive model, resolved against the model and family the drive reports).
 
 **Deferred, and the one item deliberately left out of the above:** `D7` localization. The expensive

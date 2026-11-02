@@ -164,8 +164,9 @@ Decisions are recorded in [`docs/REQUIREMENTS.md`](docs/REQUIREMENTS.md) (D1–D
 - **Export** — per drive as text / web page / spreadsheet / JSON, and the whole fleet as one
   CSV or one printable page (`A8`/`A23`/`A27`).
 - **Fleet views** — filter and sort, a dense table, grouping by tag, bay/slot, a "replace
-  first" ranking, correlated-change detection, and a testing session for bench drives
-  (`D5`/`D8`/`D9`/`D10`/`D11`/`A24`/`A25`).
+  first" ranking, correlated-change detection, a testing session for bench drives, and a
+  side-by-side comparison of two to six drives aligned by attribute id
+  (`D5`/`D8`/`D9`/`D10`/`D11`/`A24`/`A25`/`D6`).
 - **Knowledge base** — rated endurance and known firmware advisories: a bundled table, an
   opt-in refresh, and your own entries, every figure carrying its source (`A21`).
 - **Ops** — Dockerfile, compose (prod + dev), GitHub Actions CI, Prometheus `/metrics` (off by

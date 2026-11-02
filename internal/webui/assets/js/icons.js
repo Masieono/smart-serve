@@ -22,6 +22,9 @@ const PATHS = {
   usb: '<path d="M12 21V7"/><path d="m8 10 4-3 4 3"/><circle cx="12" cy="5" r="2"/>',
   save: '<path d="M5 3h11l3 3v15H5z"/><path d="M9 3v6h6V3"/>',
   chevron: '<path d="m9 6 6 6-6 6"/>',
+  // A table with a header row and one column rule — for the side-by-side comparison (`D6`), which
+  // is the one thing in the app that is *only* a table.
+  table: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M9 9v11"/>',
   back: '<path d="m15 6-6 6 6 6"/>',
   'arrow-up': '<path d="M12 20V5"/><path d="m5 11 7-6 7 6"/>',
   'arrow-down': '<path d="M12 4v15"/><path d="m5 13 7 6 7-6"/>',

@@ -501,6 +501,10 @@ export function fleetTable(devices, opts = {}) {
   const {
     sortKey = 'health', ascending = true, onOpen = () => {}, onScan = () => {}, onSort = null,
     groups = null,
+    // Selection, for comparing drives (`FEATURES.md` D6). Off unless a caller passes `onSelect`, so
+    // every other table keeps the shape it had — a checkbox column on a table nobody compares from
+    // is a column of noise.
+    selected = new Set(), onSelect = null,
   } = opts;
 
   // A flat list is one unlabelled group. Normalising here means the body below has a single shape
@@ -509,6 +513,23 @@ export function fleetTable(devices, opts = {}) {
 
   // In the order someone reads a fleet: where it is, what it is, how it is, how old it is.
   const columns = [
+    // The select box first, where a checkbox column always goes. It carries no `key`, so it is not
+    // sortable and the header logic below skips it.
+    onSelect
+      ? {
+        key: null,
+        label: '',
+        cell: (d) => el('input', {
+          type: 'checkbox',
+          checked: selected.has(d.serial),
+          'aria-label': `Select ${d.name || d.serial}`,
+          // The row opens the drive; the checkbox must not also do that. The press is stopped here
+          // rather than in the row, because the row's own handler cannot tell which child was hit.
+          onclick: (e) => e.stopPropagation(),
+          onchange: (e) => onSelect(d.serial, e.currentTarget.checked),
+        }),
+      }
+      : null,
     { key: 'bay', label: 'Bay', cell: (d) => d.bay || '' },
     { key: 'name', label: 'Drive', cell: deviceTitle },
     { key: 'health', label: 'Verdict', cell: (d) => [statusBadge(d), worseningBadge(d)] },
@@ -528,7 +549,9 @@ export function fleetTable(devices, opts = {}) {
         onScan(d.serial);
       },
     }, [icon('scan')]) },
-  ];
+    // The optional select column is dropped here rather than filtered at each use, so everything
+    // below sees a list of real columns and the group separator's colspan is right by construction.
+  ].filter(Boolean);
 
   const header = el('tr', {}, columns.map((c) => {
     const sortable = c.key !== null && onSort !== null;

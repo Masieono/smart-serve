@@ -165,3 +165,59 @@ test('a group separator spans every column', () => {
 test('a flat list gets no separator', () => {
   assert.equal(separators(table([drive({})])).length, 0);
 });
+
+// --- selecting drives to compare (FEATURES.md D6) ------------------------------
+
+/** The select boxes in a table, in row order. */
+const boxes = (node) => node.all('input').filter((n) => n.getAttribute('type') === 'checkbox');
+
+// Off by default, so every table that is not the fleet list keeps the shape it had: a checkbox
+// column on a table nobody compares from is a column of noise.
+test('there is no select column unless the caller asks for one', () => {
+  assert.equal(boxes(table([drive({})])).length, 0);
+  assert.equal(boxes(table([drive({})], { selected: new Set(), onSelect: () => {} })).length, 1);
+});
+
+test('the boxes reflect what is selected, and report changes by serial', () => {
+  const picked = [];
+  const node = table([drive({ serial: 'a' }), drive({ serial: 'b' })], {
+    selected: new Set(['b']),
+    onSelect: (serial, checked) => picked.push([serial, checked]),
+  });
+
+  const [first, second] = boxes(node);
+  assert.equal(first.checked, false);
+  assert.equal(second.checked, true, 'the selected drive should come back ticked');
+
+  first.checked = true;
+  first.dispatch('change');
+  assert.deepEqual(picked, [['a', true]], 'the change should name the drive it is about');
+});
+
+// The row opens the drive. A press on the checkbox must not also do that, or ticking a second drive
+// to compare against would navigate away from the list you are picking from.
+test('a press on a select box does not open the drive', () => {
+  let opened = null;
+  const node = table([drive({ serial: 'a' })], {
+    selected: new Set(),
+    onSelect: () => {},
+    onOpen: (serial) => { opened = serial; },
+  });
+
+  boxes(node)[0].click();
+  assert.equal(opened, null, 'the checkbox should stop the press reaching the row');
+});
+
+// The select column is a column like any other: the group separator's span has to count it, or a
+// grouped table's headings stop lining up with the columns underneath.
+test('a group separator counts the select column', () => {
+  const node = table([], {
+    groups: [{ label: 'tank', devices: [] }],
+    selected: new Set(),
+    onSelect: () => {},
+  });
+  const cell = separators(node)[0].all('td')[0];
+  assert.equal(cell.getAttribute('colspan'), String(headers(node).length));
+  assert.equal(headers(node).length, 12, 'eleven columns plus the select box');
+});
+
