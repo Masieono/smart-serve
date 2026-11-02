@@ -215,9 +215,6 @@ That is the whole of Phase 4, and with it the last tabled item: the batch self-t
   started is running and the card is still on screen. `FEATURES.md` §E records this as the single
   documented exception to "UI freshness is tied to the last scan", with the reasoning, and the poll
   stops on both ends — when the drive reports no test running, and when the card leaves the page.
-
-### Changed
-
 - **The projection window follows retention (`A26`).** The longevity estimate, the worsening flag
   and the trend adjustment all looked at a fixed 180 days, so an owner who raised `retention_days`
   to five years precisely to watch a slow trend had that history discarded by the projection anyway.
@@ -238,9 +235,6 @@ That is the whole of Phase 4, and with it the last tabled item: the batch self-t
   span readable **without hovering**. The hover marker and the readout are positioned on the same
   time scale as the line, so pointing at a chart now gives the reading nearest the pointer rather
   than one a fraction of the way through the array. Per-metric y-scaling is unchanged.
-
-### Changed
-
 - **The self-test refresh interval is a setting** (`selftest_poll_seconds`, 2–30 seconds, default 15). The
   default was chosen because a long test moves in single digits of percent an hour, so polling faster
   mostly spends device reads — but that is a trade the owner should get to make: a short test on a fast
