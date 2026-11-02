@@ -577,7 +577,7 @@ this section has a tier or a date.
 
 | # | Feature | Why it is tabled |
 |---|---|---|
-| H1 | Batch self-test ("test all N drives overnight") | `A19` gives the primitive; the batch form is a thin layer on top and is not worth designing before the primitive exists. Revisit once `A19` ships. |
+| H1 | Batch self-test ("test all N drives overnight") | **Built, as the scheduled self-test pass** (`A19`, `ADR-024`). The tabled note said to revisit once `A19` shipped, and the scheduler *is* the batch form: one fire tests every drive that can take one, one drive at a time, in serial order. The remaining difference from "test all N drives overnight" is that the pass is a schedule rather than a button — deliberate, because a pass writes to every drive in the fleet and the only thing that should be able to do that unattended is a schedule the user wrote. |
 
 ## I. Sequencing: documentation → implementation → UI polish
 

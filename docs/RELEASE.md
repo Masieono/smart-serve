@@ -33,8 +33,32 @@ each one. Written for v1.0.0; reusable afterwards.
 - [x] Image size measured and published: **14.8 MB content, 53.5 MB on disk**
       (`docker image ls` on the homelab host, 2026-10-17). Recorded in `README.md`,
       `DEPLOYMENT.md` and `ADR-020`.
-- [ ] Add screenshots (below). **The only open item on this list.**
+- [x] Add screenshots (below). **Done** — cropped to the app viewport, in `docs/images/`.
 - [x] Tag `v1.0.0` and create the Release.
+
+## At v1.1.0
+
+The last of the roadmap: scheduled self-tests, group-scoped channels, per-model thresholds, and the
+side-by-side comparison. `SCOPE.md` Phase 4 is complete and `FEATURES.md` §H has nothing left open.
+
+**Deliberately left undone, and where each is recorded:**
+
+- **`D7` localization.** Deferred, not dropped: the cost is extracting every string and keeping every
+  locale in step, which is only worth doing for a translator who will maintain the result
+  (`ADR-023`, `SCOPE.md`).
+- **NVMe self-test progress.** The card reads progress from the ATA self-test log; smartctl's NVMe
+  self-test log has never been observed on this project's hardware, so it is detected and named
+  rather than guessed at. The raw output from a drive while a test runs is the fixture that closes it
+  (`FEATURES.md` A19, `TESTING.md` Pass 3).
+- **arm64 has never been run.** CI builds it on every pull request; nothing has executed it on ARM
+  hardware. The Raspberry Pi procedure below is how that closes, and it needs hardware rather than
+  code (`SCOPE.md`).
+- **No tag-size re-measurement.** v1.1.0 adds no runtime dependency and does not change the base
+  image, so the v1.0.0 figures still hold. The rule stands: re-measure for any release that changes
+  either.
+
+**What the tag is for.** `make ci` green, the changelog section as the release body, and then the one
+thing a tag proves — that the published image reports `1.1.0` in the sidebar rather than `0.0.0-dev`.
 
 ## Screenshots to take
 

@@ -4,13 +4,17 @@ Notable changes per release. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project uses
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.1.0] — 2026-11-02
 
-The drive's own data, the fleet tier, the knowledge base, and the notification polish. Self-tests
-can be started, watched and stopped from the device page, and the drive's error and self-test logs
-are rendered. The dashboard gained filtering, sorting, a dense table, tag grouping and a "replace
-first" ranking. Each drive and the whole fleet export as a warranty evidence pack. Alerts gained
-acknowledgement, action buttons back into the app, and a weekly digest.
+Everything the roadmap had left. A self-test can now be **scheduled** — every drive that can take
+one, one drive at a time — which is what turns the button into a maintenance routine. A notification
+channel can be **scoped to a group of drives**, so a pool's alerts go to the person who owns the
+pool. The health thresholds can be set **per drive model**, because a consumer SSD and an enterprise
+drive do not agree on what a worrying reallocated-sector count is. And any two to six drives can be
+compared **side by side**, attribute by attribute.
+
+That is the whole of Phase 4, and with it the last tabled item: the batch self-test recorded in
+`FEATURES.md` §H is what the scheduled pass does.
 
 ### Added
 
