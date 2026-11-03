@@ -43,6 +43,14 @@ fi
 echo "==> building $VERSION"
 SMARTSERVE_VERSION="$VERSION" docker compose -f docker-compose.dev.yml up -d --build
 
+# Reclaim the layers the previous build left behind. Every rebuild re-tags `smart-serve:dev` and
+# orphans the image it replaced, and on a host that builds its own image that is a slow leak —
+# most painfully on a Raspberry Pi, where the SD card is the smallest thing in the room.
+#
+# `prune` without `-a`: it removes dangling images (untagged, therefore unreferenced) and leaves
+# tagged ones alone, so another stack's images are never touched.
+docker image prune -f >/dev/null
+
 echo "==> up: $(docker compose -f docker-compose.dev.yml ps --format '{{.Status}}' 2>/dev/null || echo 'check with docker compose ps')"
 echo "    version: $VERSION"
 echo "    http://$(hostname -I 2>/dev/null | awk '{print $1}' || echo localhost):8080"

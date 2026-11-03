@@ -56,6 +56,67 @@ authentication (`SCOPE.md` §Explicit non-goals). Those are decisions, not backl
 | A25 | Correlated-change detection (N drives in a group moving together → one alert about the enclosure) | P3 | 💤 | **done** — temperature only, because that is what an enclosure shares. Two settings, an opt-in notification, and wording that claims a correlation rather than a cause. See below |
 | A26 | Projection window follows retention (or becomes a setting) | P2 | 💤 | **done** — the projection, the worsening flag and the trend adjustment all use the `retention_days` setting. See below |
 | A27 | Warranty / RMA evidence pack (the exported report says what it is for) | P2 | 💤 | **done** — every format says what it is for, and names the evidence: the attributes failing the drive's *own* threshold, and the counters the app reads. The saying is at the **foot** of the file, so the drive's own data leads |
+| A28 | Partition schema and storage usage per drive | P2 | 💤 | **building** — the `lsblk` tree is already fetched and flattened away. See below |
+
+### A28 — Partition schema, storage usage, and the rest of what we already fetch
+
+The app asks `lsblk` for the whole device tree and then flattens it: `collectTree` walks every
+partition to gather mountpoints and filesystems into two strings, and the tree itself — sizes, types,
+labels, offsets, sector sizes — is dropped on the floor. This is that tree kept, and the audit of
+everything else in the same position.
+
+**The rule this is built to.** If a fact is already on the wire, the app either shows it or says why
+it does not. Fetching something and discarding it is the one outcome that is never right: the cost is
+paid on every scan and nothing gets the benefit.
+
+**Shown on the device page, per drive.** One partition per row: the node name, its size, its
+filesystem and version, its label, where it is mounted, how full it is, and — where the partition
+table says so — what the partition is *for*.
+
+| Field | Source | Why |
+|---|---|---|
+| node, size, type | `lsblk` children | The schema itself. A 2 TB drive with a 200 GB partition and 1.8 TB unallocated is a different drive from a full one, and nothing said so before |
+| filesystem, fs version | `lsblk` `FSTYPE`, `FSVER` | Already gathered, but aggregated to a comma-joined string with no idea which partition it came from |
+| label, partition label | `lsblk` `LABEL`, `PARTLABEL` | What the user called it. `tank`, `backup`, `EFI` — this is the field that makes a partition row mean something to a person |
+| mountpoint | `lsblk` `MOUNTPOINTS` | Which partition is `/`, which is the pool |
+| used, free, size, use % | `lsblk` `FSUSED`, `FSAVAIL`, `FSSIZE`, `FSUSE%` | Storage usage. `null` when the mountpoint is not visible to the container, rendered as *"not visible to the container"* rather than as a blank or a zero |
+| partition type | `lsblk` `PARTTYPENAME` | "EFI System", "Linux filesystem", "Linux LVM", "Linux RAID member". The partition table describing itself — not the app monitoring RAID health, which stays out of scope |
+| read-only | `lsblk` `RO` | A card with its write-protect switch on, or a device that has failed into read-only |
+| state | `lsblk` `STATE` | `running` vs a device that is present but not live |
+
+**Storage usage needs one line in the compose file.** `lsblk` gets `FSUSE%` from `statvfs()` on the
+*mountpoint*, so it is populated only where the container can see it. `/dev:/dev:ro` does not do it.
+Add the mount roots read-only — `- /mnt:/mnt:ro`, or `- /:/host:ro` — and usage appears. Without it
+the row says so, which is the honest answer and the one the app already uses for absent values.
+
+**A "Details" disclosure for the power-user facts.** Three facts are worth having and not worth
+putting in front of everybody: the logical and physical sector size (512e vs 4Kn, which decides
+whether a drive can join a pool that demands one), and whether the device reports TRIM support
+(`DISC-GRAN`, `DISC-MAX`, `DISC-ZERO` — an SSD behind a bridge that does not pass discard through will
+slow down over time, and that is a real USB-enclosure finding). Collapsed by default, in the same
+place, so the main surface stays a verdict and a table.
+
+**`in_smartctl_database` is promoted from a guess to a fact.** The attribute table already labels
+unrecognised rows "Vendor specific" and says smartctl does not know the model — but it *infers* that
+from seeing `Unknown_Attribute` names. This field says so directly, so a drive smartctl knows but
+whose vendor renamed an attribute is no longer told the same thing as a drive nobody has ever
+characterised.
+
+**Settings.** Two toggles, both on by default: show partitions, and show usage. They exist because
+the user asked for the ability to cut the verbosity back, not because the information is doubtful.
+
+**Deliberately not captured, and why.** These are decisions rather than omissions:
+
+- **`UUID` / `PARTUUID` / `PTUUID`.** Machine identifiers for `/etc/fstab` and `blkid`, which answers
+  the question in one second. In the UI they are two long opaque strings per partition with nothing
+  to scan, and no part of this app consumes them.
+- **`ata_smart_data.offline_data_collection`.** The drive's own background surface scan, which this
+  app neither starts nor manages. Its usual value on a healthy drive is *"was never started"*, which
+  reads as a warning to anyone who is not already an expert. A field whose normal state looks like a
+  fault is a field that costs more than it pays.
+- **`device.protocol`.** Redundant: `model.Bus` already answers ATA / NVMe / SCSI, derived from the
+  JSON's own fields. It is currently decoded into two structs that nothing reads — dead code that
+  should go rather than a fact to surface.
 
 ### A14/A16 — Longevity and the worsening badge
 
