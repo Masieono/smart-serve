@@ -42,6 +42,41 @@ func TestTrendPenaltiesLowerTheScoreOfAWorseningDrive(t *testing.T) {
 	}
 }
 
+// The trend adjustment is part of why the score is what it is, so it has to appear in the breakdown
+// (`FEATURES.md` A12). Without it the lines would sum to less than the score they claim to explain.
+func TestTheTrendAdjustmentAppearsInTheBreakdown(t *testing.T) {
+	devices := []Device{healthy("S1", 74, "5 pending sectors")}
+
+	applyTrendPenalties(devices, map[string]int64{"S1": 7})
+
+	pen := devices[0].Health.Penalties
+	if len(pen) != 1 {
+		t.Fatalf("penalties = %+v, want one line for the trend", pen)
+	}
+	if pen[0].Points != 5 {
+		t.Errorf("points = %v, want the 5 the score lost", pen[0].Points)
+	}
+	if pen[0].AttributeID != 0 {
+		t.Errorf("attribute id = %d, want none — the trend is the total of 5, 197 and 198 moving, "+
+			"which is not a statement about one row", pen[0].AttributeID)
+	}
+	if !strings.Contains(pen[0].Reason, "7 new") {
+		t.Errorf("reason = %q, want it to say how much moved", pen[0].Reason)
+	}
+}
+
+// A drive whose count is not moving gets no trend line, so a clean breakdown stays empty rather than
+// acquiring a "0 points" row.
+func TestNoTrendLineWhenNothingMoved(t *testing.T) {
+	devices := []Device{healthy("S1", 100, "")}
+
+	applyTrendPenalties(devices, map[string]int64{})
+
+	if len(devices[0].Health.Penalties) != 0 {
+		t.Errorf("penalties = %+v, want none", devices[0].Health.Penalties)
+	}
+}
+
 // A single new sector is still a finding, and the wording has to survive being singular.
 func TestASingleNewSectorIsSingular(t *testing.T) {
 	devices := []Device{healthy("S1", 100, "")}

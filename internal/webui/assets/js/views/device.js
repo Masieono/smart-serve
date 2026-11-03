@@ -106,6 +106,14 @@ function draw(container, ctx, data, history) {
   const attrs = payload ? payload.attributes || [] : [];
   const nvme = payload ? payload.nvme : null;
 
+  // The score breakdown (`FEATURES.md` A12): why the score is what it is. Absent on a drive that
+  // scored cleanly, and absent for a drive whose last scan predates the column — both of which are
+  // "nothing to explain" rather than "we lost it".
+  const penalties = parsePenalties(d.penalties);
+  // The attribute ids the verdict actually read, so the table can mark those rows. A Set rather than
+  // a scan per row: the table is forty rows and the breakdown is six.
+  const blamed = new Set(penalties.map((p) => p.attribute_id).filter(Boolean));
+
   const m = data.metrics || {};
   const powerOnHours = m.power_on_hours !== undefined
     ? m.power_on_hours
@@ -199,6 +207,7 @@ function draw(container, ctx, data, history) {
             el('span', { class: 'muted', text: `${fmtScore(d.score)}/100 · ${scoreGrade(d.score)}` }),
           ]),
           el('div', { text: d.health_rationale || '—' }),
+          scoreBreakdown(penalties),
         ]),
       ]),
       d.smart_available ? null : smartProblemNotice(ctx, d),
@@ -246,7 +255,7 @@ function draw(container, ctx, data, history) {
           el('button', { class: 'btn btn-sm btn-ghost', type: 'button',
             onclick: (e) => toggleRaw(d, e.currentTarget) }, ['Show raw output']),
         ]),
-        nvme ? nvmeTable(nvme) : attributeTable(attrs),
+        nvme ? nvmeTable(nvme) : attributeTable(attrs, { blamed }),
         logHolder,
         el('div', { id: 'raw-holder' }),
       ]),
@@ -588,6 +597,45 @@ const TREND_METRICS = [
     delta: (d) => ({ text: signed(d, '%'), tone: d > 0 ? 'bad' : 'good' }),
   },
 ];
+/**
+ * The score breakdown (`FEATURES.md` A12), or null when there is nothing to explain.
+ *
+ * The question a 0-100 score invites is "why?", and the interpreter has always had the answer — a
+ * list of reasons and what each cost — which the app then threw away. A drive at 96/100 has an empty
+ * breakdown and shows nothing here; a drive at 61/100 shows the two lines that account for the 39.
+ *
+ * Deliberately a plain list rather than a chart: the numbers are small and few, and the *reason* is
+ * what the reader came for.
+ */
+export function scoreBreakdown(penalties) {
+  if (!penalties.length) return null;
+  const total = penalties.reduce((sum, p) => sum + (p.points || 0), 0);
+  return el('details', { class: 'score-breakdown' }, [
+    el('summary', { text: `${penalties.length} ${penalties.length === 1 ? 'reason' : 'reasons'} · ` +
+      `${Math.round(total)} points off` }),
+    el('ul', {}, penalties.map((p) => el('li', {}, [
+      el('span', { text: p.reason }),
+      el('span', { class: 'muted', text: ` −${Math.round(p.points)}` }),
+    ]))),
+  ]);
+}
+
+/**
+ * Decodes the stored score breakdown, tolerating anything malformed.
+ *
+ * A breakdown is an explanation, and an explanation that cannot be read is worth less than no
+ * explanation at all — but it is not worth failing the page over.
+ */
+export function parsePenalties(raw) {
+  try {
+    const list = JSON.parse(raw || '[]');
+    return Array.isArray(list) ? list.filter((p) => p && p.reason) : [];
+  } catch {
+    return [];
+  }
+}
+
+
 
 function trendCard(series, onRange) {
   const selector = el('div', { class: 'row', style: 'gap:var(--space-1)' },

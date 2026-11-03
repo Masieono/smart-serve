@@ -611,7 +611,11 @@ export function countText(n) {
 }
 
 /** Attribute table in the CrystalDiskInfo layout. */
-export function attributeTable(attributes) {
+export function attributeTable(attributes, opts = {}) {
+  // The attribute ids the verdict read (`FEATURES.md` A12). Passed in rather than inferred, because
+  // "the score dropped 30 points" and "the drive says this row is at its own threshold" are
+  // different statements, and the table is the only place both are visible at once.
+  const blamed = opts.blamed || null;
   if (!attributes || !attributes.length) {
     return el('p', { class: 'muted', text: 'No ATA attribute table was reported for this device.' });
   }
@@ -622,7 +626,7 @@ export function attributeTable(attributes) {
       el('thead', {}, [
         el('tr', {}, head.map((h, i) => el('th', { text: h, class: i === 0 || i > 1 ? 'num' : '' }))),
       ]),
-      el('tbody', {}, attributes.map(attributeRow)),
+      el('tbody', {}, attributes.map((a) => attributeRow(a, blamed))),
     ]),
     // Said out loud rather than left to be inferred. A dozen rows reading "Unknown_Attribute"
     // looks like the app failed to read them. It is the drive reporting vendor counters that
@@ -651,13 +655,19 @@ function attributeName(a) {
 /**
  * One attribute row.
  *
- * Two additions to the plain CrystalDiskInfo layout, both of which exist to answer "why
- * is this drive unhappy?" without leaving the page: a `?` explaining what the attribute
- * means, and a marker for attributes the *drive itself* reports as failing.
+ * Three additions to the plain CrystalDiskInfo layout, all of which exist to answer "why is this
+ * drive unhappy?" without leaving the page: a `?` explaining what the attribute means, a marker for
+ * attributes the *drive itself* reports as failing, and a marker for attributes the **verdict read**
+ * (`FEATURES.md` A12).
+ *
+ * The two markers are different claims and are worded as such. "At threshold" is the drive's own
+ * alarm; "counted" is this app saying the row is part of why the score is what it is. A row can be
+ * either, both, or neither, and the tooltips say which.
  */
-function attributeRow(a) {
+function attributeRow(a, blamed = null) {
   const help = attributeHelp(a.id);
   const flagged = attributeFlagged(a);
+  const counted = Boolean(blamed && blamed.has(a.id));
   const name = attributeName(a);
   return el('tr', { class: flagged ? 'attr-flagged' : null }, [
     el('td', { class: 'num', text: fmtCell(a.id) }),
@@ -671,6 +681,12 @@ function attributeRow(a) {
             class: 'badge badge-caution attr-flag',
             title: 'The drive reports this attribute at or below its own threshold',
           }, [icon('alert'), 'At threshold'])
+        : null,
+      counted
+        ? el('span', {
+            class: 'badge badge-unknown attr-counted',
+            title: 'This attribute is part of the score — see the breakdown above the table',
+          }, ['Counted'])
         : null,
     ]),
     el('td', { class: 'num', text: fmtCell(a.value) }),

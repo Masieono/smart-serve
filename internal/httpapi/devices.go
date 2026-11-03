@@ -86,6 +86,10 @@ type deviceJSON struct {
 	// only, for the same reason as Logs: it needs two snapshots, and the list has no place to
 	// put the answer.
 	Changes *changesJSON `json:"changes,omitempty"`
+	// Penalties is the score breakdown (`FEATURES.md` A12): why the score is what it is, as a list of
+	// reasons and the points each cost. Detail endpoint only — the list shows a score, and six
+	// reasons per drive is not something a fleet table can carry.
+	Penalties json.RawMessage `json:"penalties,omitempty"`
 }
 
 func toDeviceJSON(d store.DeviceRecord) deviceJSON {
@@ -315,6 +319,16 @@ func (s *Server) handleGetDevice(w http.ResponseWriter, r *http.Request) {
 
 	device := toDeviceJSON(*rec)
 	device.Logs = logsFrom(rec.RawOutput)
+	// A12: the score breakdown, which the interpreter has always produced and the app has always
+	// thrown away. Sent raw — the UI reads it whole, and re-encoding it here would only be a chance
+	// to disagree with the stored shape.
+	//
+	// Guarded rather than assigned unconditionally: `rawOrNull` turns an empty string into a literal
+	// `null`, which `omitempty` does not drop, so a clean drive would carry `"penalties": null`. An
+	// absent field is how this payload says "nothing to report".
+	if rec.Penalties != "" {
+		device.Penalties = rawOrNull(rec.Penalties)
+	}
 	if lookup := s.lookupKnowledge(r.Context(), *rec); lookup.Known() {
 		device.Knowledge = &lookup
 	}

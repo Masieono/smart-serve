@@ -311,6 +311,23 @@ func settingInt(settings map[string]string, key string, def int) int {
 	return n
 }
 
+// encodePenalties renders a score breakdown for storage, or "" when there is none.
+//
+// Empty rather than "[]" for a drive with nothing to explain, so the column reads as absent in a
+// database dump and matches what a row written before the column existed looks like.
+func encodePenalties(penalties []interp.Penalty) string {
+	if len(penalties) == 0 {
+		return ""
+	}
+	raw, err := json.Marshal(penalties)
+	if err != nil {
+		// The shape is a fixed struct, so this cannot happen; returning "" would silently lose the
+		// breakdown, and a log line is the honest way to say so.
+		return ""
+	}
+	return string(raw)
+}
+
 // toStored maps a scan result onto the persistence shape.
 func toStored(d Device) store.ScannedDevice {
 	removable := d.Discovered.Removable
@@ -330,7 +347,10 @@ func toStored(d Device) store.ScannedDevice {
 		Health:          string(d.Health.Verdict),
 		HealthRationale: d.Health.Rationale,
 		Score:           d.Health.Score,
-		Error:           d.Error,
+		// The score breakdown (`FEATURES.md` A12), encoded here rather than in the store because the
+		// interpreter's type is the interpreter's business — the store holds a blob it never reads.
+		Penalties: encodePenalties(d.Health.Penalties),
+		Error:     d.Error,
 		// Kept verbatim even when the read failed: smartctl's own complaint is the most
 		// useful thing to have in front of you when a bridge is misbehaving.
 		RawOutput: string(d.Raw),
@@ -424,6 +444,14 @@ func applyTrendPenalties(devices []Device, trend map[string]int64) int {
 		}
 		d.Health.Score = max(0, d.Health.Score-penalty)
 		d.Health.Rationale = trendRationale(d.Health.Rationale, penalty, added)
+		// The breakdown has to account for the whole score, so the adjustment appears in it too.
+		// Without this line the lines would sum to less than the score they claim to explain — the
+		// one thing a breakdown must never do. No attribute id: the trend is the *total* of 5, 197
+		// and 198 moving, which is not a statement about any one row.
+		d.Health.Penalties = append(d.Health.Penalties, interp.Penalty{
+			Reason: fmt.Sprintf("sectors still climbing (%d new)", added),
+			Points: float64(penalty),
+		})
 		adjusted++
 	}
 	return adjusted

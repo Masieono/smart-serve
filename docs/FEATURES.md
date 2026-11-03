@@ -18,7 +18,6 @@ so. A blank Notes cell means the entry predates the column, not that the feature
 |---|---|---|
 | `D7` localization | `SCOPE.md`, `ADR-023` | Deferred, not dropped: extracting every string and keeping every locale in step is only worth doing for a translator who will maintain the result |
 | Error-log **entry lists** (`A20`) | §A20 above | The counts and the self-test entries are shown; smartctl emits no list at all for an empty log, and neither drive available here has ever logged an error, so the populated shape has never been captured |
-| An attribute id on `interp.Penalty` (`A12`) | §A12 above | The score breakdown carries a free-text reason and no attribute id, so a row cannot be marked "the verdict blamed this" |
 | arm64 on real hardware | `SCOPE.md`, `RELEASE.md` | CI builds it on every pull request; nothing has executed it on ARM |
 | Multi-user accounts / roles | `SCOPE.md` Phase 3 | **Conflicts with `D23`** — authentication is delegated to a reverse proxy, so this needs that decision revisited rather than built |
 
@@ -177,10 +176,22 @@ computed server-side — re-deriving "is this bad?" in the table would let the t
 about the same drive. A threshold of 0 means *no threshold*, not *fails at zero*, so
 informational attributes are never flagged.
 
-**Not done, and worth doing:** the score breakdown (`interp.Penalty`) carries a free-text
-reason but no attribute id, so a row cannot yet be marked *because the verdict blamed it*.
-Adding an optional attribute id to `Penalty` would make that exact and would retire the
-threshold check above as the only UI-side judgement.
+**Done, and it was worse than "worth doing".** The score breakdown (`interp.Penalty`) is a per-drive
+list of reasons and the points each cost, and the scan has always produced it and then thrown it
+away — computed on every read, never stored. So the one question a 0-100 score invites, *"why?"*, had
+an answer that existed for a few milliseconds. It is now kept (`devices.penalties`, migration 0014),
+sent on the device endpoint, and shown as a one-line disclosure under the verdict.
+
+The `attribute_id` came with it, which is what this note originally asked for: the attribute table
+marks the rows the verdict actually **read**, so a row can now be either *"at threshold"* (the
+drive's own alarm), *"counted"* (part of this app's score), both, or neither. Two different claims,
+worded differently, because conflating them was the whole reason the marker could only ever be a
+guess.
+
+**The trend adjustment is in the breakdown too.** `applyTrendPenalties` lowers a score after the
+interpreter has finished, so a breakdown without it would sum to *less* than the score it claims to
+explain — the one thing a breakdown must never do. It carries no attribute id: the trend is the total
+of attributes 5, 197 and 198 moving, which is not a statement about any one row.
 
 ### A20 — The drive's own logs
 

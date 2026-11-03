@@ -118,6 +118,13 @@ func settingBool(settings map[string]string, key string) (bool, bool) {
 type Penalty struct {
 	Reason string  `json:"reason"`
 	Points float64 `json:"points"`
+	// AttributeID is the ATA attribute this line came from, or 0 when the line is not about one.
+	//
+	// Carried so the attribute table can mark the rows the verdict actually *read*, rather than
+	// inferring it from thresholds (`FEATURES.md` A12). Zero for the NVMe checks and for the trend
+	// adjustment: neither is a statement about a single ATA attribute, and inventing an id for them
+	// would mark a row the verdict never looked at.
+	AttributeID int `json:"attribute_id,omitempty"`
 }
 
 // Result is the outcome of evaluating one device.
@@ -234,20 +241,22 @@ func evaluateATA(sd *model.SmartData, t Thresholds) Result {
 	}
 
 	var pen []Penalty
-	add := func(points, cap float64, reason string) {
+	add := func(id int, points, cap float64, reason string) {
 		if points <= 0 {
 			return
 		}
-		pen = append(pen, Penalty{Reason: reason, Points: math.Min(points, cap)})
+		pen = append(pen, Penalty{Reason: reason, Points: math.Min(points, cap), AttributeID: id})
 	}
-	add(float64(count(5)), 30, fmt.Sprintf("reallocated sectors (%d)", count(5)))
-	add(float64(count(197))*2, 30, fmt.Sprintf("pending sectors (%d)", count(197)))
-	add(float64(count(198))*2, 30, fmt.Sprintf("uncorrectable sectors (%d)", count(198)))
-	add(float64(count(196))*0.5, 10, fmt.Sprintf("reallocation events (%d)", count(196)))
-	add(float64(count(199))*0.5, 10, fmt.Sprintf("UDMA CRC errors (%d)", count(199)))
-	add(float64(count(10))*3, 15, fmt.Sprintf("spin retries (%d)", count(10)))
+	add(5, float64(count(5)), 30, fmt.Sprintf("reallocated sectors (%d)", count(5)))
+	add(197, float64(count(197))*2, 30, fmt.Sprintf("pending sectors (%d)", count(197)))
+	add(198, float64(count(198))*2, 30, fmt.Sprintf("uncorrectable sectors (%d)", count(198)))
+	add(196, float64(count(196))*0.5, 10, fmt.Sprintf("reallocation events (%d)", count(196)))
+	add(199, float64(count(199))*0.5, 10, fmt.Sprintf("UDMA CRC errors (%d)", count(199)))
+	add(10, float64(count(10))*3, 15, fmt.Sprintf("spin retries (%d)", count(10)))
 	if sd.TemperatureC != nil && *sd.TemperatureC > t.TemperatureC {
-		add(float64(*sd.TemperatureC-t.TemperatureC), 10, fmt.Sprintf("temperature (%d°C)", *sd.TemperatureC))
+		// 194 is the temperature attribute, so the row the verdict read is the row the table marks.
+		add(194, float64(*sd.TemperatureC-t.TemperatureC), 10,
+			fmt.Sprintf("temperature (%d°C)", *sd.TemperatureC))
 	}
 
 	return finalize(verdict, why, pen)
