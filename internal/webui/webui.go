@@ -6,7 +6,9 @@ package webui
 
 import (
 	"context"
+	"crypto/sha256"
 	"embed"
+	"encoding/hex"
 	"fmt"
 	"html/template"
 	"io/fs"
@@ -52,6 +54,26 @@ func New(themeFn ThemeFunc, opts Options) (http.Handler, error) {
 	}
 	fileServer := http.FileServer(http.FS(sub))
 
+	// ETags for the embedded assets, computed once. This is not an optimisation — it is the
+	// correctness fix for a real upgrade hazard.
+	//
+	// `embed.FS` reports a zero modtime, so `http.ServeContent` emits no `Last-Modified` and no
+	// `ETag`. With no validator at all, a browser — or, worse, a reverse proxy — is free to serve a
+	// cached copy of `js/views/device.js` from before the upgrade. The shell is `no-store`, so the
+	// HTML is always fresh, and the result is a *mix*: new HTML, old modules. Because the frontend is
+	// ES modules, that mix does not degrade gracefully — an old `components.js` missing a symbol a
+	// new `device.js` imports is a hard failure, and "the new card is not there" is the mild version
+	// of the symptom.
+	//
+	// The assets are immutable for a given binary, so a content hash is exactly the right validator:
+	// it changes when the assets change, and only then. Paired with `no-cache` the browser keeps its
+	// copy and revalidates it, which costs one 304 per module on a LAN and removes the whole class of
+	// problem. Hashing at startup rather than per request keeps the request path free of work.
+	etags, err := assetETags(sub)
+	if err != nil {
+		return nil, err
+	}
+
 	basePath := strings.TrimRight(opts.BasePath, "/")
 	baseHref := basePath + "/"
 	if baseHref == "" {
@@ -62,6 +84,17 @@ func New(themeFn ThemeFunc, opts Options) (http.Handler, error) {
 		// Serve real files (styles, scripts, icons) directly.
 		if name := strings.TrimPrefix(r.URL.Path, "/"); name != "" {
 			if info, statErr := fs.Stat(sub, name); statErr == nil && !info.IsDir() {
+				if etag, ok := etags[name]; ok {
+					w.Header().Set("ETag", etag)
+					// Revalidate rather than refetch: the browser keeps its copy and asks whether it
+					// is still current. `no-store` here would be simpler and would also throw away a
+					// perfectly good cache on every navigation.
+					w.Header().Set("Cache-Control", "no-cache")
+					if etagMatches(r.Header.Get("If-None-Match"), etag) {
+						w.WriteHeader(http.StatusNotModified)
+						return
+					}
+				}
 				fileServer.ServeHTTP(w, r)
 				return
 			}
@@ -73,6 +106,53 @@ func New(themeFn ThemeFunc, opts Options) (http.Handler, error) {
 		}
 		renderIndex(w, tmpl, theme, baseHref, basePath, opts.Version)
 	}), nil
+}
+
+// assetETags hashes every embedded asset once, keyed by its path within the assets tree (the same
+// key the request handler looks up).
+//
+// A truncated SHA-256 is enough: this is a cache validator on a LAN, not a signature, and a
+// collision would have to occur between two builds of the same file to cause harm.
+func assetETags(sub fs.FS) (map[string]string, error) {
+	etags := map[string]string{}
+	err := fs.WalkDir(sub, ".", func(path string, d fs.DirEntry, err error) error {
+		if err != nil || d.IsDir() {
+			return err
+		}
+		data, readErr := fs.ReadFile(sub, path)
+		if readErr != nil {
+			return readErr
+		}
+		sum := sha256.Sum256(data)
+		etags[path] = `"` + hex.EncodeToString(sum[:16]) + `"`
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return etags, nil
+}
+
+// etagMatches reports whether an If-None-Match header covers the given ETag.
+//
+// The header is a comma-separated list, may be `*`, and may carry the weak `W/` prefix on either
+// side. Getting this wrong in the lenient direction means a stale asset is served forever, so the
+// comparison is exact apart from the weakness marker.
+func etagMatches(header, etag string) bool {
+	header = strings.TrimSpace(header)
+	if header == "" {
+		return false
+	}
+	if header == "*" {
+		return true
+	}
+	want := strings.TrimPrefix(etag, "W/")
+	for _, candidate := range strings.Split(header, ",") {
+		if strings.TrimPrefix(strings.TrimSpace(candidate), "W/") == want {
+			return true
+		}
+	}
+	return false
 }
 
 // ThemeNames lists every theme the UI can render. Named palettes live in

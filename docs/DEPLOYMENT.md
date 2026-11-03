@@ -183,6 +183,18 @@ Check the sidebar footer says the new version. That is the one thing the tag pro
 release adds migrations. To roll back, pin the previous tag and pull again — the schema is additive,
 so an older binary ignores columns it does not know about.
 
+### One thing an upgrade can look like a missing feature
+
+A release that starts **reporting something new** cannot show it for data that was never collected,
+and the app will not invent it. The partition schema (`A28`) is the first example: `lsblk` has always
+been asked for the partitions, but until `1.2.0` their sizes, labels and usage were thrown away rather
+than stored, so every drive scanned by an earlier version has no layout recorded.
+
+**Press Scan once after such an upgrade** and the card appears. This is not a fault and there is
+nothing to configure — the scan is the same on-demand scan as always, and it fills the new column for
+every drive it touches. A drive that has never been scanned since the upgrade simply shows no
+partition card, which is the honest state: the app has not read it yet.
+
 ## Data & backup
 
 - All state lives in one SQLite file: `/data/smartserve.db` (+ `-wal`/`-shm`).

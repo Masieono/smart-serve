@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"testing/fstest"
 )
 
 func themeFunc(theme Theme) ThemeFunc {
@@ -188,6 +189,167 @@ func TestStaticAssetIsServed(t *testing.T) {
 	}
 	if !strings.Contains(rec.Body.String(), "--accent") {
 		t.Error("tokens.css did not look like the token sheet")
+	}
+}
+
+// Embedded assets must carry a validator. `embed.FS` reports a zero modtime, so without one a
+// browser or a reverse proxy is free to serve a module from before an upgrade — and since the
+// frontend is ES modules, a mixed set does not degrade gracefully, it fails outright.
+func TestStaticAssetsCarryACacheValidator(t *testing.T) {
+	h, _ := New(themeFunc(DefaultTheme), Options{})
+
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/js/views/device.js", nil))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d", rec.Code)
+	}
+
+	etag := rec.Header().Get("ETag")
+	if etag == "" {
+		t.Fatal("an asset was served with no ETag; a stale copy can survive an upgrade")
+	}
+	if got := rec.Header().Get("Cache-Control"); got != "no-cache" {
+		t.Errorf("Cache-Control = %q, want no-cache (revalidate, do not refetch blindly)", got)
+	}
+	if !strings.HasPrefix(etag, `"`) || !strings.HasSuffix(etag, `"`) {
+		t.Errorf("ETag %q is not a quoted string", etag)
+	}
+}
+
+// The revalidation path itself: a browser that holds the current copy asks, and is told to keep it.
+func TestAMatchingETagGetsNotModified(t *testing.T) {
+	h, _ := New(themeFunc(DefaultTheme), Options{})
+
+	first := httptest.NewRecorder()
+	h.ServeHTTP(first, httptest.NewRequest(http.MethodGet, "/js/components.js", nil))
+	etag := first.Header().Get("ETag")
+	if etag == "" {
+		t.Fatal("no ETag to revalidate with")
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/js/components.js", nil)
+	req.Header.Set("If-None-Match", etag)
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNotModified {
+		t.Fatalf("status = %d, want 304", rec.Code)
+	}
+	if rec.Body.Len() != 0 {
+		t.Errorf("a 304 carried %d bytes of body", rec.Body.Len())
+	}
+}
+
+// The dangerous direction. A browser holding a copy from *before* an upgrade must be given the new
+// file, not a 304 — that is the whole bug this validator exists to prevent.
+func TestAStaleETagGetsTheNewFile(t *testing.T) {
+	h, _ := New(themeFunc(DefaultTheme), Options{})
+
+	req := httptest.NewRequest(http.MethodGet, "/js/components.js", nil)
+	req.Header.Set("If-None-Match", `"00000000000000000000000000000000"`)
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200 — a stale ETag must not be answered with 304", rec.Code)
+	}
+	if rec.Body.Len() == 0 {
+		t.Error("the new file was not sent")
+	}
+}
+
+// `*` means "any current representation", and a weak tag compares equal to its strong form. Both are
+// legal spellings a browser or proxy may send, and mishandling either way is a staleness bug.
+func TestETagMatchingHandlesTheLegalSpellings(t *testing.T) {
+	h, _ := New(themeFunc(DefaultTheme), Options{})
+	first := httptest.NewRecorder()
+	h.ServeHTTP(first, httptest.NewRequest(http.MethodGet, "/styles/components.css", nil))
+	etag := first.Header().Get("ETag")
+
+	for _, header := range []string{"*", "W/" + etag, `"other", ` + etag, `"other", W/` + etag} {
+		req := httptest.NewRequest(http.MethodGet, "/styles/components.css", nil)
+		req.Header.Set("If-None-Match", header)
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, req)
+		if rec.Code != http.StatusNotModified {
+			t.Errorf("If-None-Match: %q gave %d, want 304", header, rec.Code)
+		}
+	}
+
+	// And a list that genuinely does not contain it must not match.
+	req := httptest.NewRequest(http.MethodGet, "/styles/components.css", nil)
+	req.Header.Set("If-None-Match", `"aaa", "bbb"`)
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Errorf("an unrelated ETag list gave %d, want 200", rec.Code)
+	}
+}
+
+// Two different assets must not share a validator, or changing one would be hidden by the other's
+// cached copy. Checked over the real tree rather than two hand-picked files.
+func TestEveryAssetHasItsOwnETag(t *testing.T) {
+	sub, err := fs.Sub(assets, "assets")
+	if err != nil {
+		t.Fatalf("sub: %v", err)
+	}
+	etags, err := assetETags(sub)
+	if err != nil {
+		t.Fatalf("assetETags: %v", err)
+	}
+	if len(etags) < 5 {
+		t.Fatalf("only %d assets hashed; the walk is not covering the tree", len(etags))
+	}
+
+	seen := map[string]string{}
+	for path, tag := range etags {
+		if prev, dup := seen[tag]; dup {
+			t.Errorf("%s and %s share the ETag %s", prev, path, tag)
+		}
+		seen[tag] = path
+	}
+}
+
+// The validator has to follow the *content*, or an upgrade that changes a file would leave the old
+// one cached. Asserted against a synthetic tree, because the embedded one cannot be edited.
+func TestETagsFollowTheContent(t *testing.T) {
+	before := fstest.MapFS{"js/app.js": {Data: []byte("console.log(1)")}}
+	after := fstest.MapFS{"js/app.js": {Data: []byte("console.log(2)")}}
+
+	first, err := assetETags(before)
+	if err != nil {
+		t.Fatalf("assetETags: %v", err)
+	}
+	second, err := assetETags(after)
+	if err != nil {
+		t.Fatalf("assetETags: %v", err)
+	}
+	if first["js/app.js"] == second["js/app.js"] {
+		t.Error("two different contents produced the same ETag; an upgrade would not be seen")
+	}
+
+	// And the same content is stable, or every request would refetch.
+	again, err := assetETags(before)
+	if err != nil {
+		t.Fatalf("assetETags: %v", err)
+	}
+	if again["js/app.js"] != first["js/app.js"] {
+		t.Error("the same content produced two different ETags")
+	}
+}
+
+// The shell is rendered per request from the current theme, so it must not be cached or validated —
+// a 304 there would pin the theme.
+func TestTheShellIsNotCachedOrValidated(t *testing.T) {
+	h, _ := New(themeFunc(DefaultTheme), Options{})
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/device/S1", nil))
+
+	if got := rec.Header().Get("Cache-Control"); got != "no-store" {
+		t.Errorf("shell Cache-Control = %q, want no-store", got)
+	}
+	if got := rec.Header().Get("ETag"); got != "" {
+		t.Errorf("the shell carried an ETag (%q); a revalidation would pin the theme", got)
 	}
 }
 

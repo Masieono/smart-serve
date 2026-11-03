@@ -39,6 +39,19 @@ discarding silently is not. See `ADR-028`.
   model" note is a **fact rather than an inference from seeing `Unknown_Attribute` names** — three
   situations, three wordings, where the old note claimed the first for all of them. See `ADR-028`.
 
+### Fixed
+
+- **Static assets are now cache-validated** — the JS and CSS were served with no `ETag` and no
+  `Last-Modified` at all, because `embed.FS` reports a zero modtime and `http.ServeContent` therefore
+  emitted neither. With no validator, a browser or a reverse proxy was free to keep a module from
+  before an upgrade; the shell is `no-store`, so the HTML was always fresh and the result was a
+  *mix* of new shell and old modules. Because the frontend is ES modules that mix does not degrade
+  gracefully — an old `components.js` missing a symbol a new `device.js` imports is a hard failure,
+  and "the new card is not there" is the mild version of the symptom. Assets now carry a content-hash
+  `ETag` with `Cache-Control: no-cache`, so a current copy is revalidated for one cheap 304 and a
+  stale one is replaced. Found by chasing a missing card rather than by a test, which is worth
+  recording: the feature was working the whole time.
+
 ## [1.1.0] — 2026-11-02
 
 Everything the roadmap had left. A self-test can now be **scheduled** — every drive that can take
