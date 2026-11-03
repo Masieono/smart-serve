@@ -328,6 +328,22 @@ func encodePenalties(penalties []interp.Penalty) string {
 	return string(raw)
 }
 
+// encodeDiskLayout renders a drive's partition schema for storage, or "" when there is none.
+//
+// Empty rather than "{}" so "never read" stays distinguishable from "read, and there is nothing to
+// report" — and so a database dump reads the same as it does for a row written before the column
+// existed.
+func encodeDiskLayout(layout *smart.DiskLayout) string {
+	if layout == nil {
+		return ""
+	}
+	raw, err := json.Marshal(layout)
+	if err != nil {
+		return ""
+	}
+	return string(raw)
+}
+
 // toStored maps a scan result onto the persistence shape.
 func toStored(d Device) store.ScannedDevice {
 	removable := d.Discovered.Removable
@@ -350,7 +366,10 @@ func toStored(d Device) store.ScannedDevice {
 		// The score breakdown (`FEATURES.md` A12), encoded here rather than in the store because the
 		// interpreter's type is the interpreter's business — the store holds a blob it never reads.
 		Penalties: encodePenalties(d.Health.Penalties),
-		Error:     d.Error,
+		// And the partition schema (`A28`), same reasoning: `smart` owns the shape, the store holds
+		// the JSON.
+		DiskLayout: encodeDiskLayout(d.Discovered.DiskLayout()),
+		Error:      d.Error,
 		// Kept verbatim even when the read failed: smartctl's own complaint is the most
 		// useful thing to have in front of you when a bridge is misbehaving.
 		RawOutput: string(d.Raw),

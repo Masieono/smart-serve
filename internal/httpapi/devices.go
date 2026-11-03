@@ -90,6 +90,10 @@ type deviceJSON struct {
 	// reasons and the points each cost. Detail endpoint only — the list shows a score, and six
 	// reasons per drive is not something a fleet table can carry.
 	Penalties json.RawMessage `json:"penalties,omitempty"`
+	// DiskLayout is the partition schema (`FEATURES.md` A28): the partitions with their sizes,
+	// filesystems, labels and usage, plus the storage facts that come from the same `lsblk` call.
+	// Detail endpoint only, for the same reason as Logs and Changes.
+	DiskLayout json.RawMessage `json:"disk_layout,omitempty"`
 }
 
 func toDeviceJSON(d store.DeviceRecord) deviceJSON {
@@ -328,6 +332,10 @@ func (s *Server) handleGetDevice(w http.ResponseWriter, r *http.Request) {
 	// absent field is how this payload says "nothing to report".
 	if rec.Penalties != "" {
 		device.Penalties = rawOrNull(rec.Penalties)
+	}
+	// A28: the partition schema, same guard for the same reason.
+	if rec.DiskLayout != "" {
+		device.DiskLayout = rawOrNull(rec.DiskLayout)
 	}
 	if lookup := s.lookupKnowledge(r.Context(), *rec); lookup.Known() {
 		device.Knowledge = &lookup

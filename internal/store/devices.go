@@ -48,6 +48,9 @@ type ScannedDevice struct {
 	// before the column existed, which is distinguishable from a drive with a clean breakdown only
 	// by having never been rescanned — and a rescan fills it.
 	Penalties string
+	// DiskLayout is the partition schema and the storage facts with it (`FEATURES.md` A28), as JSON.
+	// Empty for a drive whose layout was never read.
+	DiskLayout string
 	// Error is non-empty when S.M.A.R.T. could not be read for this device.
 	Error string
 	// SelfTest is the newest *finished* test in the drive's self-test log, nil when the log
@@ -83,6 +86,9 @@ type DeviceRecord struct {
 	// is, in the interpreter's own words. Empty for a row written before the column existed, which is
 	// the honest answer for a drive whose breakdown was computed and thrown away.
 	Penalties string
+	// DiskLayout is the partition schema (`FEATURES.md` A28) as JSON: the partitions, and the storage
+	// facts that come from the same `lsblk` call.
+	DiskLayout string
 	// TransportOverride is the remembered `smartctl -d` for a stubborn USB bridge.
 	TransportOverride string
 	SmartAvailable    bool
@@ -244,8 +250,8 @@ func upsertDevice(ctx context.Context, tx *sql.Tx, d ScannedDevice, lastScan any
 			smart_bus, interface_speed, capacity_bytes, rotation, wwn, smart_available,
 			smart_error, health, health_rationale, score, temperature_c, first_seen, last_seen,
 			last_scan, mountpoints, fstype, removable, fs_version, raw_output, is_missing,
-			selftest_type, selftest_hours, selftest_passed, selftest_status, penalties)
-		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,0,?,?,?,?,?)
+			selftest_type, selftest_hours, selftest_passed, selftest_status, penalties, disk_layout)
+		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,0,?,?,?,?,?,?)
 		ON CONFLICT(serial) DO UPDATE SET
 			model=excluded.model,
 			model_family=excluded.model_family,
@@ -275,13 +281,14 @@ func upsertDevice(ctx context.Context, tx *sql.Tx, d ScannedDevice, lastScan any
 			selftest_passed=COALESCE(excluded.selftest_passed, devices.selftest_passed),
 			selftest_status=COALESCE(excluded.selftest_status, devices.selftest_status),
 			penalties=excluded.penalties,
+			disk_layout=excluded.disk_layout,
 			is_missing=0`,
 		d.Serial, d.Model, d.ModelFamily, d.Firmware, d.DevicePath, d.Transport, d.SmartBus,
 		d.InterfaceSpeed, nullUint(d.CapacityBytes), nullInt(d.Rotation), d.WWN, available,
 		d.Error, d.Health, d.HealthRationale, d.Score, nullInt(d.TemperatureC),
 		started.UnixMilli(), ended.UnixMilli(), lastScan,
 		encodeMountpoints(d.Mountpoints), d.Fstype, nullBool(d.Removable), d.FsVersion,
-		d.RawOutput, selfType, selfHours, selfPassed, selfStatus, d.Penalties)
+		d.RawOutput, selfType, selfHours, selfPassed, selfStatus, d.Penalties, d.DiskLayout)
 	if err != nil {
 		return fmt.Errorf("upsert device %s: %w", d.Serial, err)
 	}
@@ -311,7 +318,7 @@ SELECT d.serial, d.model, d.model_family, d.firmware, d.device_path, d.transport
        d.interface_speed, d.rotation, d.capacity_bytes, d.wwn, d.smart_available,
        d.smart_error, d.health, d.health_rationale, d.score, d.temperature_c,
        d.first_seen, d.last_seen, d.last_scan, d.is_missing,
-       d.mountpoints, d.fstype, d.removable, d.fs_version, d.raw_output, d.penalties,
+       d.mountpoints, d.fstype, d.removable, d.fs_version, d.raw_output, d.penalties, d.disk_layout,
        COALESCE(t.smart_d, ''),
        COALESCE(n.name, ''), COALESCE(n.notes, ''), COALESCE(n.tags, ''), COALESCE(n.hidden, 0),
        COALESCE(n.bay, ''),
@@ -371,7 +378,7 @@ func scanDevice(r rowScanner) (DeviceRecord, error) {
 		&rec.SmartBus, &rec.InterfaceSpeed, &rotation, &capacity, &rec.WWN, &smartAvailable,
 		&rec.SmartError, &rec.Health, &rec.HealthRationale, &rec.Score, &temperature,
 		&firstSeen, &lastSeen, &lastScan, &isMissing,
-		&mountpoints, &rec.Fstype, &removable, &rec.FsVersion, &rec.RawOutput, &rec.Penalties,
+		&mountpoints, &rec.Fstype, &removable, &rec.FsVersion, &rec.RawOutput, &rec.Penalties, &rec.DiskLayout,
 		&rec.TransportOverride,
 		&rec.Name, &rec.Notes, &rec.Tags, &hidden,
 		&rec.Bay,
