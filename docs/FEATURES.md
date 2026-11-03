@@ -56,7 +56,7 @@ authentication (`SCOPE.md` §Explicit non-goals). Those are decisions, not backl
 | A25 | Correlated-change detection (N drives in a group moving together → one alert about the enclosure) | P3 | 💤 | **done** — temperature only, because that is what an enclosure shares. Two settings, an opt-in notification, and wording that claims a correlation rather than a cause. See below |
 | A26 | Projection window follows retention (or becomes a setting) | P2 | 💤 | **done** — the projection, the worsening flag and the trend adjustment all use the `retention_days` setting. See below |
 | A27 | Warranty / RMA evidence pack (the exported report says what it is for) | P2 | 💤 | **done** — every format says what it is for, and names the evidence: the attributes failing the drive's *own* threshold, and the counters the app reads. The saying is at the **foot** of the file, so the drive's own data leads |
-| A28 | Partition schema and storage usage per drive | P2 | 💤 | **building** — the `lsblk` tree is already fetched and flattened away. See below |
+| A28 | Partition schema and storage usage per drive | P2 | 💤 | **done** — the `lsblk` tree is kept instead of flattened away. See below |
 
 ### A28 — Partition schema, storage usage, and the rest of what we already fetch
 
@@ -84,6 +84,13 @@ table says so — what the partition is *for*.
 | read-only | `lsblk` `RO` | A card with its write-protect switch on, or a device that has failed into read-only |
 | state | `lsblk` `STATE` | `running` vs a device that is present but not live |
 
+**A "copy UUID" button, not a UUID column.** `UUID` and `PARTUUID` are captured and are the one thing
+in this list that is deliberately *not* shown: as columns they are two long opaque strings per
+partition with nothing to scan. But they are what `/etc/fstab` speaks in, so the row carries a button
+that copies one — the filesystem UUID first, the partition UUID as the fallback for a partition that
+has no filesystem, which is exactly the volume-group member somebody is most likely to be copying one
+for. A button is the convenience; a column would have been the verbosity.
+
 **Storage usage needs one line in the compose file.** `lsblk` gets `FSUSE%` from `statvfs()` on the
 *mountpoint*, so it is populated only where the container can see it. `/dev:/dev:ro` does not do it.
 Add the mount roots read-only — `- /mnt:/mnt:ro`, or `- /:/host:ro` — and usage appears. Without it
@@ -102,8 +109,16 @@ from seeing `Unknown_Attribute` names. This field says so directly, so a drive s
 whose vendor renamed an attribute is no longer told the same thing as a drive nobody has ever
 characterised.
 
-**Settings.** Two toggles, both on by default: show partitions, and show usage. They exist because
-the user asked for the ability to cut the verbosity back, not because the information is doubtful.
+**Settings.** Two toggles, both on by default: `show_partitions` and `show_usage`. They exist because
+the information is not doubtful and the verbosity is — a reader who only cares about the drive as a
+whole can turn the card off, and the usage column is *dropped* rather than emptied, because an empty
+column is a worse way to say "you asked not to see this" than no column.
+
+**A partition that is not mounted is not "not visible".** Three genuinely different answers live in
+that one cell: nothing mounted means nothing to measure (a dash); mounted but outside the container
+means there is no figure to read ("not visible", with the compose fix said once beneath the table);
+mounted and visible means the number. Conflating the first two would send somebody to edit their
+compose file for a partition that has no filesystem at all.
 
 **Deliberately not captured, and why.** These are decisions rather than omissions:
 
@@ -115,8 +130,8 @@ the user asked for the ability to cut the verbosity back, not because the inform
   reads as a warning to anyone who is not already an expert. A field whose normal state looks like a
   fault is a field that costs more than it pays.
 - **`device.protocol`.** Redundant: `model.Bus` already answers ATA / NVMe / SCSI, derived from the
-  JSON's own fields. It is currently decoded into two structs that nothing reads — dead code that
-  should go rather than a fact to surface.
+  JSON's own fields. It was decoded into two structs that nothing read, and both have been deleted —
+  dead code is the same failure as a discarded fact, one layer further in.
 
 ### A14/A16 — Longevity and the worsening badge
 

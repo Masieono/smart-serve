@@ -664,6 +664,72 @@ a:hover {
   white-space: nowrap;
 }
 
+/* --- the partition schema (FEATURES.md A28) --------------------------------- */
+
+/* The label leads and the node name sits under it, quiet. A person recognises "media" long before
+   "/dev/mapper/tank-media", and the one who needs the node name still has it. */
+.part-name {
+  display: block;
+}
+
+.part-node {
+  display: block;
+  font-size: var(--text-xs);
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+}
+
+.part-mount {
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: var(--text-xs);
+}
+
+/* A partition the device reports read-only: a write-protect switch, or a device that has failed
+   into read-only. Both are worth stopping on, and neither is visible from the size or the label. */
+tr.part-readonly > td {
+  background: var(--caution-soft);
+}
+
+.part-flag {
+  margin-left: var(--space-2);
+  vertical-align: middle;
+}
+
+/* The copy button is an action on one row rather than a thing to read, so it stays quiet until the
+   row is pointed at — a column of buttons shouting for attention next to six facts. */
+.part-copy {
+  opacity: 0.55;
+}
+
+tr:hover .part-copy,
+.part-copy:focus-visible {
+  opacity: 1;
+}
+
+/* The sector sizes and the TRIM answer (A28). Collapsed, because they are facts a reader looks up
+   once and the table above them needs the space. */
+.layout-details {
+  font-size: var(--text-sm);
+  margin-top: var(--space-2);
+}
+
+.layout-details > summary {
+  cursor: pointer;
+  color: var(--muted);
+  width: fit-content;
+}
+
+.layout-details .kv {
+  margin-top: var(--space-2);
+  grid-template-columns: minmax(9rem, auto) 1fr;
+}
+
+.layout-details dd {
+  margin: 0;
+  overflow: visible;
+  text-align: left;
+  white-space: normal;
+}
+
 /* Label/value list used on device cards and detail panels. Text labels beat
    bare icons: transport and capacity are otherwise ambiguous (docs/UI.md §6). */
 .kv {

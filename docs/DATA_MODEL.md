@@ -28,6 +28,7 @@ history — is one file that can be backed up with `cp` while the app is stopped
 | `mountpoints` | TEXT | JSON array, aggregated from the disk **and its partitions** — a whole-disk node is never mounted itself, so partitions are the only source of this |
 | `fstype` | TEXT NULL | comma-separated filesystem types, aggregated the same way |
 | `fs_version` | TEXT NULL | filesystem versions (`1.0`, `FAT32`…), aggregated the same way (migration 0004) |
+| `disk_layout` | TEXT DEFAULT `''` | JSON: the partition schema and the storage facts that come from the same `lsblk` call (`FEATURES.md` A28) — partitions with sizes, filesystems, labels, mountpoints, usage, read-only and UUIDs, plus the partition table type, sector sizes and discard support. One blob rather than eight columns: read whole, never queried by, every field from the same single call |
 | `removable` | INTEGER NULL | lsblk's `rm` (migration 0004). **Nullable on purpose**: `0` is "fixed media" and `NULL` is "nobody said", and a flash drive is a different thing from a fixed disk |
 | `smart_available` | INTEGER | 0 when device present in lsblk but SMART unreadable |
 | `raw_output` | TEXT | verbatim `smartctl --json` output from the last scan (migration 0005). On `devices` (latest only) rather than per-snapshot, so it cannot grow without bound. It lives here and not in the scanner's memory because the raw view has to survive a restart and a single-drive rescan of a *different* drive |
@@ -97,7 +98,6 @@ history — is one file that can be backed up with `cp` while the app is stopped
 | `enabled` | INTEGER DEFAULT 1 | |
 | `events` | TEXT | JSON list of subscribed event types; default: all |
 | `scope_groups` | TEXT DEFAULT `'[]'` | JSON list of tag names this channel is about (`B12`); default: every group. Named to avoid the SQL keyword `GROUPS` |
-
 ### `notification_log` — delivery history + squelch bookkeeping
 
 | Column | Type | Notes |
@@ -131,6 +131,8 @@ worse than no setting at all.
 | `warn_on_any_nonzero` | `true` | any of ID 5/197/198 > 0 ⇒ Caution | `interp` |
 | `nvme_percentage_used_warn` | `90` | NVMe % used ≥ this ⇒ Caution | `interp` |
 | `model_thresholds` | `{}` | the same six keys above, **per drive model** — the one setting whose value is structure. A drive is matched on its model *or* its family, case-insensitively, and if two patterns match the longer one wins. A key left out of an entry falls back to the global value, so an entry is "this model, except…". It moves the **verdict** only: the exported report still names the attributes failing the drive's own manufacturer threshold (`FEATURES.md` A27) | `interp` (`ModelThresholds`) |
+| `show_partitions` | `true` | show the partition schema on the device page (`FEATURES.md` A28). A display preference, so nothing the scan reads | `webui` |
+| `show_usage` | `true` | show how full each filesystem is. Off drops the column rather than emptying it; the figures themselves need the host's mount roots bind-mounted read-only, or `lsblk` has nothing to `statvfs` | `webui` |
 | `retention_days` | `180` | snapshot retention window. **Also bounds the projection, the worsening flag and the trend adjustment** — there is one window, not two, so raising it gives a longer view as well as a longer memory (`FEATURES.md` A26) | `scan` (pruning) |
 | `notification_log_retention_days` | `30` | notification-log retention | `scan` (pruning) |
 | `squelch_seconds` | `3600` | re-alert window for persistent conditions | `notify` |

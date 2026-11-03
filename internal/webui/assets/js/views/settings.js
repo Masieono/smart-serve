@@ -217,6 +217,16 @@ function draw(container, ctx, data, { carried = {}, unit: unitOverride } = {}) {
   // default. The same reasoning as a self-test being opt-in.
   const prometheus = el('input', { type: 'checkbox', checked: settings.prometheus_enabled === 'true' });
 
+  // A28. Both on by default: the information is not doubtful, and the user asked for the ability to
+  // cut the verbosity back rather than for it to be hidden from them. They gate what the *device
+  // page* draws, which is why they are display preferences rather than anything the scan reads.
+  const showPartitions = el('input', {
+    type: 'checkbox', checked: settings.show_partitions !== 'false',
+  });
+  const showUsage = el('input', {
+    type: 'checkbox', checked: settings.show_usage !== 'false',
+  });
+
   // Where the knowledge base refreshes from (`FEATURES.md` A21). Empty means the documented default,
   // which points at the file in the repository — the same file this build ships.
   const knowledgeUrl = el('input', {
@@ -326,6 +336,8 @@ function draw(container, ctx, data, { carried = {}, unit: unitOverride } = {}) {
         temperature_unit: unit.value,
         public_url: publicUrl.value.trim(),
         prometheus_enabled: prometheus.checked ? 'true' : 'false',
+        show_partitions: showPartitions.checked ? 'true' : 'false',
+        show_usage: showUsage.checked ? 'true' : 'false',
         knowledge_url: knowledgeUrl.value.trim(),
         model_thresholds: perModel.value(),
         ...currentTheme(),
@@ -347,6 +359,9 @@ function draw(container, ctx, data, { carried = {}, unit: unitOverride } = {}) {
         await api.putSettings(payload);
         perModel.showError('');
         ctx.setTemperatureUnit(payload.temperature_unit);
+        // A28: the two display toggles take effect on the next device page rather than needing a
+        // reload — the same treatment the temperature unit gets, for the same reason.
+        ctx.setDisplayOptions(payload);
         applyTheme(payload);
         toast('Settings saved', 'good');
       } catch (err) {
@@ -435,6 +450,14 @@ function draw(container, ctx, data, { carried = {}, unit: unitOverride } = {}) {
           'Serve /metrics for a Prometheus scrape. Off by default: the endpoint costs nothing, but ' +
           'turning it on invites another service to poll this app.',
           prometheus),
+        settingRow('Partitions on the drive page',
+          'Show each drive’s partition table — what is on it, and how big each part is. Turn it off ' +
+          'if you only care about the drive as a whole.',
+          showPartitions),
+        settingRow('Storage usage',
+          'Show how full each filesystem is. Needs the host’s mount roots bind-mounted read-only — ' +
+          'for example `- /mnt:/mnt:ro` — or there is nothing to measure.',
+          showUsage),
       ]),
 
       settingsSection('Appearance', [

@@ -914,6 +914,82 @@ shape; sharing it would mean `interp` depending on the knowledge table's package
 direction for a string rule, so the two are kept in step by documentation rather than by a shared
 function.
 
+## ADR-028: Everything already on the wire gets shown, or gets a reason
+
+**Context.** A question about reporting partition sizes turned into an audit, and the audit found that
+the app was paying for facts on every scan and then throwing them away. `lsblk` was asked for the whole
+device tree and `collectTree` walked every partition of it — only to gather mountpoints and filesystems
+into two strings, after which the sizes, types, labels, offsets, sector sizes and usage were dropped.
+`smartctl`'s `logical_block_size` and `in_smartctl_database` were never parsed at all. The
+interpreter's score breakdown was computed on every read and discarded (fixed separately, `ADR-025`'s
+neighbour `A12`). And `device.protocol` was decoded into two structs that nothing read.
+
+**Decision — a fact that is fetched is shown, or it is dropped with the reason written down.** That is
+the rule this work is built to, and it is the only version of "don't waste the data" that does not
+become a hoarding problem. Discarding is allowed; discarding *silently* is not. `FEATURES.md` A28 now
+carries both lists: what is shown and where, and what is deliberately not captured, each with its
+reason.
+
+**Decision — the tree is kept, flat, in node order.** `Discovered.Partitions` is one row per node below
+the disk, including nested `lvm` and `crypt` nodes: a logical volume inside a partition is a thing with
+a size, a filesystem and a mountpoint, and leaving it out would describe a drive as having an
+unexplained partition rather than a volume group. The node name carries the nesting
+(`/dev/mapper/vg-data`), so there is no depth field — a depth field would say the same thing twice and
+give the UI a second thing to get wrong.
+
+**Decision — one blob, not eight columns.** The schema, the partition table type, the sector sizes and
+the discard answer all come from the same single `lsblk` call, are read whole, and are never queried by.
+They live in `devices.disk_layout` as JSON, exactly as `mountpoints` and the snapshot attributes do.
+
+**Decision — unallocated space is approximate, and says so.** Disk size less the sum of its *direct*
+children. It ignores alignment gaps and the backup GPT header, and it is nil — not zero — when there is
+no partition table to reason about, or when an extended partition makes the parts add up to more than
+the whole. Reporting "0 bytes unallocated" there would be a confident wrong answer.
+
+**Decision — three different answers live in the usage cell.** Nothing mounted means nothing to
+measure, and shows a dash. Mounted but outside the container means `lsblk` has nothing to `statvfs`,
+and shows "not visible" with the compose fix explained once beneath the table. Mounted and visible
+shows the number. Conflating the first two would send somebody to edit their compose file for a
+partition with no filesystem at all — and the tests caught exactly that, because the first draft
+reported an unmounted volume-group member as "not visible".
+
+**Decision — UUIDs are a button, not a column.** They are what `/etc/fstab` speaks in, so the
+convenience is real; they are also two long opaque strings per partition with nothing to scan, so the
+column is not. A **copy UUID** button per row takes the filesystem UUID and falls back to the partition
+UUID — the fallback mattering most for a volume-group member, which has no filesystem and is the row
+somebody is most likely to be copying one from. This is the shape to reach for generally: when a fact is
+useful to *act on* but not to *read*, the control is the feature.
+
+**Decision — sector sizes and TRIM behind a disclosure.** 512e versus 4Kn decides whether a drive can
+join a pool that demands one, and a zero discard granularity is how a USB bridge that drops TRIM shows
+itself — both are real, and neither belongs in the table. Collapsed under **Details** with the partition
+table type, so the surface stays a partition table and the power-user facts stay one click away. The
+sector label is derived from the *pair* of numbers rather than either alone, and a pair that matches
+neither known shape gets no label rather than a guess.
+
+**Alternatives.**
+- *Keep flattening, and add only the fields somebody asked for* — rejected, and this is the decision
+  that matters most. It is how the app got here: one fact at a time, each one cheap, until the tree was
+  being walked for two strings.
+- *Columns for UUID and PARTUUID* — rejected, above. A button answers the need; a column answers it
+  while costing every reader two lines of noise.
+- *Show `ata_smart_data.offline_data_collection`* — rejected: its normal value on a healthy drive is
+  "was never started", which reads as a warning. A field whose healthy state looks like a fault costs
+  more than it pays.
+- *A separate table for partitions* — rejected: they are read with their drive, written with their
+  drive, and never queried by. `mountpoints` set that precedent and it has held.
+- *A depth field on each partition* — rejected: the node name already carries the nesting.
+
+**Consequences.** (+) the drive page answers "what is on this drive, and is it full?" — which is the
+first question somebody adding a disk to a machine has, and one the app previously could not answer at
+all; the audit is now a written list rather than a suspicion, so the next "we already fetch that" is a
+reading exercise. (−) the device payload grew, and it grew on the detail endpoint only for that reason;
+`devices` gained an eighth blob column, which is a pattern worth watching rather than a thing to keep
+adding to. (±) the two display settings are the first that gate a *card* rather than a value, and they
+exist because the information is good and the volume is a matter of taste — which is a reasonable
+category, but not one to invent many of.
+
+
 ## ADR-027: A comparison is aligned by the server, and it marks two different things
 
 **Context.** `D6` — "side-by-side multi-device comparison" — was the last item on the roadmap and, like

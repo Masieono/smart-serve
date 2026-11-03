@@ -120,6 +120,14 @@ and 7.5 can, with no hardware change — which is why the two are reported separ
 | 4.16 | Let a drive's test finish. | The drive is re-read on its own — the result appears without a scan, and `self_test_result` notifies if a channel subscribes |
 | 4.17 | Press **Run now** again while the pass is still draining. | The fire is skipped, and the app log says a pass is still running — no second pass |
 | 4.18 | Restart the app mid-pass. | The pass stops; the drive that was testing keeps testing. The next fire skips a drive already testing itself |
+| 4.19 | Add `- /mnt:/mnt:ro` to the compose file and restart. | The **Partitions** card's usage column fills in for filesystems under `/mnt` |
+| 4.20 | Open a drive with a partition table. | One row per partition: label first, node name under it, size, filesystem, mountpoint, usage, type |
+| 4.21 | Press **UUID** on a partition row. | "UUID copied" — and the value pastes as what `blkid` reports for it |
+| 4.22 | Press **UUID** on a partition holding a volume group. | It copies the *partition* UUID, since that partition has no filesystem of its own |
+| 4.23 | Open **Details** under the partition table. | Logical and physical sector size, 512e or 4Kn, TRIM support, partition table type |
+| 4.24 | Uncheck **Partitions on the drive page** in Settings and reopen a drive. | No Partitions card at all — not an empty one |
+| 4.25 | Uncheck **Storage usage**, reopen a drive. | The card is there and the Used column is **gone**, not blank |
+| 4.26 | Look at a partition that is not mounted (a volume-group member). | A dash in Used — **not** "not visible", which is for a filesystem the container cannot see |
 
 ## Pass 5 — notifications
 

@@ -196,7 +196,18 @@ That is the whole of Phase 4, and with it the last tabled item: the batch self-t
   the drive's *own* manufacturer threshold, so tuning never rewrites an RMA argument. The value is
   validated on save — a typo'd key is a `400` naming it, rather than a row that is stored, shown and
   never read. See `ADR-026`.
-- **Side-by-side drive comparison (`D6`)** — tick two to six drives in the fleet table and read their
+- **Partition schema and storage usage (`A28`)** — a **Partitions** card on the device page: one row
+  per partition with its size, filesystem, label, mountpoint and how full it is, plus a **copy UUID**
+  button. The `lsblk` tree was always fetched and then flattened to two strings — the sizes, labels,
+  types and usage were paid for on every scan and never seen. `unallocated_bytes` is approximate and
+  says so; a partition the device reports read-only is badged; a partition that is not mounted shows a
+  dash rather than "not visible", because those are different answers. Usage needs the host's mount
+  roots bind-mounted read-only, and where the container cannot see a filesystem the cell says so and
+  the table explains the fix once. Sector sizes (512e / 4Kn) and whether the device passes TRIM
+  through sit behind a **Details** disclosure — facts worth having, not worth putting in front of
+  everybody. Two settings, `show_partitions` and `show_usage`, both on by default, turn the card and
+  the column off. Two dead struct fields (`device.protocol`, decoded and read by nothing) are gone.
+  See `ADR-028`.
   attribute tables side by side. The **alignment is the feature**, not a rendering detail: two drives
   of one model report their attributes in whatever order smartctl felt like, so the union of ids,
   their order and the "these disagree" marking are decided server-side where they can be tested. Rows

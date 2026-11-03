@@ -367,6 +367,18 @@ picker offers exactly `ThemeNames`.
   node is never mounted itself (`DATA_MODEL.md`). Filesystem shows every distinct
   type found, e.g. `ext4, vfat`, followed by the filesystem version when lsblk
   reports one (`exfat 1.0`).
+- **Partitions** (`FEATURES.md` A28): one row per node below the disk, in tree order, so a logical
+  volume inside a partition is a row in its own right. The **label leads and the node name follows
+  it** — a person recognises "media" long before "/dev/mapper/tank-media" — with the size, filesystem,
+  mountpoint, usage and partition type beside it, and a **copy UUID** button on the row. The button is
+  the convenience; a UUID *column* would have been two long opaque strings per row with nothing to
+  scan. A partition the device reports read-only is badged, because a write-protect switch and a drive
+  that has failed into read-only look identical otherwise. A partition that is **not mounted** shows a
+  dash in the usage column — nothing to measure — while one that is mounted but outside the container
+  says **not visible**, with the compose fix explained once beneath the table rather than as a tooltip
+  on every row. **Details**, collapsed underneath, holds the sector sizes (512e / 4Kn), whether the
+  device passes TRIM through, and the partition table type: facts worth having, not worth putting in
+  front of everybody. Two settings turn the card and the column off (`show_partitions`, `show_usage`).
 - **Drives with no S.M.A.R.T. reading:** the page shows a **notice** — a neutral panel,
   not an error box — and it distinguishes two situations that smartctl reports
   identically (`smart_cause`, `API.md`):

@@ -53,7 +53,6 @@ type rawDevice struct {
 	Name     string `json:"name"`
 	InfoName string `json:"info_name"`
 	Type     string `json:"type"`
-	Protocol string `json:"protocol"`
 }
 
 type rawAttribute struct {

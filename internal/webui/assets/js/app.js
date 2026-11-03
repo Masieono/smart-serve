@@ -9,6 +9,7 @@ import * as schedules from './views/schedules.js';
 import * as notifications from './views/notifications.js';
 import * as settings from './views/settings.js';
 import { setPollSeconds as setSelfTestRefresh } from './views/selftest.js';
+import { setDisplayOptions } from './views/device.js';
 
 const NAV = [
   ['/', 'Devices', 'dashboard'],
@@ -39,6 +40,7 @@ const ctx = {
   },
   // Display preferences the settings view can change without a reload.
   setTemperatureUnit: applyTemperatureUnit,
+  setDisplayOptions,
   async scan() {
     if (scanning) return;
     scanning = true;
@@ -245,6 +247,9 @@ async function loadDisplayPreferences() {
     // And again: a card that polls should start at the interval the user chose, not at the default
     // and then change under them.
     setSelfTestRefresh(stored.selftest_poll_seconds);
+    // A28: the partition table and its usage column, read here for the same reason as the rest —
+    // a card that appeared and then vanished on first load is worse than either state.
+    setDisplayOptions(stored);
   } catch {
     /* keep the defaults; the first view will report the real error */
   }

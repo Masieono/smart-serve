@@ -92,6 +92,41 @@ func TestPartitionSchemaFromARealisticDisk(t *testing.T) {
 	}
 }
 
+// UUIDs are carried for the copy button rather than for display (`FEATURES.md` A28): they are what
+// `/etc/fstab` speaks in, and nobody reads them. Both kinds are kept, and either can be absent —
+// a filesystem UUID is the filesystem's, a partition UUID is the table's, and a partition with no
+// filesystem has only the second.
+func TestUUIDsAreKeptForTheCopyButton(t *testing.T) {
+	sda := parseFixture(t, "lsblk-gpt-lvm.json")[0]
+
+	efi := sda.Partitions[0]
+	if efi.UUID != "1A2B-3C4D" {
+		t.Errorf("EFI filesystem UUID = %q", efi.UUID)
+	}
+	if efi.PartUUID != "6f8b1c2d-3e4f-4a5b-8c9d-0e1f2a3b4c5d" {
+		t.Errorf("EFI partition UUID = %q", efi.PartUUID)
+	}
+
+	// A partition holding a volume group has no filesystem, so no filesystem UUID — but it still
+	// has a partition UUID, which is the one somebody would put in fstab's `PARTUUID=`.
+	member := sda.Partitions[1]
+	if member.UUID != "" {
+		t.Errorf("LVM member filesystem UUID = %q, want none", member.UUID)
+	}
+	if member.PartUUID == "" {
+		t.Error("the LVM member's partition UUID was lost")
+	}
+
+	// And the logical volume has the opposite: a filesystem, no partition table entry.
+	vol := sda.Partitions[2]
+	if vol.UUID == "" {
+		t.Error("the logical volume's filesystem UUID was lost")
+	}
+	if vol.PartUUID != "" {
+		t.Errorf("logical volume partition UUID = %q, want none", vol.PartUUID)
+	}
+}
+
 // Unallocated space is the question the schema exists to answer: a 1 TB drive holding a 500 MB
 // partition and a 999 GB one has almost nothing left, and a drive with a 200 GB partition on 2 TB
 // has most of itself unused.

@@ -98,6 +98,12 @@ type lsblkDev struct {
 	// PartTypeName meaningful, and it is how a disk with no table is told from one whose table
 	// lsblk could not read.
 	PtType *string `json:"pttype"`
+	// UUID and PartUUID are captured for one reason: a "copy UUID" button beside each partition
+	// (`FEATURES.md` A28). They are what `/etc/fstab` and `blkid` speak in, so somebody adding this
+	// drive to a config needs one — but as columns they are two long opaque strings per row with
+	// nothing to scan, which is why they are a button and not a field.
+	UUID     *string `json:"uuid"`
+	PartUUID *string `json:"partuuid"`
 }
 
 // Partition is one row of a drive's partition schema (`FEATURES.md` A28).
@@ -126,6 +132,10 @@ type Partition struct {
 	ReadOnly   bool    `json:"read_only,omitempty"`
 	// State is lsblk's, e.g. `running`. Empty for a partition, which does not have one.
 	State string `json:"state,omitempty"`
+	// UUID is the filesystem's, PartUUID the partition table's. Carried for the copy button rather
+	// than for display: they are what `/etc/fstab` speaks in, and nobody reads them.
+	UUID     string `json:"uuid,omitempty"`
+	PartUUID string `json:"part_uuid,omitempty"`
 }
 
 // DiskLayout is a drive's partition schema and the storage facts that belong with it
@@ -178,13 +188,11 @@ func (d lsblkDev) DiscardSupport() bool {
 	return d.DiscGran != nil && *d.DiscGran > 0
 }
 
-
 type smartScanOut struct {
 	Devices []struct {
 		Name     string `json:"name"`
 		InfoName string `json:"info_name"`
 		Type     string `json:"type"`
-		Protocol string `json:"protocol"`
 	} `json:"devices"`
 }
 
@@ -199,7 +207,7 @@ func ListDevices(ctx context.Context, timeout time.Duration) ([]Discovered, erro
 			// fetched and then discarded — the columns cost one argument, and the tree below is
 			// walked anyway to collect the disk's mountpoints.
 			"LABEL,PARTLABEL,PARTTYPENAME,PARTN,STATE,RO,FSUSE%,FSUSED,FSSIZE,FSAVAIL,"+
-			"LOG-SEC,PHY-SEC,DISC-GRAN,DISC-MAX,DISC-ZERO,PTTYPE",
+			"LOG-SEC,PHY-SEC,DISC-GRAN,DISC-MAX,DISC-ZERO,PTTYPE,UUID,PARTUUID",
 	)
 	if err != nil {
 		return nil, fmt.Errorf("lsblk: %w", err)
@@ -302,6 +310,8 @@ func collectPartitions(disk lsblkDev) []Partition {
 				UsePercent:   deref(child.Fsuse),
 				ReadOnly:     child.Ro,
 				State:        deref(child.State),
+				UUID:         deref(child.UUID),
+				PartUUID:     deref(child.PartUUID),
 			})
 			walk(child)
 		}

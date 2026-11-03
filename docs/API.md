@@ -546,6 +546,16 @@ stop demanding a value that is never going to be typed into the form (`ADR-022`)
   is at or below its **own** threshold for it, the same rule the exports use). Errors: `400` for
   fewer than two or more than six drives, `404` naming a serial nobody has. The alignment lives here
   rather than in the browser because the alignment *is* the feature (`ADR-027`).
+- `GET /api/devices/{serial}` carries `disk_layout` (`FEATURES.md` A28) when `lsblk` reported a
+  partition table: `table` (`gpt`/`dos`), `unallocated_bytes` (approximate — alignment gaps and the
+  backup GPT header are not counted), `log_sector_size`, `phy_sector_size`, `discard_support`, and
+  `partitions`, one row per node below the disk in tree order. A partition carries `name`, `type`
+  (`part`/`lvm`/`crypt`), `size_bytes`, `fstype`, `fs_version`, `label`, `part_label`, `part_type`
+  (`PARTTYPENAME` — "EFI System", "Linux LVM"), `mountpoints`, `read_only`, `state`, and `uuid` /
+  `part_uuid`. Usage (`use_percent`, `used_bytes`, `fs_size_bytes`, `avail_bytes`) is present **only
+  where the container can see the mountpoint**, because `lsblk` reads it with `statvfs` on the mount
+  path — absent is the honest answer and a zero would read as an empty filesystem. Detail endpoint
+  only, and the field is absent rather than null for a drive whose layout was never read.
 - `GET /api/devices/{serial}/raw` — raw `smartctl --json` (and the exact command
   line used) from the last scan; the diagnostics escape hatch for USB bridges
   (`FEATURES.md` A10). Served from the stored per-device output, so it survives a

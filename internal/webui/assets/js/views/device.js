@@ -4,7 +4,7 @@ import {
   fmtMinutes, scoreGrade, convertTemp, convertTempDelta, temperatureUnitName,
 } from '../dom.js';
 import { api } from '../api.js';
-import { verdictBadge, healthGauge, attributeTable, errorBox, openDialog, toast, transportLabel, trendRow, dateAxis, helpButton } from '../components.js';
+import { verdictBadge, healthGauge, attributeTable, errorBox, openDialog, toast, transportLabel, trendRow, dateAxis, helpButton, partitionTable, sectorLabel } from '../components.js';
 import { nvmeHelp } from '../attributes.js';
 import { icon } from '../icons.js';
 import { selfTestCard } from './selftest.js';
@@ -223,6 +223,11 @@ function draw(container, ctx, data, history) {
         el('h2', { text: 'Identity' }),
         identity,
       ]),
+
+      // A28. Beside Identity rather than with the S.M.A.R.T. tables: what is *on* the drive is a
+      // fact about the drive as a device, and it is the first thing somebody adding a disk to a
+      // machine wants.
+      displayOptions.showPartitions ? diskLayoutCard(d.disk_layout, displayOptions) : null,
 
       el('div', { class: 'card stack' }, [
         el('h2', { text: 'Usage and media' }),
@@ -1245,7 +1250,94 @@ function editNotes(ctx, device, benchTag) {
         },
       }),
     );
+
+
     // A form: name, bay and tags, none of which should be lost to a click that missed a button.
   }, { dismissOnBackdrop: false });
 }
 
+
+// Display preferences for this page (`FEATURES.md` A28), module-level and set from the settings
+// before the first render — the same shape as the self-test poll interval, and for the same reason:
+// a partition table that appeared and then vanished would be worse than either state.
+let displayOptions = { showUsage: true, showPartitions: true };
+
+/**
+ * Apply the two A28 display settings. Anything other than an explicit "false" leaves a feature on,
+ * so a missing setting, a typo or an older server all read as the default rather than as "hide".
+ */
+export function setDisplayOptions(settings) {
+  const off = (key) => String((settings || {})[key] ?? '').trim().toLowerCase() === 'false';
+  displayOptions = {
+    showPartitions: !off('show_partitions'),
+    showUsage: !off('show_usage'),
+  };
+}
+
+/** The options in force, for a caller that needs to know (and for the tests). */
+export function currentDisplayOptions() {
+  return { ...displayOptions };
+}
+
+/**
+ * The partition schema card (`FEATURES.md` A28).
+ *
+ * Two levels on purpose. The table is what a person came for — which partitions exist, what is on
+ * them, and how full they are. The disclosure underneath holds the facts that are worth having and
+ * not worth putting in front of everybody: the sector size (512e vs 4Kn decides whether a drive can
+ * join a pool that demands one) and whether the device passes TRIM through.
+ *
+ * Absent entirely when the layout was never read, which is the honest answer for a drive whose
+ * `lsblk` entry predates this.
+ */
+function diskLayoutCard(layout, opts) {
+  if (!layout) return null;
+  const { showUsage = true } = opts || {};
+
+  const summary = [];
+  if (layout.table) summary.push(`${layout.table.toUpperCase()} partition table`);
+  if (layout.unallocated_bytes) summary.push(`${fmtBytes(layout.unallocated_bytes)} unallocated`);
+  const sector = sectorLabel(layout.log_sector_size, layout.phy_sector_size);
+  if (sector) summary.push(sector);
+
+  return el('div', { class: 'card stack' }, [
+    el('div', { class: 'row' }, [
+      el('h2', { text: 'Partitions' }),
+      el('span', { class: 'spacer' }),
+      summary.length ? el('span', { class: 'muted', text: summary.join(' · ') }) : null,
+    ]),
+    partitionTable(layout, { showUsage }),
+    layoutDetails(layout),
+  ]);
+}
+
+/**
+ * The power-user facts, collapsed.
+ *
+ * A `<details>` rather than a second table: these are facts a reader looks up once, and putting them
+ * on the surface would cost the partition table the space it needs.
+ */
+function layoutDetails(layout) {
+  const rows = [];
+  if (layout.log_sector_size) rows.push(['Logical sector size', `${layout.log_sector_size} bytes`]);
+  if (layout.phy_sector_size) rows.push(['Physical sector size', `${layout.phy_sector_size} bytes`]);
+  const sector = sectorLabel(layout.log_sector_size, layout.phy_sector_size);
+  if (sector) {
+    rows.push(['Reported as', sector === '512e'
+      ? '512e — 512-byte logical on 4 KiB physical, which is the common emulation'
+      : '4Kn — native 4 KiB sectors, which some pools require and some tools assume away']);
+  }
+  rows.push(['TRIM / discard', layout.discard_support
+    ? 'supported'
+    : 'not reported — an SSD behind a bridge that does not pass discard through slows as it fills']);
+  if (layout.table) rows.push(['Partition table', layout.table.toUpperCase()]);
+
+  if (!rows.length) return null;
+  return el('details', { class: 'layout-details' }, [
+    el('summary', { text: 'Details' }),
+    el('dl', { class: 'kv' }, rows.flatMap(([k, v]) => [
+      el('dt', { text: k }),
+      el('dd', { text: v }),
+    ])),
+  ]);
+}

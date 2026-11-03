@@ -605,6 +605,169 @@ export function fleetTable(devices, opts = {}) {
   ]);
 }
 
+/**
+ * Which identifier to offer for a partition: the filesystem's UUID, else the partition table's.
+ *
+ * A filesystem UUID is what `/etc/fstab` usually wants (`UUID=`), and a partition UUID is the
+ * fallback for a partition with no filesystem — a member of a volume group, which is exactly the
+ * row somebody is most likely to be copying one for.
+ *
+ * Returns "" when there is neither, and the caller renders no button rather than a button that
+ * copies nothing.
+ */
+export function partitionUUID(p) {
+  return String((p && (p.uuid || p.part_uuid)) || '').trim();
+}
+
+/**
+ * A sector size, named the way people say it.
+ *
+ * "512e" and "4Kn" are the terms a reader will find elsewhere, and which one applies is decided by
+ * the *pair* of numbers rather than by either alone: 512 logical on 4096 physical is 512e, 4096 on
+ * 4096 is 4Kn. A drive where the two match and are 512 is neither, and gets no label rather than a
+ * wrong one.
+ */
+export function sectorLabel(logical, physical) {
+  if (!logical || !physical) return '';
+  if (logical === 4096 && physical === 4096) return '4Kn';
+  if (logical === 512 && physical === 4096) return '512e';
+  return '';
+}
+
+/**
+ * The partition schema (`FEATURES.md` A28), as a table.
+ *
+ * The label leads and the node name follows it, because a person recognises "media" long before they
+ * recognise "/dev/mapper/tank-media" — and the node name is still there for the one who needs it.
+ *
+ * `showUsage` is the setting that turns the usage column off. The column is dropped rather than
+ * emptied: an empty column is a worse way to say "you asked not to see this" than no column.
+ */
+export function partitionTable(layout, opts = {}) {
+  const { showUsage = true } = opts;
+  const partitions = (layout && layout.partitions) || [];
+  if (!partitions.length) {
+    return el('p', { class: 'muted', text: 'This drive has no partition table. It is either ' +
+      'unpartitioned or its table could not be read.' });
+  }
+
+  const head = ['Partition', 'Size', 'Filesystem', 'Mounted at'];
+  if (showUsage) head.push('Used');
+  head.push('Type', '');
+
+  const rows = partitions.map((p) => {
+    const label = String(p.label || p.part_label || '').trim();
+    const cells = [
+      el('td', {}, [
+        el('span', { class: 'part-name', text: label || p.name }),
+        label ? el('span', { class: 'part-node muted', text: p.name }) : null,
+        p.read_only
+          ? el('span', { class: 'badge badge-caution part-flag', title:
+              'The device reports this as read-only — a write-protect switch, or a device that has ' +
+              'failed into read-only' }, [icon('alert'), 'Read-only'])
+          : null,
+      ]),
+      el('td', { class: 'num', text: fmtBytes(p.size_bytes) }),
+      el('td', { text: filesystemText(p) }),
+      el('td', {}, (p.mountpoints || []).length
+        ? (p.mountpoints || []).map((m) => el('div', { class: 'part-mount', text: m }))
+        : [el('span', { class: 'muted', text: 'not mounted' })]),
+    ];
+
+    if (showUsage) cells.push(usageCell(p));
+
+    cells.push(el('td', { text: p.part_type || '' }));
+    const uuid = partitionUUID(p);
+    cells.push(el('td', {}, uuid
+      ? [el('button', {
+          class: 'btn btn-sm btn-ghost part-copy',
+          type: 'button',
+          title: `Copy ${uuid}`,
+          onclick: () => copyToClipboard(uuid),
+        }, [icon('save'), 'UUID'])]
+      : []));
+
+    return el('tr', { class: p.read_only ? 'part-readonly' : null }, cells);
+  });
+
+  return el('div', { class: 'table-wrap' }, [
+    el('table', { class: 'data part-table' }, [
+      el('thead', {}, [el('tr', {}, head.map((h, i) => el('th', {
+        text: h, class: i === 1 ? 'num' : '',
+      })))]),
+      el('tbody', {}, rows),
+    ]),
+    usageNote(partitions, showUsage),
+  ]);
+}
+
+/** Filesystem and version, or a dash — a partition can hold a volume group and have neither. */
+function filesystemText(p) {
+  if (!p.fstype) return '—';
+  return p.fs_version ? `${p.fstype} ${p.fs_version}` : p.fstype;
+}
+
+/**
+ * The usage cell.
+ *
+ * Three cases, and they are genuinely different answers:
+ *
+ * - **Nothing mounted**: nothing to measure. A dash, because "not visible" would send somebody to
+ *   their compose file for no reason — and the mount column already says it is not mounted.
+ * - **Mounted, but the container cannot see it**: `lsblk` reads usage with `statvfs` on the
+ *   *mountpoint*, so a host filesystem that is not bind-mounted into the container has no figure to
+ *   give. "Not visible" is the true answer, and a dash would be mistaken for a bug.
+ * - **Mounted and visible**: the figure.
+ */
+function usageCell(p) {
+  if (!(p.mountpoints || []).length) {
+    return el('td', { class: 'num muted', text: '—' });
+  }
+  if (!p.use_percent && p.used_bytes === undefined) {
+    return el('td', { class: 'num' }, [
+      el('span', {
+        class: 'muted',
+        title: 'The container cannot see this mountpoint, so there is no usage figure to read. ' +
+          'Mount the host filesystem read-only to see it.',
+        text: 'not visible',
+      }),
+    ]);
+  }
+  const used = p.used_bytes !== undefined ? fmtBytes(p.used_bytes) : '';
+  const total = p.fs_size_bytes !== undefined ? fmtBytes(p.fs_size_bytes) : '';
+  return el('td', {
+    class: 'num',
+    title: used && total ? `${used} of ${total}` : '',
+  }, [p.use_percent || '—']);
+}
+
+/**
+ * The one line under the table that explains a column of "not visible" rows.
+ *
+ * Said once, with the fix, rather than repeated as a tooltip on every row: a reader who sees six of
+ * them wants to know why, not to hover six times.
+ */
+function usageNote(partitions, showUsage) {
+  if (!showUsage) return null;
+  const hidden = partitions.filter((p) => (p.mountpoints || []).length &&
+    !p.use_percent && p.used_bytes === undefined).length;
+  if (!hidden) return null;
+  return el('p', { class: 'muted attr-note', text: `${hidden} of these filesystems are mounted on ` +
+    'the host but not inside this container, so their usage cannot be read. Add the mount roots ' +
+    'read-only to the compose file — for example `- /mnt:/mnt:ro` — and the figures appear.' });
+}
+
+/** Copy a value, saying so either way. Silently succeeding is indistinguishable from not working. */
+function copyToClipboard(value) {
+  if (typeof navigator === 'undefined' || !navigator.clipboard) {
+    toast('Copying needs a secure context (https or localhost)', 'error');
+    return;
+  }
+  navigator.clipboard.writeText(value)
+    .then(() => toast('UUID copied', 'good'))
+    .catch(() => toast('Could not copy to the clipboard', 'error'));
+}
+
 /** "1 drive" / "3 drives" — a count that reads as a sentence rather than as a number. */
 export function countText(n) {
   return n === 1 ? '1 drive' : `${n} drives`;
