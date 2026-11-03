@@ -18,7 +18,7 @@ so. A blank Notes cell means the entry predates the column, not that the feature
 |---|---|---|
 | `D7` localization | `SCOPE.md`, `ADR-023` | Deferred, not dropped: extracting every string and keeping every locale in step is only worth doing for a translator who will maintain the result |
 | Error-log **entry lists** (`A20`) | §A20 above | The counts and the self-test entries are shown; smartctl emits no list at all for an empty log, and neither drive available here has ever logged an error, so the populated shape has never been captured |
-| arm64 on real hardware | `SCOPE.md`, `RELEASE.md` | CI builds it on every pull request; nothing has executed it on ARM |
+| arm64 on real hardware | `SCOPE.md`, `RELEASE.md`, `TESTING.md` Pass 8 | **Running on a Pi 5 (DietPi) — the container builds, starts and scans.** What is left is the methodical pass rather than the proof it works: the overnight stability run, the USB-bridge transport details, and the measured idle RSS, which is still a target rather than a figure |
 | Multi-user accounts / roles | `SCOPE.md` Phase 3 | **Conflicts with `D23`** — authentication is delegated to a reverse proxy, so this needs that decision revisited rather than built |
 
 Everything else recorded in these documents is either shipped or an **explicit non-goal** — writing
