@@ -37,7 +37,9 @@ test('the knowledge card reports every layer', async () => {
   const container = document.createElement('div');
   await render(container);
 
-  const [status] = textsFor(container, 'div', 'muted knowledge-status');
+  // The status lives in the section's `<summary>` now, so it is visible while the section is closed —
+  // which is the point: the age of the table is what decides whether opening it is worth it.
+  const [status] = textsFor(container, 'span', 'muted knowledge-status');
   assert.ok(status, 'no status line');
   for (const expected of ['14 families known', '12 shipped', '13 fetched', '1 yours']) {
     assert.ok(status.includes(expected), `status "${status}" does not mention "${expected}"`);
@@ -69,7 +71,7 @@ test('the knowledge card copes with nothing fetched and nothing typed', async ()
   const container = document.createElement('div');
   await render(container);
 
-  const [status] = textsFor(container, 'div', 'muted knowledge-status');
+  const [status] = textsFor(container, 'span', 'muted knowledge-status');
   assert.ok(status.includes('12 families known'));
   assert.ok(status.includes('nothing fetched yet'));
   assert.ok(!status.includes('yours'), 'a layer nobody has written is reported as present');

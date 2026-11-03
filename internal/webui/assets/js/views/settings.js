@@ -435,7 +435,7 @@ function draw(container, ctx, data, { carried = {}, unit: unitOverride } = {}) {
             onclick: (event) => scanNow(event.currentTarget),
           }, [icon('scan'), 'Scan now and re-check']),
         ]),
-      ]),
+      ], { hint: 'the six numbers that decide a verdict' }),
 
       perModel.node,
 
@@ -458,7 +458,7 @@ function draw(container, ctx, data, { carried = {}, unit: unitOverride } = {}) {
           'Show how full each filesystem is. Needs the host’s mount roots bind-mounted read-only — ' +
           'for example `- /mnt:/mnt:ro` — or there is nothing to measure.',
           showUsage),
-      ]),
+      ], { hint: 'where alerts go, and how much history to keep' }),
 
       settingsSection('Appearance', [
         settingRow('Temperature unit',
@@ -469,7 +469,7 @@ function draw(container, ctx, data, { carried = {}, unit: unitOverride } = {}) {
         ...customRows,
         tintRow,
         ...displayRows,
-      ]),
+      ], { hint: 'theme, units, and what the pages show' }),
 
       settingsSection('Import and export', [
         el('p', { class: 'muted', text: 'Device labels, settings and schedules, as one JSON file. For ' +
@@ -489,7 +489,7 @@ function draw(container, ctx, data, { carried = {}, unit: unitOverride } = {}) {
             onclick: (e) => importConfig(ctx, e.currentTarget),
           }, ['Import']),
         ]),
-      ]),
+      ], { hint: 'move labels, settings and schedules to another host' }),
 
       // Read from `data`, not from the local `settings` map — that one is the stored settings, and
       // the knowledge status is its own payload.
@@ -498,15 +498,62 @@ function draw(container, ctx, data, { carried = {}, unit: unitOverride } = {}) {
   );
 }
 
+// Which sections are expanded. Module-level so a re-render — which happens on save, on a threshold
+// reset, and when the theme changes — does not collapse the section somebody is working in. In memory
+// rather than in the database: it is where you were on a page, not a preference, and it should not
+// outlive the tab.
+const openSections = new Set();
+
+/** Record that a settings section is expanded or collapsed, so a re-render can restore it. */
+export function rememberSection(key, open) {
+  if (open) openSections.add(key);
+  else openSections.delete(key);
+  return open;
+}
+
+/** Whether a settings section should render expanded. */
+export function sectionIsOpen(key) {
+  return openSections.has(key);
+}
+
 /**
- * One section of the settings sheet: a heading, a rule, and its rows.
+ * One collapsible section of the settings sheet.
+ *
+ * Collapsed by default, which is the whole point: the page is a dozen controls deep, and what a
+ * reader scans for is the *section*, not the fourth slider in it. Each summary carries a line saying
+ * what is inside, so a closed section is a signpost rather than a blank — a page of bare titles is
+ * tidier than a page of controls and no more useful.
+ *
+ * `forceOpen` is for a section holding an error: an error nobody can see because the section it lives
+ * in is collapsed is worse than the clutter the collapsing was for.
+ */
+function collapsibleSection(key, title, hint, body, summaryExtra = null, forceOpen = false) {
+  const details = el('details', {
+    class: 'settings-section',
+    open: sectionIsOpen(key) || forceOpen || null,
+    // The closure rather than `event.currentTarget`, because the listener is the only thing that
+    // knows which section it belongs to and the event object is not always populated.
+    on: { toggle: () => rememberSection(key, details.open) },
+  }, [
+    el('summary', {}, [
+      el('span', { class: 'settings-section-title', text: title }),
+      hint ? el('span', { class: 'settings-section-hint muted', text: hint }) : null,
+      summaryExtra,
+    ]),
+    ...body,
+  ]);
+  return details;
+}
+
+/**
+ * A settings section whose rows lay themselves out in columns.
  *
  * The rows are laid out by the stylesheet rather than here, because how many columns fit is a
  * question about the window and this file has no business knowing the answer.
  */
-function settingsSection(title, nodes) {
-  return el('section', { class: 'settings-section' }, [
-    el('h2', { text: title }),
+function settingsSection(title, nodes, opts = {}) {
+  const { hint = '', key = title } = opts;
+  return collapsibleSection(key, title, hint, [
     el('div', { class: 'settings-rows' }, nodes),
   ]);
 }
@@ -660,31 +707,27 @@ function knowledgeSection(knowledge, ctx, urlInput) {
     ctx.refresh();
   }));
 
-  return el('section', { class: 'settings-section knowledge' }, [
-    // The heading line carries the status: how many families are known and how old the fetched copy
-    // is, is what you want to know *before* deciding whether to press Refresh, and a line of its own
-    // for it was a line the reader had to travel. The old paragraph explaining the feature is gone —
-    // "every figure names its source" is the one thing in it that is not visible from the card.
-    el('div', { class: 'row wrap' }, [
-      el('h2', { text: 'Knowledge base' }),
-      el('div', { class: 'muted knowledge-status', text: parts.join(' · ') }),
-      el('span', { class: 'spacer' }),
-      el('span', { class: 'muted', text: 'every figure names its source' }),
-    ]),
-    k.cache_stale
-      ? el('p', { class: 'muted knowledge-warn', text: 'The stored copy came from a different URL ' +
-          'than the one below. Refresh to replace it, or discard it to fall back to the shipped ' +
-          'table.' })
-      : null,
-    el('div', { class: 'settings-rows' }, [
-      settingRow('Refresh URL',
-        'Where to fetch an updated table from. Empty uses the published one, which is the file this ' +
-        'build already ships. Nothing is fetched on a schedule — only when you press Refresh.',
-        urlInput),
-    ]),
-    el('div', { class: 'row knowledge-actions' }, [
-      refresh,
-      k.cache ? discard : null,
+  return collapsibleSection('Knowledge base', 'Knowledge base',
+    'the offline drive database',
+    [
+      // The claim the old heading made, kept as a line in the body: it is the one thing about this
+      // section that is not visible from the controls themselves.
+      el('p', { class: 'muted', text: 'Every figure the app shows about a drive names its source, ' +
+        'and an entry you write here wins over the shipped table.' }),
+      k.cache_stale
+        ? el('p', { class: 'muted knowledge-warn', text: 'The stored copy came from a different URL ' +
+            'than the one below. Refresh to replace it, or discard it to fall back to the shipped ' +
+            'table.' })
+        : null,
+      el('div', { class: 'settings-rows' }, [
+        settingRow('Refresh URL',
+          'Where to fetch an updated table from. Empty uses the published one, which is the file this ' +
+          'build already ships. Nothing is fetched on a schedule — only when you press Refresh.',
+          urlInput),
+      ]),
+      el('div', { class: 'row knowledge-actions' }, [
+        refresh,
+        k.cache ? discard : null,
       // The shipped document, verbatim. This is how somebody starts their own copy to point the URL
       // at — which is the whole reason the refresh exists.
       el('a', {
@@ -709,7 +752,12 @@ function knowledgeSection(knowledge, ctx, urlInput) {
         onclick: () => { editor.value = ''; showError(''); },
       }),
     ]),
-  ]);
+    ],
+    // The live status rides in the summary: how many families are known and how old the fetched copy
+    // is, is what you want to know *before* deciding whether to open this at all. Collapsed, it is the
+    // only thing a reader can see — so it is the thing worth putting there.
+    el('span', { class: 'muted knowledge-status', text: parts.join(' · ') }),
+  );
 }
 /**
  * The models present in a fleet, once each and in a stable order.
@@ -797,29 +845,35 @@ function perModelSection(settings, deviceData, currentValues) {
   seed.disabled = models.length === 0;
 
   return {
-    node: el('section', { class: 'settings-section' }, [
-      el('h2', { text: 'Per-model thresholds' }),
-      el('div', { class: 'settings-rows' }, [
-        el('div', { class: 'field' }, [
-          el('p', { class: 'muted field-hint', text: 'The thresholds above, except for one model. ' +
-            'A drive is matched on its model or its family, case-insensitively, and a number left ' +
-            'out here falls back to the value above. If two entries match the same drive the ' +
-            'longer name wins, so name them precisely rather than overlapping.' }),
-          editor,
+    node: collapsibleSection('Per-model thresholds', 'Per-model thresholds',
+      'different numbers for one drive model',
+      [
+        el('div', { class: 'settings-rows' }, [
+          el('div', { class: 'field' }, [
+            el('p', { class: 'muted field-hint', text: 'The thresholds above, except for one model. ' +
+              'A drive is matched on its model or its family, case-insensitively, and a number left ' +
+              'out here falls back to the value above. If two entries match the same drive the ' +
+              'longer name wins, so name them precisely rather than overlapping.' }),
+            editor,
+          ]),
         ]),
-      ]),
-      error,
-      el('div', { class: 'row knowledge-actions' }, [
-        seed,
-        el('span', { class: 'muted', text: models.length
-          ? `${models.length} model${models.length === 1 ? '' : 's'} in the fleet`
-          : 'no drives read yet' }),
-        el('button', {
-          class: 'btn btn-sm btn-ghost', type: 'button', text: 'Clear',
-          onclick: () => { editor.value = ''; showError(''); },
-        }),
-      ]),
-    ]),
+        error,
+        el('div', { class: 'row knowledge-actions' }, [
+          seed,
+          el('span', { class: 'muted', text: models.length
+            ? `${models.length} model${models.length === 1 ? '' : 's'} in the fleet`
+            : 'no drives read yet' }),
+          el('button', {
+            class: 'btn btn-sm btn-ghost', type: 'button', text: 'Clear',
+            onclick: () => { editor.value = ''; showError(''); },
+          }),
+        ]),
+      ],
+      null,
+      // An editor that rejected what was typed into it must not be able to hide its own complaint
+      // behind a collapsed summary.
+      Boolean(error.textContent),
+    ),
     value: () => editor.value.trim(),
     showError,
   };

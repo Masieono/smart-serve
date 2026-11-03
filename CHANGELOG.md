@@ -63,6 +63,12 @@ discarding silently is not. See `ADR-028`.
   heading carries a count now, and both facts moved into **Details** where there is room to say the
   unallocated figure is approximate. The "mounted outside the container" explanation moved there too —
   it was the most visually heavy thing in the card, and the cell keeps the short version as a tooltip.
+- **The settings page is a list of collapsible sections** — Health thresholds, Per-model thresholds,
+  Alerts and retention, Appearance, Import and export, Knowledge base. Closed by default, each with a
+  one-line hint of what is inside, so the page reads as an index instead of a wall of controls. Two
+  details make it work rather than annoy: the **open state is kept in memory**, so the re-render that
+  saving triggers does not shut the section you are working in, and a section holding a **rejected
+  value forces itself open** rather than hiding its own complaint.
 
 ### Fixed
 

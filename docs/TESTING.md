@@ -136,6 +136,10 @@ and 7.5 can, with no hardware change — which is why the two are reported separ
 | 4.32 | Open **Details** under the partition table. | Sector sizes, TRIM, partition table type, **approximate** unallocated space, and the outside-container explanation if any |
 | 4.33 | Scan the same drive twice, a day apart. | The trend card gains a **Storage** row, with the delta in *points* |
 | 4.34 | Check the partition card heading. | A count and nothing else — no table type, no unallocated figure |
+| 4.35 | Open Settings. | An index of closed sections, each with a hint — not a wall of controls |
+| 4.36 | Open **Appearance**, change the theme. | The section stays open across the re-render |
+| 4.37 | Paste nonsense into the per-model editor and press Save. | The error is visible — the section forces itself open |
+| 4.38 | Open Settings, navigate away, come back. | Sections are closed again — the state is per-visit, not stored |
 
 ## Pass 5 — notifications
 

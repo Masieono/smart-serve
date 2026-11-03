@@ -445,8 +445,47 @@ a:hover {
   border-top: 1px solid var(--border);
 }
 
-.settings-section > h2 {
+/* A collapsible section. The summary is the whole affordance — a settings page a dozen controls deep
+   is scanned by section name, so the name and the one-line hint have to carry it. */
+.settings-section > summary {
+  cursor: pointer;
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  flex-wrap: wrap;
   margin-bottom: var(--space-2);
+  list-style-position: outside;
+}
+
+.settings-section > summary::-webkit-details-marker {
+  color: var(--muted);
+}
+
+.settings-section-title {
+  font-size: var(--text-lg);
+  font-weight: 600;
+}
+
+.settings-section-hint {
+  font-size: var(--text-xs);
+}
+
+/* Closed, the summary is the last thing on the row — so the gap it opened for its body would be a
+   dangling space. */
+.settings-section:not([open]) > summary {
+  margin-bottom: 0;
+}
+
+.settings-section[open] > summary {
+  margin-bottom: var(--space-3);
+}
+
+/* The knowledge status is the one thing worth reading while the section is shut: the age of the table
+   is what decides whether opening it is worth it. Pushed to the end of the summary line. */
+.settings-section > summary .knowledge-status {
+  margin-left: auto;
+  font-size: var(--text-xs);
+  text-align: right;
 }
 
 .settings-rows {

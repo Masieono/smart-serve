@@ -502,6 +502,16 @@ picker offers exactly `ThemeNames`.
   left, control right-aligned so every value lands in the same column — and the height is bought back
   where it belongs: by keeping the explanations to one or two lines instead of four, which is most of
   what made the page tall in the first place.
+- **Sections are collapsible, and closed by default.** The page is a dozen controls deep, and what a
+  reader scans for is the *section*, not the fourth slider in it — so the collapsed page is an index
+  rather than a wall. Each summary carries the section name and a one-line hint saying what is inside,
+  because a page of bare titles is tidier than a page of controls and no more useful. Two details make
+  collapsing safe rather than annoying: the **open state lives in a module-level set**, not in the DOM,
+  so the re-render that saving triggers does not slam shut the section somebody is working in; and a
+  section holding an **error forces itself open**, because a complaint nobody can see is worse than the
+  clutter the collapsing was for. The Knowledge section's live status (how many families, how old the
+  fetched copy) sits in its *summary*, since it is the thing that decides whether opening it is worth
+  it.
 - Numeric settings are a **list of rows**, not a grid of labelled boxes: the label and
   its explanation sit together on the left and the control is right-aligned, so every
   value lands in one column and the page can be scanned and compared at a glance. Each
