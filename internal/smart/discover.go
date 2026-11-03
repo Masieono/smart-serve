@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -136,6 +137,50 @@ type Partition struct {
 	// than for display: they are what `/etc/fstab` speaks in, and nobody reads them.
 	UUID     string `json:"uuid,omitempty"`
 	PartUUID string `json:"part_uuid,omitempty"`
+}
+
+// Fullest is the filesystem with the least room left, which is the one number that answers "is this
+// drive full?" — and it is not the same as the average. A drive holding a 20%-full boot partition and
+// a 95%-full data volume is a drive that is about to run out of space, and a blended figure would hide
+// exactly the filesystem somebody needs to be told about.
+//
+// Returns false when nothing on the drive has a readable usage figure — no mountpoints, or none the
+// container can see — which is a different answer from "0% used".
+func (l DiskLayout) Fullest() (Partition, bool) {
+	best := Partition{}
+	found := false
+	for _, p := range l.Partitions {
+		pct, ok := p.UsePercentValue()
+		if !ok {
+			continue
+		}
+		if !found || pct > mustPercent(best) {
+			best = p
+			found = true
+		}
+	}
+	return best, found
+}
+
+// UsePercentValue parses lsblk's formatted percentage ("47%") into a number.
+//
+// lsblk formats this, so it arrives as a string; parsing it here rather than in the browser keeps one
+// implementation of "which filesystem is fullest" for the list and the detail page both.
+func (p Partition) UsePercentValue() (int, bool) {
+	trimmed := strings.TrimSuffix(strings.TrimSpace(p.UsePercent), "%")
+	if trimmed == "" {
+		return 0, false
+	}
+	n, err := strconv.Atoi(trimmed)
+	if err != nil || n < 0 {
+		return 0, false
+	}
+	return n, true
+}
+
+func mustPercent(p Partition) int {
+	n, _ := p.UsePercentValue()
+	return n
 }
 
 // DiskLayout is a drive's partition schema and the storage facts that belong with it

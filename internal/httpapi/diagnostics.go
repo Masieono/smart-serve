@@ -60,6 +60,7 @@ func (s *Server) handleHistory(w http.ResponseWriter, r *http.Request) {
 			"temperature_c":  snap.TemperatureC,
 			"power_on_hours": snap.PowerOnHours,
 			"wear_pct":       snap.WearPct,
+			"used_pct":       snap.UsedPct,
 		})
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"serial": serial, "series": out})

@@ -464,6 +464,20 @@ export function deviceCard(device, onOpen, onScan) {
         el('span', { class: 'kv-value', text: value, title: value }),
       ])),
     ]),
+    // A28. Under the facts and above the rationale: "how full is this drive?" is a question about the
+    // drive as a whole, and the fleet is where somebody scans for the one that is filling up. The
+    // mountpoint rides along because a bare percentage does not say *what* is full.
+    device.storage
+      ? el('div', { class: 'device-card-storage' }, [
+          usageBar(device.storage.used_pct, {
+            label: device.storage.mount || '',
+            title: device.storage.total_bytes
+              ? `${fmtBytes(device.storage.used_bytes)} of ` +
+                `${fmtBytes(device.storage.total_bytes)} used`
+              : `${device.storage.used_pct}% used`,
+          }),
+        ])
+      : null,
     el('div', { class: 'device-card-foot' }, [
       el('span', {
         class: 'muted device-card-rationale',
@@ -635,10 +649,61 @@ export function sectorLabel(logical, physical) {
 }
 
 /**
+ * A horizontal usage bar, with the figure beside it.
+ *
+ * Deliberately **not colour-coded by fullness**. A bar that turns amber at 85% is the UI re-deriving
+ * "is this bad?", which is exactly what the attribute table was written to avoid: the verdict and the
+ * score are computed server-side, and a second opinion in the browser can disagree with them about
+ * the same drive (`FEATURES.md` §A12). Length is the visualisation and it needs no threshold to be
+ * read. If fullness should ever *mean* something, that is a rule in `interp` — a "running out of
+ * space" finding — and the bar would follow the verdict rather than lead it.
+ *
+ * Returns null for a value that is not a number, so a caller can render "not measured" itself rather
+ * than getting a bar drawn at zero.
+ */
+export function usageBar(pct, opts = {}) {
+  const { label = '', title = '' } = opts;
+  // Checked explicitly, because `Number(null)` and `Number('')` are both 0 — and a bar drawn at 0%
+  // for a drive whose usage is *unknown* is a confident wrong answer, not a missing one.
+  if (pct === null || pct === undefined || pct === '') return null;
+  const value = Number(pct);
+  if (!Number.isFinite(value)) return null;
+  const clamped = Math.max(0, Math.min(100, Math.round(value)));
+
+  return el('div', { class: 'usage' }, [
+    el('div', {
+      class: 'usage-track',
+      role: 'img',
+      'aria-label': `${clamped}% used`,
+      title: title || `${clamped}% used`,
+    }, [el('div', { class: 'usage-fill', style: `width:${clamped}%` })]),
+    el('span', { class: 'usage-pct', text: `${clamped}%` }),
+    label ? el('span', { class: 'usage-label muted', text: label }) : null,
+  ]);
+}
+
+/**
+ * How many of these filesystems are mounted on the host but outside the container.
+ *
+ * `lsblk` reads usage with `statvfs` on the *mountpoint*, so a host filesystem that is not
+ * bind-mounted into the container has no figure to give. Exported so the card can decide whether the
+ * explanation is worth showing at all, and so the rule is testable on its own.
+ */
+export function partitionsOutsideContainer(partitions) {
+  return (partitions || []).filter((p) => (p.mountpoints || []).length &&
+    !p.use_percent && p.used_bytes === undefined).length;
+}
+
+/**
  * The partition schema (`FEATURES.md` A28), as a table.
  *
  * The label leads and the node name follows it, because a person recognises "media" long before they
  * recognise "/dev/mapper/tank-media" — and the node name is still there for the one who needs it.
+ *
+ * The partition type sits under the filesystem rather than in a column of its own: the two are
+ * answering one question ("what is this partition for?") and side by side they read as a pair. A
+ * partition with no filesystem is the case that shows it — "Linux LVM" under a dash is the *reason*
+ * there is nothing to mount, where a separate column left the reader to join them up themselves.
  *
  * `showUsage` is the setting that turns the usage column off. The column is dropped rather than
  * emptied: an empty column is a worse way to say "you asked not to see this" than no column.
@@ -653,7 +718,7 @@ export function partitionTable(layout, opts = {}) {
 
   const head = ['Partition', 'Size', 'Filesystem', 'Mounted at'];
   if (showUsage) head.push('Used');
-  head.push('Type', '');
+  head.push('');
 
   const rows = partitions.map((p) => {
     const label = String(p.label || p.part_label || '').trim();
@@ -668,7 +733,10 @@ export function partitionTable(layout, opts = {}) {
           : null,
       ]),
       el('td', { class: 'num', text: fmtBytes(p.size_bytes) }),
-      el('td', { text: filesystemText(p) }),
+      el('td', {}, [
+        el('span', { text: filesystemText(p) }),
+        p.part_type ? el('span', { class: 'part-type muted', text: p.part_type }) : null,
+      ]),
       el('td', {}, (p.mountpoints || []).length
         ? (p.mountpoints || []).map((m) => el('div', { class: 'part-mount', text: m }))
         : [el('span', { class: 'muted', text: 'not mounted' })]),
@@ -676,9 +744,8 @@ export function partitionTable(layout, opts = {}) {
 
     if (showUsage) cells.push(usageCell(p));
 
-    cells.push(el('td', { text: p.part_type || '' }));
     const uuid = partitionUUID(p);
-    cells.push(el('td', {}, uuid
+    cells.push(el('td', { class: 'num' }, uuid
       ? [el('button', {
           class: 'btn btn-sm btn-ghost part-copy',
           type: 'button',
@@ -697,7 +764,6 @@ export function partitionTable(layout, opts = {}) {
       })))]),
       el('tbody', {}, rows),
     ]),
-    usageNote(partitions, showUsage),
   ]);
 }
 
@@ -723,7 +789,8 @@ function usageCell(p) {
   if (!(p.mountpoints || []).length) {
     return el('td', { class: 'num muted', text: '—' });
   }
-  if (!p.use_percent && p.used_bytes === undefined) {
+  const bar = usageBar(usePercentNumber(p));
+  if (!bar) {
     return el('td', { class: 'num' }, [
       el('span', {
         class: 'muted',
@@ -735,26 +802,35 @@ function usageCell(p) {
   }
   const used = p.used_bytes !== undefined ? fmtBytes(p.used_bytes) : '';
   const total = p.fs_size_bytes !== undefined ? fmtBytes(p.fs_size_bytes) : '';
-  return el('td', {
-    class: 'num',
-    title: used && total ? `${used} of ${total}` : '',
-  }, [p.use_percent || '—']);
+  return el('td', { class: 'num' }, [bar
+    ? el('div', { title: used && total ? `${used} of ${total}` : '' }, [bar])
+    : null]);
+}
+
+/** lsblk formats this ("47%"), so the number has to be parsed back out of the string. */
+function usePercentNumber(p) {
+  const raw = String((p && p.use_percent) || '').replace('%', '').trim();
+  if (!raw) return null;
+  const n = Number(raw);
+  return Number.isFinite(n) ? n : null;
 }
 
 /**
- * The one line under the table that explains a column of "not visible" rows.
+ * The one line that explains a column of "not visible" rows, for the Details disclosure.
  *
- * Said once, with the fix, rather than repeated as a tooltip on every row: a reader who sees six of
- * them wants to know why, not to hover six times.
+ * It used to sit under the table, and it was the most visually heavy thing in the card — a paragraph
+ * of prose attached to a table of facts. It now lives in the disclosure with the other
+ * explanation-shaped content, and the cell itself carries the short version as a tooltip.
+ *
+ * Returned as a plain string so the caller can put it wherever the card's layout wants it.
  */
-function usageNote(partitions, showUsage) {
-  if (!showUsage) return null;
-  const hidden = partitions.filter((p) => (p.mountpoints || []).length &&
-    !p.use_percent && p.used_bytes === undefined).length;
-  if (!hidden) return null;
-  return el('p', { class: 'muted attr-note', text: `${hidden} of these filesystems are mounted on ` +
-    'the host but not inside this container, so their usage cannot be read. Add the mount roots ' +
-    'read-only to the compose file — for example `- /mnt:/mnt:ro` — and the figures appear.' });
+export function outsideContainerNote(partitions) {
+  const hidden = partitionsOutsideContainer(partitions);
+  if (!hidden) return '';
+  const count = hidden === 1 ? '1 of these filesystems is' : `${hidden} of these filesystems are`;
+  return `${count} mounted on the host but not inside this container, so the usage cannot be ` +
+    'read. Add the mount roots read-only to the compose file — for example `- /mnt:/mnt:ro` — and ' +
+    'the figures appear.';
 }
 
 /** Copy a value, saying so either way. Silently succeeding is indistinguishable from not working. */

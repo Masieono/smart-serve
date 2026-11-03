@@ -119,9 +119,41 @@ column is a worse way to say "you asked not to see this" than no column.
 
 **A partition that is not mounted is not "not visible".** Three genuinely different answers live in
 that one cell: nothing mounted means nothing to measure (a dash); mounted but outside the container
-means there is no figure to read ("not visible", with the compose fix said once beneath the table);
-mounted and visible means the number. Conflating the first two would send somebody to edit their
-compose file for a partition that has no filesystem at all.
+means there is no figure to read ("not visible", with the compose fix in Details); mounted and visible
+means the number. Conflating the first two would send somebody to edit their compose file for a
+partition that has no filesystem at all.
+
+**Storage over time.** `snapshots.used_pct` (migration `0016`) records the fullest filesystem's
+percentage at every scan, so the trend card gains a **Storage** row. Denormalized out of the device's
+partition schema for exactly the reason `sectors` was denormalized out of `attributes`: the schema
+lives on the *device*, so the chart would otherwise have nothing to read at chart time, and a trend
+chart must never load a blob to draw a line. It is the one storage figure worth watching — a drive at
+40% today and 90% next month is the thing that runs out of room. The delta is in **points**, not per
+cent, because the value is already a percentage.
+
+**The card's summary line was wrong, and it is worth recording why.** The first version put a summary
+in the heading — `GPT partition table · 1.4 MB unallocated · 512e`. It was reported back as confusing,
+and it was: those are facts about the *drive* sitting above a table of *partitions*, they answer no
+question anybody has while reading one, and the unallocated figure is an alignment remainder that
+invites a question with no useful answer. A summary position has no room to explain an approximation,
+so an approximation does not belong in one. The heading now carries a count; the table type moved to
+Details where it explains the `PARTTYPENAME` values above it; the unallocated figure moved to Details
+too, where there is space to say it is approximate. **A summary line is a claim that a fact is
+important enough to lead with — and "this is on the drive" is not the same as "you need this".**
+
+**The explanation moved into the disclosure.** The "N of these filesystems are mounted on the host but
+not inside this container…" paragraph sat under the table and was the most visually heavy thing in the
+card: a block of prose attached to a table of facts. It is now a row in **Details**, and the cell
+itself carries the short version as a tooltip. The tradeoff is real — somebody who sees "not visible"
+in the table has to open Details to find out why — and it is accepted because the *cell* still names
+the condition rather than showing a dash, and the explanation is one click away rather than absent.
+
+**The bar is not colour-coded, on purpose.** A usage bar that turns amber at 85% is the browser
+re-deriving "is this bad?" — which is precisely what the attribute table was written to avoid
+(`§A12`): the verdict and the score are computed server-side, and a second opinion in the UI can
+disagree with the badge at the top of the same page. Length is the visualisation and it needs no
+threshold to be read. If fullness should ever *mean* something, that belongs in `interp` as a
+"running out of space" finding, and the bar would then follow the verdict rather than lead it.
 
 **Deliberately not captured, and why.** These are decisions rather than omissions:
 

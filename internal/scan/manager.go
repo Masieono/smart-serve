@@ -374,6 +374,16 @@ func toStored(d Device) store.ScannedDevice {
 		// useful thing to have in front of you when a bridge is misbehaving.
 		RawOutput: string(d.Raw),
 	}
+	// How full the drive is (`FEATURES.md` A28), recorded per snapshot so the trend chart can draw it
+	// without loading the layout blob. Nil when nothing on the drive has a readable figure, which is
+	// what makes a drive whose filesystems the container cannot see show a gap rather than a 0% line.
+	if layout := d.Discovered.DiskLayout(); layout != nil {
+		if fullest, ok := layout.Fullest(); ok {
+			if pct, valid := fullest.UsePercentValue(); valid {
+				out.UsedPct = &pct
+			}
+		}
+	}
 	size := d.Discovered.SizeBytes
 	if sd := d.Data; sd != nil {
 		out.SmartBus = string(sd.Bus)

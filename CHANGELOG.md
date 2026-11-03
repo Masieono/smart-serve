@@ -39,6 +39,31 @@ discarding silently is not. See `ADR-028`.
   model" note is a **fact rather than an inference from seeing `Unknown_Attribute` names** — three
   situations, three wordings, where the old note claimed the first for all of them. See `ADR-028`.
 
+### Changed
+
+- **Storage is now a bar, on the fleet card and the drive page** (`A28`) — "how full is this drive?"
+  is a proportion, and a proportion is read faster as a length than as two byte counts. The figure is
+  the **fullest** filesystem, named, because that is the one that runs out first; it is chosen
+  server-side and sent to both pages, so the fleet card and the drive page cannot disagree about the
+  same drive. The bar is deliberately **one colour**: turning amber at 85% would be the browser
+  re-deriving "is this bad?" while the verdict is computed server-side, and the two could contradict
+  each other on the same screen.
+- **The trend card tracks storage over time** (`A28`) — a **Storage** row, from `snapshots.used_pct`
+  (migration `0016`). A drive at 40% today and 90% next month is the thing that runs out of room, and
+  that is a question about history. Denormalized for the same reason `sectors` was: the partition
+  schema lives on the device, so the chart would otherwise have nothing to read. The delta is in
+  *points*, not per cent, because the value is already a percentage.
+- **The partition table lost a column and gained a second line** (`A28`) — the partition type now sits
+  under the filesystem rather than in a column of its own, because the two answer one question. A
+  partition with no filesystem reads "Linux LVM" under a dash, which is the *reason* there is nothing
+  to mount, where two columns left the reader to join them up. Eight columns down to six.
+- **The partition card's summary line is gone** (`A28`) — it read `GPT partition table · 1.4 MB
+  unallocated · 512e`, and it was confusing for a reason worth recording: those are facts about the
+  *drive* above a table of *partitions*, and the unallocated figure is an alignment remainder. The
+  heading carries a count now, and both facts moved into **Details** where there is room to say the
+  unallocated figure is approximate. The "mounted outside the container" explanation moved there too —
+  it was the most visually heavy thing in the card, and the cell keeps the short version as a tooltip.
+
 ### Fixed
 
 - **Static assets are now cache-validated** — the JS and CSS were served with no `ETag` and no

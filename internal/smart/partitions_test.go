@@ -92,6 +92,80 @@ func TestPartitionSchemaFromARealisticDisk(t *testing.T) {
 	}
 }
 
+// The fullest filesystem, not an average (`FEATURES.md` A28).
+//
+// A drive holding a 20%-full boot partition and a 95%-full data volume is a drive about to run out of
+// space. A blended figure would report it as half full and hide the volume somebody needs to be told
+// about, which is the whole reason this picks rather than averages.
+func TestFullestPicksTheFilesystemWithLeastRoom(t *testing.T) {
+	layout := DiskLayout{Partitions: []Partition{
+		{Name: "/dev/sda1", UsePercent: "8%"},
+		{Name: "/dev/sda2", UsePercent: "95%"},
+		{Name: "/dev/sda3", UsePercent: "47%"},
+	}}
+
+	got, ok := layout.Fullest()
+	if !ok {
+		t.Fatal("a layout with three measured filesystems reported none")
+	}
+	if got.Name != "/dev/sda2" {
+		t.Errorf("Fullest = %q, want the 95%% filesystem", got.Name)
+	}
+}
+
+// A partition with no figure is skipped rather than treated as zero — otherwise an unmounted volume
+// would drag the answer down to the wrong filesystem.
+func TestFullestIgnoresFilesystemsWithNoFigure(t *testing.T) {
+	layout := DiskLayout{Partitions: []Partition{
+		{Name: "/dev/sda1"},
+		{Name: "/dev/sda2", UsePercent: "12%"},
+		{Name: "/dev/sda3", UsePercent: ""},
+	}}
+
+	got, ok := layout.Fullest()
+	if !ok {
+		t.Fatal("a layout with one measured filesystem reported none")
+	}
+	if got.Name != "/dev/sda2" {
+		t.Errorf("Fullest = %q, want the measured 12%% filesystem", got.Name)
+	}
+}
+
+// "Nothing measured" and "measured, and empty" are different answers, and the caller has to be able
+// to tell them apart — the list payload omits the storage block for the first and sends 0 for the
+// second.
+func TestFullestReportsNothingWhenNothingWasMeasured(t *testing.T) {
+	for name, layout := range map[string]DiskLayout{
+		"no partitions":      {},
+		"none with a figure": {Partitions: []Partition{{Name: "/dev/sda1"}, {Name: "/dev/sda2"}}},
+	} {
+		if got, ok := layout.Fullest(); ok {
+			t.Errorf("%s: Fullest reported %q, want nothing", name, got.Name)
+		}
+	}
+}
+
+// lsblk formats the percentage, so it arrives as a string with a sign on it. Junk must be refused
+// rather than coerced, because `strconv` would otherwise turn some of it into a plausible number.
+func TestUsePercentValueParsesLsblksFormat(t *testing.T) {
+	for input, want := range map[string]int{
+		"0%":   0,
+		"47%":  47,
+		"100%": 100,
+		" 47%": 47,
+	} {
+		got, ok := Partition{UsePercent: input}.UsePercentValue()
+		if !ok || got != want {
+			t.Errorf("UsePercentValue(%q) = %d, %v; want %d, true", input, got, ok, want)
+		}
+	}
+	for _, input := range []string{"", "  ", "%", "unknown", "-5%", "4.7%"} {
+		if got, ok := (Partition{UsePercent: input}).UsePercentValue(); ok {
+			t.Errorf("UsePercentValue(%q) = %d, true; want false", input, got)
+		}
+	}
+}
+
 // UUIDs are carried for the copy button rather than for display (`FEATURES.md` A28): they are what
 // `/etc/fstab` speaks in, and nobody reads them. Both kinds are kept, and either can be absent —
 // a filesystem UUID is the filesystem's, a partition UUID is the table's, and a partition with no

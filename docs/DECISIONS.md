@@ -1132,15 +1132,48 @@ neither known shape gets no label rather than a guess.
 - *A separate table for partitions* — rejected: they are read with their drive, written with their
   drive, and never queried by. `mountpoints` set that precedent and it has held.
 - *A depth field on each partition* — rejected: the node name already carries the nesting.
+- *A summary line in the card heading* — **tried, shipped, and withdrawn.** The first version led with
+  `GPT partition table · 1.4 MB unallocated · 512e`. It was reported back as confusing, and the report
+  was right: those are facts about the *drive* above a table of *partitions*, they answer no question
+  anybody has while reading one, and the unallocated figure is an alignment remainder that invites a
+  question with no useful answer. The lesson is about the *position* rather than the facts — a summary
+  line claims a fact is important enough to lead with, and a position that short has no room to explain
+  an approximation, so approximations must not go in one. The heading carries a count now; the facts
+  moved to the disclosure where they can be qualified.
+- *Colour the usage bar by fullness* — rejected: see below.
+- *Compute the fullest filesystem in the browser for the drive page and in Go for the list* — rejected:
+  two implementations of one rule, which is how the fleet card and the device page end up disagreeing
+  about the same drive. It is computed once, server-side, and sent to both.
+
+**Decision — the usage bar is one colour.** A bar that turns amber at 85% is the browser re-deriving
+"is this bad?", and the app already made that call the other way for the attribute table (`A12`): the
+verdict and the score are computed server-side precisely so the UI cannot hold a second opinion about
+the same drive. A coloured bar would sit a few centimetres under a verdict badge it could contradict.
+Length is the visualisation and it needs no threshold to be read. If fullness should ever *mean*
+something, it belongs in `interp` as a "running out of space" finding — at which point the bar follows
+the verdict rather than leading it, which is the right direction of authority.
+
+**Decision — the trend's storage figure is denormalized into `snapshots.used_pct`.** The partition
+schema lives on the *device*, not in the snapshot, so a chart drawn from history would have nothing to
+read at chart time. This is the same shape as `sectors` (migration `0006`) and for the same reason: a
+trend chart asks for hundreds of rows and must never load a blob to draw a line. The value stored is
+the **fullest** filesystem's percentage, not an average — a drive holding a 20%-full boot partition and
+a 95%-full data volume is a drive about to run out of space, and a blended figure would hide exactly
+the volume somebody needs to be told about. `NULL` means nothing was measurable, which is why it is a
+pointer all the way through: a measured `0` and "nobody could look" are different facts.
 
 **Consequences.** (+) the drive page answers "what is on this drive, and is it full?" — which is the
 first question somebody adding a disk to a machine has, and one the app previously could not answer at
 all; the audit is now a written list rather than a suspicion, so the next "we already fetch that" is a
-reading exercise. (−) the device payload grew, and it grew on the detail endpoint only for that reason;
-`devices` gained an eighth blob column, which is a pattern worth watching rather than a thing to keep
-adding to. (±) the two display settings are the first that gate a *card* rather than a value, and they
-exist because the information is good and the volume is a matter of taste — which is a reasonable
-category, but not one to invent many of.
+reading exercise; and storage is now the one *capacity* figure the app tracks over time, which is what
+a NAS actually runs out of. (−) the device payload grew, and it grew on the detail endpoint only for
+that reason; `devices` gained an eighth blob column, which is a pattern worth watching rather than a
+thing to keep adding to; and `snapshots` gained a seventh data column for one chart line. (±) the two
+display settings are the first that gate a *card* rather than a value, and they exist because the
+information is good and the volume is a matter of taste — which is a reasonable category, but not one
+to invent many of. (±) the first version of this card shipped a summary line that did not survive
+contact with a reader, which is the useful kind of feedback: the *design rule* it produced — a summary
+position cannot carry an approximation — is worth more than the line was.
 
 
 ## ADR-029: The score breakdown is persisted, and "counted" is not "at threshold"

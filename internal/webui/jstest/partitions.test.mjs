@@ -9,7 +9,8 @@ import assert from 'node:assert/strict';
 import { installStubDom, StubNode } from './stub-dom.mjs';
 
 installStubDom();
-const { partitionTable, partitionUUID, sectorLabel } = await import('../assets/js/components.js');
+const { partitionTable, partitionUUID, sectorLabel, usageBar, outsideContainerNote } =
+  await import('../assets/js/components.js');
 const { setDisplayOptions, currentDisplayOptions } = await import('../assets/js/views/device.js');
 
 /** Every string in a subtree, in document order. */
@@ -106,17 +107,54 @@ test('the usage column goes away entirely when it is turned off', () => {
   assert.doesNotMatch(textOf(partitionTable(LAYOUT, { showUsage: false })), /47%/);
 });
 
-// A filesystem the container cannot see has no figure, and says so. A dash would be read as a bug,
-// and a zero would be read as an empty filesystem — which is the opposite of the truth.
-test('usage the container cannot see says why, once', () => {
+// A filesystem the container cannot see has no figure, and says so in the cell. A dash would be read
+// as a bug, and a zero would be read as an empty filesystem — which is the opposite of the truth.
+test('usage the container cannot see says so in the cell', () => {
   const layout = {
     partitions: [partition({ use_percent: '', used_bytes: undefined, fs_size_bytes: undefined })],
   };
   const text = textOf(partitionTable(layout));
 
   assert.match(text, /not visible/);
-  // Said once, with the fix, rather than repeated per row.
-  assert.match(text, /mount roots|read-only/);
+  assert.doesNotMatch(text, /0%/, 'an unknown figure must not be drawn as an empty filesystem');
+});
+
+// The explanation used to be a paragraph under the table, which made the card read as a wall of text.
+// It is now a string the Details disclosure carries, so it is worth asserting on directly.
+test('the outside-container explanation names the fix', () => {
+  const partitions = [partition({ use_percent: '', used_bytes: undefined })];
+  const note = outsideContainerNote(partitions);
+
+  assert.match(note, /not inside this container/);
+  assert.match(note, /mnt:\/mnt:ro/);
+  // Singular reads as a sentence, not as "1 of these filesystems are".
+  assert.match(outsideContainerNote([partition({ use_percent: '', used_bytes: undefined })]),
+    /1 of these filesystems is/);
+  // Nothing hidden: no note at all, rather than a note saying zero.
+  assert.equal(outsideContainerNote([partition()]), '');
+  assert.equal(outsideContainerNote([]), '');
+});
+
+// The bar is the visualisation, and the one thing it must never do is draw a length for a figure
+// nobody measured. `Number(null)` is 0, which is how this went wrong the first time.
+test('the usage bar refuses a figure that is not a number', () => {
+  assert.equal(usageBar(null), null);
+  assert.equal(usageBar(undefined), null);
+  assert.equal(usageBar(''), null);
+  assert.equal(usageBar('not-a-number'), null);
+  assert.equal(usageBar(Number.NaN), null);
+
+  // And a real zero *is* a figure, so it gets a bar.
+  assert.ok(usageBar(0));
+  assert.match(textOf(usageBar(0)), /0%/);
+});
+
+test('the usage bar clamps and labels itself', () => {
+  assert.match(textOf(usageBar(47)), /47%/);
+  assert.match(textOf(usageBar(47.6)), /48%/, 'rounded, not truncated');
+  assert.match(textOf(usageBar(140)), /100%/, 'a nonsense figure cannot overflow the track');
+  assert.match(textOf(usageBar(-5)), /0%/);
+  assert.match(textOf(usageBar(47, { label: '/mnt/media' })), /\/mnt\/media/);
 });
 
 // A partition that is mounted nowhere and has no usage is not "not visible" — there is nothing to

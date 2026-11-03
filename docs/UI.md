@@ -354,6 +354,11 @@ picker offers exactly `ThemeNames`.
   speed, transport, rotation, removable, WWN, device path.
 - **Usage and media card:** power-on hours, power cycles, temperature, total data
   read / written, life remaining, mountpoints, filesystem, first seen, last scanned.
+  **Storage leads the card as a bar** (`FEATURES.md` A28) — how full the drive is, with the
+  filesystem it belongs to named underneath, because "47%" is not actionable until you know
+  *what* is at 47%. The figure is the fullest filesystem, chosen server-side (`API.md`), so
+  this card and the fleet card cannot disagree. The same bar appears on each fleet card,
+  under the facts.
   Throughput and power figures come from the API's derived `metrics` block
   (`API.md`), so ATA and NVMe drives read identically.
 - **Outlook** (`.projection`, at the foot of the Usage card): the longevity estimate from
@@ -370,15 +375,19 @@ picker offers exactly `ThemeNames`.
 - **Partitions** (`FEATURES.md` A28): one row per node below the disk, in tree order, so a logical
   volume inside a partition is a row in its own right. The **label leads and the node name follows
   it** — a person recognises "media" long before "/dev/mapper/tank-media" — with the size, filesystem,
-  mountpoint, usage and partition type beside it, and a **copy UUID** button on the row. The button is
-  the convenience; a UUID *column* would have been two long opaque strings per row with nothing to
-  scan. A partition the device reports read-only is badged, because a write-protect switch and a drive
-  that has failed into read-only look identical otherwise. A partition that is **not mounted** shows a
-  dash in the usage column — nothing to measure — while one that is mounted but outside the container
-  says **not visible**, with the compose fix explained once beneath the table rather than as a tooltip
-  on every row. **Details**, collapsed underneath, holds the sector sizes (512e / 4Kn), whether the
-  device passes TRIM through, and the partition table type: facts worth having, not worth putting in
-  front of everybody. Two settings turn the card and the column off (`show_partitions`, `show_usage`).
+  mountpoint and usage beside it, and a **copy UUID** button on the row. The button is the convenience;
+  a UUID *column* would have been two long opaque strings per row with nothing to scan. The partition
+  **type sits under the filesystem** rather than in a column of its own: the two answer one question,
+  and a partition with no filesystem shows "Linux LVM" under a dash, which is the *reason* there is
+  nothing to mount. A partition the device reports read-only is badged, because a write-protect switch
+  and a drive that has failed into read-only look identical otherwise. Usage is a **bar** — length
+  reads faster than two byte counts, and it is deliberately one colour, because a bar that turned amber
+  at 85% would be the browser re-deriving "is this bad?" while the verdict is computed server-side. A
+  partition that is **not mounted** shows a dash — nothing to measure — while one that is mounted but
+  outside the container says **not visible**, with the explanation and the compose fix in **Details**
+  rather than as a paragraph under the table. **Details**, collapsed, also holds the sector sizes
+  (512e / 4Kn), TRIM support, the partition table type and the approximate unallocated space. Two
+  settings turn the card and the column off (`show_partitions`, `show_usage`).
 - **Drives with no S.M.A.R.T. reading:** the page shows a **notice** — a neutral panel,
   not an error box — and it distinguishes two situations that smartctl reports
   identically (`smart_cause`, `API.md`):

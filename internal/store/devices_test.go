@@ -124,6 +124,81 @@ func TestSectorTrendIgnoresRowsBeforeTheWindow(t *testing.T) {
 	}
 }
 
+// `used_pct` has to survive the round trip for exactly the reason `sectors` did — it was added to a
+// struct that three separate queries populate, and a column added to the SELECT but not the Scan (or
+// the reverse) fails silently on the paths nobody happens to exercise.
+//
+// Zero is asserted on explicitly: a drive measured at 0% full and a drive nobody could measure are
+// different facts, and `NULL` is the only thing that keeps them apart.
+func TestSnapshotSeriesCarriesUsedPct(t *testing.T) {
+	ctx := context.Background()
+	s := newTestStore(t)
+
+	base := time.Date(2026, 1, 1, 3, 0, 0, 0, time.UTC)
+	zero, ninety := 0, 90
+	for _, c := range []struct {
+		day     int
+		usedPct *int
+	}{{0, &zero}, {30, &ninety}, {31, nil}} {
+		at := base.AddDate(0, 0, c.day)
+		if _, err := s.SaveScan(ctx, "manual", at, at.Add(time.Second), []ScannedDevice{
+			{Serial: "A", Model: "m", DevicePath: "/dev/sda", Health: "good", Score: 100,
+				UsedPct: c.usedPct},
+		}); err != nil {
+			t.Fatalf("SaveScan: %v", err)
+		}
+	}
+
+	series, err := s.SnapshotSeries(ctx, "A", base.Add(-time.Hour), base.AddDate(0, 0, 60))
+	if err != nil {
+		t.Fatalf("SnapshotSeries: %v", err)
+	}
+	if len(series) != 3 {
+		t.Fatalf("got %d snapshots, want 3", len(series))
+	}
+	if series[0].UsedPct == nil || *series[0].UsedPct != 0 {
+		t.Errorf("first snapshot used_pct = %v, want an explicit 0", series[0].UsedPct)
+	}
+	if series[1].UsedPct == nil || *series[1].UsedPct != 90 {
+		t.Errorf("second snapshot used_pct = %v, want 90", series[1].UsedPct)
+	}
+	if series[2].UsedPct != nil {
+		t.Errorf("third snapshot used_pct = %v, want nil for an unmeasured drive", *series[2].UsedPct)
+	}
+}
+
+// The same round trip through the two queries that load the attributes blob. They are separate
+// queries with separate column lists, so one can be right while the other is wrong.
+func TestSnapshotReadersAgreeAboutUsedPct(t *testing.T) {
+	ctx := context.Background()
+	s := newTestStore(t)
+
+	at := time.Date(2026, 2, 1, 3, 0, 0, 0, time.UTC)
+	forty := 40
+	if _, err := s.SaveScan(ctx, "manual", at, at.Add(time.Second), []ScannedDevice{
+		{Serial: "A", Model: "m", DevicePath: "/dev/sda", Health: "good", Score: 100,
+			UsedPct: &forty, AttributesJSON: `{"attributes":[]}`},
+	}); err != nil {
+		t.Fatalf("SaveScan: %v", err)
+	}
+
+	latest, err := s.LatestSnapshot(ctx, "A")
+	if err != nil {
+		t.Fatalf("LatestSnapshot: %v", err)
+	}
+	if latest == nil || latest.UsedPct == nil || *latest.UsedPct != 40 {
+		t.Errorf("LatestSnapshot used_pct = %v, want 40", latest)
+	}
+
+	recent, err := s.RecentSnapshots(ctx, "A", 5)
+	if err != nil {
+		t.Fatalf("RecentSnapshots: %v", err)
+	}
+	if len(recent) != 1 || recent[0].UsedPct == nil || *recent[0].UsedPct != 40 {
+		t.Errorf("RecentSnapshots used_pct = %v, want 40", recent)
+	}
+}
+
 // The trend and longevity code reads history through SnapshotSeries, which deliberately
 // skips the heavy attributes blob — so `sectors` has to survive the round trip on its own.
 // It did not: the column was selected and scanned and then dropped on the floor, and

@@ -101,6 +101,85 @@ func TestADriveWithNoLayoutCarriesNoDiskLayout(t *testing.T) {
 }
 
 // saveDeviceWithLayout stores one drive with a partition table, in the shape the scan writes.
+// The storage summary the fleet card and the device page draw their usage bar from
+// (`FEATURES.md` A28).
+//
+// Derived server-side from the same stored layout rather than computed in the browser, so the list
+// and the detail page cannot disagree about which filesystem is fullest. It is on the *list*
+// endpoint too, which is the point: the fleet card needs it, and the fleet card must not be sent a
+// whole partition schema to get one number.
+func TestTheStorageSummaryReachesTheListAndTheDetail(t *testing.T) {
+	srv, st, _, _ := newTestServer(t, Options{})
+	saveDeviceWithLayout(t, st)
+
+	for _, path := range []string{"/api/devices", "/api/devices/SN-LAYOUT"} {
+		rec := do(t, srv, http.MethodGet, path, "", nil)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("%s: status = %d", path, rec.Code)
+		}
+
+		var resp struct {
+			Devices []struct {
+				Storage *struct {
+					Mount      string `json:"mount"`
+					UsedPct    int    `json:"used_pct"`
+					UsedBytes  uint64 `json:"used_bytes"`
+					TotalBytes uint64 `json:"total_bytes"`
+				} `json:"storage"`
+			} `json:"devices"`
+			Device struct {
+				Storage *struct {
+					Mount      string `json:"mount"`
+					UsedPct    int    `json:"used_pct"`
+					UsedBytes  uint64 `json:"used_bytes"`
+					TotalBytes uint64 `json:"total_bytes"`
+				} `json:"storage"`
+			} `json:"device"`
+		}
+		decodeBody(t, rec, &resp)
+
+		got := resp.Device.Storage
+		if got == nil {
+			got = resp.Devices[0].Storage
+		}
+		if got == nil {
+			t.Fatalf("%s: no storage summary; the usage bar would have nothing to draw", path)
+		}
+		// The 47% filesystem, not the 8% one: the fullest is the one that runs out first.
+		if got.UsedPct != 47 {
+			t.Errorf("%s: used_pct = %d, want 47 (the fullest filesystem)", path, got.UsedPct)
+		}
+		if got.Mount != "/mnt/media" {
+			t.Errorf("%s: mount = %q, want /mnt/media — a bare percentage does not say what is full",
+				path, got.Mount)
+		}
+		if got.TotalBytes == 0 {
+			t.Errorf("%s: total_bytes is missing, so the bar has no tooltip to show", path)
+		}
+	}
+}
+
+// A drive with no readable usage figure carries no storage block at all — not one at 0%. The two are
+// different facts and the bar must not be drawn for the first.
+func TestNoStorageSummaryWithoutAMeasuredFilesystem(t *testing.T) {
+	srv, st, _, _ := newTestServer(t, Options{})
+	ctx := context.Background()
+	now := time.Now().UTC()
+	if _, err := st.SaveScan(ctx, "manual", now, now, []store.ScannedDevice{{
+		Serial: "SN-NOUSAGE", Model: "USB bridge", DevicePath: "/dev/sdc", Health: "good", Score: 100,
+		// Mounted nowhere the container can see: no mountpoints, no figure.
+		DiskLayout: `{"table":"gpt","partitions":[` +
+			`{"name":"/dev/sdc1","type":"part","size_bytes":1000000}]}`,
+	}}); err != nil {
+		t.Fatalf("SaveScan: %v", err)
+	}
+
+	rec := do(t, srv, http.MethodGet, "/api/devices/SN-NOUSAGE", "", nil)
+	if strings.Contains(rec.Body.String(), `"storage"`) {
+		t.Errorf("a drive with no measured filesystem carried a storage block: %s", rec.Body.String())
+	}
+}
+
 func saveDeviceWithLayout(t *testing.T, st *store.Store) {
 	t.Helper()
 	ctx := context.Background()
@@ -115,7 +194,7 @@ func saveDeviceWithLayout(t *testing.T, st *store.Store) {
 			`"label":"EFI","part_type":"EFI System","mountpoints":["/boot/efi"],"use_percent":"8%"},` +
 			`{"name":"/dev/sdb2","type":"part","size_bytes":999000000000,"fstype":"ext4",` +
 			`"label":"media","part_type":"Linux filesystem","mountpoints":["/mnt/media"],` +
-			`"use_percent":"47%","used_bytes":469060000000}]}`,
+			`"use_percent":"47%","used_bytes":469060000000,"fs_size_bytes":999000000000}]}`,
 	}})
 	if err != nil {
 		t.Fatalf("SaveScan: %v", err)

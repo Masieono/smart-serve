@@ -94,6 +94,47 @@ type deviceJSON struct {
 	// filesystems, labels and usage, plus the storage facts that come from the same `lsblk` call.
 	// Detail endpoint only, for the same reason as Logs and Changes.
 	DiskLayout json.RawMessage `json:"disk_layout,omitempty"`
+	// Storage is the drive's fullest filesystem (`FEATURES.md` A28), for the usage bar on the list
+	// and the device page. Derived here from the stored layout rather than sent as the whole blob:
+	// the list wants one number per drive, and the fleet table is not a place for a partition schema.
+	// One implementation, server-side, so the list and the detail page cannot disagree about which
+	// filesystem is fullest.
+	Storage *storageJSON `json:"storage,omitempty"`
+}
+
+// storageJSON is the fullest filesystem on a drive, as the UI needs it for a usage bar.
+type storageJSON struct {
+	Mount      string `json:"mount,omitempty"`
+	UsedPct    int    `json:"used_pct"`
+	UsedBytes  uint64 `json:"used_bytes,omitempty"`
+	TotalBytes uint64 `json:"total_bytes,omitempty"`
+}
+
+// storageFor summarises a drive's stored partition layout, or nil when there is nothing to say.
+func storageFor(diskLayout string) *storageJSON {
+	if diskLayout == "" {
+		return nil
+	}
+	var layout smart.DiskLayout
+	if err := json.Unmarshal([]byte(diskLayout), &layout); err != nil {
+		return nil
+	}
+	fullest, ok := layout.Fullest()
+	if !ok {
+		return nil
+	}
+	pct, _ := fullest.UsePercentValue()
+	out := &storageJSON{UsedPct: pct}
+	if len(fullest.Mountpoints) > 0 {
+		out.Mount = fullest.Mountpoints[0]
+	}
+	if fullest.UsedBytes != nil {
+		out.UsedBytes = *fullest.UsedBytes
+	}
+	if fullest.SizeOnDisk != nil {
+		out.TotalBytes = *fullest.SizeOnDisk
+	}
+	return out
 }
 
 func toDeviceJSON(d store.DeviceRecord) deviceJSON {
@@ -127,6 +168,7 @@ func toDeviceJSON(d store.DeviceRecord) deviceJSON {
 		OnBench:         store.HasTag(d.Tags, store.BenchTag),
 		Ack:             toAckJSON(d.Ack),
 		Bay:             d.Bay,
+		Storage:         storageFor(d.DiskLayout),
 		FirstSeen:       rfc3339(d.FirstSeen),
 		LastSeen:        rfc3339(d.LastSeen),
 		IsMissing:       d.IsMissing,

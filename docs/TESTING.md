@@ -128,6 +128,14 @@ and 7.5 can, with no hardware change — which is why the two are reported separ
 | 4.24 | Uncheck **Partitions on the drive page** in Settings and reopen a drive. | No Partitions card at all — not an empty one |
 | 4.25 | Uncheck **Storage usage**, reopen a drive. | The card is there and the Used column is **gone**, not blank |
 | 4.26 | Look at a partition that is not mounted (a volume-group member). | A dash in Used — **not** "not visible", which is for a filesystem the container cannot see |
+| 4.27 | Look at the Used column. | A **bar** with the percentage, not a bare number |
+| 4.28 | Open a drive whose filesystem the container can see, and check the fleet card. | A storage bar under the card's facts, with the mountpoint it belongs to |
+| 4.29 | Compare the fleet card's storage figure with the drive page's. | Identical — both come from the server's "fullest filesystem" |
+| 4.30 | Open the drive page's Usage and media card. | **Storage** leads the card as a bar, with the filesystem named underneath |
+| 4.31 | Look at a partition holding a volume group (no filesystem). | "Linux LVM" under the dash in the Filesystem cell, not in a column of its own |
+| 4.32 | Open **Details** under the partition table. | Sector sizes, TRIM, partition table type, **approximate** unallocated space, and the outside-container explanation if any |
+| 4.33 | Scan the same drive twice, a day apart. | The trend card gains a **Storage** row, with the delta in *points* |
+| 4.34 | Check the partition card heading. | A count and nothing else — no table type, no unallocated figure |
 
 ## Pass 5 — notifications
 

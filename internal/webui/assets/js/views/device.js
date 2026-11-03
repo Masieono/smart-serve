@@ -4,7 +4,7 @@ import {
   fmtMinutes, scoreGrade, convertTemp, convertTempDelta, temperatureUnitName,
 } from '../dom.js';
 import { api } from '../api.js';
-import { verdictBadge, healthGauge, attributeTable, errorBox, openDialog, toast, transportLabel, trendRow, dateAxis, helpButton, partitionTable, sectorLabel } from '../components.js';
+import { verdictBadge, healthGauge, attributeTable, errorBox, openDialog, toast, transportLabel, trendRow, dateAxis, helpButton, partitionTable, sectorLabel, usageBar, outsideContainerNote } from '../components.js';
 import { nvmeHelp } from '../attributes.js';
 import { icon } from '../icons.js';
 import { selfTestCard } from './selftest.js';
@@ -143,6 +143,12 @@ function draw(container, ctx, data, history) {
   ], 'No identity information was reported for this drive.');
 
   const usage = statGrid([
+    // The headline storage figure, as a bar rather than a row of numbers: "how full is this drive?"
+    // is a proportion, and a proportion is read faster as a length than as two byte counts
+    // (`FEATURES.md` A28). The fullest filesystem, named, because that is the one that will run out
+    // first — and a blended figure across a 20%-full boot partition and a 95%-full data volume would
+    // hide exactly the volume somebody needs to be told about.
+    d.storage ? stat('Storage', storageBar(d.storage)) : null,
     stat('Power-on hours', powerOnHours != null ? `${fmtHours(powerOnHours)} (${fmtInt(powerOnHours)} h)` : null),
     stat('Power cycles', m.power_cycles != null ? fmtInt(m.power_cycles) : null),
     stat('Temperature', fmtTemp(d.temperature_c)),
@@ -571,6 +577,9 @@ function lifeText(lifeLeft, wearPct) {
 // Each metric knows how to render itself and whether a change means anything. A
 // rising power-on-hour count is not a health signal — it is just the drive being
 // used — so that row reports a rate rather than a coloured delta.
+// Storage is a percentage rather than a count, so its delta is in *points* — "up 3 points" is a
+// meaningful change and "up 3%" of a percentage is not. Rising fullness is the one direction that
+// matters for a NAS drive, which is why the tone is inverted against the usual "up is good".
 const TREND_METRICS = [
   {
     key: 'score',
@@ -600,6 +609,16 @@ const TREND_METRICS = [
     label: 'Wear',
     format: (v) => `${Math.round(v)}% used`,
     delta: (d) => ({ text: signed(d, '%'), tone: d > 0 ? 'bad' : 'good' }),
+  },
+  {
+    // `FEATURES.md` A28. The one storage figure worth watching over time: a drive at 40% today and
+    // 90% next month is the thing that runs out of room, and that is a question about history rather
+    // than about the latest reading.
+    key: 'used_pct',
+    label: 'Storage',
+    format: (v) => `${Math.round(v)}% full`,
+    // Points, not per cent — the value is already a percentage, so "up 3%" would be nonsense.
+    delta: (d) => ({ text: signed(d, ' pts'), tone: d > 0 ? 'bad' : 'good' }),
   },
 ];
 /**
@@ -1283,9 +1302,16 @@ export function currentDisplayOptions() {
  * The partition schema card (`FEATURES.md` A28).
  *
  * Two levels on purpose. The table is what a person came for — which partitions exist, what is on
- * them, and how full they are. The disclosure underneath holds the facts that are worth having and
- * not worth putting in front of everybody: the sector size (512e vs 4Kn decides whether a drive can
- * join a pool that demands one) and whether the device passes TRIM through.
+ * them, and how full they are. The disclosure underneath holds everything *explanation*-shaped: the
+ * sector size, whether the device passes TRIM through, the partition table type, and why a usage
+ * figure is missing. Those are worth having and not worth putting in front of everybody.
+ *
+ * The heading carries a count and nothing else. It used to carry a summary line — table type,
+ * unallocated bytes, sector label — and that was a mistake worth recording: "GPT partition table" and
+ * "1.4 MB unused" are facts about the *drive* sitting above a table of *partitions*, they answer no
+ * question anybody has while looking at one, and the unallocated figure is an alignment remainder
+ * that invites a question with no useful answer. A summary position has no room to explain an
+ * approximation, so an approximation should not be in one.
  *
  * Absent entirely when the layout was never read, which is the honest answer for a drive whose
  * `lsblk` entry predates this.
@@ -1293,31 +1319,28 @@ export function currentDisplayOptions() {
 function diskLayoutCard(layout, opts) {
   if (!layout) return null;
   const { showUsage = true } = opts || {};
-
-  const summary = [];
-  if (layout.table) summary.push(`${layout.table.toUpperCase()} partition table`);
-  if (layout.unallocated_bytes) summary.push(`${fmtBytes(layout.unallocated_bytes)} unallocated`);
-  const sector = sectorLabel(layout.log_sector_size, layout.phy_sector_size);
-  if (sector) summary.push(sector);
+  const partitions = layout.partitions || [];
 
   return el('div', { class: 'card stack' }, [
     el('div', { class: 'row' }, [
       el('h2', { text: 'Partitions' }),
       el('span', { class: 'spacer' }),
-      summary.length ? el('span', { class: 'muted', text: summary.join(' · ') }) : null,
+      partitions.length
+        ? el('span', { class: 'muted', text: `${partitions.length}` })
+        : null,
     ]),
     partitionTable(layout, { showUsage }),
-    layoutDetails(layout),
+    layoutDetails(layout, partitions),
   ]);
 }
 
 /**
- * The power-user facts, collapsed.
+ * The power-user facts and the explanations, collapsed.
  *
  * A `<details>` rather than a second table: these are facts a reader looks up once, and putting them
  * on the surface would cost the partition table the space it needs.
  */
-function layoutDetails(layout) {
+function layoutDetails(layout, partitions) {
   const rows = [];
   if (layout.log_sector_size) rows.push(['Logical sector size', `${layout.log_sector_size} bytes`]);
   if (layout.phy_sector_size) rows.push(['Physical sector size', `${layout.phy_sector_size} bytes`]);
@@ -1331,6 +1354,16 @@ function layoutDetails(layout) {
     ? 'supported'
     : 'not reported — an SSD behind a bridge that does not pass discard through slows as it fills']);
   if (layout.table) rows.push(['Partition table', layout.table.toUpperCase()]);
+  // Relocated from the card's summary line, where it had no room to say it was approximate.
+  if (layout.unallocated_bytes) {
+    rows.push(['Unallocated', `${fmtBytes(layout.unallocated_bytes)} — approximate: alignment gaps ` +
+      'and the backup GPT header are not counted']);
+  }
+
+  // The explanation for a "not visible" usage cell. It used to be a paragraph under the table, which
+  // made the card read as a wall of text; the cell carries the short version as a tooltip.
+  const note = outsideContainerNote(partitions);
+  if (note) rows.push(['Usage', note]);
 
   if (!rows.length) return null;
   return el('details', { class: 'layout-details' }, [

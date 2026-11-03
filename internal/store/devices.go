@@ -39,7 +39,11 @@ type ScannedDevice struct {
 	// Sectors is the total of the bad-sector attributes (5 + 197 + 198) at this scan.
 	// Kept per snapshot so a trend can be computed without loading the attributes blob,
 	// and left nil when the drive does not report sector counts at all.
-	Sectors        *int64
+	Sectors *int64
+	// UsedPct is how full the drive's fullest filesystem was (`FEATURES.md` A28), kept per snapshot
+	// for the same reason as Sectors: the trend chart must not load a blob to draw a line. Nil when
+	// nothing on the drive has a readable usage figure.
+	UsedPct        *int
 	AttributesJSON string
 	// RawOutput is smartctl's own output for this drive, kept verbatim: when a bridge
 	// misbehaves it is the only thing that explains why.
@@ -168,11 +172,11 @@ func (s *Store) saveScan(ctx context.Context, trigger string, started, ended tim
 			return 0, err
 		}
 		if _, err := tx.ExecContext(ctx, `INSERT INTO snapshots
-			(serial, ts, scan_id, health, score, temperature_c, power_on_hours, wear_pct, sectors, attributes)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			(serial, ts, scan_id, health, score, temperature_c, power_on_hours, wear_pct, sectors, attributes, used_pct)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			d.Serial, ended.UnixMilli(), scanID, d.Health, d.Score,
 			nullInt(d.TemperatureC), nullInt64(d.PowerOnHours), nullFloat(d.WearPct),
-			nullInt64(d.Sectors), d.AttributesJSON); err != nil {
+			nullInt64(d.Sectors), d.AttributesJSON, nullInt(d.UsedPct)); err != nil {
 			return 0, fmt.Errorf("insert snapshot for %s: %w", d.Serial, err)
 		}
 	}
@@ -614,6 +618,11 @@ type Snapshot struct {
 	// Attributes is the normalized JSON blob. It is populated by LatestSnapshot
 	// only, to avoid loading heavy blobs for whole series.
 	Attributes string
+	// UsedPct is how full the drive's fullest filesystem was at this snapshot (`FEATURES.md` A28).
+	// Nil means there was no readable figure — no mountpoints, or none the container can see — or
+	// the row predates migration 0016. A pointer because 0 is a legitimate value and "not measured"
+	// must not be read as "empty".
+	UsedPct *int
 }
 
 // SectorTrend returns, per serial, how many bad sectors appeared over the *recent*
@@ -753,12 +762,13 @@ func (s *Store) LatestSnapshot(ctx context.Context, serial string) (*Snapshot, e
 		hours       sql.NullInt64
 		wear        sql.NullFloat64
 		sectors     sql.NullInt64
+		usedPct     sql.NullInt64
 	)
 	err := s.db.QueryRowContext(ctx, `
-		SELECT id, serial, ts, scan_id, health, score, temperature_c, power_on_hours, wear_pct, sectors, attributes
+		SELECT id, serial, ts, scan_id, health, score, temperature_c, power_on_hours, wear_pct, sectors, used_pct, attributes
 		FROM snapshots WHERE serial = ? ORDER BY ts DESC LIMIT 1`, serial).
 		Scan(&snap.ID, &snap.Serial, &ts, &snap.ScanID, &snap.Health, &snap.Score,
-			&temperature, &hours, &wear, &sectors, &snap.Attributes)
+			&temperature, &hours, &wear, &sectors, &usedPct, &snap.Attributes)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
@@ -779,6 +789,7 @@ func (s *Store) LatestSnapshot(ctx context.Context, serial string) (*Snapshot, e
 		v := sectors.Int64
 		snap.Sectors = &v
 	}
+	snap.UsedPct = intPtr(usedPct)
 	return &snap, nil
 }
 
@@ -794,7 +805,7 @@ func (s *Store) RecentSnapshots(ctx context.Context, serial string, limit int) (
 	}
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT id, serial, ts, scan_id, health, score, temperature_c, power_on_hours, wear_pct,
-		       sectors, COALESCE(attributes, '')
+		       sectors, used_pct, COALESCE(attributes, '')
 		FROM snapshots WHERE serial = ? ORDER BY id DESC LIMIT ?`, serial, limit)
 	if err != nil {
 		return nil, err
@@ -810,9 +821,10 @@ func (s *Store) RecentSnapshots(ctx context.Context, serial string, limit int) (
 			hours       sql.NullInt64
 			wear        sql.NullFloat64
 			sectors     sql.NullInt64
+			usedPct     sql.NullInt64
 		)
 		if err := rows.Scan(&snap.ID, &snap.Serial, &ts, &snap.ScanID, &snap.Health, &snap.Score,
-			&temperature, &hours, &wear, &sectors, &snap.Attributes); err != nil {
+			&temperature, &hours, &wear, &sectors, &usedPct, &snap.Attributes); err != nil {
 			return nil, err
 		}
 		snap.TS = fromMS(ts)
@@ -829,6 +841,7 @@ func (s *Store) RecentSnapshots(ctx context.Context, serial string, limit int) (
 			v := sectors.Int64
 			snap.Sectors = &v
 		}
+		snap.UsedPct = intPtr(usedPct)
 		out = append(out, snap)
 	}
 	return out, rows.Err()
@@ -849,7 +862,7 @@ func (s *Store) SaveFailedScan(ctx context.Context, trigger string, started, end
 // SnapshotSeries returns the recorded history for one device within a range.
 func (s *Store) SnapshotSeries(ctx context.Context, serial string, from, to time.Time) ([]Snapshot, error) {
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT id, serial, ts, scan_id, health, score, temperature_c, power_on_hours, wear_pct, sectors
+		SELECT id, serial, ts, scan_id, health, score, temperature_c, power_on_hours, wear_pct, sectors, used_pct
 		FROM snapshots WHERE serial = ? AND ts >= ? AND ts <= ?
 		ORDER BY ts`, serial, from.UnixMilli(), to.UnixMilli())
 	if err != nil {
@@ -866,9 +879,10 @@ func (s *Store) SnapshotSeries(ctx context.Context, serial string, from, to time
 			powerOnHours sql.NullInt64
 			wearPct      sql.NullFloat64
 			sectors      sql.NullInt64
+			usedPct      sql.NullInt64
 		)
 		if err := rows.Scan(&snap.ID, &snap.Serial, &ts, &snap.ScanID, &snap.Health,
-			&snap.Score, &temperature, &powerOnHours, &wearPct, &sectors); err != nil {
+			&snap.Score, &temperature, &powerOnHours, &wearPct, &sectors, &usedPct); err != nil {
 			return nil, err
 		}
 		snap.TS = fromMS(ts)
@@ -884,6 +898,10 @@ func (s *Store) SnapshotSeries(ctx context.Context, serial string, from, to time
 		if sectors.Valid {
 			v := sectors.Int64
 			snap.Sectors = &v
+		}
+		if usedPct.Valid {
+			v := int(usedPct.Int64)
+			snap.UsedPct = &v
 		}
 		out = append(out, snap)
 	}
