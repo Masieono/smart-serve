@@ -4,6 +4,41 @@ Notable changes per release. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project uses
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+The audit round. A question about reporting partition sizes turned into an audit of what the app
+fetches and then discards, and the answer was: more than it should. The `lsblk` device tree was
+walked on every scan for two strings; the score breakdown was computed on every read and thrown away;
+`in_smartctl_database` was never parsed at all. All three are now shown, and `FEATURES.md` §A28 carries
+the list of what is deliberately *not* captured, each with its reason — discarding is allowed,
+discarding silently is not. See `ADR-028`.
+
+### Added
+
+- **Score breakdown (`A12`)** — the device page says *why* the score is what it is: every penalty the
+  interpreter applied, what it cost, and which attribute each one read. It was always computed — the
+  scan threw it away, so the app knew a drive had lost 40 points and could not say for what. Persisted
+  per drive (`devices.penalties`, migration `0014`) rather than recomputed on read, so the breakdown
+  shown is the one the verdict was made from rather than a fresh guess at it. The attribute table
+  marks the rows the verdict **read** ("Counted") separately from the rows the drive itself reports
+  **at its own threshold** ("At threshold") — the difference between "this cost you points" and "this
+  is where the drive's own line is", which are not the same statement and are both worth seeing at
+  once. The trend penalty is included, so the parts sum to the whole. See `ADR-029`.
+- **Partition schema and storage usage (`A28`)** — a **Partitions** card on the device page: one row
+  per partition with its size, filesystem, label, mountpoint and how full it is, plus a **copy UUID**
+  button. The `lsblk` tree was always fetched and then flattened to two strings — the sizes, labels,
+  types and usage were paid for on every scan and never seen. `unallocated_bytes` is approximate and
+  says so; a partition the device reports read-only is badged; a partition that is not mounted shows a
+  dash rather than "not visible", because those are different answers. Usage needs the host's mount
+  roots bind-mounted read-only, and where the container cannot see a filesystem the cell says so and
+  the table explains the fix once. Sector sizes (512e / 4Kn) and whether the device passes TRIM
+  through sit behind a **Details** disclosure — facts worth having, not worth putting in front of
+  everybody. Two settings, `show_partitions` and `show_usage`, both on by default, turn the card and
+  the column off. Two dead struct fields (`device.protocol`, decoded and read by nothing) are gone.
+  And `in_smartctl_database` is now read, so the attribute table's "smartctl does not know this
+  model" note is a **fact rather than an inference from seeing `Unknown_Attribute` names** — three
+  situations, three wordings, where the old note claimed the first for all of them. See `ADR-028`.
+
 ## [1.1.0] — 2026-11-02
 
 Everything the roadmap had left. A self-test can now be **scheduled** — every drive that can take
@@ -196,20 +231,7 @@ That is the whole of Phase 4, and with it the last tabled item: the batch self-t
   the drive's *own* manufacturer threshold, so tuning never rewrites an RMA argument. The value is
   validated on save — a typo'd key is a `400` naming it, rather than a row that is stored, shown and
   never read. See `ADR-026`.
-- **Partition schema and storage usage (`A28`)** — a **Partitions** card on the device page: one row
-  per partition with its size, filesystem, label, mountpoint and how full it is, plus a **copy UUID**
-  button. The `lsblk` tree was always fetched and then flattened to two strings — the sizes, labels,
-  types and usage were paid for on every scan and never seen. `unallocated_bytes` is approximate and
-  says so; a partition the device reports read-only is badged; a partition that is not mounted shows a
-  dash rather than "not visible", because those are different answers. Usage needs the host's mount
-  roots bind-mounted read-only, and where the container cannot see a filesystem the cell says so and
-  the table explains the fix once. Sector sizes (512e / 4Kn) and whether the device passes TRIM
-  through sit behind a **Details** disclosure — facts worth having, not worth putting in front of
-  everybody. Two settings, `show_partitions` and `show_usage`, both on by default, turn the card and
-  the column off. Two dead struct fields (`device.protocol`, decoded and read by nothing) are gone.
-  And `in_smartctl_database` is now read, so the attribute table's "smartctl does not know this
-  model" note is a **fact rather than an inference from seeing `Unknown_Attribute` names** — three
-  situations, three wordings, where the old note claimed the first for all of them. See `ADR-028`.
+- **Side-by-side drive comparison (`D6`)** — tick two to six drives in the fleet table and read their
   attribute tables side by side. The **alignment is the feature**, not a rendering detail: two drives
   of one model report their attributes in whatever order smartctl felt like, so the union of ids,
   their order and the "these disagree" marking are decided server-side where they can be tested. Rows
@@ -565,6 +587,7 @@ First public release.
 - The idle-footprint figures are targets, not measurements, pending a run on a public
   instance.
 
-[Unreleased]: https://github.com/masieono/smart-serve/compare/v1.0.1...HEAD
+[Unreleased]: https://github.com/masieono/smart-serve/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/masieono/smart-serve/releases/tag/v1.1.0
 [1.0.1]: https://github.com/masieono/smart-serve/releases/tag/v1.0.1
 [1.0.0]: https://github.com/masieono/smart-serve/releases/tag/v1.0.0

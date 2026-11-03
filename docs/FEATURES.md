@@ -40,7 +40,7 @@ authentication (`SCOPE.md` §Explicit non-goals). Those are decisions, not backl
 | A9 | Health summary bar (n good / n caution / n bad) | MVP | 💤 | **done** — folded into the Devices header as a compact clickable list beside the title and search box |
 | A10 | Raw `smartctl` output viewer (diagnostics toggle) | MVP | 💤 | vital for USB bridge quirks |
 | A11 | Per-device transport override (`-d sat`, …) | MVP | 💤 | **done** — offered on the device page for any drive whose S.M.A.R.T. cannot be read, and shown as currently set |
-| A12 | Attribute help tooltips ("what is Reallocated Sectors?") | MVP | 💤 | **done** — a curated `?` per attribute and per NVMe counter, plus a marker for attributes the *drive itself* reports at threshold; see below |
+| A12 | Attribute help tooltips ("what is Reallocated Sectors?") | MVP | 💤 | **done** — a curated `?` per attribute and per NVMe counter, a marker for attributes the *drive itself* reports at threshold, and the score breakdown it turned out the scan had been computing and discarding all along; see below |
 | A13 | Scan history log (durations, per-device errors) | MVP | 💤 | |
 | A14 | Degradation trend detection ("worsening" early-warning badge) | P2 | 💤 | **done** — see below |
 | A15 | History charts (temp, sectors, wear) + sparklines | P2 | 💤 | **done** — per-metric sparkline card on the device page, with a 7/30/90-day/all range selector. The x-axis is **time**, not reading index, with one shared date axis under the card (`ADR-023`) |
@@ -259,7 +259,11 @@ informational attributes are never flagged.
 list of reasons and the points each cost, and the scan has always produced it and then thrown it
 away — computed on every read, never stored. So the one question a 0-100 score invites, *"why?"*, had
 an answer that existed for a few milliseconds. It is now kept (`devices.penalties`, migration 0014),
-sent on the device endpoint, and shown as a one-line disclosure under the verdict.
+sent on the device endpoint, and shown as a one-line disclosure under the verdict. See `ADR-029`,
+which also records why the breakdown is *stored* rather than recomputed on read: a page that says
+"72/100, because of these three things" must have the three things that made it 72, and a breakdown
+recomputed at read time can disagree with the score beside it. The same pattern — a computed fact
+being discarded — then turned out to have two more instances, which became `ADR-028`.
 
 The `attribute_id` came with it, which is what this note originally asked for: the attribute table
 marks the rows the verdict actually **read**, so a row can now be either *"at threshold"* (the
