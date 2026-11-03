@@ -355,8 +355,13 @@ the honest answer rather than a release it is not.
 
 So the app can be developed and previewed outside a deployment host:
 
-- **`docker-compose.dev.yml`** builds the image from the working tree and bind-mounts
-  the source, so a rebuild picks up changes without publishing.
+- **`./update.sh`** is the loop for a host that *builds* the app rather than pulling a published
+  image: `git pull --ff-only`, rebuild, restart, with `git describe` stamped in so the sidebar says
+  which revision is running. `--no-pull` rebuilds what is checked out; `--logs` follows the log
+  after it comes up. A host running the GHCR image does not need it — `docker compose pull` is the
+  whole of that.
+- **`docker-compose.dev.yml`** builds the image from the working tree and stamps the version, so a
+  rebuild picks up changes without publishing.
 - **Go**: run `go run ./cmd/smartserve` directly on a Linux dev box for the fastest
   loop (device access still requires permissions on `/dev`). Frontend changes need
   only a browser refresh — the assets are static and embedded at build time in
@@ -366,3 +371,47 @@ So the app can be developed and previewed outside a deployment host:
 - **Preview**: the dashboard is reachable at `http://localhost:8080` from the dev
   compose stack; a private-repo image is not pullable by others until the GHCR
   package is made public (D21).
+
+### A Raspberry Pi as a development host
+
+Worth doing for one reason: **arm64 has never been run.** CI builds it on every pull request, and
+nothing has executed it on ARM hardware — so this is the cheapest way to close that gap, and the
+findings are the point rather than the setup.
+
+**1. Docker.** On DietPi: `dietpi-software`, then *Software Optimised* → **Docker** and *Install*.
+Or the official script, which is what DietPi runs underneath:
+
+```sh
+curl -fsSL https://get.docker.com | sh
+sudo usermod -aG docker "$USER"   # then log out and back in, or use sudo for now
+```
+
+**2. The repository.**
+
+```sh
+git clone https://github.com/Masieono/smart-serve.git
+cd smart-serve
+./update.sh
+```
+
+That builds and starts the stack. **The build is native on the Pi** — no QEMU, no `buildx` — so it
+takes a few minutes on a Pi 5 rather than the seconds an x86 box takes, and it is the same image the
+release publishes. The dashboard is then on `http://<pi-address>:8080`.
+
+**3. Device access.** The same three gates as any other host, and `docker-compose.dev.yml` already
+carries them. Note that **the Pi's own storage is an SD card, which reports no S.M.A.R.T. at all** —
+it is not the interesting device. A USB SSD or HDD is: it exercises the `SG_IO` passthrough path and
+`CAP_SYS_RAWIO`, which are the parts most likely to differ from x86.
+
+**4. What to check, and what to write down:**
+
+- A scan finds the USB drive, and its device page shows attributes rather than a notice.
+- `docker compose -f docker-compose.dev.yml logs --tail=20` shows the startup probe reading a drive
+  successfully. If it does not, the log names which of the three gates is closed.
+- **Idle CPU and RSS.** This is the figure the ARM audience wants, and a Pi is where the memory
+  figure genuinely differs from an x86 server. `docker stats --no-stream`.
+- Anything that reads differently from x86 — a bridge that reports a serial differently, a USB
+  enclosure that needs a `-d` override, a temperature that arrives in a different field.
+
+Record what you find in `docs/TESTING.md`'s Pass 8, and update `SCOPE.md` and `RELEASE.md`, which
+both currently say arm64 has never been run.

@@ -160,6 +160,27 @@ The maintenance card is absent when there are no windows — that is the design,
 | 6.13 | Type a threshold name that does not exist (`"reallocated_bad"`) and save. | An error **beside the box** naming the key, and nothing saved |
 | 6.14 | Change one model's temperature threshold, save, and **Scan now**. | That model is judged by its own number; the other drives are unchanged |
 
+## Pass 8 — arm64 (Raspberry Pi)
+
+The architecture CI builds and nothing has ever executed (`SCOPE.md`, `RELEASE.md`). Run it on a
+64-bit Pi OS — `uname -m` must say `aarch64`, or a 32-bit userland will pull the arm64 image and fail
+to `exec` it, which presents as a crash rather than as the architecture mismatch it is.
+
+Setup is in `DEPLOYMENT.md` §A Raspberry Pi as a development host.
+
+| # | Do | Expect |
+|---|---|---|
+| 8.1 | `./update.sh` on the Pi. | It builds and starts, and the sidebar shows the revision it built |
+| 8.2 | `docker compose -f docker-compose.dev.yml logs --tail=20`. | The startup probe line, reading a drive successfully |
+| 8.3 | Scan with a USB SSD or HDD attached. | The drive is found, and its device page shows attributes rather than a notice |
+| 8.4 | Look at a USB drive's transport and any `-d` override it needed. | Record it — the USB bridge is the part most likely to differ from x86 |
+| 8.5 | `docker stats --no-stream` while idle. | Record CPU and RSS. This is the figure the ARM audience wants |
+| 8.6 | Check the temperature and any NVMe fields on an NVMe enclosure. | Same values as x86 would give; note it if not |
+| 8.7 | Leave it overnight and look at the next morning's scan. | No drift, no leaked file descriptors, RSS steady |
+
+**The Pi's own SD card reports no S.M.A.R.T.** and is not a finding — a card that shows a notice is
+the app behaving correctly. The USB drive is the test.
+
 ## Pass 7 — cross-cutting
 
 | # | Do | Expect |
