@@ -207,7 +207,9 @@ That is the whole of Phase 4, and with it the last tabled item: the batch self-t
   through sit behind a **Details** disclosure — facts worth having, not worth putting in front of
   everybody. Two settings, `show_partitions` and `show_usage`, both on by default, turn the card and
   the column off. Two dead struct fields (`device.protocol`, decoded and read by nothing) are gone.
-  See `ADR-028`.
+  And `in_smartctl_database` is now read, so the attribute table's "smartctl does not know this
+  model" note is a **fact rather than an inference from seeing `Unknown_Attribute` names** — three
+  situations, three wordings, where the old note claimed the first for all of them. See `ADR-028`.
   attribute tables side by side. The **alignment is the feature**, not a rendering detail: two drives
   of one model report their attributes in whatever order smartctl felt like, so the union of ids,
   their order and the "these disagree" marking are decided server-side where they can be tested. Rows

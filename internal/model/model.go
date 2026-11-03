@@ -58,21 +58,25 @@ type NVMeHealth struct {
 
 // SmartData is the normalized S.M.A.R.T. payload for a single device.
 type SmartData struct {
-	Model          string      `json:"model"`
-	ModelFamily    string      `json:"model_family,omitempty"`
-	Serial         string      `json:"serial"`
-	Firmware       string      `json:"firmware"`
-	CapacityBytes  uint64      `json:"capacity_bytes"`
-	RotationRate   int         `json:"rotation_rate"`
-	InterfaceSpeed string      `json:"interface_speed,omitempty"`
-	WWN            string      `json:"wwn,omitempty"`
-	Bus            Bus         `json:"bus"`
-	Passed         *bool       `json:"passed,omitempty"`
-	TemperatureC   *int        `json:"temperature_c,omitempty"`
-	PowerOnHours   *int64      `json:"power_on_hours,omitempty"`
-	PowerCycles    *int64      `json:"power_cycles,omitempty"`
-	Attributes     []Attribute `json:"attributes,omitempty"`
-	NVMe           *NVMeHealth `json:"nvme,omitempty"`
+	Model          string `json:"model"`
+	ModelFamily    string `json:"model_family,omitempty"`
+	Serial         string `json:"serial"`
+	Firmware       string `json:"firmware"`
+	CapacityBytes  uint64 `json:"capacity_bytes"`
+	RotationRate   int    `json:"rotation_rate"`
+	InterfaceSpeed string `json:"interface_speed,omitempty"`
+	WWN            string `json:"wwn,omitempty"`
+	// InDatabase is whether smartctl's own database knows this drive's model (`FEATURES.md` A28).
+	// The attribute table used to *infer* this from seeing `Unknown_Attribute` names; this says it.
+	// Nil when smartctl did not say, which is a third answer rather than a missing one.
+	InDatabase   *bool       `json:"in_database,omitempty"`
+	Bus          Bus         `json:"bus"`
+	Passed       *bool       `json:"passed,omitempty"`
+	TemperatureC *int        `json:"temperature_c,omitempty"`
+	PowerOnHours *int64      `json:"power_on_hours,omitempty"`
+	PowerCycles  *int64      `json:"power_cycles,omitempty"`
+	Attributes   []Attribute `json:"attributes,omitempty"`
+	NVMe         *NVMeHealth `json:"nvme,omitempty"`
 	// Messages holds smartctl's own messages (errors/warnings); used to explain
 	// why a device could not be read.
 	Messages []string `json:"messages,omitempty"`

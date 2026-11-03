@@ -419,6 +419,9 @@ func (s *Server) deviceProjection(ctx context.Context, serial string) interp.Pro
 type snapshotPayload struct {
 	Attributes []model.Attribute `json:"attributes"`
 	NVMe       *model.NVMeHealth `json:"nvme"`
+	// InDatabase is whether smartctl knew the drive's model at that read (`FEATURES.md` A28). Absent
+	// for a snapshot taken before the field existed, which is why it is a pointer.
+	InDatabase *bool `json:"in_database"`
 }
 
 // decodeSnapshot parses a snapshot's attributes blob, tolerating anything malformed

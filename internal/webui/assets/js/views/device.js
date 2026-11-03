@@ -260,7 +260,7 @@ function draw(container, ctx, data, history) {
           el('button', { class: 'btn btn-sm btn-ghost', type: 'button',
             onclick: (e) => toggleRaw(d, e.currentTarget) }, ['Show raw output']),
         ]),
-        nvme ? nvmeTable(nvme) : attributeTable(attrs, { blamed }),
+        nvme ? nvmeTable(nvme) : attributeTable(attrs, { blamed, inDatabase: payload ? payload.in_database : undefined }),
         logHolder,
         el('div', { id: 'raw-holder' }),
       ]),

@@ -526,7 +526,11 @@ func marshalAttributes(sd *model.SmartData) string {
 	payload := struct {
 		Attributes []model.Attribute `json:"attributes,omitempty"`
 		NVMe       *model.NVMeHealth `json:"nvme,omitempty"`
-	}{Attributes: sd.Attributes, NVMe: sd.NVMe}
+		// Whether smartctl knows this model (`FEATURES.md` A28). Stored with the table it explains
+		// rather than on the device, because it is a fact about *that read* and the attribute names
+		// are what it accounts for.
+		InDatabase *bool `json:"in_database,omitempty"`
+	}{Attributes: sd.Attributes, NVMe: sd.NVMe, InDatabase: sd.InDatabase}
 
 	b, err := json.Marshal(payload)
 	if err != nil {

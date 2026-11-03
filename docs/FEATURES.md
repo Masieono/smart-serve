@@ -103,11 +103,14 @@ whether a drive can join a pool that demands one), and whether the device report
 slow down over time, and that is a real USB-enclosure finding). Collapsed by default, in the same
 place, so the main surface stays a verdict and a table.
 
-**`in_smartctl_database` is promoted from a guess to a fact.** The attribute table already labels
-unrecognised rows "Vendor specific" and says smartctl does not know the model — but it *infers* that
-from seeing `Unknown_Attribute` names. This field says so directly, so a drive smartctl knows but
-whose vendor renamed an attribute is no longer told the same thing as a drive nobody has ever
-characterised.
+**`in_smartctl_database` is now a fact, not an inference.** The attribute table already labelled
+unrecognised rows "Vendor specific" and said smartctl did not know the model — but it *inferred* that
+from seeing `Unknown_Attribute` names, so it said the same thing in three different situations. The
+field separates them: **false** is a model smartctl has never heard of and has no names for at all;
+**true** is a model it knows whose vendor keeps *these particular* counters private; absent is a
+smartctl that did not say, where the note states only what is observable. It rides in the snapshot's
+attributes blob rather than on the device, because it is a fact about that *read* and the attribute
+names are what it accounts for.
 
 **Settings.** Two toggles, both on by default: `show_partitions` and `show_usage`. They exist because
 the information is not doubtful and the verbosity is — a reader who only cares about the drive as a

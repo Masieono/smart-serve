@@ -35,7 +35,11 @@ type rawRoot struct {
 		Hours int64 `json:"hours"`
 	} `json:"power_on_time"`
 	PowerCycleCount *int64 `json:"power_cycle_count"`
-	ATAAttributes   *struct {
+	// InDatabase is whether smartctl recognises the drive's model. Tri-state on purpose: absent means
+	// smartctl did not say, which is different from either answer, and the attribute table words its
+	// note differently for all three (`FEATURES.md` A28).
+	InDatabase    *bool `json:"in_smartctl_database"`
+	ATAAttributes *struct {
 		Table []rawAttribute `json:"table"`
 	} `json:"ata_smart_attributes"`
 	NVMe     *rawNVMe `json:"nvme_smart_health_information_log"`
@@ -108,6 +112,7 @@ func ParseSMART(data []byte) (*model.SmartData, error) {
 		Firmware:     strings.TrimSpace(r.FirmwareVersion),
 		RotationRate: r.RotationRate,
 		Bus:          busFromType(r.Device.Type),
+		InDatabase:   r.InDatabase,
 	}
 	if r.InterfaceSpeed != nil && r.InterfaceSpeed.Max != nil {
 		sd.InterfaceSpeed = strings.TrimSpace(r.InterfaceSpeed.Max.String)

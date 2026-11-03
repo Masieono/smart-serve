@@ -176,6 +176,28 @@ test('a fully named table carries no vendor-specific note', () => {
   assert.doesNotMatch(text, /vendor specific/);
 });
 
+// `in_smartctl_database` (`FEATURES.md` A28) turns that note from an inference into a fact, and the
+// three answers are genuinely different: a model smartctl has never heard of, a model it knows whose
+// vendor keeps some counters private, and a smartctl that did not say. The old wording claimed the
+// first for all three.
+test('the vendor-specific note follows what smartctl actually said', () => {
+  const attributes = [attr(5, 'Reallocated_Sector_Ct', 100, 100, 10), attr(169, 'Unknown_Attribute', 100, 100, 50)];
+
+  const unknownModel = textOf(attributeTable(attributes, { inDatabase: false }));
+  assert.match(unknownModel, /does not have this drive model in its database/);
+
+  const knownModel = textOf(attributeTable(attributes, { inDatabase: true }));
+  assert.match(knownModel, /recognises this drive/);
+  assert.doesNotMatch(knownModel, /does not have this drive model/,
+    'a drive smartctl knows must not be told the opposite');
+
+  // Absent claims nothing: it states what is observable and stops.
+  const unsaid = textOf(attributeTable(attributes));
+  assert.match(unsaid, /smartctl has no name for them/);
+  assert.doesNotMatch(unsaid, /does not have this drive model/);
+  assert.doesNotMatch(unsaid, /recognises this drive/);
+});
+
 // The panel renders what the logs hold, so it no longer sends the reader into several hundred
 // lines of JSON to find it. The raw document is still named, for the parts that are not shown.
 test('the log panel renders entries rather than pointing at the raw output', () => {

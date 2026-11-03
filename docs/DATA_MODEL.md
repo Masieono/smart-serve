@@ -68,7 +68,7 @@ history — is one file that can be backed up with `cp` while the app is stopped
 | `score` | INTEGER | 0–100 health score, or -1 |
 | `temperature_c` | INTEGER NULL | |
 | `power_on_hours` | INTEGER NULL | |
-| `attributes` | TEXT | normalized JSON blob: ATA attributes or NVMe SMART/health log |
+| `attributes` | TEXT | normalized JSON blob: ATA attributes or NVMe SMART/health log, plus `in_database` — whether smartctl knew the drive's model at that read (`FEATURES.md` A28). One blob for the same reason as `disk_layout`: it is the read's whole result, read whole |
 | `wear_pct` | REAL NULL | Percentage of rated life **used**: NVMe `percentage_used`, or `100 − life left` for an ATA SSD (`SMART_INTERPRETATION.md` §1.1). NULL for a drive that reports neither — every HDD, and any SSD whose wear attribute is not one we trust |
 | `sectors` | INTEGER NULL | reallocated + pending + uncorrectable (attrs 5/197/198), added by migration `0006`. Denormalized out of `attributes` because the trend and longevity code asks for hundreds of rows and must not load that blob; NULL means the drive does not report sector counts (every NVMe) **or** the row predates `0006`. A projection needs two points, and inventing a zero for history we never recorded would fabricate a flat trend. |
 

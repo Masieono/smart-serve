@@ -556,6 +556,11 @@ stop demanding a value that is never going to be typed into the form (`ADR-022`)
   where the container can see the mountpoint**, because `lsblk` reads it with `statvfs` on the mount
   path — absent is the honest answer and a zero would read as an empty filesystem. Detail endpoint
   only, and the field is absent rather than null for a drive whose layout was never read.
+- The `snapshot.attributes` blob also carries `in_database` (`FEATURES.md` A28) — whether smartctl
+  knew the drive's model at that read. Tri-state: `false` is a model it has never heard of, `true` is
+  one it knows whose vendor keeps some counters private, and **absent** means it did not say, which
+  is a third answer rather than a missing one. The attribute table words its "vendor specific" note
+  from this instead of inferring it from `Unknown_Attribute` names.
 - `GET /api/devices/{serial}/raw` — raw `smartctl --json` (and the exact command
   line used) from the last scan; the diagnostics escape hatch for USB bridges
   (`FEATURES.md` A10). Served from the stored per-device output, so it survives a

@@ -779,6 +779,9 @@ export function attributeTable(attributes, opts = {}) {
   // "the score dropped 30 points" and "the drive says this row is at its own threshold" are
   // different statements, and the table is the only place both are visible at once.
   const blamed = opts.blamed || null;
+  // Whether smartctl knows this model (`A28`), from the same blob the attributes came in. Tri-state:
+  // true, false, or absent when smartctl did not say.
+  const inDatabase = opts.inDatabase;
   if (!attributes || !attributes.length) {
     return el('p', { class: 'muted', text: 'No ATA attribute table was reported for this device.' });
   }
@@ -791,16 +794,40 @@ export function attributeTable(attributes, opts = {}) {
       ]),
       el('tbody', {}, attributes.map((a) => attributeRow(a, blamed))),
     ]),
-    // Said out loud rather than left to be inferred. A dozen rows reading "Unknown_Attribute"
-    // looks like the app failed to read them. It is the drive reporting vendor counters that
-    // nobody has published a meaning for, and smartctl declining to invent one either.
-    unnamed
-      ? el('p', { class: 'muted attr-note', text:
-          `${unnamed} of these attributes are vendor specific. smartctl does not recognise this `
-          + 'drive model, so it has no name for them and the app cannot say what they mean. Their '
-          + 'values are shown exactly as the drive reports them.' })
-      : null,
+    vendorNote(unnamed, inDatabase),
   ]);
+}
+
+/**
+ * The note under the attribute table, when some rows have no name.
+ *
+ * A dozen rows reading "Vendor specific" looks like the app failed to read them. It is the drive
+ * reporting counters nobody has published a meaning for, and smartctl declining to invent one — but
+ * *why* smartctl has no name differs, and `in_smartctl_database` (`FEATURES.md` A28) is what tells the
+ * three cases apart:
+ *
+ * - **false**: smartctl does not have this model at all, so it has no names for *any* of them.
+ * - **true**: it knows the model and these particular counters are vendor-private.
+ * - **absent**: it did not say, so the note states what is observable and claims nothing more. This is
+ *   the wording the table used for all three before the field existed.
+ */
+function vendorNote(unnamed, inDatabase) {
+  if (!unnamed) return null;
+  const count = `${unnamed} of these attributes`;
+  let text;
+  if (inDatabase === false) {
+    text = `${count} are vendor specific. smartctl does not have this drive model in its database, ` +
+      'so it has no names for any of its counters and the app cannot say what they mean. Their values ' +
+      'are shown exactly as the drive reports them.';
+  } else if (inDatabase === true) {
+    text = `${count} are vendor specific. smartctl recognises this drive, but these particular ` +
+      'counters have no published meaning — the vendor keeps them private. Their values are shown ' +
+      'exactly as the drive reports them.';
+  } else {
+    text = `${count} are vendor specific. smartctl has no name for them, so the app cannot say what ` +
+      'they mean. Their values are shown exactly as the drive reports them.';
+  }
+  return el('p', { class: 'muted attr-note', text });
 }
 
 /**
