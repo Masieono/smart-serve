@@ -649,14 +649,32 @@ export function sectorLabel(logical, physical) {
 }
 
 /**
+ * The level at which a usage bar turns amber (`FEATURES.md` A28).
+ *
+ * A stored setting rather than a constant, because where "nearly full" starts is the user's call —
+ * and a *display* threshold, not a verdict: it does not touch the score. The two answer different
+ * questions (how much room is left vs how healthy the drive is), so the bar's colour and the health
+ * badge never contradict each other; they are not saying the same kind of thing.
+ */
+let storageWarnPct = 90;
+
+/** Set the amber level. Anything that is not a percentage falls back to the default. */
+export function setStorageWarnPct(value) {
+  const n = Number(value);
+  storageWarnPct = Number.isFinite(n) && n >= 1 && n <= 100 ? n : 90;
+}
+
+/** The level in force, for a caller that needs to know (and for the tests). */
+export function storageWarnLevel() {
+  return storageWarnPct;
+}
+
+/**
  * A horizontal usage bar, with the figure beside it.
  *
- * Deliberately **not colour-coded by fullness**. A bar that turns amber at 85% is the UI re-deriving
- * "is this bad?", which is exactly what the attribute table was written to avoid: the verdict and the
- * score are computed server-side, and a second opinion in the browser can disagree with them about
- * the same drive (`FEATURES.md` §A12). Length is the visualisation and it needs no threshold to be
- * read. If fullness should ever *mean* something, that is a rule in `interp` — a "running out of
- * space" finding — and the bar would follow the verdict rather than lead it.
+ * One colour until it crosses the warning level the user set, then amber. The threshold is a stored
+ * setting rather than a constant in this file: the browser deciding on its own where "nearly full"
+ * begins would be the UI inventing a judgement, and the app has one place for those.
  *
  * Returns null for a value that is not a number, so a caller can render "not measured" itself rather
  * than getting a bar drawn at zero.
@@ -676,7 +694,10 @@ export function usageBar(pct, opts = {}) {
       role: 'img',
       'aria-label': `${clamped}% used`,
       title: title || `${clamped}% used`,
-    }, [el('div', { class: 'usage-fill', style: `width:${clamped}%` })]),
+    }, [el('div', {
+      class: clamped >= storageWarnPct ? 'usage-fill usage-fill-warn' : 'usage-fill',
+      style: `width:${clamped}%`,
+    })]),
     el('span', { class: 'usage-pct', text: `${clamped}%` }),
     label ? el('span', { class: 'usage-label muted', text: label }) : null,
   ]);

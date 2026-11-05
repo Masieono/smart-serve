@@ -766,10 +766,9 @@ tr:hover .part-copy,
 }
 
 /* The usage bar (`FEATURES.md` A28).
-   Deliberately one colour. A bar that turns amber at 85% is the browser re-deriving "is this bad?",
-   and the verdict is computed server-side for exactly that reason — a second opinion here could
-   disagree with the badge at the top of the same page. Length is the visualisation; it needs no
-   threshold to be read. */
+   One colour until it crosses the warning level the user set, then amber. The threshold is a stored
+   setting, not a constant here: where "nearly full" begins is the user's call, and it is about room
+   rather than health — the verdict is not affected. */
 .usage {
   display: flex;
   align-items: center;
@@ -790,6 +789,10 @@ tr:hover .part-copy,
   height: 100%;
   background: var(--accent);
   border-radius: inherit;
+}
+
+.usage-fill-warn {
+  background: var(--caution);
 }
 
 .usage-pct {

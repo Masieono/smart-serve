@@ -147,6 +147,9 @@ and 7.5 can, with no hardware change — which is why the two are reported separ
 | 4.43 | Look at Save before touching anything. | Disabled — there is nothing to save |
 | 4.44 | Open `/settings/thresholds` directly in a fresh tab. | That page, not the default one — the URL is the page |
 | 4.45 | Open `/settings` and `/settings/nonsense`. | Both land on Thresholds rather than on a blank page |
+| 4.46 | Open **Thresholds** and look at the bottom row. | "Storage warning level", 90% by default |
+| 4.47 | Set it to 50 and Save. | Usage bars at or above 50% are amber on the fleet card and the drive page |
+| 4.48 | Check the verdict badge of a 95%-full drive. | Unchanged — the level colours a bar, it does not move the verdict |
 
 ## Pass 5 — notifications
 

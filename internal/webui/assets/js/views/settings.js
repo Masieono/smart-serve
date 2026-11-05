@@ -132,6 +132,22 @@ const DISPLAY_SPECS = [
 const ALL_SPECS = [...THRESHOLDS, ...OPERATIONS, ...DISPLAY_SPECS];
 
 /**
+ * The one setting on the Thresholds page that is not a health threshold (`FEATURES.md` A28).
+ *
+ * Deliberately *not* in `THRESHOLDS`: that list is what the per-model editor seeds from, and it is
+ * the interpreter's own numbers. This one is read by the browser and colours a usage bar; adding it
+ * to the seed would offer every model an override for something the scan never looks at.
+ */
+const STORAGE_SPECS = [
+  {
+    key: 'storage_warn_pct',
+    label: 'Storage warning level',
+    help: 'A usage bar turns amber at or above this.',
+    min: 50, max: 100, step: 1, unit: '%',
+  },
+];
+
+/**
  * Whether a setting's value is a temperature, and so follows the display unit.
  *
  * `temperature` is a *reading* and converts with the offset (30 °C is 86 °F); `delta` is a *span*
@@ -246,6 +262,9 @@ function draw(container, ctx, data, page, { carried = {}, unit: unitOverride } =
   const thresholdRows = THRESHOLDS.map((spec) => sliderRow(spec, settings, renderUnit, carried, inputs));
   const operationRows = OPERATIONS.map((spec) => sliderRow(spec, settings, renderUnit, carried, inputs));
   const displayRows = DISPLAY_SPECS.map((spec) => sliderRow(spec, settings, renderUnit, carried, inputs));
+  // The storage warning level sits with the thresholds because that is where somebody looks for a
+  // number like it, even though only the browser reads this one.
+  const storageRows = STORAGE_SPECS.map((spec) => sliderRow(spec, settings, renderUnit, carried, inputs));
 
   // Carried like the sliders, so "Reset to recommended" can move this one too rather than leaving it
   // at whatever was stored while every number around it changed.
@@ -398,6 +417,7 @@ function draw(container, ctx, data, page, { carried = {}, unit: unitOverride } =
           warn_on_any_nonzero: warn.checked ? 'true' : 'false',
           model_thresholds: perModel.value(),
           ...numbers(THRESHOLDS),
+          ...numbers(STORAGE_SPECS),
         };
       case 'notifications':
         return { public_url: publicUrl.value.trim(), ...numbers(OPERATIONS) };
@@ -538,6 +558,9 @@ function draw(container, ctx, data, page, { carried = {}, unit: unitOverride } =
             onclick: (event) => scanNow(event.currentTarget),
           }, [icon('scan'), 'Scan now and re-check']),
         ]),
+        // Read by the browser rather than by the scan, which is why it sits after the note about what
+        // the scan does.
+        ...storageRows,
       ]),
       // The same subject as the numbers above — one model's exceptions to them — so it shares the page
       // rather than getting a heading of its own. It was separate only because of how tall it is.

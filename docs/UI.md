@@ -381,8 +381,9 @@ picker offers exactly `ThemeNames`.
   and a partition with no filesystem shows "Linux LVM" under a dash, which is the *reason* there is
   nothing to mount. A partition the device reports read-only is badged, because a write-protect switch
   and a drive that has failed into read-only look identical otherwise. Usage is a **bar** — length
-  reads faster than two byte counts, and it is deliberately one colour, because a bar that turned amber
-  at 85% would be the browser re-deriving "is this bad?" while the verdict is computed server-side. A
+  reads faster than two byte counts — and it turns **amber at the level set on the Thresholds page**
+  (default 90%). Fullness is not health, so the colour cannot contradict the verdict badge; the two
+  answer different questions. A
   partition that is **not mounted** shows a dash — nothing to measure — while one that is mounted but
   outside the container says **not visible**, with the explanation and the compose fix in **Details**
   rather than as a paragraph under the table. **Details**, collapsed, also holds the sector sizes

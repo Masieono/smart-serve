@@ -15,6 +15,12 @@ discarding silently is not. See `ADR-028`.
 
 ### Added
 
+- **Usage bars turn amber at a level you set** (`A28`) — `storage_warn_pct`, default 90%, on the
+  Thresholds page. A *display* threshold and nothing else: the verdict is unaffected, so a 95%-full
+  drive can still be Good. Fullness and health answer different questions, which is why the bar's
+  colour cannot contradict the badge at the top of the same page. The previous version was
+  deliberately one colour, on the argument that a UI threshold is the browser inventing a judgement —
+  right about where a number like that belongs, wrong about this number.
 - **Score breakdown (`A12`)** — the device page says *why* the score is what it is: every penalty the
   interpreter applied, what it cost, and which attribute each one read. It was always computed — the
   scan threw it away, so the app knew a drive had lost 40 points and could not say for what. Persisted

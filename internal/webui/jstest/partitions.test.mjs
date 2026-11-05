@@ -9,7 +9,7 @@ import assert from 'node:assert/strict';
 import { installStubDom, StubNode } from './stub-dom.mjs';
 
 installStubDom();
-const { partitionTable, partitionUUID, sectorLabel, usageBar, outsideContainerNote } =
+const { partitionTable, partitionUUID, sectorLabel, usageBar, outsideContainerNote, setStorageWarnPct, storageWarnLevel } =
   await import('../assets/js/components.js');
 const { setDisplayOptions, currentDisplayOptions } = await import('../assets/js/views/device.js');
 
@@ -155,6 +155,48 @@ test('the usage bar clamps and labels itself', () => {
   assert.match(textOf(usageBar(140)), /100%/, 'a nonsense figure cannot overflow the track');
   assert.match(textOf(usageBar(-5)), /0%/);
   assert.match(textOf(usageBar(47, { label: '/mnt/media' })), /\/mnt\/media/);
+});
+
+/** The fill's class, which is where the amber level shows. */
+function fillClass(node) {
+  const track = node.all('div').find((n) => n.className === 'usage-track');
+  return track.all('div')[0].className;
+}
+
+// The level travels with the other display preferences, because that is what it is. The device page
+// applies it once at boot, so every bar on every page uses the same level.
+test('the warning level arrives with the display preferences', async () => {
+  setDisplayOptions({ storage_warn_pct: '75', show_usage: 'true' });
+  assert.equal(storageWarnLevel(), 75, 'the stored level was not applied');
+
+  // And an older server that does not send it falls back rather than turning every bar amber.
+  setDisplayOptions({});
+  assert.equal(storageWarnLevel(), 90);
+
+  setDisplayOptions({ storage_warn_pct: '90' });
+});
+// The bar turns amber at the level the user set — a stored setting rather than a constant here,
+// because the browser deciding on its own where "nearly full" begins would be the UI inventing a
+// judgement.
+test('the usage bar turns amber at the warning level, and not before', () => {
+  setStorageWarnPct(90);
+  assert.doesNotMatch(fillClass(usageBar(89)), /warn/);
+  assert.match(fillClass(usageBar(90)), /warn/, 'the level itself is past the line');
+  assert.match(fillClass(usageBar(100)), /warn/);
+
+  // A stored level is honoured: 70 means 70, not 90.
+  setStorageWarnPct(70);
+  assert.equal(storageWarnLevel(), 70);
+  assert.match(fillClass(usageBar(70)), /warn/);
+  assert.doesNotMatch(fillClass(usageBar(69)), /warn/);
+
+  // A level that cannot be honoured falls back to the default rather than turning every bar amber.
+  for (const junk of ['nonsense', '', null, 0, 250]) {
+    setStorageWarnPct(junk);
+    assert.equal(storageWarnLevel(), 90, `setStorageWarnPct(${JSON.stringify(junk)}) was accepted`);
+  }
+  assert.doesNotMatch(fillClass(usageBar(50)), /warn/);
+  setStorageWarnPct(90);
 });
 
 // A partition that is mounted nowhere and has no usage is not "not visible" — there is nothing to

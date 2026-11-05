@@ -4,7 +4,7 @@ import {
   fmtMinutes, scoreGrade, convertTemp, convertTempDelta, temperatureUnitName,
 } from '../dom.js';
 import { api } from '../api.js';
-import { verdictBadge, healthGauge, attributeTable, errorBox, openDialog, toast, transportLabel, trendRow, dateAxis, helpButton, partitionTable, sectorLabel, usageBar, outsideContainerNote } from '../components.js';
+import { verdictBadge, healthGauge, attributeTable, errorBox, openDialog, toast, transportLabel, trendRow, dateAxis, helpButton, partitionTable, sectorLabel, usageBar, outsideContainerNote, setStorageWarnPct } from '../components.js';
 import { nvmeHelp } from '../attributes.js';
 import { icon } from '../icons.js';
 import { selfTestCard } from './selftest.js';
@@ -1314,6 +1314,9 @@ export function setDisplayOptions(settings) {
     showPartitions: !off('show_partitions'),
     showUsage: !off('show_usage'),
   };
+  // The level a usage bar turns amber at (`FEATURES.md` A28). Read here with the rest of the display
+  // preferences because that is what it is — the bar's colour is presentation, not a verdict.
+  setStorageWarnPct((settings || {}).storage_warn_pct);
 }
 
 /** The options in force, for a caller that needs to know (and for the tests). */

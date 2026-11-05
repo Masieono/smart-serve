@@ -148,12 +148,17 @@ itself carries the short version as a tooltip. The tradeoff is real — somebody
 in the table has to open Details to find out why — and it is accepted because the *cell* still names
 the condition rather than showing a dash, and the explanation is one click away rather than absent.
 
-**The bar is not colour-coded, on purpose.** A usage bar that turns amber at 85% is the browser
-re-deriving "is this bad?" — which is precisely what the attribute table was written to avoid
-(`§A12`): the verdict and the score are computed server-side, and a second opinion in the UI can
-disagree with the badge at the top of the same page. Length is the visualisation and it needs no
-threshold to be read. If fullness should ever *mean* something, that belongs in `interp` as a
-"running out of space" finding, and the bar would then follow the verdict rather than lead it.
+**The bar turns amber at a level the user sets, and that level is a stored setting.** The first
+version was deliberately one colour, on the argument that a bar turning amber at 85% is the browser
+re-deriving "is this bad?" — which the attribute table avoids by having the verdict computed
+server-side. That argument was wrong for *this* number. Fullness is not health: a drive can be 95%
+full and perfectly healthy, and the two answer different questions, so a coloured bar cannot
+contradict the health badge — they are not saying the same kind of thing. What was right is where the
+number lives: `storage_warn_pct` is a setting, so the browser is drawing the line the user drew
+rather than inventing one. Default 90, adjustable 50–100, on the **Thresholds** page because that is
+where somebody looks for a number like it. It does **not** affect the verdict, and it is deliberately
+not in the per-model seed — that list is the interpreter's own numbers, and offering every model an
+override for something the scan never reads would be a control that does nothing.
 
 **Deliberately not captured, and why.** These are decisions rather than omissions:
 
