@@ -11,11 +11,20 @@ import * as settings from './views/settings.js';
 import { setPollSeconds as setSelfTestRefresh } from './views/selftest.js';
 import { setDisplayOptions } from './views/device.js';
 
+// The sidebar. A fourth element on an entry means it is a *group*: the pages underneath it are
+// listed when you are in that part of the app, and only then. Settings is the first one, because its
+// sections are each a page rather than a stack of collapsible headings — a dozen controls on one
+// screen is a wall, and a dozen controls split four ways is four short pages.
 const NAV = [
   ['/', 'Devices', 'dashboard'],
   ['/schedules', 'Schedules', 'schedule'],
   ['/notifications', 'Notifications', 'bell'],
-  ['/settings', 'Settings', 'settings'],
+  ['/settings', 'Settings', 'settings', [
+    ['/settings/thresholds', 'Thresholds'],
+    ['/settings/notifications', 'Notifications'],
+    ['/settings/appearance', 'Appearance'],
+    ['/settings/data', 'Data'],
+  ]],
 ];
 
 const root = document.getElementById('app');
@@ -23,12 +32,27 @@ const sidebar = el('aside', { class: 'sidebar', id: 'sidebar' });
 const content = el('main', { class: 'content', id: 'content' });
 
 let scanning = false;
+// Set by a view that must be asked before it is left. The settings pages use it for unsaved edits;
+// every other view leaves it null. Cleared on each route, so a guard cannot outlive its view.
+let navGuard = null;
 
 const ctx = {
-  navigate(path) {
+  async navigate(path) {
+    // Asked before the history entry is written, so a refused navigation leaves no trace to go back
+    // to — a "no" that still changed the URL would be worse than not asking.
+    if (navGuard && !(await navGuard(path))) return;
     history.pushState({}, '', appPath(path));
     sidebar.dataset.open = 'false';
     route();
+  },
+  /**
+   * Ask before this view is navigated away from.
+   *
+   * The guard returns true to allow the navigation. A view that sets one must also clear it when its
+   * edits are saved, or the reader is asked about changes that no longer exist.
+   */
+  setNavGuard(fn) {
+    navGuard = fn;
   },
   openDevice(serial) {
     ctx.navigate(`/device/${encodeURIComponent(serial)}`);
@@ -99,6 +123,9 @@ function currentPath() {
  */
 async function route({ keepScroll = false } = {}) {
   const path = currentPath();
+  // Cleared before the view renders: a guard belongs to the view that set it, and a view that wants
+  // one sets it again on the way in.
+  navGuard = null;
   renderSidebar(path);
 
   // Every view mounts a skeleton and then awaits its data, so the container is empty for the length
@@ -112,8 +139,10 @@ async function route({ keepScroll = false } = {}) {
       await schedules.render(content, ctx);
     } else if (path === '/notifications') {
       await notifications.render(content, ctx);
-    } else if (path === '/settings') {
-      await settings.render(content, ctx);
+    } else if (path === '/settings' || path.startsWith('/settings/')) {
+      // `/settings` is the section, not a page: it renders the first one. That keeps the plain
+      // sidebar entry working and means a bookmarked `/settings` is never a dead end.
+      await settings.render(content, ctx, path.slice('/settings/'.length));
     } else {
       await dashboard.render(content, ctx);
     }
@@ -123,15 +152,38 @@ async function route({ keepScroll = false } = {}) {
 }
 
 function renderSidebar(path) {
-  const items = NAV.map(([href, label, name]) => el('a', {
-    class: 'nav-item',
-    href: appPath(href),
-    'aria-current': (href === '/' ? path === '/' : path.startsWith(href)) ? 'page' : null,
-    onclick: (event) => {
-      event.preventDefault();
-      ctx.navigate(href);
-    },
-  }, [icon(name), label]));
+  const items = NAV.flatMap(([href, label, name, children]) => {
+    const here = href === '/' ? path === '/' : path === href || path.startsWith(`${href}/`);
+    const link = el('a', {
+      class: 'nav-item',
+      href: appPath(href),
+      // Only the exact page is `page`. A section whose child is current is *marked*, not claimed —
+      // saying "you are here" about a link that goes somewhere else is worse than saying nothing.
+      'aria-current': (href === '/' ? path === '/' : path === href) ? 'page' : null,
+      onclick: (event) => {
+        event.preventDefault();
+        ctx.navigate(href);
+      },
+    }, [icon(name), label]);
+
+    if (!children) return [link];
+
+    // The sub-pages of the section you are in, and only then. Ten permanent entries would make the
+    // sidebar as long as the page the sections were split to shorten.
+    return [
+      el('div', { class: here ? 'nav-group nav-group-active' : 'nav-group' }, [link]),
+      ...(here ? [el('div', { class: 'nav-children' }, children.map(([subHref, subLabel]) =>
+        el('a', {
+          class: 'nav-item nav-sub',
+          href: appPath(subHref),
+          'aria-current': path === subHref ? 'page' : null,
+          onclick: (event) => {
+            event.preventDefault();
+            ctx.navigate(subHref);
+          },
+        }, [subLabel])))] : []),
+    ];
+  });
 
   clear(sidebar);
   sidebar.append(

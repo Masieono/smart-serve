@@ -502,16 +502,21 @@ picker offers exactly `ThemeNames`.
   left, control right-aligned so every value lands in the same column — and the height is bought back
   where it belongs: by keeping the explanations to one or two lines instead of four, which is most of
   what made the page tall in the first place.
-- **Sections are collapsible, and closed by default.** The page is a dozen controls deep, and what a
-  reader scans for is the *section*, not the fourth slider in it — so the collapsed page is an index
-  rather than a wall. Each summary carries the section name and a one-line hint saying what is inside,
-  because a page of bare titles is tidier than a page of controls and no more useful. Two details make
-  collapsing safe rather than annoying: the **open state lives in a module-level set**, not in the DOM,
-  so the re-render that saving triggers does not slam shut the section somebody is working in; and a
-  section holding an **error forces itself open**, because a complaint nobody can see is worse than the
-  clutter the collapsing was for. The Knowledge section's live status (how many families, how old the
-  fetched copy) sits in its *summary*, since it is the thing that decides whether opening it is worth
-  it.
+- **Settings is four pages, not one.** Thresholds, Notifications, Appearance and Data, each reached
+  from the sidebar — the sections are listed under the Settings entry while you are in that part of
+  the app, and only then. The first attempt kept them as collapsible headings on one screen, which
+  made the wall shorter to look at without making it shorter to use; a dozen controls split four ways
+  is four short pages, and nothing needs folding up. `/settings` itself renders the first page, so the
+  plain sidebar entry and an old bookmark both land somewhere.
+- **Save is per page.** Each page sends only its own fields, and `SetSettings` merges per key, so
+  saving Appearance cannot disturb a threshold — which is what makes per-page Save safe rather than a
+  way to silently drop somebody's other edits. **Save is disabled until something changes**, and
+  leaving a page with unsaved edits asks first: nothing here writes to a drive, so the prompt is not a
+  safety net, it is the difference between discarding a change deliberately and losing a number you
+  typed. The guard is registered by the view and cleared on every route, so it cannot outlive the page
+  that set it.
+- **A page loads only what it draws.** The per-model editor wants the fleet to seed from and the
+  knowledge card wants the knowledge status; Appearance and Notifications ask for neither.
 - Numeric settings are a **list of rows**, not a grid of labelled boxes: the label and
   its explanation sit together on the left and the control is right-aligned, so every
   value lands in one column and the page can be scanned and compared at a glance. Each

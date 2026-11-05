@@ -81,16 +81,30 @@ export class StubNode {
     this.listeners.get(type).push(handler);
   }
 
+  /**
+   * Fire an event, then let it bubble.
+   *
+   * Bubbling is not a detail: a view that delegates — one listener on a container instead of one per
+   * control, which is how the settings pages ask "is anything dirty?" — registers on an *ancestor*,
+   * and a stub that stopped at the target would make every such listener untestable while looking
+   * like the view was broken.
+   *
+   * `currentTarget` moves up with the event, as the spec says it does, so a handler on the container
+   * sees the container there and not the control that was actually touched.
+   */
   dispatch(type, event = {}) {
     const dispatchEvent = this.dispatchEvent(type, event);
-    for (const handler of [...(this.listeners.get(type) || [])]) {
-      handler(dispatchEvent);
+    for (let node = this; node; node = node.parent) {
+      dispatchEvent.at(node);
+      for (const handler of [...(node.listeners.get(type) || [])]) {
+        handler(dispatchEvent);
+      }
+      // The `on<type>` property too, which is what `el()` sets when a view passes `onchange` or
+      // `oninput` rather than registering a listener. A real dispatch invokes both, so a stub that
+      // fired only the listeners would make every `oninput` handler untestable.
+      const property = node[`on${type}`];
+      if (typeof property === 'function') property(dispatchEvent);
     }
-    // The `on<type>` property too, which is what `el()` sets when a view passes `onchange` or
-    // `oninput` rather than registering a listener. A real dispatch invokes both, so a stub that
-    // fired only the listeners would make every `oninput` handler untestable.
-    const property = this[`on${type}`];
-    if (typeof property === 'function') property(dispatchEvent);
     dispatchEvent.done();
   }
 
@@ -117,6 +131,9 @@ export class StubNode {
     };
     // Not a property the caller can shadow: the point is that it becomes null.
     shaped.done = () => { current = null; };
+    // Bubbling moves the event up the tree, so `currentTarget` has to move with it. Exposed as a
+    // method rather than a writable property, so `currentTarget` stays read-only to handlers.
+    shaped.at = (node) => { current = node; };
     return shaped;
   }
 

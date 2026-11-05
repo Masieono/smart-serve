@@ -5,7 +5,14 @@ import { installStubDom, stubFetch } from './stub-dom.mjs';
 installStubDom();
 const settings = await import('../assets/js/views/settings.js');
 
-const ctx = { setTemperatureUnit() {}, refresh() {} };
+// The view context the shell provides. `setNavGuard` is part of it: a settings page registers one so
+// an unsaved edit asks before it is navigated away from.
+const ctx = {
+  setTemperatureUnit() {},
+  setDisplayOptions() {},
+  setNavGuard() {},
+  refresh() {},
+};
 
 // The knowledge base status (`FEATURES.md` A21), as GET /api/knowledge returns it. Both requests the
 // settings page makes are stubbed with the same payload, so this object carries the settings map *and*
@@ -35,7 +42,7 @@ test('the knowledge card reports every layer', async () => {
   stubFetch({ settings: {}, ...KNOWLEDGE });
 
   const container = document.createElement('div');
-  await render(container);
+  await render(container, 'data');
 
   // The status lives in the section's `<summary>` now, so it is visible while the section is closed —
   // which is the point: the age of the table is what decides whether opening it is worth it.
@@ -45,9 +52,10 @@ test('the knowledge card reports every layer', async () => {
     assert.ok(status.includes(expected), `status "${status}" does not mention "${expected}"`);
   }
 
-  // The overrides editor holds what is stored, so a save round-trips rather than blanking it.
+  // The two editors live on different pages now: the knowledge overrides on Data, the per-model
+  // thresholds on Thresholds. Both are still reachable, and neither page renders the other's.
   const editors = container.all('textarea').filter((n) => n.className === 'settings-editor');
-  assert.equal(editors.length, 2, 'the knowledge overrides and the per-model thresholds');
+  assert.equal(editors.length, 1, 'the Data page renders the knowledge editor and nothing else');
   const knowledgeEditor = editors.find((n) => n.getAttribute('aria-label') === 'Your knowledge base entries');
   assert.ok(knowledgeEditor, 'no knowledge editor');
   assert.equal(knowledgeEditor.value, KNOWLEDGE.overrides.payload);
@@ -69,7 +77,7 @@ test('the knowledge card copes with nothing fetched and nothing typed', async ()
   stubFetch({ settings: {}, bundled_entries: 12, resolved_entries: 12, bundled: '{"version":1}' });
 
   const container = document.createElement('div');
-  await render(container);
+  await render(container, 'data');
 
   const [status] = textsFor(container, 'span', 'muted knowledge-status');
   assert.ok(status.includes('12 families known'));
@@ -87,7 +95,7 @@ test('a stale fetched copy is called out', async () => {
   stubFetch({ settings: {}, ...KNOWLEDGE, cache_stale: true });
 
   const container = document.createElement('div');
-  await render(container);
+  await render(container, 'data');
 
   const warnings = textsFor(container, 'p', 'muted knowledge-warn');
   assert.equal(warnings.length, 1);
@@ -102,18 +110,32 @@ function rowLabels(container) {
     .map((node) => node.textContent);
 }
 
-function render(container) {
-  return settings.render(container, ctx);
+function render(container, page = 'thresholds') {
+  return settings.render(container, ctx, page);
 }
 
-test('the settings page renders a labelled row for every setting', async () => {
+/**
+ * Every settings page, rendered.
+ *
+ * Settings is four pages now, so a test asking "does every setting have a row?" has to ask all four —
+ * and the ones that ask about one subject render just that page.
+ */
+async function renderEveryPage(payload) {
+  const containers = [];
+  for (const id of settings.settingsPageIds()) {
+    stubFetch(payload);
+    const container = document.createElement('div');
+    await settings.render(container, ctx, id);
+    containers.push(container);
+  }
+  return containers;
+}
+
+test('the settings pages render a labelled row for every setting', async () => {
   installStubDom();
-  stubFetch({ settings: {} });
+  const containers = await renderEveryPage({ settings: {} });
 
-  const container = document.createElement('div');
-  await render(container);
-
-  const labels = rowLabels(container);
+  const labels = containers.flatMap((container) => rowLabels(container));
   for (const expected of [
     'Temperature caution threshold',
     'Reallocated sectors → failing',
@@ -133,12 +155,11 @@ test('the settings page renders a labelled row for every setting', async () => {
 
 test('every numeric setting gets a slider bound to its own range', async () => {
   installStubDom();
-  stubFetch({ settings: {} });
+  const containers = await renderEveryPage({ settings: {} });
 
-  const container = document.createElement('div');
-  await render(container);
-
-  const sliders = container.all('input').filter((n) => n.className === 'setting-range');
+  const sliders = containers
+    .flatMap((container) => container.all('input'))
+    .filter((n) => n.className === 'setting-range');
   // Five health thresholds, three operational settings, the two correlated-heat tunables, and the
   // self-test refresh interval.
   assert.equal(sliders.length, 11);
@@ -151,6 +172,25 @@ test('every numeric setting gets a slider bound to its own range', async () => {
     assert.ok(Number(slider.value) >= min && Number(slider.value) <= max,
       `default ${slider.value} is outside ${min}..${max}`);
   }
+});
+
+// Each page loads only what it draws. The per-model editor wants the fleet and the knowledge card
+// wants the knowledge status; the other two pages should not be paying for either.
+test('a page asks for only what it draws', async () => {
+  installStubDom();
+  const requests = [];
+  stubFetch({ settings: {}, devices: [], bundled_entries: 1, resolved_entries: 1 }, requests);
+
+  await render(document.createElement('div'), 'appearance');
+  const appearance = requests.map((r) => r.url);
+  assert.ok(!appearance.some((u) => u.includes('/api/devices')), 'Appearance fetched the fleet');
+  assert.ok(!appearance.some((u) => u.includes('/api/knowledge')), 'Appearance fetched knowledge');
+
+  requests.length = 0;
+  await render(document.createElement('div'), 'data');
+  const data = requests.map((r) => r.url);
+  assert.ok(data.some((u) => u.includes('/api/knowledge')), 'Data needs the knowledge status');
+  assert.ok(!data.some((u) => u.includes('/api/devices')), 'Data fetched the fleet');
 });
 
 // The stored threshold is Celsius (what the drive reports). Showing it in
@@ -194,37 +234,35 @@ function buttonLabelled(container, label) {
 
 const flush = () => new Promise((resolve) => setTimeout(resolve, 1));
 
-// Switching units re-renders the page so the slider's bounds follow. A re-render
-// that reads the unit back from the stored settings snaps the picker to Celsius the
-// instant the user chooses Fahrenheit, which is exactly the bug this pins.
+// Switching units re-renders the page so the picker keeps what was chosen. A re-render that reads the
+// unit back from the stored settings snaps the picker to Celsius the instant the user chooses
+// Fahrenheit, which is exactly the bug this pins.
 test('switching to Fahrenheit survives the re-render', async () => {
   installStubDom();
   stubFetch({ settings: { temperature_unit: 'c', temperature_threshold_c: '55' } });
 
   const container = document.createElement('div');
-  await render(container);
+  await render(container, 'appearance');
   assert.equal(unitPicker(container).value, 'c');
 
   unitPicker(container).value = 'f';
   unitPicker(container).dispatch('change');
 
   assert.equal(unitPicker(container).value, 'f', 'the picker snapped back to Celsius');
-
-  // And the threshold followed, so the slider is adjustable in the shown unit.
-  const slider = container.all('input').find((n) => n.className === 'setting-range');
-  assert.equal(slider.value, '131');
-  assert.equal(slider.getAttribute('min'), '86');
 });
 
-// The other half of the same bug: with the picker reset to Celsius, Save persisted
-// Celsius, so the choice could never be kept either.
-test('saving after switching units stores Fahrenheit and keeps Celsius', async () => {
+// The other half of the same bug: with the picker reset to Celsius, Save persisted Celsius, so the
+// choice could never be kept either.
+//
+// The unit is an Appearance setting now, so this is where it is saved — the temperature *threshold*
+// it affects lives on the Thresholds page and is sent by that page's own Save.
+test('saving after switching units stores Fahrenheit', async () => {
   installStubDom();
   const requests = [];
   stubFetch({ settings: { temperature_unit: 'c', temperature_threshold_c: '55' } }, requests);
 
   const container = document.createElement('div');
-  await render(container);
+  await render(container, 'appearance');
 
   unitPicker(container).value = 'f';
   unitPicker(container).dispatch('change');
@@ -234,25 +272,56 @@ test('saving after switching units stores Fahrenheit and keeps Celsius', async (
   const put = requests.find((r) => r.method === 'PUT');
   assert.ok(put, 'Save should PUT the settings');
   assert.equal(put.body.temperature_unit, 'f');
-  // 131 °F is the same temperature as the stored 55 °C; the database stays Celsius.
-  assert.equal(put.body.temperature_threshold_c, '55');
+  // And nothing else went with it: a page saves its own fields.
+  assert.ok(!('temperature_threshold_c' in put.body),
+    'Appearance saved a threshold it does not render');
 });
 
-// Every control on the page must reach the save payload. A control that renders but
-// is never sent is a setting that silently does nothing.
-test('the save payload carries every control the page renders', async () => {
+// The threshold is stored in Celsius whatever the display unit says, so a page shown in Fahrenheit
+// must send Celsius. Split across pages, the conversion is still the thing that could silently go
+// wrong: 131 °F typed into the box must reach the database as 55.
+test('a threshold edited in Fahrenheit is stored in Celsius', async () => {
   installStubDom();
   const requests = [];
-  stubFetch({ settings: {} }, requests);
+  stubFetch({ settings: { temperature_unit: 'f', temperature_threshold_c: '55' } }, requests);
 
   const container = document.createElement('div');
-  await render(container);
+  await render(container, 'thresholds');
 
+  const box = container.all('input').find((n) =>
+    n.className === 'setting-number'
+    && n.getAttribute('aria-label') === 'Temperature caution threshold value');
+  assert.equal(box.value, '131', 'the stored Celsius value was not shown in Fahrenheit');
+
+  box.value = '140'; // 60 °C
+  box.dispatch('input');
   saveButton(container).click();
   await flush();
 
   const put = requests.find((r) => r.method === 'PUT');
   assert.ok(put, 'Save should PUT the settings');
+  assert.equal(put.body.temperature_threshold_c, '60', 'the value was stored in the display unit');
+});
+
+// Every control on every page must reach a save payload. A control that renders but is never sent is
+// a setting that silently does nothing — and with four pages and per-page saves, "is every control
+// covered by *some* page?" is the question worth asking rather than "is it on the one page?".
+test('the save payloads together carry every control the pages render', async () => {
+  installStubDom();
+  const requests = [];
+  stubFetch({ settings: {} }, requests);
+
+  const sent = new Set();
+  for (const id of settings.settingsPageIds()) {
+    const container = document.createElement('div');
+    await render(container, id);
+    saveButton(container).click();
+    await flush();
+  }
+  for (const put of requests.filter((r) => r.method === 'PUT')) {
+    for (const key of Object.keys(put.body)) sent.add(key);
+  }
+
   for (const key of [
     'temperature_threshold_c',
     'reallocated_bad_threshold',
@@ -268,8 +337,13 @@ test('the save payload carries every control the page renders', async () => {
     'theme_base',
     'theme_accent',
     'theme_surface_tint',
+    'show_partitions',
+    'show_usage',
+    'public_url',
+    'prometheus_enabled',
+    'knowledge_url',
   ]) {
-    assert.ok(key in put.body, `${key} is rendered but never saved`);
+    assert.ok(sent.has(key), `${key} is rendered but never saved by any page`);
   }
 });
 
@@ -306,8 +380,12 @@ test('Reset to recommended loads the shipped values without saving them', async 
  * threw a TypeError into an unhandled promise — silently, because nobody awaits a click handler —
  * and the button stayed disabled for the rest of the session. The second press is the assertion
  * that matters: the first one always "worked".
+ *
+ * Save is also disabled until something changes now, so each press here is preceded by an edit.
+ * That is the same invariant seen from the other side: the button must reflect whether there is
+ * anything to save, and it must never get stuck.
  */
-test('Save is usable again after it has been pressed', async () => {
+test('Save can be pressed again after it has been pressed', async () => {
   installStubDom();
   const requests = [];
   stubFetch({ settings: {} }, requests);
@@ -316,12 +394,24 @@ test('Save is usable again after it has been pressed', async () => {
   await render(container);
 
   const save = saveButton(container);
+  const slider = container.all('input').find((n) => n.className === 'setting-range');
+  const nudge = (by) => {
+    slider.value = String(Number(slider.getAttribute('min')) + by);
+    slider.dispatch('input');
+  };
+
+  assert.equal(save.disabled, true, 'Save offers to save nothing on an untouched page');
+
+  nudge(1);
+  assert.equal(save.disabled, false, 'a change did not enable Save');
   save.click();
   await flush();
+  assert.equal(requests.filter((r) => r.method === 'PUT').length, 1, 'the first press did not save');
+  assert.equal(save.disabled, true, 'Save is still offering to save what it just saved');
 
+  nudge(2);
   assert.equal(save.disabled, false,
     'Save stayed disabled after saving, so it can never be pressed a second time');
-
   save.click();
   await flush();
   assert.equal(requests.filter((r) => r.method === 'PUT').length, 2, 'the second press did not save');
@@ -417,7 +507,7 @@ test('the per-model editor is saved with the rest of the settings', async () => 
   seed.click();
   assert.match(editor.value, /Samsung SSD 870 EVO/, 'the seed did not name the fleet models');
 
-  container.all('button').find((b) => b.textContent === 'Save settings').click();
+  container.all('button').find((b) => b.textContent === 'Save').click();
   await flush();
 
   const put = requests.find((r) => r.method === 'PUT');
@@ -466,7 +556,7 @@ test('a rejected per-model value is shown beside the editor', async () => {
   const container = document.createElement('div');
   await settings.render(container, ctx);
 
-  container.all('button').find((b) => b.textContent === 'Save settings').click();
+  container.all('button').find((b) => b.textContent === 'Save').click();
   await flush();
 
   const shown = container

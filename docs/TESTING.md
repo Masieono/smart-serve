@@ -140,6 +140,13 @@ and 7.5 can, with no hardware change — which is why the two are reported separ
 | 4.36 | Open **Appearance**, change the theme. | The section stays open across the re-render |
 | 4.37 | Paste nonsense into the per-model editor and press Save. | The error is visible — the section forces itself open |
 | 4.38 | Open Settings, navigate away, come back. | Sections are closed again — the state is per-visit, not stored |
+| 4.39 | Open **Settings** in the sidebar. | Four sub-entries appear under it: Thresholds, Notifications, Appearance, Data |
+| 4.40 | Click each one. | Its own short page, with the section name as the heading — no collapsing, nothing hidden |
+| 4.41 | Change a threshold and try to navigate away. | "Leave without saving?" — Cancel stays, Discard leaves |
+| 4.42 | Change a threshold, press Save, then navigate away. | No prompt — there is nothing unsaved to lose |
+| 4.43 | Look at Save before touching anything. | Disabled — there is nothing to save |
+| 4.44 | Open `/settings/thresholds` directly in a fresh tab. | That page, not the default one — the URL is the page |
+| 4.45 | Open `/settings` and `/settings/nonsense`. | Both land on Thresholds rather than on a blank page |
 
 ## Pass 5 — notifications
 

@@ -177,22 +177,64 @@ const DEFAULTS = {
   theme_surface_tint: 'neutral',
 };
 
-export async function render(container, ctx) {
+/**
+ * The settings pages, in sidebar order.
+ *
+ * Each is a page rather than a heading on one long screen. The sections had grown to a dozen controls
+ * between them — a wall to read, and a long scroll for the one number somebody came for — and
+ * collapsing them only made the wall shorter to look at. Four short pages beat one long one with
+ * everything folded up.
+ *
+ * `needs` is what a page wants beyond the settings map: the per-model editor wants the fleet to seed
+ * from, the knowledge card wants the knowledge status. A page does not pay for the others' requests.
+ */
+const PAGES = [
+  { id: 'thresholds', label: 'Thresholds', needs: ['devices'] },
+  { id: 'notifications', label: 'Notifications', needs: [] },
+  { id: 'appearance', label: 'Appearance', needs: [] },
+  { id: 'data', label: 'Data', needs: ['knowledge'] },
+];
+
+/** One line under the page title, saying what the page is for. */
+const PAGE_NOTES = {
+  thresholds: 'What makes a drive caution or failing. Read by the scan, so a change applies from the ' +
+    'next one.',
+  notifications: 'How long a condition stays quiet, how much history is kept, and where this app is ' +
+    'reachable from.',
+  appearance: 'Theme, units, and what the pages show.',
+  data: 'Moving settings between hosts, and serving them to something else.',
+};
+
+/** The page for an id, or the first one — `/settings` is a section, not a page. */
+export function settingsPage(id) {
+  return PAGES.find((p) => p.id === id) || PAGES[0];
+}
+
+/** Every page id, in order. Exported so a test can walk them without duplicating the list. */
+export function settingsPageIds() {
+  return PAGES.map((p) => p.id);
+}
+
+export async function render(container, ctx, pageId) {
+  const page = settingsPage(pageId);
   mount(container, el('div', { class: 'skeleton', style: 'width:30%;height:24px' }));
   try {
-    // All three in one round trip: the knowledge card is part of the page, and the per-model
-    // threshold editor lists the models actually in the fleet. A second request that arrived after
-    // the first render would make the page jump.
-    const [settings, knowledge, devices] = await Promise.all([
-      api.settings(), api.knowledge(), api.devices(),
-    ]);
-    draw(container, ctx, { ...settings, knowledge, devices });
+    const wanted = [api.settings()];
+    for (const name of page.needs) {
+      wanted.push(name === 'knowledge' ? api.knowledge() : api.devices());
+    }
+    const [settings, ...extra] = await Promise.all(wanted);
+    const data = { ...settings };
+    page.needs.forEach((name, i) => {
+      data[name] = extra[i];
+    });
+    draw(container, ctx, data, page);
   } catch (err) {
     mount(container, errorBox(`Could not load settings: ${err.message}`));
   }
 }
 
-function draw(container, ctx, data, { carried = {}, unit: unitOverride } = {}) {
+function draw(container, ctx, data, page, { carried = {}, unit: unitOverride } = {}) {
   const settings = { ...DEFAULTS, ...(data.settings || {}) };
 
   // The stored settings are authoritative for this page, so the sliders agree with
@@ -258,8 +300,9 @@ function draw(container, ctx, data, { carried = {}, unit: unitOverride } = {}) {
   // user chose Fahrenheit — and Save would then persist the wrong unit.
   unit.value = renderUnit;
 
-  // Switching units re-renders so the temperature slider's bounds and label match.
-  // Values edited but not yet saved are carried across in Celsius, so nothing the
+  // Switching units re-renders so the temperature slider's bounds and label match — and on the
+  // Appearance page that slider is not mounted, so the re-render is only about the picker keeping
+  // what was chosen. Values edited but not yet saved are carried across in Celsius, so nothing the
   // user typed is silently reinterpreted as a different temperature.
   unit.addEventListener('change', () => {
     const next = {};
@@ -270,7 +313,7 @@ function draw(container, ctx, data, { carried = {}, unit: unitOverride } = {}) {
       next[spec.key] = toDisplay(spec, celsius, unit.value);
     }
     ctx.setTemperatureUnit(unit.value);
-    draw(container, ctx, data, { carried: next, unit: unit.value });
+    draw(container, ctx, data, page, { carried: next, unit: unit.value });
   });
 
   const theme = el('select', {}, THEMES.map(([value, text]) => el('option', { value, text })));
@@ -326,28 +369,69 @@ function draw(container, ctx, data, { carried = {}, unit: unitOverride } = {}) {
 
   const perModel = perModelSection(settings, data.devices, thresholdValues);
 
-  const save = el('button', {
-    class: 'btn btn-primary',
-    type: 'button',
-    text: 'Save settings',
-    onclick: async (event) => {
-      const payload = {
-        warn_on_any_nonzero: warn.checked ? 'true' : 'false',
-        temperature_unit: unit.value,
-        public_url: publicUrl.value.trim(),
-        prometheus_enabled: prometheus.checked ? 'true' : 'false',
-        show_partitions: showPartitions.checked ? 'true' : 'false',
-        show_usage: showUsage.checked ? 'true' : 'false',
-        knowledge_url: knowledgeUrl.value.trim(),
-        model_thresholds: perModel.value(),
-        ...currentTheme(),
-      };
-      for (const spec of ALL_SPECS) {
+  /**
+   * The settings this page owns, read from its own controls.
+   *
+   * A page saves *its* fields and nothing else. `SetSettings` merges per key, so a save here cannot
+   * disturb a page you are not looking at — which is the property that makes per-page Save safe
+   * rather than a way to silently drop somebody's other edits.
+   *
+   * It is also the dirty check: comparing this against what the page was drawn with is what tells the
+   * Save button — and the navigation guard — whether there is anything to save, without wiring a
+   * listener to every control.
+   */
+  function fieldsFor(id) {
+    const numbers = (specs) => {
+      const out = {};
+      for (const spec of specs) {
         const raw = Number(inputs[spec.key].value);
         if (!Number.isFinite(raw)) continue;
         // A temperature is stored in Celsius whatever the display unit says.
-        payload[spec.key] = String(fromDisplay(spec, raw, renderUnit));
+        out[spec.key] = String(fromDisplay(spec, raw, renderUnit));
       }
+      return out;
+    };
+
+    switch (id) {
+      case 'thresholds':
+        return {
+          warn_on_any_nonzero: warn.checked ? 'true' : 'false',
+          model_thresholds: perModel.value(),
+          ...numbers(THRESHOLDS),
+        };
+      case 'notifications':
+        return { public_url: publicUrl.value.trim(), ...numbers(OPERATIONS) };
+      case 'appearance':
+        return {
+          temperature_unit: unit.value,
+          show_partitions: showPartitions.checked ? 'true' : 'false',
+          show_usage: showUsage.checked ? 'true' : 'false',
+          ...currentTheme(),
+          ...numbers(DISPLAY_SPECS),
+        };
+      default:
+        // The Data page renders two controls: the knowledge URL and the metrics toggle. Both are
+        // this page's, and a control that renders but is never sent is a setting that silently does
+        // nothing — which is exactly what the first version of this switch did.
+        return {
+          knowledge_url: knowledgeUrl.value.trim(),
+          prometheus_enabled: prometheus.checked ? 'true' : 'false',
+        };
+    }
+  }
+
+  // What the page looked like when it was drawn. Compared on every edit, so "are there unsaved
+  // changes?" is one question with one answer rather than a flag every control has to remember to set.
+  let saved = JSON.stringify(fieldsFor(page.id));
+  let dirty = false;
+
+  const save = el('button', {
+    class: 'btn btn-primary',
+    type: 'button',
+    text: 'Save',
+    disabled: true,
+    onclick: async (event) => {
+      const payload = fieldsFor(page.id);
 
       // Captured before the first `await`. The spec nulls `event.currentTarget` the moment
       // dispatch ends, so reading it afterwards throws a TypeError into an unhandled promise —
@@ -358,22 +442,47 @@ function draw(container, ctx, data, { carried = {}, unit: unitOverride } = {}) {
       try {
         await api.putSettings(payload);
         perModel.showError('');
-        ctx.setTemperatureUnit(payload.temperature_unit);
-        // A28: the two display toggles take effect on the next device page rather than needing a
-        // reload — the same treatment the temperature unit gets, for the same reason.
-        ctx.setDisplayOptions(payload);
-        applyTheme(payload);
+        // Display preferences that the rest of the app reads from module state, so a saved change
+        // takes effect on the next page rather than needing a reload.
+        ctx.setTemperatureUnit(payload.temperature_unit || renderUnit);
+        ctx.setDisplayOptions({ ...settings, ...payload });
+        if (payload.theme) applyTheme(payload);
+        // Saved: the baseline moves, so the button disables itself and the guard stops asking.
+        saved = JSON.stringify(fieldsFor(page.id));
+        setDirty(false);
         toast('Settings saved', 'good');
       } catch (err) {
         // Shown beside the box as well as in the toast: the one error this save can produce names a
-        // JSON field, and a toast is gone before it has been read. The same reasoning as the
-        // knowledge editor below.
+        // JSON field, and a toast is gone before it has been read.
         perModel.showError(err.message);
         toast(err.message, 'error');
-      } finally {
         button.disabled = false;
       }
     },
+  });
+
+  function setDirty(next) {
+    dirty = next;
+    save.disabled = !next;
+  }
+
+  // One delegated listener rather than one per control: the page knows its own fields, so a change
+  // anywhere is answered by asking the same question.
+  container.addEventListener('input', refreshDirty);
+  container.addEventListener('change', refreshDirty);
+  function refreshDirty() {
+    setDirty(JSON.stringify(fieldsFor(page.id)) !== saved);
+  }
+
+  // Leaving a page with unsaved edits asks first. Nothing here writes to a drive, so this is not a
+  // safety net — it is the difference between "I meant to discard that" and losing a number you
+  // typed and did not press Save for.
+  ctx.setNavGuard(async () => {
+    refreshDirty();
+    if (!dirty) return true;
+    return confirmDialog('Leave without saving?',
+      'This page has changes that have not been saved. Leaving now discards them.',
+      'Discard changes');
   });
 
   /**
@@ -388,37 +497,31 @@ function draw(container, ctx, data, { carried = {}, unit: unitOverride } = {}) {
     // The checkbox too, or a reset would move every number and leave the one switch beside them alone.
     const recommended = { warn_on_any_nonzero: DEFAULTS.warn_on_any_nonzero };
     for (const spec of ALL_SPECS) recommended[spec.key] = displayValue(spec, DEFAULTS, renderUnit);
-    draw(container, ctx, data, { carried: recommended, unit: renderUnit });
-    toast('Recommended values loaded — press Save settings to apply them');
+    draw(container, ctx, data, page, { carried: recommended, unit: renderUnit });
+    toast('Recommended values loaded — press Save to apply them');
   }
 
-  mount(container,
-    el('div', { class: 'page-head' }, [
-      el('div', {}, [
-        el('h1', { text: 'Settings' }),
-        el('div', { class: 'sub', text: 'Stored in the database, so no restart is needed. Health ' +
-          'thresholds are read by the scan, and apply from the next one.' }),
-      ]),
-      el('span', { class: 'spacer' }),
-      save,
-    ]),
 
-    // One sheet with sections, not four cards in a grid.
-    //
-    // The grid meant four different card heights and a ragged bottom, and reaching the shortest one
-    // meant scrolling past the tallest — so it did not make the page shorter, it made it uneven. A
-    // single surface whose sections lay their rows out in two columns does both jobs: it halves the
-    // height of the longest section, and there is nothing left to be uneven.
-    el('div', { class: 'card stack panel-wide settings-sheet' }, [
-      settingsSection('Health thresholds', [
+  // The four page bodies. Each closes over the controls its page owns — they are built once above,
+  // because building DOM is free and splitting the control creation would mean four copies of the
+  // slider wiring.
+  //
+  // A section here is a plain heading and its rows: with one page per group there is nothing left to
+  // collapse, which is what the headings were for.
+
+  /** The six numbers, the switch beside them, and the per-model editor that overrides them. */
+  function thresholdsSection() {
+    return el('section', { class: 'settings-section' }, [
+      el('h2', { text: 'Health thresholds' }),
+      el('div', { class: 'settings-rows' }, [
         ...thresholdRows,
         settingRow('Caution on any sector problem',
           'Flag a drive as soon as a single reallocated, pending or uncorrectable sector appears.',
           warn),
-        // The one place on this page where "applied immediately" is not true, and the reason a
-        // lowered threshold looks like it did nothing: a verdict is worked out when a drive is
-        // *read*, and that reading is what the page shows. Changing a threshold changes nothing
-        // until the next one — so the page says so, and offers the scan rather than assuming it.
+        // The one place on this page where "applied immediately" is not true, and the reason a lowered
+        // threshold looks like it did nothing: a verdict is worked out when a drive is *read*, and that
+        // reading is what the page shows. Changing a threshold changes nothing until the next one — so
+        // the page says so, and offers the scan rather than assuming it.
         el('p', { class: 'muted settings-note', text: 'A verdict is worked out when a drive is read, ' +
           'so a threshold changed here takes effect from the next scan.' }),
         el('div', { class: 'row' }, [
@@ -435,21 +538,43 @@ function draw(container, ctx, data, { carried = {}, unit: unitOverride } = {}) {
             onclick: (event) => scanNow(event.currentTarget),
           }, [icon('scan'), 'Scan now and re-check']),
         ]),
-      ], { hint: 'the six numbers that decide a verdict' }),
-
+      ]),
+      // The same subject as the numbers above — one model's exceptions to them — so it shares the page
+      // rather than getting a heading of its own. It was separate only because of how tall it is.
       perModel.node,
+    ]);
+  }
 
-      settingsSection('Alerts and retention', [
+  /** When to go quiet, how much to keep, and where this app can be reached. */
+  function notificationsSection() {
+    return el('section', { class: 'settings-section' }, [
+      el('h2', { text: 'Alerts and retention' }),
+      el('div', { class: 'settings-rows' }, [
         ...operationRows,
         settingRow('Public URL',
           'Where this app is reachable from outside the host, for the "Open drive" button on a ' +
           'notification. Empty adds no button — the app cannot know its own address, and a wrong ' +
           'link is worse than none.',
           publicUrl),
-        settingRow('Prometheus metrics',
-          'Serve /metrics for a Prometheus scrape. Off by default: the endpoint costs nothing, but ' +
-          'turning it on invites another service to poll this app.',
-          prometheus),
+      ]),
+    ]);
+  }
+
+  /** Theme, units, and what the other pages show. */
+  function appearanceSection() {
+    return el('section', { class: 'settings-section' }, [
+      el('h2', { text: 'Appearance' }),
+      el('div', { class: 'settings-rows' }, [
+        settingRow('Temperature unit',
+          'How temperatures are displayed; the threshold on the Thresholds page follows it. The stored ' +
+          'value stays Celsius, which is what the drives report.',
+          unit),
+        themeRow,
+        ...customRows,
+        tintRow,
+        // What the drive pages draw (A28), and how often a running self-test is re-read. Display
+        // preferences all, which is why they live here rather than with the thresholds.
+        ...displayRows,
         settingRow('Partitions on the drive page',
           'Show each drive’s partition table — what is on it, and how big each part is. Turn it off ' +
           'if you only care about the drive as a whole.',
@@ -458,20 +583,15 @@ function draw(container, ctx, data, { carried = {}, unit: unitOverride } = {}) {
           'Show how full each filesystem is. Needs the host’s mount roots bind-mounted read-only — ' +
           'for example `- /mnt:/mnt:ro` — or there is nothing to measure.',
           showUsage),
-      ], { hint: 'where alerts go, and how much history to keep' }),
+      ]),
+    ]);
+  }
 
-      settingsSection('Appearance', [
-        settingRow('Temperature unit',
-          'How temperatures are displayed; the threshold above follows it. The stored value stays ' +
-          'Celsius, which is what the drives report.',
-          unit),
-        themeRow,
-        ...customRows,
-        tintRow,
-        ...displayRows,
-      ], { hint: 'theme, units, and what the pages show' }),
-
-      settingsSection('Import and export', [
+  /** Getting settings in and out, and serving them to something else. */
+  function dataSection() {
+    return el('section', { class: 'settings-section' }, [
+      el('h2', { text: 'Import and export' }),
+      el('div', { class: 'settings-rows' }, [
         el('p', { class: 'muted', text: 'Device labels, settings and schedules, as one JSON file. For ' +
           'moving to another host: names, bays and tags live in the database, which survives a ' +
           'restart but not a move.' }),
@@ -489,74 +609,45 @@ function draw(container, ctx, data, { carried = {}, unit: unitOverride } = {}) {
             onclick: (e) => importConfig(ctx, e.currentTarget),
           }, ['Import']),
         ]),
-      ], { hint: 'move labels, settings and schedules to another host' }),
-
-      // Read from `data`, not from the local `settings` map — that one is the stored settings, and
-      // the knowledge status is its own payload.
+        settingRow('Prometheus metrics',
+          'Serve /metrics for a Prometheus scrape. Off by default: the endpoint costs nothing, but ' +
+          'turning it on invites another service to poll this app.',
+          prometheus),
+      ]),
+      // Read from `data`, not from the local `settings` map — that one is the stored settings, and the
+      // knowledge status is its own payload.
       knowledgeSection(data.knowledge, ctx, knowledgeUrl),
+    ]);
+  }
+  mount(container,
+    el('div', { class: 'page-head' }, [
+      el('div', {}, [
+        el('h1', { text: page.label }),
+        el('div', { class: 'sub', text: PAGE_NOTES[page.id] || '' }),
+      ]),
+      el('span', { class: 'spacer' }),
+      save,
     ]),
+
+    // One sheet with sections, not four cards in a grid.
+    //
+    // The grid meant four different card heights and a ragged bottom, and reaching the shortest one
+    // meant scrolling past the tallest — so it did not make the page shorter, it made it uneven. A
+    // single surface whose sections lay their rows out in one column is both shorter and even.
+    //
+    // Only the page's own sections are mounted. Everything above is built either way — it is DOM, not
+    // requests — but a section nobody is looking at is never read, and `fieldsFor` only asks its own
+    // page.
+    el('div', { class: 'card stack panel-wide settings-sheet' }, {
+      thresholds: [thresholdsSection()],
+      notifications: [notificationsSection()],
+      appearance: [appearanceSection()],
+      data: [dataSection()],
+    }[page.id] || []),
   );
 }
 
-// Which sections are expanded. Module-level so a re-render — which happens on save, on a threshold
-// reset, and when the theme changes — does not collapse the section somebody is working in. In memory
-// rather than in the database: it is where you were on a page, not a preference, and it should not
-// outlive the tab.
-const openSections = new Set();
 
-/** Record that a settings section is expanded or collapsed, so a re-render can restore it. */
-export function rememberSection(key, open) {
-  if (open) openSections.add(key);
-  else openSections.delete(key);
-  return open;
-}
-
-/** Whether a settings section should render expanded. */
-export function sectionIsOpen(key) {
-  return openSections.has(key);
-}
-
-/**
- * One collapsible section of the settings sheet.
- *
- * Collapsed by default, which is the whole point: the page is a dozen controls deep, and what a
- * reader scans for is the *section*, not the fourth slider in it. Each summary carries a line saying
- * what is inside, so a closed section is a signpost rather than a blank — a page of bare titles is
- * tidier than a page of controls and no more useful.
- *
- * `forceOpen` is for a section holding an error: an error nobody can see because the section it lives
- * in is collapsed is worse than the clutter the collapsing was for.
- */
-function collapsibleSection(key, title, hint, body, summaryExtra = null, forceOpen = false) {
-  const details = el('details', {
-    class: 'settings-section',
-    open: sectionIsOpen(key) || forceOpen || null,
-    // The closure rather than `event.currentTarget`, because the listener is the only thing that
-    // knows which section it belongs to and the event object is not always populated.
-    on: { toggle: () => rememberSection(key, details.open) },
-  }, [
-    el('summary', {}, [
-      el('span', { class: 'settings-section-title', text: title }),
-      hint ? el('span', { class: 'settings-section-hint muted', text: hint }) : null,
-      summaryExtra,
-    ]),
-    ...body,
-  ]);
-  return details;
-}
-
-/**
- * A settings section whose rows lay themselves out in columns.
- *
- * The rows are laid out by the stylesheet rather than here, because how many columns fit is a
- * question about the window and this file has no business knowing the answer.
- */
-function settingsSection(title, nodes, opts = {}) {
-  const { hint = '', key = title } = opts;
-  return collapsibleSection(key, title, hint, [
-    el('div', { class: 'settings-rows' }, nodes),
-  ]);
-}
 
 /**
  * Re-read the fleet so a threshold change takes effect.
@@ -707,9 +798,15 @@ function knowledgeSection(knowledge, ctx, urlInput) {
     ctx.refresh();
   }));
 
-  return collapsibleSection('Knowledge base', 'Knowledge base',
-    'the offline drive database',
-    [
+  return el('section', { class: 'settings-section' }, [
+    el('div', { class: 'row' }, [
+      el('h2', { text: 'Knowledge base' }),
+      el('span', { class: 'spacer' }),
+      // The status sits beside the heading rather than under it: how many families are known and how
+      // old the fetched copy is, is what decides whether reading the rest is worth it.
+      el('span', { class: 'muted knowledge-status', text: parts.join(' · ') }),
+    ]),
+    el('div', { class: 'settings-rows' }, [
       // The claim the old heading made, kept as a line in the body: it is the one thing about this
       // section that is not visible from the controls themselves.
       el('p', { class: 'muted', text: 'Every figure the app shows about a drive names its source, ' +
@@ -719,45 +816,39 @@ function knowledgeSection(knowledge, ctx, urlInput) {
             'than the one below. Refresh to replace it, or discard it to fall back to the shipped ' +
             'table.' })
         : null,
-      el('div', { class: 'settings-rows' }, [
-        settingRow('Refresh URL',
-          'Where to fetch an updated table from. Empty uses the published one, which is the file this ' +
-          'build already ships. Nothing is fetched on a schedule — only when you press Refresh.',
-          urlInput),
-      ]),
+      settingRow('Refresh URL',
+        'Where to fetch an updated table from. Empty uses the published one, which is the file this ' +
+        'build already ships. Nothing is fetched on a schedule — only when you press Refresh.',
+        urlInput),
       el('div', { class: 'row knowledge-actions' }, [
         refresh,
         k.cache ? discard : null,
-      // The shipped document, verbatim. This is how somebody starts their own copy to point the URL
-      // at — which is the whole reason the refresh exists.
-      el('a', {
-        class: 'btn btn-sm btn-ghost',
-        href: `data:application/json;charset=utf-8,${encodeURIComponent(k.bundled || '{}')}`,
-        download: 'smart-serve-knowledge.json',
-        title: 'The table this build ships, to edit and host yourself',
-      }, [icon('download'), 'Download the shipped table']),
+        // The shipped document, verbatim. This is how somebody starts their own copy to point the URL
+        // at — which is the whole reason the refresh exists.
+        el('a', {
+          class: 'btn btn-sm btn-ghost',
+          href: `data:application/json;charset=utf-8,${encodeURIComponent(k.bundled || '{}')}`,
+          download: 'smart-serve-knowledge.json',
+          title: 'The table this build ships, to edit and host yourself',
+        }, [icon('download'), 'Download the shipped table']),
+      ]),
+      el('div', { class: 'field' }, [
+        el('label', { text: 'Your own entries' }),
+        el('p', { class: 'muted field-hint', text: 'The same format as the table above, and they win ' +
+          'over it. An entry *replaces* the one for that family rather than merging with it, so copy ' +
+          'across anything you want to keep. These travel in the config export.' }),
+        editor,
+      ]),
+      error,
+      el('div', { class: 'row knowledge-actions' }, [
+        save,
+        el('button', {
+          class: 'btn btn-sm btn-ghost', type: 'button', text: 'Clear',
+          onclick: () => { editor.value = ''; showError(''); },
+        }),
+      ]),
     ]),
-    el('div', { class: 'field' }, [
-      el('label', { text: 'Your own entries' }),
-      el('p', { class: 'muted field-hint', text: 'The same format as the table above, and they win ' +
-        'over it. An entry *replaces* the one for that family rather than merging with it, so copy ' +
-        'across anything you want to keep. These travel in the config export.' }),
-      editor,
-    ]),
-    error,
-    el('div', { class: 'row knowledge-actions' }, [
-      save,
-      el('button', {
-        class: 'btn btn-sm btn-ghost', type: 'button', text: 'Clear',
-        onclick: () => { editor.value = ''; showError(''); },
-      }),
-    ]),
-    ],
-    // The live status rides in the summary: how many families are known and how old the fetched copy
-    // is, is what you want to know *before* deciding whether to open this at all. Collapsed, it is the
-    // only thing a reader can see — so it is the thing worth putting there.
-    el('span', { class: 'muted knowledge-status', text: parts.join(' · ') }),
-  );
+  ]);
 }
 /**
  * The models present in a fleet, once each and in a stable order.
@@ -845,35 +936,29 @@ function perModelSection(settings, deviceData, currentValues) {
   seed.disabled = models.length === 0;
 
   return {
-    node: collapsibleSection('Per-model thresholds', 'Per-model thresholds',
-      'different numbers for one drive model',
-      [
-        el('div', { class: 'settings-rows' }, [
-          el('div', { class: 'field' }, [
-            el('p', { class: 'muted field-hint', text: 'The thresholds above, except for one model. ' +
-              'A drive is matched on its model or its family, case-insensitively, and a number left ' +
-              'out here falls back to the value above. If two entries match the same drive the ' +
-              'longer name wins, so name them precisely rather than overlapping.' }),
-            editor,
-          ]),
+    node: el('section', { class: 'settings-section' }, [
+      el('h2', { text: 'Per-model thresholds' }),
+      el('div', { class: 'settings-rows' }, [
+        el('div', { class: 'field' }, [
+          el('p', { class: 'muted field-hint', text: 'The thresholds above, except for one model. ' +
+            'A drive is matched on its model or its family, case-insensitively, and a number left ' +
+            'out here falls back to the value above. If two entries match the same drive the ' +
+            'longer name wins, so name them precisely rather than overlapping.' }),
+          editor,
         ]),
-        error,
-        el('div', { class: 'row knowledge-actions' }, [
-          seed,
-          el('span', { class: 'muted', text: models.length
-            ? `${models.length} model${models.length === 1 ? '' : 's'} in the fleet`
-            : 'no drives read yet' }),
-          el('button', {
-            class: 'btn btn-sm btn-ghost', type: 'button', text: 'Clear',
-            onclick: () => { editor.value = ''; showError(''); },
-          }),
-        ]),
-      ],
-      null,
-      // An editor that rejected what was typed into it must not be able to hide its own complaint
-      // behind a collapsed summary.
-      Boolean(error.textContent),
-    ),
+      ]),
+      error,
+      el('div', { class: 'row knowledge-actions' }, [
+        seed,
+        el('span', { class: 'muted', text: models.length
+          ? `${models.length} model${models.length === 1 ? '' : 's'} in the fleet`
+          : 'no drives read yet' }),
+        el('button', {
+          class: 'btn btn-sm btn-ghost', type: 'button', text: 'Clear',
+          onclick: () => { editor.value = ''; showError(''); },
+        }),
+      ]),
+    ]),
     value: () => editor.value.trim(),
     showError,
   };
