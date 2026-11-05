@@ -83,6 +83,9 @@ function stubSelfTestApi({ running = null, refuseLong = null, logs = null } = {}
   // `logs` may be a list, used in order and then held at the last — which is how a drive that gains a
   // self-test row mid-test is modelled.
   const sequence = Array.isArray(logs) ? logs : null;
+  // And `running` likewise, for the other half of the same story: a drive that is testing now and
+  // has stopped by the next read. One value covers most tests; the list covers the transition.
+  const runningSequence = Array.isArray(running) ? running : null;
   let reads = 0;
   globalThis.fetch = async (url, init = {}) => {
     const path = String(url);
@@ -110,8 +113,11 @@ function stubSelfTestApi({ running = null, refuseLong = null, logs = null } = {}
       // The GET carries the drive's logs read *live*, which is where a finished test's result exists
       // until something rescans.
       const live = sequence ? sequence[Math.min(reads, sequence.length - 1)] : logs;
+      const state = runningSequence
+        ? runningSequence[Math.min(reads, runningSequence.length - 1)]
+        : running;
       reads += 1;
-      payload = live ? { running, logs: live } : { running };
+      payload = live ? { running: state, logs: live } : { running: state };
     }
     return { ok: true, status: 200, statusText: 'OK', text: async () => JSON.stringify(payload) };
   };
@@ -152,7 +158,11 @@ test('a drive that cannot self-test is told so, not offered a button', () => {
 
 // Both tests are offered, and the drive's own estimates are quoted: a figure from this app would be
 // worse than none, because knowing how long the drive will be busy is the only reason to show one.
-test('a drive that can self-test offers both, with its own estimates', () => {
+//
+// The estimate is on the *button*, not in the sentence above it: the question it answers ("how long
+// will this take?") is asked with the cursor over a button, and it used to be a paragraph away from
+// the thing it was about.
+test('a drive that can self-test offers both, with its own estimates on the buttons', () => {
   stopPolling();
   const card = selfTestCard(stubCtx(), { serial: 'S' }, {
     short_minutes: 2,
@@ -161,11 +171,13 @@ test('a drive that can self-test offers both, with its own estimates', () => {
   const labels = buttonsOf(card).map((b) => textOf(b));
   assert.equal(labels.length, 2);
   assert.match(labels[0], /Short test/);
+  assert.match(labels[0], /2 min/, 'the short estimate is not on the short button');
   assert.match(labels[1], /Long test/);
-  const text = textOf(card);
-  assert.match(text, /short test about 2 minutes/);
-  assert.match(text, /long test about 2 h 13 min/);
-  assert.match(text, /Nothing runs on its own/);
+  assert.match(labels[1], /2 h 13 min/, 'the long estimate is not on the long button');
+
+  // The long form stays available in the tooltip, where a sentence belongs.
+  assert.match(buttonsOf(card)[1].getAttribute('title'), /every sector/);
+  assert.match(textOf(card), /Nothing runs on its own/);
 });
 
 test('a drive that gives no estimates still offers the tests', () => {
@@ -173,6 +185,10 @@ test('a drive that gives no estimates still offers the tests', () => {
   const card = selfTestCard(stubCtx(), { serial: 'S' }, {});
   assert.equal(buttonsOf(card).length, 2);
   assert.match(textOf(card), /does not say how long/);
+  // And no empty "· " suffix on either button.
+  for (const button of buttonsOf(card)) {
+    assert.doesNotMatch(textOf(button), /·\s*$/, 'a button with a cost suffix and no cost');
+  }
 });
 
 // A test that was already running when the drive was last scanned is shown straight away, with the
@@ -196,6 +212,67 @@ test('a test already running is shown with its percentage', () => {
   const fill = card.find((n) => n.className === 'meter-fill');
   assert.ok(fill, 'a bar is drawn when the drive gave a figure');
   assert.match(String(fill.style), /width:53%/);
+});
+
+// The bug a person hit: start a long test, navigate to another drive, come back — and the card said
+// nothing was running, because it was drawn from the *last scan's* logs, which predate the test. The
+// drive was mid-test the whole time and only the drive knew.
+//
+// So the card reads the drive when it mounts. One request, not a poll: an idle drive costs exactly
+// that one read and nothing after it.
+test('a test started since the last scan is found when the page is opened', async () => {
+  stopPolling();
+  stubSelfTestApi({
+    running: { type: 'Extended offline', status: 'Self-test routine in progress', remaining: 62 },
+  });
+
+  // The stored logs say nothing is running — this is what a page load mid-test looks like.
+  const card = selfTestCard(stubCtx(), { serial: 'S' }, {
+    self_test_supported: true,
+    short_minutes: 2,
+    self_test_entries: [],
+  });
+  await flush();
+
+  const text = textOf(card);
+  assert.match(text, /Extended offline/, 'the running test was not found by the mount read');
+  assert.match(text, /62% left/);
+  assert.equal(buttonsOf(card).length, 1, 'the only action while a test runs is stopping it');
+  assert.match(textOf(buttonsOf(card)[0]), /Stop test/);
+  stopPolling();
+});
+
+// The other half: opening the page on an idle drive must not leave a poll running. The zero-idle-cost
+// invariant is the reason this card only reads on mount when nothing is running.
+test('an idle drive is read once on mount and then left alone', async () => {
+  stopPolling();
+  const requests = stubSelfTestApi({ running: null });
+
+  selfTestCard(stubCtx(), { serial: 'S' }, { self_test_supported: true, short_minutes: 2 });
+  await flush();
+
+  const reads = requests.filter((r) => r.method === 'GET').length;
+  assert.equal(reads, 1, `expected one read on mount, got ${reads}`);
+  stopPolling();
+});
+
+// A read the user did not ask for must not raise a toast on every page visit — a drive with a flaky
+// self-test endpoint would otherwise complain every time somebody looked at it.
+test('a failed mount read is quiet and leaves the card usable', async () => {
+  stopPolling();
+  globalThis.fetch = async () => {
+    throw new Error('the drive did not answer');
+  };
+
+  const card = selfTestCard(stubCtx(), { serial: 'S' }, {
+    self_test_supported: true, short_minutes: 2,
+  });
+  await flush();
+
+  const text = textOf(card);
+  assert.match(text, /Short test/, 'the card was left unusable after a failed read');
+  assert.doesNotMatch(text, /did not answer/, 'a mount read raised an error the user did not ask for');
+  stopPolling();
 });
 
 // The stored log is read the way the server reads it: an entry counts as running only when the
@@ -241,12 +318,17 @@ test('starting a long test posts the long type', async () => {
   stopPolling();
 });
 
-// Declining the confirmation must send nothing at all. A drive is not something to change by
-// accident.
+// Declining the confirmation must send nothing that changes the drive. A drive is not something to
+// change by accident.
+//
+// The card reads the drive once on mount (so a test started since the last scan is found), and that
+// read is a GET — so this asserts on the *mutations*, which is what the invariant is actually about.
 test('declining the confirmation sends nothing', async () => {
   stopPolling();
   const requests = stubSelfTestApi();
   const card = selfTestCard(stubCtx(), { serial: 'S' }, { short_minutes: 2 });
+  // The mount read re-mounts the action row when it lands, so the buttons are taken afterwards.
+  await flush();
 
   const run = buttonsOf(card)[0];
   const done = run.click();
@@ -256,7 +338,8 @@ test('declining the confirmation sends nothing', async () => {
   await done;
   await flush();
 
-  assert.deepEqual(requests, []);
+  assert.deepEqual(requests.filter((r) => r.method !== 'GET'), [],
+    'declining a confirmation must send no request that changes the drive');
   assert.equal(run.disabled, false, 'the button stays usable after a cancelled confirmation');
   stopPolling();
 });
@@ -280,11 +363,17 @@ test('stopping a running test asks first, then posts the abort', async () => {
 
 // The poll is what keeps a long test watchable, so it must not be able to outlive the card: one
 // timer at a time, cleared whenever the card redraws.
+//
+// The card schedules from the *read*, not from the stored logs, so the assertion comes after that read
+// settles — and the drive has to actually report a running test, or there is nothing to poll for.
 test('the poll is cleared, never left running', async () => {
   await withFakeTimers(async (pending) => {
+    stubSelfTestApi({ running: { type: 'Short offline', remaining: 50 } });
     selfTestCard(stubCtx(), { serial: 'S' }, {
       self_test_entries: [{ type: 'Short offline', remaining: 50 }],
     });
+    await flush();
+
     assert.equal(pending.size, 1, 'a running test schedules exactly one poll');
     assert.equal([...pending][0].ms, POLL_MS);
 
@@ -299,10 +388,19 @@ test('the poll is cleared, never left running', async () => {
 test('a finished test is recorded once, not on every poll', async () => {
   await withFakeTimers(async (pending) => {
     const ctx = stubCtx();
-    stubSelfTestApi({ running: null });
+    // Testing on the mount read, finished by the next one — which is the transition being tested.
+    stubSelfTestApi({
+      running: [
+        { type: 'Short offline', remaining: 50 },
+        null,
+        null,
+      ],
+    });
     const card = selfTestCard(ctx, { serial: 'S' }, {
       self_test_entries: [{ type: 'Short offline', remaining: 50 }],
     });
+    await flush();
+    assert.deepEqual(ctx.rescanned, [], 'a test still running on mount is not an outcome to record');
 
     const tick = [...pending][0].fn;
     await tick();
@@ -326,13 +424,15 @@ test('a card that has left the page stops polling', async () => {
     });
     holder.append(card);
     assert.equal(card.isConnected, true);
+    await flush();
 
     const tick = [...pending][0].fn;
     holder.removeChild(card);
     assert.equal(card.isConnected, false);
 
+    const before = requests.length;
     await tick();
-    assert.deepEqual(requests, [], 'a detached card reads nothing at all');
+    assert.equal(requests.length, before, 'a detached card reads nothing at all');
   });
 });
 
@@ -450,7 +550,9 @@ test('the live log is handed to the page', async () => {
 // forever for a running test it will never see.
 //
 // The baseline is taken from the drive just before the test starts, not from the last scan, so the
-// two reads here are the same log *before* the row appears and a log with it *after*.
+// reads here are: the mount read, the pre-start baseline read, and the read after the POST. The first
+// two both see the log *before* the row appears, and the third sees it *after* — which is the
+// comparison the card is making.
 test('a new result in the live log ends the wait', async () => {
   stopPolling();
   const before = {
@@ -463,12 +565,13 @@ test('a new result in the live log ends the wait', async () => {
       { type: 'Short', status: 'Completed without error', passed: true, hours: 42 },
     ],
   };
-  stubSelfTestApi({ running: null, logs: [before, after] });
+  stubSelfTestApi({ running: null, logs: [before, before, after] });
   const card = selfTestCard(stubCtx(), { serial: 'S' }, {
     self_test_supported: true,
     short_minutes: 2,
     self_test_entries: [{ type: 'Short', status: 'Completed without error', passed: true, hours: 41 }],
   });
+  await flush();
 
   const [run] = buttonsOf(card);
   await clickThrough(run);
@@ -487,9 +590,11 @@ test('a new result in the live log ends the wait', async () => {
 test('the poll interval follows the stored setting', async () => {
   await withFakeTimers(async (pending) => {
     const logs = { self_test_entries: [{ type: 'Extended offline', remaining: 40 }] };
+    stubSelfTestApi({ running: { type: 'Extended offline', remaining: 40 } });
 
     setPollSeconds(3);
     selfTestCard(stubCtx(), { serial: 'S' }, logs);
+    await flush();
     assert.equal([...pending][0].ms, 3000, 'the stored interval was not used');
     stopPolling();
 
@@ -497,6 +602,7 @@ test('the poll interval follows the stored setting', async () => {
     // zero would mean a poll every frame.
     setPollSeconds('0');
     selfTestCard(stubCtx(), { serial: 'S' }, logs);
+    await flush();
     assert.equal([...pending][0].ms, POLL_MS);
     stopPolling();
 

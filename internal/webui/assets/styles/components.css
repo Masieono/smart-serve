@@ -769,6 +769,14 @@ tr:hover .part-copy,
   white-space: normal;
 }
 
+/* The self-test estimate, on the button (`FEATURES.md` §A20). Quiet enough that the button label still
+   reads first, present enough to answer "how long will this take?" without a click. */
+.btn-cost {
+  margin-left: var(--space-1);
+  opacity: 0.7;
+  font-variant-numeric: tabular-nums;
+}
+
 /* The usage bar (`FEATURES.md` A28).
    Deliberately one colour. A bar that turns amber at 85% is the browser re-deriving "is this bad?",
    and the verdict is computed server-side for exactly that reason — a second opinion here could

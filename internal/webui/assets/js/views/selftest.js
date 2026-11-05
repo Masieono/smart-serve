@@ -211,6 +211,7 @@ export function selfTestCard(ctx, device, logs, onLogs = null) {
   }
 
   function runButton(label, kind, minutes, detail) {
+    const cost = fmtShort(minutes);
     return el('button', {
       class: 'btn', type: 'button', title: detail,
       onclick: async (event) => {
@@ -272,7 +273,12 @@ export function selfTestCard(ctx, device, logs, onLogs = null) {
           }
         }
       },
-    }, [icon('scan'), label]);
+    }, [icon('scan'), label, cost
+      // The estimate on the button itself, which is where the decision is made. It used to be in the
+      // sentence above, and a person choosing between two buttons does not read the sentence — the
+      // whole point of the figure is to answer "how long will this take?" at the moment of asking.
+      ? el('span', { class: 'btn-cost', text: `· ${cost}` })
+      : null]);
   }
 
   async function stop() {
@@ -298,14 +304,21 @@ export function selfTestCard(ctx, device, logs, onLogs = null) {
    * Drawn from what the *drive* says rather than from what was asked of it: a test the drive
    * refused, or one that finished while nobody was looking, must not leave a progress bar
    * counting down towards nothing.
+   *
+   * `quiet` is for the read this card does when it mounts. That one runs on every visit to the page,
+   * so a drive whose self-test state cannot be read would raise a toast every time somebody looked at
+   * it — and the stored logs the card is already drawn from are a better answer than an error nobody
+   * can act on. A read the *user* asked for (a button, a poll they started) stays loud.
    */
-  async function read() {
+  async function read({ quiet = false } = {}) {
     let state;
     try {
       state = await api.selfTest(device.serial);
     } catch (err) {
-      toast(`Could not read the self-test state: ${err.message}`, 'error');
-      showIdle();
+      if (!quiet) {
+        toast(`Could not read the self-test state: ${err.message}`, 'error');
+        showIdle();
+      }
       return;
     }
 
@@ -377,18 +390,30 @@ export function selfTestCard(ctx, device, logs, onLogs = null) {
     await read();
   }
 
-  // A test that was already running when the drive was last scanned is followed straight away, so
-  // reloading the page mid-test picks the progress back up instead of showing a stale percentage
-  // until something else happens to change it.
+  // Paint from the stored logs first, so the card is never blank while the read below is in flight.
   const stored = logs && Array.isArray(logs.self_test_entries)
     ? logs.self_test_entries.find((e) => e.remaining !== undefined)
     : null;
   if (stored) {
     wasRunning = true;
     showRunning(stored);
-    schedule();
   } else {
     showIdle();
+  }
+
+  // Then read the drive, once, on mount.
+  //
+  // The stored copy is from the *last scan*, and a test started since then is not in it — so a card
+  // that only trusted it reported "no test running" for a drive that was mid-test. That is how a
+  // running test came to look like an idle card after navigating away and back, and how the same
+  // drive could then be asked to start a second test it would refuse.
+  //
+  // One read, not a poll: `read()` starts the timer itself when the drive turns out to be testing, so
+  // visiting an idle drive costs exactly one request and nothing after it (the zero-idle-cost
+  // invariant, `DESIGN.md` §2.1). Skipped entirely when the drive's self-test log cannot be read,
+  // where the read could only fail.
+  if (!unreadLog) {
+    void read({ quiet: true });
   }
 
   return card;
@@ -397,17 +422,16 @@ export function selfTestCard(ctx, device, logs, onLogs = null) {
 /**
  * What a self-test costs, before anyone presses anything.
  *
- * The estimates are the drive's own, from its capability page. A guess from this app would be
- * worse than no figure at all, because the only reason to show one is to know how long the drive
- * will be busy.
+ * The estimates are the drive's own, from its capability page, and they now ride on the buttons
+ * rather than in this sentence — the figure answers "how long will this take?" and that question is
+ * asked with the cursor over a button, not while reading a paragraph. What is left here is the part
+ * that is not about either button: that nothing happens unless you ask, and what that means for the
+ * drive while it happens.
  */
 function idleNote(shortMinutes, extendedMinutes) {
-  const parts = [];
-  if (shortMinutes) parts.push(`a short test about ${fmtDuration(shortMinutes)}`);
-  if (extendedMinutes) parts.push(`a long test about ${fmtDuration(extendedMinutes)}`);
-  const cost = parts.length
-    ? `This drive estimates ${parts.join(' and ')}.`
-    : 'This drive does not say how long its tests take.';
+  const cost = shortMinutes || extendedMinutes
+    ? 'The drive stays usable throughout.'
+    : 'This drive does not say how long its tests take, so the buttons cannot show an estimate.';
   return `${cost} Nothing runs on its own: a self-test only starts when you ask for one.`;
 }
 
@@ -420,6 +444,21 @@ function fmtDuration(minutes) {
   const rest = n % 60;
   if (rest === 0) return `${hours} hour${hours === 1 ? '' : 's'}`;
   return `${hours} h ${rest} min`;
+}
+
+/**
+ * The same estimate, compressed for a button.
+ *
+ * "2 min" rather than "2 minutes": a button is a label, not a sentence, and the long form pushed the
+ * two buttons far enough apart that comparing them got harder rather than easier.
+ */
+function fmtShort(minutes) {
+  const n = Number(minutes);
+  if (!Number.isFinite(n) || n <= 0) return '';
+  if (n < 60) return `${fmtInt(n)} min`;
+  const hours = Math.floor(n / 60);
+  const rest = n % 60;
+  return rest === 0 ? `${hours} h` : `${hours} h ${rest} min`;
 }
 
 /** The newest finished result a log holds, or null. */

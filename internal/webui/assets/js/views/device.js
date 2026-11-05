@@ -562,6 +562,29 @@ function statGrid(rows, emptyNote) {
   return el('div', { class: 'form-grid' }, shown);
 }
 
+/**
+ * The drive's storage as a bar, with the filesystem it belongs to named underneath.
+ *
+ * `storage` is the server's summary of the fullest filesystem (`API.md`): one implementation of
+ * "which filesystem is fullest" for the list and this page both, so the two cannot disagree.
+ *
+ * The mountpoint is shown because "47%" is not actionable on its own — *which* filesystem is at 47%
+ * is the difference between a pool with room and a pool with a problem.
+ */
+function storageBar(storage) {
+  if (!storage) return null;
+  const bar = usageBar(storage.used_pct, {
+    title: storage.total_bytes
+      ? `${fmtBytes(storage.used_bytes)} of ${fmtBytes(storage.total_bytes)} used`
+      : `${storage.used_pct}% used`,
+  });
+  if (!bar) return null;
+  return el('div', { class: 'storage-block' }, [
+    bar,
+    storage.mount ? el('span', { class: 'storage-mount muted', text: storage.mount }) : null,
+  ]);
+}
+
 /** "96% remaining (4% used)" — prefers the drive's own life figure. */
 function lifeText(lifeLeft, wearPct) {
   if (lifeLeft != null) return `${lifeLeft}% remaining`;
