@@ -218,6 +218,47 @@ test('a drive with no partitions says so', () => {
   assert.equal(partitionTable(null).tagName, 'P');
 });
 
+// A drive with no partition table: what it *is* beats "unpartitioned or unreadable" (`FEATURES.md`
+// A28). A disk pulled from a RAID array has no table because it is an array member, and saying that
+// turns a message that reads like a fault into a description of a drive doing its job.
+test('a drive with no partition table says what it actually holds', () => {
+  // A `<p>` is the whole answer here, so its text is on the element itself rather than in children.
+  const note = (layout) => String(partitionTable(layout).textContent);
+
+  // An array member: the plain-language name, the exact blkid token, and no implication of a fault.
+  const raid = note({
+    whole_disk_fstype: 'linux_raid_member',
+    whole_disk_name: 'a Linux md array',
+    partitions: [],
+  });
+  assert.match(raid, /member of a Linux md array/);
+  assert.match(raid, /linux_raid_member/, 'the exact token is what somebody will search for');
+  assert.match(raid, /Nothing here is a fault/);
+
+  // A filesystem written straight to the device: no table, but plenty to say.
+  const whole = note({ whole_disk_fstype: 'ext4', partitions: [] });
+  assert.match(whole, /ext4/);
+  assert.match(whole, /written directly to the disk/);
+
+  // Nothing reported at all: the old message, which is the honest answer for a drive nobody has set
+  // up. It must not claim to know more than it does.
+  const unknown = note({ partitions: [] });
+  assert.match(unknown, /unpartitioned or its table could not be read/);
+});
+
+// A drive with partitions never gets the whole-disk sentence, even if the payload carries a signature
+// — a partitioned disk's signature *is* its table, and saying otherwise would be doubly wrong.
+test('a partitioned drive never shows the whole-disk note', () => {
+  const layout = {
+    whole_disk_fstype: 'linux_raid_member',
+    whole_disk_name: 'a Linux md array',
+    partitions: [partition({ name: '/dev/sdd1' })],
+  };
+  const text = textOf(partitionTable(layout));
+  assert.doesNotMatch(text, /member of/);
+  assert.match(text, /\/dev\/sdd1/, 'the table itself is still drawn');
+});
+
 // A read-only device is worth a badge: it explains a write-protect switch, or a drive that has
 // failed into read-only, without the reader having to know that `RO` exists.
 test('a read-only partition is marked', () => {

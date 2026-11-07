@@ -150,6 +150,9 @@ and 7.5 can, with no hardware change — which is why the two are reported separ
 | 4.46 | Open **Thresholds** and look at the bottom row. | "Storage warning level", 90% by default |
 | 4.47 | Set it to 50 and Save. | Usage bars at or above 50% are amber on the fleet card and the drive page |
 | 4.48 | Check the verdict badge of a 95%-full drive. | Unchanged — the level colours a bar, it does not move the verdict |
+| 4.49 | Open a drive pulled from a RAID array. | "a member of a Linux md array (`linux_raid_member`)" — not "unpartitioned or could not be read" |
+| 4.50 | Open a disk with a filesystem written straight to it (no table). | "holds an `ext4` filesystem written directly to the disk" |
+| 4.51 | Open a disk that has genuinely never been set up. | The old message — the app must not claim to know more than it does |
 
 ## Pass 5 — notifications
 

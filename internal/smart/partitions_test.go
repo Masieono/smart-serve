@@ -166,6 +166,75 @@ func TestUsePercentValueParsesLsblksFormat(t *testing.T) {
 	}
 }
 
+// A disk pulled from a RAID array (`FEATURES.md` A28).
+//
+// This is the case that produced "either unpartitioned or its table could not be read" for a drive
+// that was working perfectly. An md member has no partition table *because* it is an array member —
+// the layout lives in the array — and lsblk reports exactly that as the disk node's own filesystem
+// type. Saying so is the difference between a message that reads like a fault and one that describes
+// a drive doing its job.
+func TestARaidMemberIsNamedRatherThanCalledUnpartitioned(t *testing.T) {
+	sdc := parseFixture(t, "lsblk-raid-member.json")[0]
+
+	if len(sdc.Partitions) != 0 {
+		t.Fatalf("a RAID member has no partitions, got %d", len(sdc.Partitions))
+	}
+	if sdc.PartitionTable != "" {
+		t.Errorf("partition table = %q, want none", sdc.PartitionTable)
+	}
+
+	layout := sdc.DiskLayout()
+	if layout == nil {
+		t.Fatal("the layout was dropped; the card would not render at all")
+	}
+	if layout.WholeDiskFstype != "linux_raid_member" {
+		t.Errorf("whole-disk signature = %q, want linux_raid_member", layout.WholeDiskFstype)
+	}
+	if layout.WholeDiskName != "a Linux md array" {
+		t.Errorf("whole-disk name = %q, want the plain-language name", layout.WholeDiskName)
+	}
+}
+
+// A partitioned disk's own signature is its *table*, so the whole-disk fields stay empty — otherwise
+// the page would say "this disk holds a gpt filesystem".
+func TestAPartitionedDiskReportsNoWholeDiskSignature(t *testing.T) {
+	sda := parseFixture(t, "lsblk-gpt-lvm.json")[0]
+
+	layout := sda.DiskLayout()
+	if layout == nil {
+		t.Fatal("no layout")
+	}
+	if layout.WholeDiskFstype != "" || layout.WholeDiskName != "" {
+		t.Errorf("a partitioned disk reported a whole-disk signature: %q / %q",
+			layout.WholeDiskFstype, layout.WholeDiskName)
+	}
+}
+
+// The map is the whole mechanism, so it is worth pinning in both directions: a known token gets its
+// name, and anything else gets nothing rather than a guess. `ext4` written straight to a disk is a
+// filesystem, not a member of anything.
+func TestWholeDiskMemberNames(t *testing.T) {
+	for signature, want := range map[string]string{
+		"linux_raid_member": "a Linux md array",
+		"ISW_RAID_MEMBER":   "an Intel Rapid Storage array",
+		" ddf_raid_member ": "a DDF array",
+		"zfs_member":        "a ZFS pool",
+		"LVM2_member":       "an LVM volume group",
+		"crypto_LUKS":       "an encrypted volume",
+	} {
+		if got := WholeDiskMemberName(signature); got != want {
+			t.Errorf("WholeDiskMemberName(%q) = %q, want %q", signature, got, want)
+		}
+	}
+
+	// Not members: a plain filesystem, and nonsense.
+	for _, signature := range []string{"", "  ", "ext4", "xfs", "btrfs", "ntfs", "not_a_thing"} {
+		if got := WholeDiskMemberName(signature); got != "" {
+			t.Errorf("WholeDiskMemberName(%q) = %q, want empty", signature, got)
+		}
+	}
+}
+
 // UUIDs are carried for the copy button rather than for display (`FEATURES.md` A28): they are what
 // `/etc/fstab` speaks in, and nobody reads them. Both kinds are kept, and either can be absent —
 // a filesystem UUID is the filesystem's, a partition UUID is the table's, and a partition with no

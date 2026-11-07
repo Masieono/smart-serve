@@ -716,6 +716,36 @@ export function partitionsOutsideContainer(partitions) {
 }
 
 /**
+ * What to say about a drive with no partition table (`FEATURES.md` A28).
+ *
+ * "Unpartitioned, or its table could not be read" is true and useless. A disk pulled from a RAID
+ * array has no table *because* it is an array member — and `lsblk` already reported what it is as the
+ * disk node's own filesystem type. Saying so turns a message that reads like a fault into a
+ * description of a drive doing its job.
+ *
+ * The signature is shown in parentheses beside the plain-language name, because the exact blkid token
+ * is what somebody will search for — and it is the thing to quote when asking whether a drive is
+ * safe to reuse.
+ */
+export function noPartitionsNote(layout) {
+  const signature = String((layout && layout.whole_disk_fstype) || '').trim();
+  if (!signature) {
+    return 'This drive has no partition table. It is either unpartitioned or its table could not be ' +
+      'read.';
+  }
+
+  const member = String((layout && layout.whole_disk_name) || '').trim();
+  if (member) {
+    return `This drive is a member of ${member} (\`${signature}\`), so it has no partition table of ` +
+      'its own — the layout lives in the array, not on the disk. Nothing here is a fault.';
+  }
+
+  // A filesystem written straight to the device: no table, but plenty to say.
+  return `This drive has no partition table. It holds a \`${signature}\` filesystem written directly ` +
+    'to the disk instead.';
+}
+
+/**
  * The partition schema (`FEATURES.md` A28), as a table.
  *
  * The label leads and the node name follows it, because a person recognises "media" long before they
@@ -733,8 +763,7 @@ export function partitionTable(layout, opts = {}) {
   const { showUsage = true } = opts;
   const partitions = (layout && layout.partitions) || [];
   if (!partitions.length) {
-    return el('p', { class: 'muted', text: 'This drive has no partition table. It is either ' +
-      'unpartitioned or its table could not be read.' });
+    return el('p', { class: 'muted', text: noPartitionsNote(layout) });
   }
 
   const head = ['Partition', 'Size', 'Filesystem', 'Mounted at'];

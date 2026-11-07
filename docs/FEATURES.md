@@ -131,6 +131,18 @@ chart must never load a blob to draw a line. It is the one storage figure worth 
 40% today and 90% next month is the thing that runs out of room. The delta is in **points**, not per
 cent, because the value is already a percentage.
 
+**A drive with no partition table says what it holds.** "Unpartitioned, or its table could not be
+read" is true and useless, and it is what a disk pulled from a RAID array produced — for a drive
+doing exactly what it was built to do. An array member has no partition table *because* it is an
+array member, and `lsblk` already reported the fact: the disk node's own `FSTYPE` is
+`linux_raid_member`. That signature is kept (`whole_disk_fstype`) with a plain-language name beside it
+(`whole_disk_name`), and the card says "a member of a Linux md array" rather than implying the drive
+is unset-up. The same path covers a ZFS pool member, an LVM physical volume, a LUKS container, and a
+filesystem written straight to the device — all of which have no table and all of which are things a
+person can recognise once named. It is kept **only when there is no partition table**: on a
+partitioned disk the node's own signature *is* the table, and reporting it would say the drive holds
+a "gpt filesystem".
+
 **The card's summary line was wrong, and it is worth recording why.** The first version put a summary
 in the heading — `GPT partition table · 1.4 MB unallocated · 512e`. It was reported back as confusing,
 and it was: those are facts about the *drive* sitting above a table of *partitions*, they answer no

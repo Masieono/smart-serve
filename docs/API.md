@@ -555,7 +555,12 @@ stop demanding a value that is never going to be typed into the form (`ADR-022`)
   `part_uuid`. Usage (`use_percent`, `used_bytes`, `fs_size_bytes`, `avail_bytes`) is present **only
   where the container can see the mountpoint**, because `lsblk` reads it with `statvfs` on the mount
   path — absent is the honest answer and a zero would read as an empty filesystem. Detail endpoint
-  only, and the field is absent rather than null for a drive whose layout was never read.
+  only, and the field is absent rather than null for a drive whose layout was never read. When the
+  disk holds **no partition table**, `disk_layout` also carries `whole_disk_fstype` — the disk node's
+  own `FSTYPE`, which is what says a pulled-from-an-array disk is `linux_raid_member` rather than
+  "unpartitioned" — and `whole_disk_name`, the plain-language name for it ("a Linux md array",
+  "a ZFS pool"). `whole_disk_name` is empty for a plain filesystem written straight to the device,
+  where the token is already the answer.
 - `GET /api/devices` and `GET /api/devices/{serial}` both carry `storage` when a filesystem on the
   drive has a readable usage figure (`FEATURES.md` A28): `{mount, used_pct, used_bytes, total_bytes}`
   for the **fullest** filesystem. One implementation, server-side, so the fleet card and the device

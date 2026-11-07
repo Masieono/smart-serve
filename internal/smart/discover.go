@@ -41,6 +41,14 @@ type Discovered struct {
 	// PartitionTable is lsblk's PTTYPE (gpt, dos). Kept because it is what tells "no partition
 	// table" apart from "a partition table lsblk could not read".
 	PartitionTable string `json:"partition_table,omitempty"`
+	// DiskFstype is the *disk node's own* FSTYPE, as opposed to `Fstype` above, which is every
+	// filesystem found anywhere in the subtree.
+	//
+	// It is the answer for a drive with no partitions: `linux_raid_member` on a disk pulled from an
+	// array, `zfs_member` on a pool member, `ext4` on a filesystem written straight to the device.
+	// Without it the only thing to say about such a drive is "unpartitioned", which is true and
+	// useless — the interesting fact is *what* is on it (`FEATURES.md` A28).
+	DiskFstype string `json:"disk_fstype,omitempty"`
 	// LogSectorSize and PhySectorSize are the 512e / 4Kn distinction, which decides whether a drive
 	// can join a pool that demands one. Power-user facts: shown behind a disclosure, not in the
 	// table (`A28`).
@@ -191,6 +199,18 @@ func mustPercent(p Partition) int {
 // would mean five more columns on `devices` and five more places to forget one.
 type DiskLayout struct {
 	Partitions []Partition `json:"partitions"`
+	// WholeDiskFstype is what the disk node itself reports when it holds no partition table: a
+	// filesystem written directly to the device, or an array member signature.
+	//
+	// This is the field that turns "this drive has no partition table" into something worth
+	// reading. A disk pulled from a RAID array carries `linux_raid_member` and no table at all —
+	// which is not a fault, it is what an array member looks like on its own, and the app can say so
+	// instead of implying the drive is unset-up (`FEATURES.md` A28).
+	WholeDiskFstype string `json:"whole_disk_fstype,omitempty"`
+	// WholeDiskName is what the signature above is a member of — "a Linux md array", "a ZFS pool" —
+	// or empty when it is a plain filesystem. The mapping lives in `smart` beside the token list,
+	// because it is knowledge about the tokens rather than about the page.
+	WholeDiskName string `json:"whole_disk_name,omitempty"`
 	// UnallocatedBytes is approximate — see the field on Discovered. Absent when there is no
 	// partition table to reason about.
 	UnallocatedBytes *uint64 `json:"unallocated_bytes,omitempty"`
@@ -220,7 +240,62 @@ func (d Discovered) DiskLayout() *DiskLayout {
 		LogSectorSize:    d.LogSectorSize,
 		PhySectorSize:    d.PhySectorSize,
 		DiscardSupport:   d.DiscardSupport,
+		// Only when there is no partition table: with partitions, the disk node's own signature is
+		// the table, and reporting it as "what is on this disk" would be doubly wrong.
+		WholeDiskFstype: wholeDiskFstype(d.PartitionTable, d.DiskFstype),
+		WholeDiskName:   WholeDiskMemberName(wholeDiskFstype(d.PartitionTable, d.DiskFstype)),
 	}
+}
+
+// wholeDiskFstype is the disk's own signature, kept only when it is the thing occupying the disk.
+//
+// A partitioned disk's `pttype` is what is on it, and lsblk reports the *partition table* as the
+// disk node's fstype on some systems — which would read as "this disk holds a gpt filesystem".
+func wholeDiskFstype(table, diskFstype string) string {
+	if strings.TrimSpace(table) != "" {
+		return ""
+	}
+	return strings.TrimSpace(diskFstype)
+}
+
+// memberSignatures maps a whole-disk signature to the thing the disk is a member of.
+//
+// These are the blkid tokens for "this device is not a filesystem, it is part of something bigger".
+// The list is closed in practice — they are the names the kernel's superblock probes write — so
+// recognising them by name is the whole mechanism; there is no vendor-neutral way to ask "is this
+// RAID?".
+//
+// The values are noun phrases that read after "a member of", because that is the sentence they end
+// up in: "a member of a Linux md array". The raw token is shown beside it, so the page carries both
+// the readable answer and the exact thing `blkid` said.
+var memberSignatures = map[string]string{
+	// Arrays.
+	"linux_raid_member":             "a Linux md array",
+	"isw_raid_member":               "an Intel Rapid Storage array",
+	"ddf_raid_member":               "a DDF array",
+	"lsi_mega_raid_member":          "an LSI MegaRAID array",
+	"adaptec_raid_member":           "an Adaptec array",
+	"jmicron_raid_member":           "a JMicron array",
+	"nvidia_raid_member":            "an NVIDIA array",
+	"promise_fasttrack_raid_member": "a Promise FastTrack array",
+	"silicon_medley_raid_member":    "a Silicon Image array",
+	"via_raid_member":               "a VIA array",
+	"highpoint_raid_member":         "a HighPoint array",
+	// Pools. Not arrays, and not faults either: a disk doing its job, with nothing to mount on its
+	// own. Grouped with the arrays because the *answer* is the same — "there is nothing to mount
+	// here, and that is expected" — even though the mechanism differs.
+	"zfs_member":  "a ZFS pool",
+	"lvm2_member": "an LVM volume group",
+	"bcache":      "a bcache cache or backing device",
+	"crypto_luks": "an encrypted volume",
+}
+
+// WholeDiskMemberName returns what a whole-disk signature is a member of, or "" for anything else.
+//
+// Empty means the signature is a plain filesystem written to the device, which needs no translation:
+// `ext4` is what it says it is.
+func WholeDiskMemberName(signature string) string {
+	return memberSignatures[strings.TrimSpace(strings.ToLower(signature))]
 }
 
 // DiscardSupport reports whether the device advertises discard (TRIM) at all.
@@ -316,6 +391,7 @@ func parseLsblk(data []byte) ([]Discovered, error) {
 			Partitions:       partitions,
 			UnallocatedBytes: unallocated(d, partitions),
 			PartitionTable:   deref(d.PtType),
+			DiskFstype:       deref(d.Fstype),
 			LogSectorSize:    intOr(d.LogSec, 0),
 			PhySectorSize:    intOr(d.PhySec, 0),
 			DiscardSupport:   d.DiscardSupport(),

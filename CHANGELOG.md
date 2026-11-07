@@ -15,6 +15,13 @@ discarding silently is not. See `ADR-028`.
 
 ### Added
 
+- **A drive with no partition table now says what it holds** — a disk pulled from a RAID array was
+  reported as "either unpartitioned or its table could not be read", which is true and useless for a
+  drive doing exactly what it was built to do. An array member has no table *because* it is an array
+  member, and `lsblk` already reported it: the disk node's own `FSTYPE` is `linux_raid_member`. The
+  card now says "a member of a Linux md array" with the exact `blkid` token beside it, and the same
+  path covers a ZFS pool member, an LVM physical volume, a LUKS container, and a filesystem written
+  straight to the device.
 - **Usage bars turn amber at a level you set** (`A28`) — `storage_warn_pct`, default 90%, on the
   Thresholds page. A *display* threshold and nothing else: the verdict is unaffected, so a 95%-full
   drive can still be Good. Fullness and health answer different questions, which is why the bar's

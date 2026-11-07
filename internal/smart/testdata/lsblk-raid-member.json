@@ -1,0 +1,39 @@
+{
+   "blockdevices": [
+      {
+         "name": "/dev/sdc",
+         "kname": "/dev/sdc",
+         "model": "WDC WD40EFRX-68N32N0",
+         "serial": "WD-WCC7K1234567",
+         "size": 4000787030016,
+         "type": "disk",
+         "tran": "sata",
+         "fstype": "linux_raid_member",
+         "fsver": null,
+         "rev": "82.00A82",
+         "mountpoints": [null],
+         "rota": true,
+         "rm": false,
+         "wwn": "0x50014ee200000002",
+         "label": null,
+         "partlabel": null,
+         "parttypename": null,
+         "partn": null,
+         "state": "running",
+         "ro": false,
+         "fsuse": null,
+         "fsused": null,
+         "fssize": null,
+         "fsavail": null,
+         "log-sec": 512,
+         "phy-sec": 4096,
+         "disc-gran": 0,
+         "disc-max": 0,
+         "disc-zero": false,
+         "pttype": null,
+         "uuid": null,
+         "partuuid": null,
+         "children": []
+      }
+   ]
+}
