@@ -127,6 +127,14 @@ const DISPLAY_SPECS = [
       'moves visibly every couple of seconds.',
     min: 2, max: 30, step: 1, unit: 'seconds',
   },
+  {
+    key: 'device_refresh_minutes',
+    label: 'Re-read a drive on open',
+    help: 'When you open a drive, re-read it if its data is older than this. One drive, not the whole ' +
+      'fleet — but it is still a read nobody asked for, so a machine that parks its disks should turn ' +
+      'this down. 0 never re-reads on open; the Scan button always works.',
+    min: 0, max: 1440, step: 5, unit: 'minutes',
+  },
 ];
 
 const ALL_SPECS = [...THRESHOLDS, ...OPERATIONS, ...DISPLAY_SPECS];
@@ -183,6 +191,7 @@ const DEFAULTS = {
   correlation_min_drives: '4',
   correlation_delta_c: '8',
   selftest_poll_seconds: '15',
+  device_refresh_minutes: '15',
   public_url: '',
   prometheus_enabled: 'false',
   knowledge_url: '',

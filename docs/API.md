@@ -563,7 +563,12 @@ stop demanding a value that is never going to be typed into the form (`ADR-022`)
   that is the point: the fleet badges the drive that is busy rather than making you visit each page to
   find out. The state is **overwritten** by each scan, not merged, so a finished test stops showing as
   running. The device page's own card still reads the drive live; this is what the list has, and a
-  badge one scan old is worth having where a page visit per drive is not. Usage (`use_percent`, `used_bytes`, `fs_size_bytes`, `avail_bytes`) is present **only
+  badge one scan old is worth having where a page visit per drive is not. The state is refreshed
+  between scans by a server-side watcher while any drive is testing, which publishes
+  `selftest_progress` (`{serial, running, pct, kind}`) over SSE when something actually changed.
+- `POST /api/devices/{serial}/selftest/abort` returns `{status, note}` and, when the drive could be
+  read back, `stopped` — false when the drive accepted the abort but still reports a test in progress.
+  Some USB bridges do not pass the abort through, and "the abort was sent" is not "the test stopped". Usage (`use_percent`, `used_bytes`, `fs_size_bytes`, `avail_bytes`) is present **only
   where the container can see the mountpoint**, because `lsblk` reads it with `statvfs` on the mount
   path — absent is the honest answer and a zero would read as an empty filesystem. Detail endpoint
   only, and the field is absent rather than null for a drive whose layout was never read. When the

@@ -136,10 +136,30 @@ func ParseLogs(raw []byte) model.LogSummary {
 	// A test in progress is reported in one of two places, and drives differ about which. The
 	// self-test log's newest row carries `remaining_percent` while one runs — but so does the drive's
 	// own self-test-execution status in the SMART data structure, which is where the ATA spec puts it.
-	// Reading only the log meant a drive that reports it in the status field looked idle mid-test:
-	// no progress, and a card that offered the run buttons again for a drive already testing itself.
-	if st := ataRunning(r.ATASmartData); st != nil && !anyRunning(out.SelfTestEntries) {
-		out.SelfTestEntries = append([]model.SelfTestEntry{*st}, out.SelfTestEntries...)
+	//
+	// **The status field wins when it exists, in both directions.** It is the field the ATA spec
+	// defines for this; the log's percentage is a convenience, and drives are not reliable about
+	// clearing it. A drive that has left a percentage in a log row for a test that is no longer
+	// running — an aborted one, commonly, or any test at all on firmware that does not tidy up after
+	// itself — otherwise reports itself as busy *forever*, with a figure that never moves. That is a
+	// real report and not a hypothetical: two USB-attached drives, one of them healthy at 100/100,
+	// both stuck reading "10%" and neither stoppable.
+	//
+	// The previous rule was the reverse — the log won unless no row had a percentage — which is what
+	// let the stale row outvote the drive's own statement about itself.
+	//
+	// Absent status is silence rather than a statement of idle: a drive that does not report the field
+	// at all leaves the log as the only evidence there is, and it is used.
+	if ataReportsStatus(r.ATASmartData) {
+		// The drive said something, so no log row is a running test: they are results, and their
+		// percentages are the stale part. Cleared rather than dropped — the status text ("Aborted by
+		// host", "Completed: read failure") is the explanation for what happened to each of them.
+		for i := range out.SelfTestEntries {
+			out.SelfTestEntries[i].Remaining = nil
+		}
+		if st := ataRunning(r.ATASmartData); st != nil {
+			out.SelfTestEntries = append([]model.SelfTestEntry{*st}, out.SelfTestEntries...)
+		}
 	}
 
 	if r.ATASmartData != nil {
@@ -279,6 +299,14 @@ func ataRunning(data *rawATASmartData) *model.SelfTestEntry {
 		Status:    enumString(s),
 		Remaining: s.RemainingPercent,
 	}
+}
+
+// ataReportsStatus reports whether the drive stated its self-test execution status at all.
+//
+// Present-and-idle is a *statement*; absent is silence. Only the first licenses overriding what the
+// self-test log says, and conflating the two is what let a stale log row outvote the drive.
+func ataReportsStatus(data *rawATASmartData) bool {
+	return data != nil && data.SelfTest != nil && data.SelfTest.Status != nil
 }
 
 // anyRunning reports whether an entry is a test in progress.

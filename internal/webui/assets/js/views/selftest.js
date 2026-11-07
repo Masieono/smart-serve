@@ -306,7 +306,16 @@ export function selfTestCard(ctx, device, logs, onLogs = null, renderHistory = n
     if (!ok) return;
     try {
       const res = await api.abortSelfTest(device.serial);
-      toast((res && res.note) || 'Test stopped', 'good');
+      // "The abort was sent" and "the test stopped" are different facts, and only the drive knows the
+      // second one (`FEATURES.md` A20). A bridge that does not pass the abort through accepts the
+      // command and carries on — so saying "stopped" and then showing a running test again on the next
+      // read is what makes a reader think the app is broken rather than the bridge.
+      if (res && res.stopped === false) {
+        toast('The drive accepted the abort but is still reporting a test in progress. Some USB ' +
+          'bridges do not pass the command through, and the drive will finish on its own.', 'error');
+      } else {
+        toast((res && res.note) || 'Test stopped', 'good');
+      }
       await read();
     } catch (err) {
       toast(err.message, 'error');

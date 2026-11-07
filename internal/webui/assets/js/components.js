@@ -759,9 +759,13 @@ export function partitionsOutsideContainer(partitions) {
  *   which ignores alignment gaps. The segment is hatched rather than solid, because on a visual a
  *   wrong sliver is *visible* — and the tooltip says which kind of number it is.
  *
+ * `onHover` is called with a partition name on mouse-over and with null on mouse-out, which is how the
+ * table underneath highlights the row the segment stands for. The map is geometry and the table is
+ * detail; pointing at one should say which row the other means.
+ *
  * Returns null when there is nothing to draw, so a caller can fall back to the table alone.
  */
-export function diskMap(layout) {
+export function diskMap(layout, opts = {}) {
   const all = (layout && layout.partitions) || [];
   const total = Number((layout && layout.size_bytes) || 0);
   const segments = all.filter((p) => p.top_level && Number(p.size_bytes) > 0);
@@ -772,15 +776,21 @@ export function diskMap(layout) {
   // width would render as a broken map rather than as the approximation it is.
   const free = Math.max(0, total - claimed);
 
+  // A tooltip of our own rather than the `title` attribute: the browser's own takes about a second to
+  // appear, and a map is something you sweep across — a label that arrives after you have moved on is
+  // worse than none. It lives inside the map so its position is the map's geometry, not the page's.
+  const tip = el('div', { class: 'disk-tooltip', hidden: true });
+
   const parts = segments.map((p) => {
     const share = (Number(p.size_bytes) / total) * 100;
     const pct = usePercentNumber(p);
     const title = segmentTitle(p);
-    return el('div', {
+    const node = el('div', {
       class: 'disk-segment',
       style: `width:${share}%`,
-      title,
-      // Named for a screen reader, since the whole thing is geometry.
+      'data-partition': p.name,
+      // Named for a screen reader, since the whole thing is geometry. Deliberately *not* `title`: that
+      // would give two tooltips, one of them a second late.
       role: 'img',
       'aria-label': title,
     }, [
@@ -788,24 +798,85 @@ export function diskMap(layout) {
         ? el('div', { class: 'disk-segment-fill disk-segment-unmeasured' })
         : el('div', { class: 'disk-segment-fill', style: `width:${pct}%` }),
     ]);
+    // Positioned by the segment's own centre, so the label points at the thing it describes.
+    hoverable(node, tip, title, share, () => {
+      if (opts.onHover) opts.onHover(p.name);
+    }, () => {
+      if (opts.onHover) opts.onHover(null);
+    });
+    return node;
   });
+
+  // Cumulative offsets, so a segment's centre can be computed without measuring anything: the map is
+  // laid out by percentage width, so where a segment starts is arithmetic rather than geometry.
+  let at = 0;
+  for (const node of parts) {
+    node.dataset.start = String(at);
+    at += Number(String(node.style.width).replace('%', '')) || 0;
+  }
 
   if (free > total / 100) {
     // Only when it is a *share* of the disk. Below a percent it is an alignment remainder — the
     // 1.4 MB left over after a partition table, which is real but is not "free space" in any sense a
     // reader would use. The map's own background shows through there, which reads correctly as "the
     // parts do not quite add up", and the figure is still in Details with its caveat.
-    parts.push(el('div', {
+    const node = el('div', {
       class: 'disk-segment disk-segment-free',
       style: `width:${(free / total) * 100}%`,
       role: 'img',
       'aria-label': `${fmtBytes(free)} free, approximate`,
-      title: `${fmtBytes(free)} free — approximate: alignment gaps and the backup GPT header are ` +
-        'not counted',
-    }));
+    });
+    hoverable(node, tip, `${fmtBytes(free)} free — approximate: alignment gaps and the backup GPT ` +
+      'header are not counted', (free / total) * 100 + at, null, null);
+    parts.push(node);
   }
 
-  return el('div', { class: 'disk-map' }, parts);
+  return el('div', { class: 'disk-map' }, [tip, ...parts]);
+}
+
+/**
+ * Makes a segment answer a mouse immediately, and mark itself as the one being pointed at.
+ *
+ * `mouseenter`/`mouseleave` rather than `mouseover`/`mouseout`: the segment has a child (the fill),
+ * and the bubbling pair fires again every time the pointer crosses into it — which flickers both the
+ * label and the highlighted row.
+ */
+function hoverable(node, tip, label, share, onEnter, onLeave) {
+  node.addEventListener('mouseenter', () => {
+    tip.textContent = label;
+    tip.hidden = false;
+    placeTooltip(tip, (Number(node.dataset.start) || 0) + share / 2);
+    node.className = `${node.className} is-hover`;
+    if (onEnter) onEnter();
+  });
+  node.addEventListener('mouseleave', () => {
+    tip.hidden = true;
+    node.className = node.className.split(/\s+/).filter((c) => c && c !== 'is-hover').join(' ');
+    if (onLeave) onLeave();
+  });
+}
+
+/**
+ * Puts the tooltip under the segment centred at `centre` percent, keeping it inside the map.
+ *
+ * A label centred on a segment near either edge would hang off the card, so the outer ones are pinned
+ * to the edge instead — the pointer is already saying which segment it means, and the label only has
+ * to stay readable.
+ */
+function placeTooltip(tip, centre) {
+  if (centre < 15) {
+    tip.style.left = '0';
+    tip.style.right = 'auto';
+    tip.style.transform = 'none';
+  } else if (centre > 85) {
+    tip.style.left = 'auto';
+    tip.style.right = '0';
+    tip.style.transform = 'none';
+  } else {
+    tip.style.left = `${centre}%`;
+    tip.style.right = 'auto';
+    tip.style.transform = 'translateX(-50%)';
+  }
 }
 
 /** What a segment says when pointed at, and to a screen reader. */
@@ -919,7 +990,14 @@ export function partitionTable(layout, opts = {}) {
         }, [icon('save'), 'UUID'])]
       : []));
 
-    return el('tr', { class: p.read_only ? 'part-readonly' : null }, cells);
+    // `data-partition` is the map's half of the link (`FEATURES.md` A28): the segment carries the same
+    // value, so pointing at one marks the other. Keyed by the drive's own name for the partition
+    // rather than by row order, because a table with logical volumes in it has more rows than the map
+    // has segments — deliberately so.
+    return el('tr', {
+      class: p.read_only ? 'part-readonly' : null,
+      'data-partition': p.name,
+    }, cells);
   });
 
   return el('div', { class: 'table-wrap' }, [

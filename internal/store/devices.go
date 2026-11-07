@@ -497,6 +497,82 @@ type Notes struct {
 	UpdatedAt time.Time
 }
 
+// TestingDevice is the least a self-test watcher needs to re-read a drive (`FEATURES.md` A20):
+// where to find it, and how to talk to its bridge.
+type TestingDevice struct {
+	Serial string
+	Path   string
+	// TransportOverride is the remembered `smartctl -d` for a stubborn USB bridge, without which the
+	// read fails on exactly the drives most likely to be mid-test.
+	TransportOverride string
+}
+
+// TestingDevices lists the drives recorded as testing themselves right now.
+//
+// A focused query rather than a filter over `ListDevices`, which loads every row's `raw_output` —
+// hundreds of kilobytes per drive. This runs on a timer while a test is going, so it asks the
+// database for the three columns it needs and nothing else.
+func (s *Store) TestingDevices(ctx context.Context) ([]TestingDevice, error) {
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT d.serial, d.device_path, COALESCE(t.smart_d, '')
+		FROM devices d
+		LEFT JOIN device_transport_overrides t ON t.serial = d.serial
+		WHERE d.selftest_running = 1 AND d.is_missing = 0 AND d.device_path <> ''
+		ORDER BY d.serial`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var out []TestingDevice
+	for rows.Next() {
+		var d TestingDevice
+		if err := rows.Scan(&d.Serial, &d.Path, &d.TransportOverride); err != nil {
+			return nil, err
+		}
+		out = append(out, d)
+	}
+	return out, rows.Err()
+}
+
+// SelfTestState is what the store currently records about a drive's self-test (`FEATURES.md` A20).
+//
+// Read so the watcher can tell a *change* from a re-reading of the same thing. Publishing on every
+// pass would re-render the page every fifteen seconds for no news, which on the fleet would take the
+// search box out from under whoever was typing in it.
+type SelfTestState struct {
+	Running bool
+	Pct     *int
+	Kind    string
+}
+
+// SelfTestState reads the recorded self-test state for one drive.
+func (s *Store) SelfTestState(ctx context.Context, serial string) (SelfTestState, error) {
+	var st SelfTestState
+	var running int
+	var pct sql.NullInt64
+	err := s.db.QueryRowContext(ctx, `
+		SELECT selftest_running, selftest_pct, selftest_kind FROM devices WHERE serial = ?`,
+		serial).Scan(&running, &pct, &st.Kind)
+	if err != nil {
+		return SelfTestState{}, err
+	}
+	st.Running = running != 0
+	st.Pct = intPtr(pct)
+	return st, nil
+}
+
+// SetSelfTestState writes the in-progress self-test for one drive (`FEATURES.md` A20).
+//
+// A narrow update rather than a scan: the watcher is asking the drive one question, and a whole-row
+// upsert from here would fight a scan writing the rest of the row at the same time.
+func (s *Store) SetSelfTestState(ctx context.Context, serial string, running bool, pct *int, kind string) error {
+	_, err := s.db.ExecContext(ctx, `
+		UPDATE devices SET selftest_running = ?, selftest_pct = ?, selftest_kind = ?
+		WHERE serial = ?`, boolInt(running), nullInt(pct), kind, serial)
+	return err
+}
+
 // SetNotes creates or replaces the user metadata for a device. The device need
 // not currently be attached; notes are keyed by serial so they survive unplugs.
 func (s *Store) SetNotes(ctx context.Context, n Notes) error {

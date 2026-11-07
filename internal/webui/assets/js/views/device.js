@@ -88,6 +88,57 @@ function projectionBlock(p) {
   ]);
 }
 
+/**
+ * Fills the freshness line, and re-reads the drive when its data has gone stale (`FEATURES.md` A28
+ * follow-up).
+ *
+ * Everything on this page comes from the last scan, so the age belongs beside the drive's name rather
+ * than in a row of twelve facts. And when the age is past the window the user chose, this reads *that
+ * drive* — one smartctl call, not a fleet scan — then re-renders so the page becomes current while
+ * somebody is looking at it.
+ *
+ * The re-read is deliberately quiet: no toast, no navigation, and no error if it fails. The stored data
+ * is already on screen and is still the last thing the drive actually said; a failure here means the
+ * page keeps showing it, which is the right answer for a drive that has just been unplugged.
+ */
+export function startFreshness(ctx, d, line) {
+  const minutes = deviceRefreshWindow();
+  const scanned = d.last_scan ? Date.parse(d.last_scan) : NaN;
+  const age = Number.isFinite(scanned) ? (Date.now() - scanned) / 60000 : Infinity;
+
+  const paint = (text, tone) => {
+    mount(line, [el('span', { class: tone ? `muted ${tone}` : 'muted', text })]);
+  };
+
+  const read = () => {
+    api.scanDevice(d.serial).then(() => {
+      // `ctx.refresh` rather than a second fetch of our own: the page's payload is assembled
+      // server-side, and re-rendering is how the fresh verdict, score and partition table arrive
+      // together — and how the age stops being stale, so this does not loop.
+      ctx.refresh();
+    }).catch(() => {
+      paint(`${Number.isFinite(scanned) ? fmtAgo(d.last_scan) : 'no data'} — could not re-read the ` +
+        'drive');
+    });
+  };
+
+  if (!Number.isFinite(scanned)) {
+    // A drive with no data at all has nothing to show, so reading it is the whole point of opening
+    // the page. The staleness window exists to stop *re-reads*; it has nothing to say about a first
+    // read, and applying it here would leave the page empty for no reason.
+    paint('no data yet — reading the drive now…', 'device-refreshing');
+    read();
+    return;
+  }
+
+  if (minutes > 0 && age > minutes) {
+    paint(`${fmtAgo(d.last_scan)} — reading the drive now…`, 'device-refreshing');
+    read();
+    return;
+  }
+  paint(`data from ${fmtAgo(d.last_scan)}`);
+}
+
 function draw(container, ctx, data, history) {
   const series = (history && history.series) || [];
   const d = data.device;
@@ -170,6 +221,13 @@ function draw(container, ctx, data, history) {
     stat('Last scanned', d.last_scan ? `${fmtAgo(d.last_scan)} (${fmtDateTime(d.last_scan)})` : 'never'),
   ], 'This drive reports no usage or media figures.');
 
+  // The freshness line (`FEATURES.md` A28 follow-up). Everything on this page is from the last *scan*,
+  // and "4 hours ago" in a row of twelve is not something a reader notices — so the age goes next to
+  // the drive's own name, where a stale figure cannot be mistaken for a live one. It is also where the
+  // answer goes when the page is re-reading the drive itself.
+  const freshness = el('div', { class: 'sub device-freshness' });
+  startFreshness(ctx, d, freshness);
+
   mount(container,
     el('div', { class: 'page-head' }, [
       el('button', { class: 'btn btn-ghost btn-sm', type: 'button', title: 'Back to devices',
@@ -177,6 +235,7 @@ function draw(container, ctx, data, history) {
       el('div', { style: 'min-width:0' }, [
         el('h1', { text: d.name || d.model || d.device_path }),
         el('div', { class: 'sub', text: `${d.model || '—'}${d.device_path ? ` · ${d.device_path}` : ''}` }),
+        freshness,
       ]),
       el('span', { class: 'spacer' }),
       el('button', { class: 'btn btn-sm', type: 'button', title: 'Rescan just this drive',
@@ -1335,6 +1394,25 @@ export function setDisplayOptions(settings) {
   // The level a usage bar turns amber at (`FEATURES.md` A28). Read here with the rest of the display
   // preferences because that is what it is — the bar's colour is presentation, not a verdict.
   setStorageWarnPct((settings || {}).storage_warn_pct);
+  // How stale a drive's data may be before opening its page re-reads it (`FEATURES.md` A28 follow-up).
+  // A negative or unparseable value means "never", which is the safe reading: re-reading a drive is the
+  // one thing here that can wake a parked disk, so anything unclear errs towards not doing it.
+  const minutes = Number((settings || {}).device_refresh_minutes);
+  deviceRefreshMinutes = Number.isFinite(minutes) && minutes > 0 ? minutes : 0;
+}
+
+/**
+ * How old a drive's stored data may be before opening its page reads it again.
+ *
+ * The one setting in this app that causes a drive to be read without anybody asking, which is why it
+ * is a setting and why the page says when it is doing it. On a machine that parks its disks this is
+ * the number to turn down — a scan cannot wear a drive, but it can wake one.
+ */
+let deviceRefreshMinutes = 0;
+
+/** The refresh window in force, for the device view. */
+export function deviceRefreshWindow() {
+  return deviceRefreshMinutes;
 }
 
 /** The options in force, for a caller that needs to know (and for the tests). */
@@ -1360,25 +1438,43 @@ export function currentDisplayOptions() {
  * Absent entirely when the layout was never read, which is the honest answer for a drive whose
  * `lsblk` entry predates this.
  */
-function diskLayoutCard(layout, opts) {
+export function diskLayoutCard(layout, opts) {
   if (!layout) return null;
   const { showUsage = true } = opts || {};
   const partitions = layout.partitions || [];
+  const table = partitionTable(layout, { showUsage });
+  const map = showUsage ? diskMap(layout, {
+    // Pointing at a segment highlights the row it stands for. The map is the shape and the table is
+    // the detail; without this the reader has to match a bar to a path by eye.
+    onHover: (name) => highlightPartitionRow(table, name),
+  }) : null;
 
   return el('div', { class: 'card stack' }, [
     el('div', { class: 'row' }, [
       el('h2', { text: 'Partitions' }),
-      el('span', { class: 'spacer' }),
-      partitions.length
-        ? el('span', { class: 'muted', text: `${partitions.length}` })
-        : null,
     ]),
     // The map first: it answers "what is on this disk and where is the room" in one glance, and the
     // table underneath is the detail for the segment somebody just pointed at.
-    showUsage ? diskMap(layout) : null,
-    partitionTable(layout, { showUsage }),
+    map,
+    table,
     layoutDetails(layout, partitions),
   ]);
+}
+
+/**
+ * Marks the table row for a partition, or clears every mark when `name` is null.
+ *
+ * The row and the segment carry the same `data-partition`, so they are matched by the drive's own name
+ * for the partition rather than by position — which matters on a drive whose table also has a row per
+ * logical volume, where the positions deliberately do not line up.
+ */
+function highlightPartitionRow(table, name) {
+  if (!table || !table.all) return;
+  for (const row of table.all('tr')) {
+    const classes = String(row.className || '').split(/\s+/).filter((c) => c && c !== 'is-hover');
+    if (name && row.getAttribute('data-partition') === name) classes.push('is-hover');
+    row.className = classes.join(' ');
+  }
 }
 
 /**

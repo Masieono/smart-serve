@@ -101,6 +101,32 @@ func (s *Store) RetentionDays(ctx context.Context) int {
 	return DefaultRetentionDays
 }
 
+// SelfTestPollSeconds is how often a drive mid-test is re-read (`FEATURES.md` A19, A20).
+//
+// One setting, read by two callers that want the same thing: the browser, which re-reads the drive
+// whose card is on screen, and the server-side watcher, which re-reads every drive that is testing so
+// the fleet badge is current too. Splitting it in two would be two knobs for one idea, and the person
+// who turned it down because their bridge dislikes extra commands meant both of them.
+//
+// Clamped to the same 2–30 the settings page offers. A value outside that came from a hand-edited
+// database, and reading it literally would either hammer a drive or leave the badge frozen.
+func (s *Store) SelfTestPollSeconds(ctx context.Context) time.Duration {
+	const def = 15
+	seconds := def
+	if settings, err := s.GetSettings(ctx); err == nil {
+		if n, ok := positiveSetting(settings, "selftest_poll_seconds"); ok {
+			seconds = n
+		}
+	}
+	if seconds < 2 {
+		seconds = 2
+	}
+	if seconds > 30 {
+		seconds = 30
+	}
+	return time.Duration(seconds) * time.Second
+}
+
 // RetentionWindow is `RetentionDays` as a duration, for callers asking how far back history goes.
 //
 // This bounds every question about history — the longevity projection, the worsening flag, the

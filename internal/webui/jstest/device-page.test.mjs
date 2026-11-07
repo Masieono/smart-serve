@@ -15,7 +15,8 @@ import assert from 'node:assert/strict';
 import { installStubDom, StubNode } from './stub-dom.mjs';
 
 installStubDom();
-const { render } = await import('../assets/js/views/device.js');
+const { render, setDisplayOptions, startFreshness } = await import('../assets/js/views/device.js');
+const { el } = await import('../assets/js/dom.js');
 
 /** Every string in a subtree, in document order. */
 function textOf(node) {
@@ -83,6 +84,113 @@ function stubRoutes({ device = devicePayload(), history = { series: [] } } = {})
       statusText: 'OK',
       text: async () => JSON.stringify(body),
     };
+  };
+}
+
+/** Lets queued promise callbacks run, which is how a test sees a read's effect. */
+const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
+
+// The freshness line, and the one read this app makes without anybody asking (`FEATURES.md` A28
+// follow-up).
+//
+// Everything on a drive page comes from the last *scan*, and "4 hours ago" in a row of twelve facts is
+// not something a reader notices. So the age goes beside the drive's own name — and when it is past
+// the window the user chose, the page reads that one drive and redraws.
+//
+// The gate is the point: this is the only place the app touches a drive nobody asked it to touch, and
+// on a machine that parks its disks that is exactly the thing not to do.
+test('a fresh drive is not re-read', () => {
+  setDisplayOptions({ device_refresh_minutes: '15' });
+  const ctx = freshCtx();
+
+  const line = el('div', {});
+  startFreshness(ctx, { serial: 'S', last_scan: new Date().toISOString() }, line);
+
+  assert.match(textOf(line), /data from/);
+  assert.equal(ctx.requests.length, 0, 'a drive scanned a moment ago was read again');
+});
+
+// Past the window the page reads the drive — once — and redraws so the fresh verdict, score and
+// partition table all arrive together.
+test('a stale drive is re-read, and the page says so while it happens', async () => {
+  setDisplayOptions({ device_refresh_minutes: '15' });
+  const ctx = freshCtx();
+  const long = new Date(Date.now() - 4 * 3600 * 1000).toISOString();
+
+  const line = el('div', {});
+  startFreshness(ctx, { serial: 'S', last_scan: long }, line);
+
+  // Before the read lands, the line explains itself rather than letting a figure that is about to
+  // change appear without warning.
+  assert.match(textOf(line), /reading the drive now/);
+
+  await flush();
+  const posts = ctx.requests.filter((r) => r.method === 'POST');
+  assert.equal(posts.length, 1, `${posts.length} reads were made, want one`);
+  assert.match(posts[0].path, /\/api\/devices\/S\/scan$/);
+  assert.equal(ctx.refreshed, 1, 'the page did not redraw with the fresh data');
+});
+
+// Zero is "never", which is the setting for a machine that parks its disks. Nothing is read, and the
+// age is still shown — the reader can see it is old and press Scan themselves.
+test('a zero window never re-reads a drive', () => {
+  setDisplayOptions({ device_refresh_minutes: '0' });
+  const ctx = freshCtx();
+  const long = new Date(Date.now() - 4 * 3600 * 1000).toISOString();
+
+  const line = el('div', {});
+  startFreshness(ctx, { serial: 'S', last_scan: long }, line);
+
+  assert.equal(ctx.requests.length, 0, 'a drive was read with the window turned off');
+  assert.match(textOf(line), /data from/, 'the age should still be visible');
+});
+
+// A drive that cannot be read is not a reason to blank the page: the stored data is still the last
+// thing the drive said. The line says what happened instead of leaving "reading the drive now…" up
+// for good.
+test('a failed re-read says so and leaves the page alone', async () => {
+  setDisplayOptions({ device_refresh_minutes: '15' });
+  const ctx = freshCtx({ failScan: true });
+  const long = new Date(Date.now() - 4 * 3600 * 1000).toISOString();
+
+  const line = el('div', {});
+  startFreshness(ctx, { serial: 'S', last_scan: long }, line);
+  await flush();
+
+  assert.match(textOf(line), /could not re-read/);
+  assert.equal(ctx.refreshed, 0, 'the page was redrawn for a read that failed');
+});
+
+// A drive that has never been scanned has nothing to show, so reading it *is* the point of opening the
+// page. The staleness window exists to stop re-reads; it has nothing to say about a first read, and
+// applying it here would leave the page empty for no reason.
+test('a drive with no data at all is read whatever the window says', async () => {
+  setDisplayOptions({ device_refresh_minutes: '0' });
+  const ctx = freshCtx();
+
+  const line = el('div', {});
+  startFreshness(ctx, { serial: 'S', last_scan: null }, line);
+
+  assert.match(textOf(line), /reading the drive now/);
+  await flush();
+  assert.equal(ctx.requests.filter((r) => r.method === 'POST').length, 1,
+    'a drive with no data was left with an empty page');
+});
+
+/** A context that records what the freshness check did. */
+function freshCtx(opts = {}) {
+  const requests = [];
+  globalThis.fetch = async (url, init = {}) => {
+    requests.push({ path: String(url), method: init.method || 'GET' });
+    if (opts.failScan) return { ok: false, status: 502, statusText: 'Bad Gateway', text: async () => '' };
+    return { ok: true, status: 200, statusText: 'OK', text: async () => '{}' };
+  };
+  return {
+    requests,
+    refreshed: 0,
+    refresh() {
+      this.refreshed++;
+    },
   };
 }
 

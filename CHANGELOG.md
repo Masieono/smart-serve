@@ -13,8 +13,46 @@ walked on every scan for two strings; the score breakdown was computed on every 
 the list of what is deliberately *not* captured, each with its reason — discarding is allowed,
 discarding silently is not. See `ADR-028`.
 
+### Fixed
+
+- **A drive stuck reporting "testing 10%" forever** — and it was the app's bug, not the drives'. A
+  drive's self-test state is reported in two places: the self-test log's newest row (a percentage
+  remaining) and the drive's own self-test-execution status in the SMART data structure. The code let
+  the log row win unless no row had a percentage, so a drive holding a leftover percentage from an
+  interrupted test — while the ATA spec's own field says nothing is executing — reported itself as busy
+  indefinitely, at a figure that never moved. Two USB-attached drives, one of them healthy at 100/100,
+  were both stuck. **The drive's own status field now wins in both directions**, and a log row's stale
+  percentage is cleared rather than the row dropped, so its result text ("Aborted by host") survives.
+  The app's own test fixture contained the contradiction, which is how it was found.
+- **Stopping a test that would not stop now says so.** The abort already passed smartctl's words
+  through, but "the abort was sent" and "the test stopped" are different facts and only the drive knows
+  the second. A bridge that does not pass the abort through accepts the command and carries on, so the
+  page now reads the drive back and says plainly that the test is still running — instead of claiming
+  it stopped and showing it running again on the next read, which reads as a broken app rather than a
+  bridge.
+
 ### Added
 
+- **A re-read when a drive's data has gone stale** (`FEATURES.md` A28 follow-up) — open a drive whose
+  last scan is older than the window you set (`device_refresh_minutes`, default 15 minutes) and the
+  page reads *that drive* and redraws: one smartctl call, not a fleet scan. Set it to 0 to never do
+  this, which is the setting for a machine that parks its disks — a scan cannot wear a drive, but it
+  can wake one. A drive with no data at all is read regardless, because that is the point of opening
+  its page.
+- **The scan age, next to the drive's name** — "data from 4 hours ago" was one row among twelve, and
+  that is not where a reader notices it. It is now beside the drive's own name, where a stale figure
+  cannot be mistaken for a live one, and it says "reading the drive now…" while the page refreshes
+  itself.
+- **The fleet badge tracks a running test** (`FEATURES.md` A20) — a server-side watcher re-reads only
+  drives that are already mid-test, on the self-test refresh interval, and pushes the change over SSE.
+  Start a long test and look at another drive: the badge moves. It cannot wake a sleeping drive,
+  because it only ever looks at drives already working, and it idles without touching anything when
+  nothing is testing.
+- **The disk map answers a mouse immediately** (`FEATURES.md` A28) — the label appears at once rather
+  than after the browser's own tooltip delay, and pointing at a segment highlights the table row it
+  stands for, so the bar and the partition list are visibly the same thing. The bare partition count
+  has gone from the card's heading: it was a number with nothing saying what it counted, above a map
+  that answers the question it was reaching for.
 - **The self-test log lives in the Self-test card** (`FEATURES.md` A20) — with the buttons that start
   a test and the progress of the one running. It was split across two cards: a "Last test: …" line
   directly under the progress bar, and the rest of the same log in the Drive logs card. That put a

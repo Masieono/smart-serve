@@ -85,6 +85,15 @@ type Manager struct {
 	// postScan, when set, is invoked after every scan (successful or not).
 	postScan PostScanFunc
 
+	// timeoutFn, when set, supplies the per-command timeout for the self-test watcher's reads. Unset
+	// in tests, which have no config to read from, so `commandTimeout` falls back to the default.
+	timeoutFn func(ctx context.Context) time.Duration
+
+	// readSelfTest, when set, replaces the smartctl call the watcher makes. It exists so the watcher
+	// can be tested without a `smartctl` on PATH: it is a new concurrency path, and one that reads
+	// drives on a timer is not a thing to ship on reasoning alone.
+	readSelfTest func(ctx context.Context, path, transport string, timeout time.Duration) (smart.Result, error)
+
 	mu      sync.Mutex
 	running bool
 	done    chan struct{}
@@ -94,6 +103,34 @@ type Manager struct {
 // NewManager wires a scan runner to persistence and the event hub.
 func NewManager(r Runner, st *store.Store, hub *events.Hub) *Manager {
 	return &Manager{runner: r, store: st, hub: hub}
+}
+
+// SetSelfTestReader replaces the smartctl call the self-test watcher makes. For tests.
+func (m *Manager) SetSelfTestReader(fn func(ctx context.Context, path, transport string, timeout time.Duration) (smart.Result, error)) {
+	m.readSelfTest = fn
+}
+
+// selfTestReader is the reader in force, defaulting to the real `smartctl` call.
+func (m *Manager) selfTestReader(ctx context.Context, path, transport string) (smart.Result, error) {
+	if m.readSelfTest != nil {
+		return m.readSelfTest(ctx, path, transport, m.commandTimeout(ctx))
+	}
+	return smart.ReadSelfTestLog(ctx, m.commandTimeout(ctx), path, transport)
+}
+
+// SetCommandTimeout supplies the per-command timeout for reads this package makes outside a scan
+// (`FEATURES.md` A20's self-test watcher). It mirrors the scanner's own, so the two never disagree
+// about how long a drive may take to answer.
+func (m *Manager) SetCommandTimeout(fn func(ctx context.Context) time.Duration) { m.timeoutFn = fn }
+
+// commandTimeout is the per-command timeout in force, or the default when nothing supplied one.
+func (m *Manager) commandTimeout(ctx context.Context) time.Duration {
+	if m.timeoutFn != nil {
+		if v := m.timeoutFn(ctx); v > 0 {
+			return v
+		}
+	}
+	return smart.DefaultTimeout
 }
 
 // OnPostScan registers the hook invoked after each scan. It is called outside the

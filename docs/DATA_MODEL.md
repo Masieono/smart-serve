@@ -153,7 +153,8 @@ worse than no setting at all.
 | `theme_base` | `"dark"` | base for `custom`: `light` \| `dark` | `webui` |
 | `theme_accent` | `"#3b82f6"` | accent colour, read **only** when `theme` is `custom` | `webui` |
 | `theme_surface_tint` | `"neutral"` | `neutral` \| `slate` \| `warm` \| `cool`; remixes any theme's palette | `webui` |
-| `selftest_poll_seconds` | `15` | how often the self-test card re-reads a drive while a test runs, 1–60 (`FEATURES.md` A19). The cost is device reads, and a long test moves a few percent an hour — so a fast refresh mostly spends them | `webui` |
+| `selftest_poll_seconds` | `15` | how often a drive mid-test is re-read, 2–30 (`FEATURES.md` A19, A20). **One setting, two readers**: the browser, which re-reads the drive whose card is on screen, and the server-side watcher, which re-reads every drive that is testing so the fleet badge is current too. Splitting it in two would be two knobs for one idea | `webui`, `scan` |
+| `device_refresh_minutes` | `15` | how stale a drive's data may be before opening its page re-reads it (`FEATURES.md` A28 follow-up). **0 means never.** The only setting in this app that causes a drive to be read without anybody asking, which is why it is a setting and why the page says when it is doing it. On a machine that parks its disks this is the number to turn down — a scan cannot wear a drive, but it can wake one | `webui` |
 | `dashboard_view` | `"cards"` | `cards` \| `table` — the shape of the fleet list (`FEATURES.md` D8). A display preference like the theme and the temperature unit rather than view state like the filter and the sort, so it survives a reload and travels in the config export | `webui` |
 | `maintenance_windows` | `[]` | JSON list of windows — see `NOTIFICATIONS.md` for the shape. One-off (`starts_at`/`ends_at`) or recurring (`daily`/`weekly` with a time of day), optionally scoped to serials | `notify` |
 

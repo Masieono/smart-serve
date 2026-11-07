@@ -161,8 +161,8 @@ test('every numeric setting gets a slider bound to its own range', async () => {
     .flatMap((container) => container.all('input'))
     .filter((n) => n.className === 'setting-range');
   // Five health thresholds, three operational settings, the two correlated-heat tunables, the
-  // self-test refresh interval, and the storage warning level.
-  assert.equal(sliders.length, 12);
+  // self-test refresh interval, the storage warning level, and the on-open refresh window.
+  assert.equal(sliders.length, 13);
 
   for (const slider of sliders) {
     const min = Number(slider.getAttribute('min'));

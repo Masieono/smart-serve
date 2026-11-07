@@ -167,6 +167,14 @@ and 7.5 can, with no hardware change — which is why the two are reported separ
 | 4.63 | Look at the Self-test card on a drive with past tests. | The **self-test log** is in this card, under the buttons — not in the Drive logs card |
 | 4.64 | Start a test and watch the card. | The progress bar and the history are separated by a rule; nothing from a past test sits beside the running one |
 | 4.65 | Open a drive with no self-test history. | The card is the buttons and the note — no empty log table |
+| 4.66 | Start a test on a drive whose firmware leaves a percentage in an aborted log row. | **Not** stuck at that figure — the drive's own status field wins, and the test ends when the drive says it did |
+| 4.67 | Press Stop on a test behind a bridge that ignores the abort. | "The drive accepted the abort but is still reporting a test in progress" — not a claim that it stopped |
+| 4.68 | Start a long test on one drive and watch the fleet. | The badge's percentage **moves**, without opening the drive's page |
+| 4.69 | Point at a segment of the disk map. | The label appears **at once** (no browser tooltip delay), and the matching table row is marked |
+| 4.70 | Open a drive whose last scan is 4 hours old (`device_refresh_minutes` = 15). | "4 hours ago — reading the drive now…", then the page redraws with fresh data |
+| 4.71 | Set `device_refresh_minutes` to 0 and reopen it. | The age is still shown; nothing is read |
+| 4.72 | Open a drive that has never been scanned. | It is read, whatever the window says — otherwise the page is empty for no reason |
+| 4.73 | **Pull a disk from a RAID array and open it.** | "a member of a Linux md array (`linux_raid_member`)" — **UNVERIFIED**, see the caveat in `FEATURES.md` §A28 |
 
 ## Pass 5 — notifications
 

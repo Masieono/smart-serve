@@ -131,6 +131,48 @@ chart must never load a blob to draw a line. It is the one storage figure worth 
 40% today and 90% next month is the thing that runs out of room. The delta is in **points**, not per
 cent, because the value is already a percentage.
 
+**The drive's own self-test status outvotes the self-test log.** A running test is reported in two
+places: the log's newest row carries a `remaining_percent`, and `ata_smart_data.self_test.status` is
+the field the ATA spec defines for exactly this. The app used to prefer the log row — it won unless no
+row had a percentage — which meant a drive holding a leftover percentage from an interrupted test
+reported itself as busy **forever**, at a figure that never moved. Two USB-attached drives, one of them
+healthy at 100/100, were both stuck reading "10%". The status field now wins **in both directions**:
+when it says a test is executing, that is the running test and the log's leftover percentages are
+cleared; when it says nothing is executing, no log row is a running test either. The rows are kept
+rather than dropped, because their result text ("Aborted by host") is the explanation. Absent status is
+*silence* rather than a statement of idle, and the log is all there is — a rule that reads an absent
+field as "not running" would break every drive that reports progress only in the log.
+
+The app's own test fixture (`ata-bto-1tb-logs.json`) contained the contradiction, which is how it was
+found: its status field says "completed without error" while a log row carries `remaining_percent: 50`.
+
+**A running test is re-read, so the badge tracks it.** The fleet badge and a drive page's progress both
+come from the *stored* row, which only a scan writes — so starting a long test and looking at another
+drive left the badge frozen at whatever the last scan caught, which on a quiet homelab could be
+tomorrow. A server-side watcher now re-reads **only drives already mid-test**, on the self-test refresh
+interval, and publishes the change over SSE. Three properties make it safe rather than a second scan:
+it cannot wake a sleeping drive, because it only ever looks at drives already working; it reads one
+document and writes three columns rather than a whole row, so it does not fight a scan; and it stops by
+itself when the last test ends, because the query it runs then returns nothing.
+
+**The disk map answers a mouse immediately, and points at the table.** The browser's own tooltip takes
+about a second to appear, which is wrong for something you sweep across, so the label is the app's own.
+Pointing at a segment also marks the table row it stands for — matched by the drive's own name for the
+partition rather than by position, because a table carrying logical volumes has more rows than the map
+has segments, deliberately so. The card's heading no longer carries a bare partition count: it was a
+number with nothing saying what it counted, above a map that answers the question it was reaching for.
+
+**A drive's data is re-read when it has gone stale.** Opening a drive page whose last scan is older
+than `device_refresh_minutes` (default 15) reads *that drive* and redraws — one smartctl call, not a
+fleet scan. It is the only thing in this app that touches a drive nobody asked it to touch, which is
+why it is a setting, why 0 means never, and why the page says when it is doing it. On a machine that
+parks its disks this is the number to turn down: a scan cannot wear a drive, but it can wake one. A
+drive with no data at all is read regardless — the window exists to stop *re-reads*, and applying it to
+a first read would leave the page empty for no reason.
+
+The scan's age now sits beside the drive's name rather than in a row of twelve facts, because "4 hours
+ago" among twelve is not where a reader notices it.
+
 **A map of the disk, above the table.** One segment per top-level partition, sized by how much of the
 disk it takes, with the partition's own fullness filled in from the left — so one glance answers both
 "what is on this disk?" and "where is the room?". The table underneath is the detail for the segment
@@ -148,6 +190,21 @@ lie:
   Below a percent it is an alignment remainder (the 1.4 MB left after a partition table), which is
   real and is not free space in any sense a reader would use; drawing it gave a visible sliver to a
   number nobody acts on. The map's background shows through there instead.
+
+**⚠ The array-member recognition is unverified against a real array member.** The mapping from a
+whole-disk signature to a plain-language name (`linux_raid_member` → "a Linux md array", and the ten
+other array and pool signatures) is written from blkid's own token names, and it has **never been seen
+working on a disk that actually carries one**. The drives available for testing here either have a
+partition table or are genuinely unpartitioned, so the "member of …" path has only ever been exercised
+against fixtures. The mechanism is sound — the token is `lsblk`'s own `FSTYPE` and the names are
+blkid's — but *sound is not verified*, and this should not be called a working feature until somebody
+opens a drive page for a disk pulled from an md array, an Intel RST array, or a ZFS pool and sees the
+right sentence. The same caution applies to the pool signatures (`zfs_member`, `LVM2_member`,
+`crypto_LUKS`, `bcache`).
+
+What *is* verified: that a partitioned disk reports no whole-disk signature (so the page cannot claim a
+drive holds a "gpt filesystem"), that an unknown signature falls back to the old message rather than
+guessing, and that a drive with a filesystem written straight to it is described as such.
 
 **A drive with no partition table says what it holds.** "Unpartitioned, or its table could not be
 read" is true and useless, and it is what a disk pulled from a RAID array produced — for a drive

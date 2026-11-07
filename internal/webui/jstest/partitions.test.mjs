@@ -11,7 +11,8 @@ import { installStubDom, StubNode } from './stub-dom.mjs';
 installStubDom();
 const { partitionTable, partitionUUID, sectorLabel, usageBar, outsideContainerNote, setStorageWarnPct, storageWarnLevel, diskMap } =
   await import('../assets/js/components.js');
-const { setDisplayOptions, currentDisplayOptions } = await import('../assets/js/views/device.js');
+const { setDisplayOptions, currentDisplayOptions, diskLayoutCard } =
+  await import('../assets/js/views/device.js');
 
 /** Every string in a subtree, in document order. */
 function textOf(node) {
@@ -271,10 +272,71 @@ function mapped(partitions, total) {
   return { size_bytes: total, partitions };
 }
 
+/**
+ * What a segment's label says once the mouse is over it, and that the segment marked itself.
+ *
+ * `mouseenter` rather than `mouseover`: the segment has a child (the fill), and the bubbling pair
+ * fires again every time the pointer crosses into it — which flickers the label and the row.
+ */
+function tooltipFor(seg) {
+  seg.dispatch('mouseenter');
+  assert.match(seg.className, /is-hover/, 'the hovered segment did not mark itself');
+  const tip = seg.parent.all('div').find((n) => n.className === 'disk-tooltip');
+  assert.ok(tip, 'the map has no tooltip');
+  assert.equal(tip.hidden, false, 'the tooltip stayed hidden on hover');
+  return String(tip.textContent);
+}
+
 const GIB = 1024 ** 3;
 
-// The map's whole job: a segment per top-level partition, sized by share of the disk, plus what is
-// left over.
+// Pointing at a segment marks the table row it stands for (`FEATURES.md` A28). The map is the shape
+// and the table is the detail; without this the reader matches a bar to a path by eye.
+//
+// Matched by the drive's own name for the partition rather than by row order, which matters on a drive
+// whose table also carries a row per logical volume — more rows than the map has segments, and
+// deliberately so.
+test('pointing at a segment marks the row it stands for', () => {
+  const layout = mapped([
+    { top_level: true, name: '/dev/sdb1', size_bytes: 400 * GIB, use_percent: '20%' },
+    { top_level: true, name: '/dev/sdb2', size_bytes: 600 * GIB, use_percent: '80%' },
+    { name: '/dev/mapper/vg-data', size_bytes: 500 * GIB, use_percent: '90%' },
+  ], 1000 * GIB);
+
+  const card = diskLayoutCard(layout, { showUsage: true });
+  const segs = card.all('div').filter((n) => /(^| )disk-segment( |$)/.test(n.className));
+  const rows = card.all('tr');
+
+  segs[1].dispatch('mouseenter');
+  const marked = rows.filter((r) => /is-hover/.test(r.className));
+  assert.equal(marked.length, 1, `${marked.length} rows were marked, want exactly one`);
+  assert.equal(marked[0].getAttribute('data-partition'), '/dev/sdb2');
+
+  // And letting go clears it, so the marker does not follow the reader around the page.
+  segs[1].dispatch('mouseleave');
+  assert.equal(rows.filter((r) => /is-hover/.test(r.className)).length, 0);
+});
+
+// The heading used to carry the partition count on its own — a bare number with nothing saying what it
+// counted. The map answers the question the count was reaching for, and a number nobody can label is
+// not worth a corner of the card.
+test('the partition heading carries no bare count', () => {
+  const card = diskLayoutCard(mapped([
+    { top_level: true, name: '/dev/sdb1', size_bytes: 400 * GIB, use_percent: '20%' },
+    { top_level: true, name: '/dev/sdb2', size_bytes: 600 * GIB, use_percent: '80%' },
+  ], 1000 * GIB), { showUsage: true });
+
+  const heading = card.all('h2')[0];
+  assert.equal(String(heading.textContent), 'Partitions');
+  const row = card.all('div').find((n) => /(^| )row( |$)/.test(n.className));
+  assert.equal(row.all('span').filter((n) => /muted/.test(n.className)).length, 0,
+    'a bare count is still in the heading');
+});
+
+// A drive with no partitions is the note, not an empty map: an empty bar would claim the disk has
+// nothing on it, which is a different statement from "there is no table to draw".
+test('a drive with no layout gets no map', () => {
+  assert.equal(diskLayoutCard(null, {}), null);
+});
 test('the map sizes each segment by its share of the disk', () => {
   const map = diskMap(mapped([
     { top_level: true, name: '/dev/sdb1', size_bytes: 250 * GIB, use_percent: '8%' },
@@ -316,8 +378,7 @@ test('the map shows free space as approximate', () => {
   const free = segs[1];
   assert.match(free.className, /disk-segment-free/);
   assert.match(String(free.style), /width:60%/);
-  assert.match(free.getAttribute('title'), /approximate/,
-    'the free figure must say it is approximate');
+  assert.match(tooltipFor(free), /approximate/, 'the free figure must say it is approximate');
 });
 
 // Unknown fullness is not zero. A partition whose filesystem the container cannot see is hatched,
@@ -335,6 +396,9 @@ test('an unmeasured partition is hatched, not drawn at zero', () => {
 
 // The whole thing is geometry, so the sentence a segment carries is what a screen reader gets — and
 // what a mouse gets. Both have to be complete enough to be worth having.
+//
+// The mouse gets a tooltip of the app's own rather than the `title` attribute: the browser's takes
+// about a second to appear, and a map is something you sweep across.
 test('a segment names its partition, its size and its usage', () => {
   const map = diskMap(mapped([
     { top_level: true, name: '/dev/sdb1', label: 'media', size_bytes: 500 * GIB,
@@ -342,11 +406,13 @@ test('a segment names its partition, its size and its usage', () => {
   ], 1000 * GIB));
 
   const seg = segmentsOf(map)[0];
-  const title = seg.getAttribute('title');
-  assert.match(title, /media/);
-  assert.match(title, /\/mnt\/media/);
-  assert.match(title, /47% full/);
-  assert.equal(seg.getAttribute('aria-label'), title, 'the screen-reader label differs from the tooltip');
+  assert.match(seg.getAttribute('aria-label'), /media/);
+  assert.match(seg.getAttribute('aria-label'), /\/mnt\/media/);
+  assert.match(seg.getAttribute('aria-label'), /47% full/);
+  assert.ok(!seg.getAttribute('title'),
+    'a `title` would give a second tooltip, one of them a second late');
+
+  assert.match(tooltipFor(seg), /47% full/, 'the hover label is not populated');
 });
 
 // Nothing to draw is not an empty bar: a caller that gets null renders the table alone, where an

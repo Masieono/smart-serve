@@ -258,6 +258,12 @@ function connectEvents() {
     // else, and yanking them to the top of the page to tell them is the wrong interruption.
     route({ keepScroll: true });
   });
+  // A drive's self-test progress changed (`FEATURES.md` A20). The watcher re-reads only drives that
+  // are mid-test, and publishes this when something actually moved — so the badge tracks a running
+  // test instead of freezing at whatever the last scan caught.
+  source.addEventListener('selftest_progress', () => {
+    route({ keepScroll: true });
+  });
   // EventSource reconnects automatically; nothing to do on error.
 }
 

@@ -128,6 +128,14 @@ func runServe() error {
 		},
 	}
 	manager := scan.NewManager(scanner, st, hub)
+	// The watcher reads drives too, so it takes the same per-command timeout the scanner does
+	// (`FEATURES.md` A20).
+	manager.SetCommandTimeout(scanner.CommandTimeout)
+
+	// The self-test watcher: while any drive is testing itself, re-read *those* drives so the fleet
+	// badge and the drive page stay current between scans. It idles without touching a drive when
+	// nothing is testing, so there is nothing to start or stop — it is a loop, not a job.
+	go manager.WatchSelfTests(ctx)
 
 	// One device-access probe at startup. The three ways a container blocks S.M.A.R.T.
 	// all look identical from inside, so without this the first symptom is an empty

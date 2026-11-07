@@ -3,6 +3,8 @@ package smart
 import (
 	"strings"
 	"testing"
+
+	"github.com/masieono/smart-serve/internal/model"
 )
 
 // The ATA fixture is a capture from a real Samsung 850 EVO (`smartctl -x --json`). Its log
@@ -80,6 +82,94 @@ func TestParseLogsATAErrorEntries(t *testing.T) {
 	}
 }
 
+// The drive's own self-test-execution status outvotes a stale percentage in the self-test log.
+//
+// This is a real report, and the fixture `ata-bto-1tb-logs.json` is the contradiction itself: its
+// `ata_smart_data.self_test.status` says "completed without error" — nothing is executing — while a
+// log row carries `remaining_percent: 50`. The old rule let the log row win unless no row had a
+// percentage, so a drive in that state reported itself as busy *forever*, at a figure that never
+// moved. Two USB-attached drives, one of them healthy at 100/100, were both stuck reading "10%".
+//
+// The rows are kept — their status text is the explanation for what happened — but they are results
+// now, not running tests.
+func TestAStaleLogRowDoesNotOutvoteTheDrivesOwnStatus(t *testing.T) {
+	got := ParseLogs(loadFixture(t, "ata-bto-1tb-logs.json"))
+
+	if got.Running() != nil {
+		t.Errorf("Running() = %+v, want nil — the drive's status says nothing is executing",
+			got.Running())
+	}
+	for _, e := range got.SelfTestEntries {
+		if e.Remaining != nil {
+			t.Errorf("entry %+v still carries a percentage; the drive said it is not running", e)
+		}
+	}
+	// The results themselves survive: clearing the percentage is not dropping the row.
+	if len(got.SelfTestEntries) != 2 {
+		t.Fatalf("SelfTestEntries = %d, want both rows kept", len(got.SelfTestEntries))
+	}
+	if got.LatestFinished() == nil {
+		t.Error("LatestFinished() = nil; the finished result was lost with the percentage")
+	}
+}
+
+// And the other direction: when the drive says a test *is* executing, that is the running test — with
+// the drive's own figure — and the log's leftover percentages are cleared so exactly one entry claims
+// to be running.
+//
+// Two entries claiming it would be worse than the bug this replaces: the card would draw a progress
+// bar from one and a percentage from the other.
+func TestTheDrivesOwnStatusIsTheRunningTest(t *testing.T) {
+	got := ParseLogs(loadFixture(t, "ata-selftest-running.json"))
+
+	running := got.Running()
+	if running == nil {
+		t.Fatal("Running() = nil; the drive says a test is executing")
+	}
+	if running.Remaining == nil || *running.Remaining != 90 {
+		t.Errorf("Remaining = %v, want the drive's own 90", running.Remaining)
+	}
+	// The aborted row's stale 40% is gone, and it is still in the log as a result.
+	for _, e := range got.SelfTestEntries {
+		if e.Status == "Aborted by host" && e.Remaining != nil {
+			t.Errorf("the aborted row still carries %v", *e.Remaining)
+		}
+	}
+	if n := countRunning(got.SelfTestEntries); n != 1 {
+		t.Errorf("%d entries claim to be running, want exactly 1", n)
+	}
+}
+
+// A drive that says nothing about its self-test status leaves the log as the only evidence there is.
+// Silence is not a statement of idle, and treating it as one would break every drive that reports
+// progress only in the log.
+func TestSilenceIsNotAStatementOfIdle(t *testing.T) {
+	raw := `{"ata_smart_self_test_log":{"extended":{"table":[
+		{"type":{"value":1,"string":"Short offline"},
+		 "status":{"value":245,"string":"Self-test routine in progress","remaining_percent":30}},
+		{"type":{"value":1,"string":"Short offline"},
+		 "status":{"value":0,"string":"Completed without error","passed":true}}
+	]}}}`
+
+	got := ParseLogs([]byte(raw))
+	if running := got.Running(); running == nil {
+		t.Fatal("Running() = nil; with no status field the log is all there is")
+	} else if running.Remaining == nil || *running.Remaining != 30 {
+		t.Errorf("Remaining = %v, want the log's 30", running.Remaining)
+	}
+}
+
+/** How many entries claim to be a test in progress. */
+func countRunning(entries []model.SelfTestEntry) int {
+	n := 0
+	for _, e := range entries {
+		if e.Remaining != nil {
+			n++
+		}
+	}
+	return n
+}
+
 // The self-test log is the one worth rendering: it carries the test, its outcome, and the
 // percentage remaining for a test still running — which is the progress reading A19 needs.
 func TestParseLogsATASelfTestEntries(t *testing.T) {
@@ -106,14 +196,17 @@ func TestParseLogsATASelfTestEntries(t *testing.T) {
 		t.Errorf("Hours = %v, want 2116", done.Hours)
 	}
 
-	// A test in progress has a percentage and no verdict. An absent `passed` is not a failure,
-	// which is why it stays nil rather than defaulting to false.
-	running := got.SelfTestEntries[1]
-	if running.Status != "Self-test routine in progress" {
-		t.Errorf("Status = %q", running.Status)
+	// The second row looks like a test in progress — it carries a percentage — but this drive's own
+	// self-test status says nothing is executing, so it is a stale leftover and the percentage is
+	// cleared. The row itself is kept: "Self-test routine in progress" as a *past* status is the
+	// explanation for a test that was interrupted. See
+	// `TestAStaleLogRowDoesNotOutvoteTheDrivesOwnStatus` for the rule.
+	stale := got.SelfTestEntries[1]
+	if stale.Status != "Self-test routine in progress" {
+		t.Errorf("Status = %q", stale.Status)
 	}
-	if running.Remaining == nil || *running.Remaining != 50 {
-		t.Errorf("Remaining = %v, want 50", running.Remaining)
+	if stale.Remaining != nil {
+		t.Errorf("Remaining = %v, want nil — the drive says it is not running", stale.Remaining)
 	}
 }
 
@@ -128,25 +221,28 @@ func TestParseLogsEmptyLogsProduceNoEntries(t *testing.T) {
 	}
 }
 
-// The BTO-1TB fixture carries a test *in progress* alongside a finished one, which makes it the
-// only place this rule can be checked against real data. It also pins the trap: the running test
-// reports `passed: true`, so a rule built on `passed` would call it finished and hide it.
+// A running test reports `passed: true`, so a rule built on `passed` would call it finished and hide
+// it. This pins that trap — and it is why the fixture used here is the one where the drive *states*
+// it is executing, rather than the one where only a log row says so.
 func TestRunningSelfTest(t *testing.T) {
-	got := ParseLogs(loadFixture(t, "ata-bto-1tb-logs.json"))
+	got := ParseLogs(loadFixture(t, "ata-selftest-running.json"))
 
 	running := got.Running()
 	if running == nil {
 		t.Fatal("Running() = nil, but this drive has a test in progress")
 	}
-	if running.Remaining == nil || *running.Remaining != 50 {
-		t.Errorf("Remaining = %v, want 50", running.Remaining)
+	if running.Remaining == nil || *running.Remaining != 90 {
+		t.Errorf("Remaining = %v, want 90", running.Remaining)
 	}
 	if running.Status != "Self-test routine in progress" {
 		t.Errorf("Status = %q", running.Status)
 	}
-	if running.Passed == nil || !*running.Passed {
-		t.Fatalf("Passed = %v; this fixture exists to pin the trap that a running test passes",
-			running.Passed)
+	// The trap, stated the right way round: the drive reports `passed: true` for a test that is still
+	// running, and the app deliberately does not carry it. Anything that read `passed` to decide
+	// whether a test had finished would see a green tick on a test in progress.
+	if running.Passed != nil {
+		t.Errorf("Passed = %v, want nil — a running test reports `passed: true` and the app must not read it",
+			*running.Passed)
 	}
 
 	for _, fixture := range []string{"ata-850-evo-logs.json", "nvme-sn730-logs.json"} {

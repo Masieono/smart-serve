@@ -203,6 +203,75 @@ func TestAFailedReadClearsTheSelfTestState(t *testing.T) {
 	}
 }
 
+// The self-test poll interval is one setting with two readers — the browser card and the server-side
+// watcher (`FEATURES.md` A20) — so the *server* has to read it, and it has to be as defensive as the
+// settings page is permissive.
+func TestSelfTestPollSecondsClampsToTheOfferedRange(t *testing.T) {
+	ctx := context.Background()
+	s := newTestStore(t)
+
+	// Nothing stored: the default, which is what the settings page shows.
+	if got := s.SelfTestPollSeconds(ctx); got != 15*time.Second {
+		t.Errorf("default = %v, want 15s", got)
+	}
+
+	for _, tc := range []struct {
+		stored string
+		want   time.Duration
+		why    string
+	}{
+		{"5", 5 * time.Second, "a value in range is used as-is"},
+		{"1", 2 * time.Second, "below the floor is raised: a hand-edited 1 would hammer a drive"},
+		{"600", 30 * time.Second, "above the ceiling is lowered: it would freeze the badge"},
+		{"0", 15 * time.Second, "zero is not a usable interval, so it falls back"},
+		{"", 15 * time.Second, "empty falls back"},
+		{"soon", 15 * time.Second, "unparseable falls back rather than becoming zero"},
+	} {
+		if err := s.SetSetting(ctx, "selftest_poll_seconds", tc.stored); err != nil {
+			t.Fatalf("SetSetting: %v", err)
+		}
+		if got := s.SelfTestPollSeconds(ctx); got != tc.want {
+			t.Errorf("stored %q: got %v, want %v — %s", tc.stored, got, tc.want, tc.why)
+		}
+	}
+}
+
+// The watcher asks the store which drives to read, and it must not be told about a drive it cannot
+// address or one that is not attached (`FEATURES.md` A20). A drive with no path has nothing to read,
+// and a missing drive is not testing anything as far as this app can tell.
+func TestTestingDevicesIsNarrowAndAddressable(t *testing.T) {
+	ctx := context.Background()
+	s := newTestStore(t)
+	at := time.Date(2026, 5, 1, 12, 0, 0, 0, time.UTC)
+	running := 40
+
+	if _, err := s.SaveScan(ctx, "manual", at, at.Add(time.Second), []ScannedDevice{
+		{Serial: "testing", Model: "m", DevicePath: "/dev/sda", Health: "good", Score: 100,
+			SelfTestRunning: true, SelfTestPct: &running, SelfTestKind: "Extended offline"},
+		{Serial: "idle", Model: "m", DevicePath: "/dev/sdb", Health: "good", Score: 100},
+		{Serial: "nowhere", Model: "m", Health: "good", Score: 100,
+			SelfTestRunning: true, SelfTestKind: "Short offline"},
+	}); err != nil {
+		t.Fatalf("SaveScan: %v", err)
+	}
+	// The transport override travels with it: without it the read fails on exactly the drives most
+	// likely to be mid-test.
+	if err := s.SetTransportOverride(ctx, "testing", "sat,12"); err != nil {
+		t.Fatalf("SetTransportOverride: %v", err)
+	}
+
+	got, err := s.TestingDevices(ctx)
+	if err != nil {
+		t.Fatalf("TestingDevices: %v", err)
+	}
+	if len(got) != 1 {
+		t.Fatalf("TestingDevices = %+v, want only the addressable running drive", got)
+	}
+	if got[0].Serial != "testing" || got[0].Path != "/dev/sda" || got[0].TransportOverride != "sat,12" {
+		t.Errorf("TestingDevices = %+v, want serial, path and override", got[0])
+	}
+}
+
 /** The stored row for a serial, failing the test when it is missing. */
 func deviceNamed(t *testing.T, s *Store, serial string) DeviceRecord {
 	t.Helper()

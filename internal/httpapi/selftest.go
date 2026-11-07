@@ -91,10 +91,27 @@ func (s *Server) handleAbortSelfTest(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadGateway, err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{
+
+	// Read the drive back, because "the abort was sent" and "the test stopped" are different facts and
+	// only the drive knows the second one (`FEATURES.md` A20).
+	//
+	// A drive behind a bridge that does not pass the abort through accepts the command and carries on
+	// testing. Reporting the send as success left a page that said "stopped" over a drive that was
+	// still working — and a reader who refreshes and sees it running again reasonably concludes the
+	// app is broken rather than the bridge.
+	out := map[string]any{
 		"status": "aborted",
 		"note":   smart.Messages(res.Stdout, res.Stderr),
-	})
+	}
+	if after, rerr := smart.ReadSelfTestLog(r.Context(), s.commandTimeout(r.Context()),
+		rec.DevicePath, rec.TransportOverride); rerr == nil {
+		running := smart.ParseLogs(after.Stdout).Running()
+		out["stopped"] = running == nil
+		if running != nil {
+			out["running"] = running
+		}
+	}
+	writeJSON(w, http.StatusOK, out)
 }
 
 // selfTestTarget resolves the drive a self-test request is about, writing the error itself when
