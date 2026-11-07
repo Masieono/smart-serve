@@ -15,6 +15,13 @@ discarding silently is not. See `ADR-028`.
 
 ### Added
 
+- **The self-test log lives in the Self-test card** (`FEATURES.md` A20) — with the buttons that start
+  a test and the progress of the one running. It was split across two cards: a "Last test: …" line
+  directly under the progress bar, and the rest of the same log in the Drive logs card. That put a
+  test which finished last week beside the one running now, with nothing between them, which is
+  exactly what made it read as confusing. History is now a labelled table under a rule, and the newest
+  result is simply its first row — one subject, one place. The Drive logs card keeps the summary
+  counts and the error log.
 - **The fleet badges the drive that is testing itself** (`FEATURES.md` A20) — start a long test, look
   at another drive, and the fleet says which one is busy. The reported problem was exactly that: the
   app had to be asked to start a second test before it would tell you one was already running. The

@@ -66,21 +66,22 @@ export function stopPolling() {
  * something rescans — and making a reader press the big Scan button to see the result of a test they
  * just ran is the wrong place to put it.
  */
-export function selfTestCard(ctx, device, logs, onLogs = null) {
+export function selfTestCard(ctx, device, logs, onLogs = null, renderHistory = null) {
   const note = el('p', { class: 'muted selftest-note' });
   const actions = el('div', { class: 'row selftest-actions' });
   const progress = el('div', { class: 'selftest-progress', hidden: true });
-  // The last result the drive is still holding on to, shown whether or not a test is running. It
-  // answers "did the test I ran yesterday pass?", which is a different question from "is one running
-  // now?" — and it used to be answerable only by finding the right row in the log table above.
-  const result = el('div', { class: 'selftest-result' });
+  // The drive's self-test history, in this card (`FEATURES.md` A20). It used to be a single "Last
+  // test: …" line directly under the progress bar and a table in the Drive logs card — which put a
+  // finished test from last week beside the one running now, and split one subject across two cards.
+  // History goes under its own heading, and the newest result is the table's first row.
+  const history = el('div', { class: 'selftest-history' });
 
   const card = el('div', { class: 'card stack panel-wide selftest' }, [
     el('h2', { text: 'Self-test' }),
     note,
     actions,
     progress,
-    result,
+    history,
   ]);
 
   if (logs && logs.self_test_supported === false) {
@@ -117,10 +118,16 @@ export function selfTestCard(ctx, device, logs, onLogs = null) {
   // because this card's copy comes from the last scan and is stale the moment a test has run since.
   let baseline = finishedSignature(logs);
 
-  const latest = logs && Array.isArray(logs.self_test_entries)
-    ? logs.self_test_entries.find((e) => e.remaining === undefined || e.remaining === null)
-    : null;
-  if (latest) mount(result, resultLine(latest));
+  // The drive's history, drawn from whatever log the card was last handed — the stored one on mount,
+  // and the *live* one after every read. One function, so the table cannot be showing one reading
+  // while the progress bar shows another.
+  //
+  // The renderer is passed in rather than imported: the log table lives in the device view, and
+  // importing it from here would make the two modules depend on each other.
+  function drawHistory(summary) {
+    if (renderHistory) mount(history, renderHistory(summary));
+  }
+  drawHistory(logs);
 
   /** No test running: offer one, and say what it costs. */
   function showIdle() {
@@ -335,8 +342,9 @@ export function selfTestCard(ctx, device, logs, onLogs = null) {
     // the reader re-read the whole fleet to see the outcome of one test.
     const live = state && state.logs ? state.logs : null;
     if (live) {
-      const done = finishedEntry(live.self_test_entries);
-      if (done) mount(result, resultLine(done));
+      // The history is redrawn from the live log, which is where a just-finished result exists — the
+      // stored copy the card was built from predates it.
+      drawHistory(live);
       if (onLogs) {
         const signature = logSignature(live);
         if (signature !== reportedLogs) {
@@ -511,25 +519,3 @@ function estimateText(elapsedMs, minutes) {
   return `running for ${elapsed} · the drive estimates about ${fmtDuration(minutes)}`;
 }
 
-/**
- * One finished test, in the drive's own words.
- *
- * The verdict is the drive's own `passed` flag and nothing else. A test the drive reports no verdict
- * on is not a failure — rendering an absent flag as one would put a red badge on a drive that never
- * said anything was wrong, and it is the same rule the rest of the app follows for absent values.
- */
-function resultLine(entry) {
-  const passed = entry.passed === true;
-  const failed = entry.passed === false;
-  const tone = passed ? 'good' : failed ? 'bad' : 'unknown';
-  const outcome = passed ? 'passed' : failed ? 'failed' : 'no verdict';
-  return el('div', { class: 'row selftest-last' }, [
-    el('span', { class: 'muted', text: 'Last test' }),
-    el('span', { class: 'selftest-kind', text: entry.type || 'Self-test' }),
-    el('span', { class: `badge badge-${tone}`, text: outcome }),
-    el('span', { class: 'spacer' }),
-    entry.hours === undefined || entry.hours === null
-      ? null
-      : el('span', { class: 'muted', text: `at ${fmtInt(entry.hours)} hours` }),
-  ]);
-}

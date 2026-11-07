@@ -164,6 +164,9 @@ and 7.5 can, with no hardware change — which is why the two are reported separ
 | 4.60 | Press Run on a drive whose card already shows Testing. | "This drive is already running a self-test" — but you should not have had to ask |
 | 4.61 | Let a test finish, then scan. | The badge is gone; the result is in the drive's self-test log |
 | 4.62 | Open a drive testing itself. | Its card reads the drive live, so the figure is fresher than the fleet badge's |
+| 4.63 | Look at the Self-test card on a drive with past tests. | The **self-test log** is in this card, under the buttons — not in the Drive logs card |
+| 4.64 | Start a test and watch the card. | The progress bar and the history are separated by a rule; nothing from a past test sits beside the running one |
+| 4.65 | Open a drive with no self-test history. | The card is the buttons and the note — no empty log table |
 
 ## Pass 5 — notifications
 

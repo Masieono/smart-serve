@@ -274,11 +274,13 @@ function draw(container, ctx, data, history) {
       // A19. The only control in the app that changes a drive, so it sits with the log it writes
       // to rather than up in the header with the read-only actions.
       //
-      // The fourth argument is how a finished test's result reaches the panel above without a scan:
-      // the card reads the drive live while a test runs, and hands over the log it read.
+      // The fourth argument is how a fresh log reaches the *error* panel without a scan: the card
+      // reads the drive live while a test runs, and hands over the log it read. The fifth is the
+      // reverse direction — the card owns the self-test log now (`FEATURES.md` A20), so it asks the
+      // page to draw it, and redraws it from every live read.
       selfTestCard(ctx, d, d.logs, (fresh) => {
         mount(logHolder, logSummary(fresh, seriesFor('power_on_hours', series)));
-      }),
+      }, (summary) => selfTestLogSection(summary, seriesFor('power_on_hours', series))),
     ]),
   );
 }
@@ -905,12 +907,10 @@ export function logSummary(logs, hours = []) {
     // The counts above are the summary; these are the entries, so they get their own heading and a
     // rule. Without them the table read as more rows of the same thing, and the reader had to work
     // out where the summary ended and the log began.
-    selfTestEntries.length
-      ? el('section', { class: 'log-section' }, [
-          el('h4', { text: 'Self-test log' }),
-          selfTestTable(selfTestEntries, hours),
-        ])
-      : null,
+    //
+    // The *self-test* log is not here (`FEATURES.md` A20): it lives in the Self-test card with the
+    // buttons that start one and the progress of the one running — one subject, one place. This card
+    // is about what the drive has complained about, and a self-test log is not that.
     detailed.length
       ? el('section', { class: 'log-section' }, [
           el('h4', { text: 'Error log' }),
@@ -924,6 +924,24 @@ export function logSummary(logs, hours = []) {
     // its message is usually the whole explanation.
     logs.note ? el('p', { class: 'muted', text: `smartctl: ${logs.note}` }) : null,
     el('p', { class: 'muted', text: 'The full smartctl document is in the raw output.' }),
+  ]);
+}
+
+/**
+ * The drive's self-test log, for the Self-test card (`FEATURES.md` A20).
+ *
+ * Exported because the card owns it now: the newest result used to be summarised in a line directly
+ * under the progress bar, where a test that finished last week read as part of the one running now.
+ * History belongs under its own heading, and the newest result is simply the table's first row.
+ *
+ * Returns null when the drive holds no results, so the card can leave the space to the buttons.
+ */
+export function selfTestLogSection(logs, hours = []) {
+  const entries = logs && Array.isArray(logs.self_test_entries) ? logs.self_test_entries : [];
+  if (!entries.length) return null;
+  return el('section', { class: 'log-section' }, [
+    el('h4', { text: 'Self-test log' }),
+    selfTestTable(entries, hours),
   ]);
 }
 

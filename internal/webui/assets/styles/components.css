@@ -813,6 +813,19 @@ tr:hover .part-copy,
   );
 }
 
+/* The self-test card's history (`FEATURES.md` A20): the drive's own log, in the card that owns the
+   subject. A rule above it separates "what is happening now" from "what happened before" — the
+   confusion the old "Last test: …" line caused was exactly that they were adjacent with nothing
+   between them. */
+.selftest-history {
+  margin-top: var(--space-2);
+}
+
+.selftest-history > .log-section:first-child {
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--border);
+}
+
 /* The self-test badge on a fleet card (`FEATURES.md` A20). Neutral, not green: a test in progress is
    neither a fault nor a clean bill of health. */
 .selftest-badge {

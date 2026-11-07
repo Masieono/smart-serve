@@ -9,10 +9,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { installStubDom, stubFetch, StubNode } from './stub-dom.mjs';
+import { el } from '../assets/js/dom.js';
 
 installStubDom();
 
 const { selfTestCard, stopPolling, setPollSeconds, POLL_MS } = await import('../assets/js/views/selftest.js');
+const { selfTestLogSection } = await import('../assets/js/views/device.js');
 
 /** A stand-in for the view context, recording what the card asked of it. */
 function stubCtx() {
@@ -448,37 +450,46 @@ test('a card that has left the page stops polling', async () => {
 // does appear in the Drive logs card, but that is drawn from the *last scan* — and a fifteen-second
 // poll only ever sees a short test after it has already finished.
 
-test('the card reports the last finished test', () => {
+// The card owns the drive's self-test history (`FEATURES.md` A20): it asks the page to draw it and
+// mounts what comes back.
+//
+// It used to render a "Last test: …" line itself, directly under the progress bar — where a test that
+// finished last week read as part of the one running now, and the rest of the same log sat in a
+// different card. History belongs under its own heading, in the card that owns the subject.
+test('the card draws the history it is handed', () => {
   stopPolling();
-  const card = selfTestCard(stubCtx(), { serial: 'S' }, {
+  const drawn = [];
+  const renderHistory = (logs) => {
+    drawn.push(logs);
+    return el('p', { text: `history: ${(logs.self_test_entries || []).length} entries` });
+  };
+
+  const logs = {
     self_test_supported: true,
     short_minutes: 2,
     self_test_entries: [
       { type: 'Short offline', status: 'Completed without error', passed: true, hours: 2116 },
       { type: 'Short offline', status: 'Completed without error', passed: true, hours: 2000 },
     ],
-  });
+  };
+  const card = selfTestCard(stubCtx(), { serial: 'S' }, logs, null, renderHistory);
 
-  const text = textOf(card);
-  assert.match(text, /Last test/);
-  assert.match(text, /Short offline/);
-  assert.match(text, /passed/);
-  assert.match(text, /2,116 hours/);
+  assert.equal(drawn.length, 1, 'the card did not ask for the history');
+  assert.equal(drawn[0], logs, 'the card asked for history from something other than its log');
+  assert.match(textOf(card), /history: 2 entries/, 'the history was not mounted in the card');
   stopPolling();
 });
 
-// A drive that reports no verdict is not a drive that failed. An absent `passed` is the same
-// distinction the rest of the app draws for absent values.
-test('an absent verdict is not rendered as a failure', () => {
+// With no log at all there is no history to draw, and asking for one would put an empty table under
+// the buttons — the panel stays out of the way instead.
+test('a card with no log asks for no history', () => {
   stopPolling();
-  const card = selfTestCard(stubCtx(), { serial: 'S' }, {
-    self_test_supported: true,
-    self_test_entries: [{ type: 'Short offline', status: 'Completed without error' }],
-  });
+  const drawn = [];
+  selfTestCard(stubCtx(), { serial: 'S' }, { self_test_supported: true }, null,
+    (logs) => { drawn.push(logs); return null; });
 
-  const text = textOf(card);
-  assert.match(text, /no verdict/);
-  assert.ok(!/failed/.test(text), `an absent verdict rendered as a failure: ${text}`);
+  assert.equal(drawn.length, 1, 'the renderer is called with the (empty) log it was given');
+  assert.equal(drawn[0].self_test_entries, undefined);
   stopPolling();
 });
 
@@ -575,7 +586,7 @@ test('a new result in the live log ends the wait', async () => {
     self_test_supported: true,
     short_minutes: 2,
     self_test_entries: [{ type: 'Short', status: 'Completed without error', passed: true, hours: 41 }],
-  });
+  }, null, (summary) => selfTestLogSection(summary, []));
   await flush();
 
   const [run] = buttonsOf(card);
@@ -583,8 +594,10 @@ test('a new result in the live log ends the wait', async () => {
 
   const text = textOf(card);
   assert.doesNotMatch(text, /Started\./, 'still waiting for a result the drive has written');
-  assert.match(text, /Last test/);
-  assert.match(text, /99 hours/);
+  // The new row is in the card's own history, which is where the result of a test now appears.
+  assert.match(text, /Self-test log/);
+  assert.match(text, /99 h/, 'the drive\'s new result is not in the card');
+  assert.doesNotMatch(text, /41 h/, 'the history was not redrawn from the live log');
   stopPolling();
 });
 

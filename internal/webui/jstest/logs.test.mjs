@@ -11,7 +11,7 @@ import { installStubDom, StubNode } from './stub-dom.mjs';
 
 installStubDom();
 
-const { logSummary } = await import('../assets/js/views/device.js');
+const { logSummary, selfTestLogSection } = await import('../assets/js/views/device.js');
 const { fmtStamp } = await import('../assets/js/dom.js');
 
 /** Every string in a subtree, in document order. */
@@ -75,7 +75,7 @@ test('a note alone is enough to render', () => {
 // The self-test log, rendered. It is the one worth showing: the entries carry the test, its
 // outcome, and the percentage remaining for a test still running.
 test('the self-test log renders its entries', () => {
-  const text = textOf(logSummary({
+  const text = textOf(selfTestLogSection({
     self_test_count: 2,
     self_test_entries: [
       { type: 'Short offline', status: 'Completed without error', passed: true, hours: 2116 },
@@ -91,7 +91,7 @@ test('the self-test log renders its entries', () => {
 // An absent verdict is not a failure. A test still running reports no `passed` at all, and
 // defaulting that to false would put a red cross beside a drive that is merely busy.
 test('a test in progress is not rendered as a failure', () => {
-  const text = textOf(logSummary({
+  const text = textOf(selfTestLogSection({
     self_test_entries: [{ type: 'Extended offline', status: 'in progress', remaining: 12 }],
   }));
   assert.match(text, /In progress, 12% left/);
@@ -99,12 +99,38 @@ test('a test in progress is not rendered as a failure', () => {
 });
 
 test('a finished self-test shows the drive\'s own verdict', () => {
-  const text = textOf(logSummary({
+  const text = textOf(selfTestLogSection({
     self_test_entries: [
       { type: 'Short offline', status: 'Completed: read failure', passed: false, hours: 42 },
     ],
   }));
   assert.match(text, /Completed: read failure/);
+});
+
+// An absent verdict is not a failure. A test still running reports no `passed` at all, and a finished
+// entry the drive said nothing about is the same case — defaulting either to false would put a red
+// cross beside a drive that never said anything was wrong.
+//
+// The table shows the drive's own status text unmarked in that case, so the assertion is about the
+// *marking* rather than about wording: no failure treatment, and no invented verdict either.
+test('an absent verdict is not rendered as a failure', () => {
+  const text = textOf(selfTestLogSection({
+    self_test_entries: [{ type: 'Short offline', status: 'Completed without error' }],
+  }));
+  assert.match(text, /Completed without error/, "the drive's own words are shown");
+  assert.doesNotMatch(text, /failed/i, `an absent verdict rendered as a failure: ${text}`);
+
+  // An entry with no status at all gets a dash rather than an invented verdict.
+  const blank = textOf(selfTestLogSection({ self_test_entries: [{ type: 'Short offline' }] }));
+  assert.doesNotMatch(blank, /failed/i, 'a verdict was invented for an entry that carried none');
+
+  // And the marking *is* there when the drive gives one — otherwise "absent is not a failure" would be
+  // true for the wrong reason.
+  const failed = selfTestLogSection({
+    self_test_entries: [{ type: 'Short offline', status: 'Completed: read failure', passed: false }],
+  });
+  assert.ok(failed.all('span').some((n) => /log-fail/.test(n.className)),
+    'a test the drive failed carries no failure marking');
 });
 
 // The error log's populated entries carry a number and an index and nothing else, so a table of
@@ -132,7 +158,7 @@ test('an error log with detail gets a table', () => {
 test('a self-test is placed on a clock using the history', () => {
   const now = Date.now();
   const day = 86400000;
-  const text = textOf(logSummary(
+  const text = textOf(selfTestLogSection(
     { self_test_entries: [{ type: 'Short', status: 'Completed without error', passed: true, hours: 2116 }] },
     [
       { ts: new Date(now - 10 * day).toISOString(), value: 2000 },
@@ -151,7 +177,7 @@ test('a self-test is placed on a clock using the history', () => {
 // A test older than the retained history has no bracketing reading, so it says its hours rather than
 // inventing a date from a rate — a figure nobody could check.
 test('a test the history cannot place shows its hours', () => {
-  const text = textOf(logSummary(
+  const text = textOf(selfTestLogSection(
     { self_test_entries: [{ type: 'Short', status: 'Completed without error', hours: 100 }] },
     [
       { ts: '2026-10-01T00:00:00Z', value: 2000 },
