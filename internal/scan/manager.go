@@ -444,6 +444,18 @@ func toStored(d Device) store.ScannedDevice {
 	if d.Error == "" {
 		logs := smart.ParseLogs(d.Raw)
 		out.SelfTest = logs.LatestFinished()
+		// And whether one is running right now (`FEATURES.md` A20), so the fleet can show which drive
+		// is busy without reading every drive. The same log, the same read: a test in progress is the
+		// entry carrying a percentage remaining — and many drives report no figure at all, so
+		// "running, no number" is a real state rather than a missing one.
+		if running := logs.Running(); running != nil {
+			out.SelfTestRunning = true
+			out.SelfTestKind = running.Type
+			if running.Remaining != nil {
+				pct := 100 - *running.Remaining
+				out.SelfTestPct = &pct
+			}
+		}
 	}
 	return out
 }

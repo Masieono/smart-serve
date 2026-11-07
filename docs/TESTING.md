@@ -160,6 +160,10 @@ and 7.5 can, with no hardware change — which is why the two are reported separ
 | 4.56 | Open a drive with a volume group on it. | The logical volume is **not** drawn as its own segment; it is a row in the table only |
 | 4.57 | Open a drive whose filesystem the container cannot see. | Its segment is hatched, not filled at 0% |
 | 4.58 | Turn **Storage usage** off in Settings → Appearance. | The map goes with the usage column |
+| 4.59 | Start a long test on one drive, then go back to the fleet. | That drive's card carries a **Testing** badge — no need to open each page to find it |
+| 4.60 | Press Run on a drive whose card already shows Testing. | "This drive is already running a self-test" — but you should not have had to ask |
+| 4.61 | Let a test finish, then scan. | The badge is gone; the result is in the drive's self-test log |
+| 4.62 | Open a drive testing itself. | Its card reads the drive live, so the figure is fresher than the fleet badge's |
 
 ## Pass 5 — notifications
 

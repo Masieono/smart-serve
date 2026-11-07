@@ -118,6 +118,43 @@ test('a bay is shown on the card', () => {
 
 // A drive with no bay recorded is not a drive with a problem. A row reading "Bay —" would look
 // like a missing measurement rather than a gap in the bookkeeping, so the row is dropped.
+
+// A drive testing itself gets a badge on its fleet card (`FEATURES.md` A20).
+//
+// This is the reported problem stated as a test: start a long test, look at another drive, come back
+// — and the fleet gave no sign of which one was busy, so the app got asked to start a second test it
+// would refuse. The badge answers "which drive is busy?" without visiting each page.
+test('a drive testing itself is badged on its fleet card', () => {
+  const running = card({ selftest: { kind: 'Extended offline', pct: 62 } });
+  assert.match(textOf(running), /Testing 62%/);
+
+  // Which *drive* is the badge's job, and a card is not the place for "Extended offline" in the
+  // label — but which *test* has to be somewhere, and the tooltip is where a sentence belongs.
+  const badge = running.all('span').find((n) => /selftest-badge/.test(n.className));
+  assert.ok(badge, 'no badge');
+  assert.match(badge.getAttribute('title'), /Extended offline/);
+
+  // A drive that reports no progress while testing: the badge is still the answer, so it says
+  // "Testing" rather than showing a percentage nobody measured.
+  const noFigure = textOf(card({ selftest: { kind: 'Short offline' } }));
+  assert.match(noFigure, /Testing/);
+  assert.doesNotMatch(noFigure, /Testing \d/, 'a figure was invented for a drive that reports none');
+
+  // And nothing at all when nothing is running — a permanent badge would be noise on every card.
+  assert.doesNotMatch(textOf(card({})), /Testing/);
+});
+
+// The badge must not read as health. A test in progress is neither a fault nor a clean bill of
+// health, and a green mark on a drive that has not reported yet would be a claim it cannot make.
+test('the testing badge does not wear a health tone', () => {
+  const node = card({ selftest: { kind: 'Extended offline', pct: 62 } })
+    .all('span')
+    .find((n) => /selftest-badge/.test(n.className));
+  assert.ok(node, 'no badge');
+  assert.match(node.className, /badge-unknown/);
+  assert.doesNotMatch(node.className, /badge-good|badge-bad|badge-caution/);
+});
+
 test('a drive with no bay gets no row, not an empty one', () => {
   const text = textOf(card({}));
   assert.doesNotMatch(text, /Bay/);

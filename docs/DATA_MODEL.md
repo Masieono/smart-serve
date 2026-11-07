@@ -135,6 +135,9 @@ worse than no setting at all.
 | `show_partitions` | `true` | show the partition schema on the device page (`FEATURES.md` A28). A display preference, so nothing the scan reads | `webui` |
 | `show_usage` | `true` | show how full each filesystem is. Off drops the column rather than emptying it; the figures themselves need the host's mount roots bind-mounted read-only, or `lsblk` has nothing to `statvfs` | `webui` |
 | `storage_warn_pct` | `90` | the level at which a usage bar turns amber (`FEATURES.md` A28). A **display** threshold: read by the browser and nothing else, so it does not touch the verdict. It is not in the per-model seed for the same reason — that list is the interpreter's numbers | `webui` |
+| `selftest_running` | `0` | whether the drive was testing itself at the last scan (`FEATURES.md` A20, migration `0017`). The scan already parses the self-test log for the finished result; a test in progress is the same log's entry carrying a percentage remaining | `scan`, `httpapi` |
+| `selftest_pct` | NULL | how far along, 0–100. NULL when the drive reports no progress while testing, which many do not. **Overwritten** by every scan rather than COALESCEd like `selftest_status`: a finished test must stop showing as running | `scan`, `httpapi` |
+| `selftest_kind` | `''` | the drive's own words for the running test ("Extended offline") | `scan`, `httpapi` |
 | `retention_days` | `180` | snapshot retention window. **Also bounds the projection, the worsening flag and the trend adjustment** — there is one window, not two, so raising it gives a longer view as well as a longer memory (`FEATURES.md` A26) | `scan` (pruning) |
 | `notification_log_retention_days` | `30` | notification-log retention | `scan` (pruning) |
 | `squelch_seconds` | `3600` | re-alert window for persistent conditions | `notify` |

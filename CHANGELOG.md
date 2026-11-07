@@ -15,6 +15,14 @@ discarding silently is not. See `ADR-028`.
 
 ### Added
 
+- **The fleet badges the drive that is testing itself** (`FEATURES.md` A20) — start a long test, look
+  at another drive, and the fleet says which one is busy. The reported problem was exactly that: the
+  app had to be asked to start a second test before it would tell you one was already running. The
+  scan records it (three columns, migration `0017`) from the self-test log it was already parsing, and
+  starting a test kicks a rescan of that one drive so the badge appears immediately rather than at the
+  next full scan. The state is **overwritten** by each scan, not merged, so a finished test stops
+  showing as running. The badge is neutral, not green: a test in progress is neither a fault nor a
+  clean bill of health.
 - **A disk map above the partition table** (`FEATURES.md` A28) — one segment per top-level partition,
   sized by its share of the disk, with the partition's own fullness filled in from the left. One
   glance answers "what is on this disk?" and "where is the room?". The table underneath is the detail

@@ -100,6 +100,18 @@ type deviceJSON struct {
 	// One implementation, server-side, so the list and the detail page cannot disagree about which
 	// filesystem is fullest.
 	Storage *storageJSON `json:"storage,omitempty"`
+	// SelfTest is the test running *right now* (`FEATURES.md` A20), as of the last scan. On the list
+	// endpoint because that is the point: start a long test, look at another drive, and the fleet
+	// should say which one is busy rather than making you visit each page to find out.
+	SelfTest *selfTestStateJSON `json:"selftest,omitempty"`
+}
+
+// selfTestStateJSON is a running self-test, as the fleet needs it for a badge.
+type selfTestStateJSON struct {
+	Kind string `json:"kind,omitempty"`
+	// Pct is how far along, 0-100. Nil when the drive reports no progress while a test runs, which
+	// many do not — they only write a log entry when one finishes.
+	Pct *int `json:"pct,omitempty"`
 }
 
 // storageJSON is the fullest filesystem on a drive, as the UI needs it for a usage bar.
@@ -108,6 +120,19 @@ type storageJSON struct {
 	UsedPct    int    `json:"used_pct"`
 	UsedBytes  uint64 `json:"used_bytes,omitempty"`
 	TotalBytes uint64 `json:"total_bytes,omitempty"`
+}
+
+// selfTestStateFor is the test running right now (`FEATURES.md` A20), or nil when none is.
+//
+// Read from the device row rather than the drive: this is the fleet's view, and reading every drive
+// to draw a badge would defeat the point of having the scan record it. The device page's own card
+// still reads the drive live — this is what the *list* has, and a badge that is a scan old is worth
+// having where a page visit per drive is not.
+func selfTestStateFor(d store.DeviceRecord) *selfTestStateJSON {
+	if !d.SelfTestRunning {
+		return nil
+	}
+	return &selfTestStateJSON{Kind: d.SelfTestKind, Pct: d.SelfTestPct}
 }
 
 // storageFor summarises a drive's stored partition layout, or nil when there is nothing to say.
@@ -169,6 +194,7 @@ func toDeviceJSON(d store.DeviceRecord) deviceJSON {
 		Ack:             toAckJSON(d.Ack),
 		Bay:             d.Bay,
 		Storage:         storageFor(d.DiskLayout),
+		SelfTest:        selfTestStateFor(d),
 		FirstSeen:       rfc3339(d.FirstSeen),
 		LastSeen:        rfc3339(d.LastSeen),
 		IsMissing:       d.IsMissing,

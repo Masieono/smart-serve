@@ -254,6 +254,14 @@ export function selfTestCard(ctx, device, logs, onLogs = null) {
           startedAt = Date.now();
           startedKind = kind;
           awaitingResult = true;
+          // Record it, so the fleet can badge this drive (`FEATURES.md` A20) — otherwise the badge
+          // would not appear until the next full scan, which on a quiet homelab could be tomorrow.
+          //
+          // Not `ctx.scanDevice`, which toasts and re-renders: the card has already drawn the
+          // progress from a live read, and re-routing would throw the reader out of the card they are
+          // watching. And a failure here is not worth an error — the test is running either way, and
+          // the only thing lost is a badge.
+          api.scanDevice(device.serial).catch(() => {});
           await read();
         } catch (err) {
           toast(err.message, 'error');

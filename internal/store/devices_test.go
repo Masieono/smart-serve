@@ -124,6 +124,101 @@ func TestSectorTrendIgnoresRowsBeforeTheWindow(t *testing.T) {
 	}
 }
 
+// The in-progress self-test survives the round trip, and is *cleared* when one is no longer running
+// (`FEATURES.md` A20).
+//
+// Cleared rather than merged is the whole invariant. The finished result beside it is COALESCEd, so a
+// scan that could not read the log keeps the last known outcome — right for a result, wrong for a
+// running test, where a stale badge would say a drive is busy long after it finished.
+func TestSelfTestStateIsRecordedAndCleared(t *testing.T) {
+	ctx := context.Background()
+	s := newTestStore(t)
+	at := time.Date(2026, 3, 1, 3, 0, 0, 0, time.UTC)
+
+	running := 62
+	if _, err := s.SaveScan(ctx, "manual", at, at.Add(time.Second), []ScannedDevice{{
+		Serial: "A", Model: "m", DevicePath: "/dev/sda", Health: "good", Score: 100,
+		SelfTestRunning: true, SelfTestPct: &running, SelfTestKind: "Extended offline",
+	}}); err != nil {
+		t.Fatalf("SaveScan: %v", err)
+	}
+
+	rec := deviceNamed(t, s, "A")
+	if !rec.SelfTestRunning {
+		t.Error("a running test was not recorded")
+	}
+	if rec.SelfTestPct == nil || *rec.SelfTestPct != 62 {
+		t.Errorf("pct = %v, want 62", rec.SelfTestPct)
+	}
+	if rec.SelfTestKind != "Extended offline" {
+		t.Errorf("kind = %q, want the drive's own words for the test", rec.SelfTestKind)
+	}
+
+	// The test finished. The next scan says so, and the badge must go with it.
+	after := at.Add(time.Hour)
+	if _, err := s.SaveScan(ctx, "manual", after, after.Add(time.Second), []ScannedDevice{{
+		Serial: "A", Model: "m", DevicePath: "/dev/sda", Health: "good", Score: 100,
+	}}); err != nil {
+		t.Fatalf("SaveScan: %v", err)
+	}
+
+	rec = deviceNamed(t, s, "A")
+	if rec.SelfTestRunning {
+		t.Error("a finished test is still showing as running; the badge would never go away")
+	}
+	if rec.SelfTestPct != nil {
+		t.Errorf("pct = %v, want nil once nothing is running", *rec.SelfTestPct)
+	}
+	if rec.SelfTestKind != "" {
+		t.Errorf("kind = %q, want empty once nothing is running", rec.SelfTestKind)
+	}
+}
+
+// A drive whose S.M.A.R.T. could not be read is not testing itself as far as this app can tell, and
+// the state is cleared for it too — otherwise a drive that failed mid-test would keep its badge for
+// as long as the failure lasted.
+func TestAFailedReadClearsTheSelfTestState(t *testing.T) {
+	ctx := context.Background()
+	s := newTestStore(t)
+	at := time.Date(2026, 3, 2, 3, 0, 0, 0, time.UTC)
+
+	running := 40
+	if _, err := s.SaveScan(ctx, "manual", at, at.Add(time.Second), []ScannedDevice{{
+		Serial: "A", Model: "m", DevicePath: "/dev/sda", Health: "good", Score: 100,
+		SelfTestRunning: true, SelfTestPct: &running, SelfTestKind: "Short offline",
+	}}); err != nil {
+		t.Fatalf("SaveScan: %v", err)
+	}
+
+	later := at.Add(time.Hour)
+	if _, err := s.SaveScan(ctx, "manual", later, later.Add(time.Second), []ScannedDevice{{
+		Serial: "A", Model: "m", DevicePath: "/dev/sda", Health: "unknown", Score: -1,
+		Error: "smartctl: device not found",
+	}}); err != nil {
+		t.Fatalf("SaveScan: %v", err)
+	}
+
+	if rec := deviceNamed(t, s, "A"); rec.SelfTestRunning {
+		t.Error("a drive that could not be read is still showing as testing itself")
+	}
+}
+
+/** The stored row for a serial, failing the test when it is missing. */
+func deviceNamed(t *testing.T, s *Store, serial string) DeviceRecord {
+	t.Helper()
+	devices, err := s.ListDevices(context.Background())
+	if err != nil {
+		t.Fatalf("ListDevices: %v", err)
+	}
+	for _, d := range devices {
+		if d.Serial == serial {
+			return d
+		}
+	}
+	t.Fatalf("no device %q in the store", serial)
+	return DeviceRecord{}
+}
+
 // `used_pct` has to survive the round trip for exactly the reason `sectors` did — it was added to a
 // struct that three separate queries populate, and a column added to the SELECT but not the Scan (or
 // the reverse) fails silently on the paths nobody happens to exercise.

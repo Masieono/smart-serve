@@ -363,6 +363,30 @@ export const BLOCKED_CAUSES = new Set(['device_blocked', 'query_blocked']);
  * verdict says how the drive looks *now*; this says which way it is going. A drive can be
  * green today and still be the one worth replacing first.
  */
+/**
+ * A badge for a drive testing itself (`FEATURES.md` A20), or null when none is.
+ *
+ * The percentage is the drive's own, and it is absent on many drives — they write a self-test log
+ * entry only when a test *finishes*, so there is nothing to read while one runs. "Testing" without a
+ * figure is the honest answer there, and it is still the answer to the question the badge exists for:
+ * which drive is busy.
+ *
+ * Tone is neutral rather than `good`: a test in progress is neither a fault nor a clean bill of
+ * health, and colouring it green would put a reassuring mark on a drive that has not reported yet.
+ */
+function selfTestBadge(device) {
+  const state = device && device.selftest;
+  if (!state) return null;
+  const kind = String(state.kind || '').trim();
+  const pct = typeof state.pct === 'number' ? state.pct : null;
+  const label = pct === null ? 'Testing' : `Testing ${pct}%`;
+  return el('span', {
+    class: 'badge badge-unknown selftest-badge',
+    title: `${kind || 'A self-test'} is running on this drive` +
+      (pct === null ? ', which does not report progress' : `, ${pct}% done`),
+  }, [icon('scan'), label]);
+}
+
 function worseningBadge(device) {
   if (!device.worsening) return null;
   return el('span', {
@@ -452,6 +476,10 @@ export function deviceCard(device, onOpen, onScan) {
           text: `${device.model || '—'}${device.device_path ? ` · ${device.device_path}` : ''}`,
         }),
       ]),
+      // A test running right now (`FEATURES.md` A20). On the card because the reported problem was
+      // exactly this: start a long test, look at another drive, come back, and the fleet gave no sign
+      // of which one was busy — so the app got asked to start a second test it would refuse.
+      selfTestBadge(device),
       worseningBadge(device),
       statusBadge(device),
     ]),

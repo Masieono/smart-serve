@@ -55,6 +55,17 @@ type ScannedDevice struct {
 	// DiskLayout is the partition schema and the storage facts with it (`FEATURES.md` A28), as JSON.
 	// Empty for a drive whose layout was never read.
 	DiskLayout string
+	// SelfTestRunning, SelfTestPct and SelfTestKind are the *in progress* test at this scan
+	// (`FEATURES.md` A20), so the fleet can show which drive is busy without reading every drive. The
+	// scan already parses the self-test log for the finished result below, and a test in progress is
+	// the same log's entry that carries a percentage remaining.
+	//
+	// SelfTestPct is nil when the drive reports no progress: many only write a log entry when a test
+	// *finishes*, so "running, no figure" is a real and common state, and 0 would claim a test at its
+	// very beginning.
+	SelfTestRunning bool
+	SelfTestPct     *int
+	SelfTestKind    string
 	// Error is non-empty when S.M.A.R.T. could not be read for this device.
 	Error string
 	// SelfTest is the newest *finished* test in the drive's self-test log, nil when the log
@@ -93,6 +104,12 @@ type DeviceRecord struct {
 	// DiskLayout is the partition schema (`FEATURES.md` A28) as JSON: the partitions, and the storage
 	// facts that come from the same `lsblk` call.
 	DiskLayout string
+	// SelfTestRunning, SelfTestPct and SelfTestKind are the test in progress as of the last scan
+	// (`FEATURES.md` A20), so the fleet can badge the drive that is busy. SelfTestPct is nil when the
+	// drive reports no progress, which many do not.
+	SelfTestRunning bool
+	SelfTestPct     *int
+	SelfTestKind    string
 	// TransportOverride is the remembered `smartctl -d` for a stubborn USB bridge.
 	TransportOverride string
 	SmartAvailable    bool
@@ -249,13 +266,22 @@ func upsertDevice(ctx context.Context, tx *sql.Tx, d ScannedDevice, lastScan any
 			selfHours, selfPassed = nullInt64(st.Hours), nullBool(st.Passed)
 		}
 	}
+	// The *in progress* test (`FEATURES.md` A20). Overwritten rather than merged, unlike the finished
+	// result above: a test that has ended must stop showing as running, and a stale badge is worse
+	// than no badge. A drive whose S.M.A.R.T. could not be read is not testing itself as far as this
+	// app can tell, so the state is cleared for it too.
+	selfRunning, selfPct, selfKind := 0, (*int)(nil), ""
+	if d.Error == "" && d.SelfTestRunning {
+		selfRunning, selfPct, selfKind = 1, d.SelfTestPct, d.SelfTestKind
+	}
 	_, err := tx.ExecContext(ctx, `
 		INSERT INTO devices (serial, model, model_family, firmware, device_path, transport,
 			smart_bus, interface_speed, capacity_bytes, rotation, wwn, smart_available,
 			smart_error, health, health_rationale, score, temperature_c, first_seen, last_seen,
 			last_scan, mountpoints, fstype, removable, fs_version, raw_output, is_missing,
-			selftest_type, selftest_hours, selftest_passed, selftest_status, penalties, disk_layout)
-		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,0,?,?,?,?,?,?)
+			selftest_type, selftest_hours, selftest_passed, selftest_status, penalties, disk_layout,
+			selftest_running, selftest_pct, selftest_kind)
+		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,0,?,?,?,?,?,?,?,?,?)
 		ON CONFLICT(serial) DO UPDATE SET
 			model=excluded.model,
 			model_family=excluded.model_family,
@@ -286,13 +312,17 @@ func upsertDevice(ctx context.Context, tx *sql.Tx, d ScannedDevice, lastScan any
 			selftest_status=COALESCE(excluded.selftest_status, devices.selftest_status),
 			penalties=excluded.penalties,
 			disk_layout=excluded.disk_layout,
+			selftest_running=excluded.selftest_running,
+			selftest_pct=excluded.selftest_pct,
+			selftest_kind=excluded.selftest_kind,
 			is_missing=0`,
 		d.Serial, d.Model, d.ModelFamily, d.Firmware, d.DevicePath, d.Transport, d.SmartBus,
 		d.InterfaceSpeed, nullUint(d.CapacityBytes), nullInt(d.Rotation), d.WWN, available,
 		d.Error, d.Health, d.HealthRationale, d.Score, nullInt(d.TemperatureC),
 		started.UnixMilli(), ended.UnixMilli(), lastScan,
 		encodeMountpoints(d.Mountpoints), d.Fstype, nullBool(d.Removable), d.FsVersion,
-		d.RawOutput, selfType, selfHours, selfPassed, selfStatus, d.Penalties, d.DiskLayout)
+		d.RawOutput, selfType, selfHours, selfPassed, selfStatus, d.Penalties, d.DiskLayout,
+		selfRunning, nullInt(selfPct), selfKind)
 	if err != nil {
 		return fmt.Errorf("upsert device %s: %w", d.Serial, err)
 	}
@@ -323,6 +353,7 @@ SELECT d.serial, d.model, d.model_family, d.firmware, d.device_path, d.transport
        d.smart_error, d.health, d.health_rationale, d.score, d.temperature_c,
        d.first_seen, d.last_seen, d.last_scan, d.is_missing,
        d.mountpoints, d.fstype, d.removable, d.fs_version, d.raw_output, d.penalties, d.disk_layout,
+       d.selftest_running, d.selftest_pct, d.selftest_kind,
        COALESCE(t.smart_d, ''),
        COALESCE(n.name, ''), COALESCE(n.notes, ''), COALESCE(n.tags, ''), COALESCE(n.hidden, 0),
        COALESCE(n.bay, ''),
@@ -373,6 +404,7 @@ func scanDevice(r rowScanner) (DeviceRecord, error) {
 		lastScan                          sql.NullInt64
 		firstSeen, lastSeen               int64
 		smartAvailable, isMissing, hidden int64
+		selftestRunning, selftestPct      sql.NullInt64
 		mountpoints                       string
 		ackHealth, ackNote                string
 		ackAt                             int64
@@ -383,6 +415,7 @@ func scanDevice(r rowScanner) (DeviceRecord, error) {
 		&rec.SmartError, &rec.Health, &rec.HealthRationale, &rec.Score, &temperature,
 		&firstSeen, &lastSeen, &lastScan, &isMissing,
 		&mountpoints, &rec.Fstype, &removable, &rec.FsVersion, &rec.RawOutput, &rec.Penalties, &rec.DiskLayout,
+		&selftestRunning, &selftestPct, &rec.SelfTestKind,
 		&rec.TransportOverride,
 		&rec.Name, &rec.Notes, &rec.Tags, &hidden,
 		&rec.Bay,
@@ -391,6 +424,8 @@ func scanDevice(r rowScanner) (DeviceRecord, error) {
 	if err != nil {
 		return rec, err
 	}
+	rec.SelfTestRunning = selftestRunning.Int64 != 0
+	rec.SelfTestPct = intPtr(selftestPct)
 	rec.Mountpoints = decodeMountpoints(mountpoints)
 	rec.Rotation = intPtr(rotation)
 	rec.CapacityBytes = uint64Ptr(capacity)

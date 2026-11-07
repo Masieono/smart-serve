@@ -555,7 +555,15 @@ stop demanding a value that is never going to be typed into the form (`ADR-022`)
   `part_uuid`, and `top_level` — true for a direct child of the disk, false for anything nested inside
   another partition. The disk map reads `top_level` to know which nodes are laid out side by side;
   the table draws every row either way. `disk_layout` also carries `size_bytes`, the disk's own
-  capacity, which is the map's denominator. Usage (`use_percent`, `used_bytes`, `fs_size_bytes`, `avail_bytes`) is present **only
+  capacity, which is the map's denominator.
+- `GET /api/devices` and `GET /api/devices/{serial}` carry `selftest` when a self-test is **running**
+  as of the last scan (`FEATURES.md` A20): `{kind, pct}`. `kind` is the drive's own words for the test
+  ("Extended offline"); `pct` is absent when the drive reports no progress while testing, which many
+  do not — they write a log entry only when a test *finishes*. It is on the **list** endpoint because
+  that is the point: the fleet badges the drive that is busy rather than making you visit each page to
+  find out. The state is **overwritten** by each scan, not merged, so a finished test stops showing as
+  running. The device page's own card still reads the drive live; this is what the list has, and a
+  badge one scan old is worth having where a page visit per drive is not. Usage (`use_percent`, `used_bytes`, `fs_size_bytes`, `avail_bytes`) is present **only
   where the container can see the mountpoint**, because `lsblk` reads it with `statvfs` on the mount
   path — absent is the honest answer and a zero would read as an empty filesystem. Detail endpoint
   only, and the field is absent rather than null for a drive whose layout was never read. When the

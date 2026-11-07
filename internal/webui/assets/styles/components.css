@@ -813,6 +813,12 @@ tr:hover .part-copy,
   );
 }
 
+/* The self-test badge on a fleet card (`FEATURES.md` A20). Neutral, not green: a test in progress is
+   neither a fault nor a clean bill of health. */
+.selftest-badge {
+  white-space: nowrap;
+}
+
 /* The self-test estimate, on the button (`FEATURES.md` §A20). Quiet enough that the button label still
    reads first, present enough to answer "how long will this take?" without a click. */
 .btn-cost {

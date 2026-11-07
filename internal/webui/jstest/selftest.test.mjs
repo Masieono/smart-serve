@@ -290,7 +290,8 @@ test('a stored entry with no percentage is not treated as running', () => {
 });
 
 // Starting a test changes a drive, so it goes through a confirmation that says what will happen and
-// how long it will take.
+// how long it will take — and it kicks a rescan of that one drive, so the fleet can badge it
+// (`FEATURES.md` A20). Two different posts, and the assertions have to tell them apart.
 test('starting a short test asks first, then posts the type', async () => {
   stopPolling();
   const requests = stubSelfTestApi();
@@ -298,10 +299,14 @@ test('starting a short test asks first, then posts the type', async () => {
 
   await clickThrough(buttonsOf(card)[0]);
 
-  const posts = requests.filter((r) => r.method === 'POST');
-  assert.equal(posts.length, 1);
-  assert.match(posts[0].path, /\/api\/devices\/S\/selftest$/);
-  assert.deepEqual(posts[0].body, { kind: 'short' });
+  const started = requests.filter((r) => r.method === 'POST' && /\/selftest$/.test(r.path));
+  assert.equal(started.length, 1, 'the start was posted more than once');
+  assert.deepEqual(started[0].body, { kind: 'short' });
+
+  // And the drive is rescanned, once, so the badge appears without waiting for the next full scan.
+  const scans = requests.filter((r) => r.method === 'POST' && /\/scan$/.test(r.path));
+  assert.equal(scans.length, 1, 'the drive was not rescanned, so the fleet would show no badge');
+  assert.match(scans[0].path, /\/api\/devices\/S\/scan$/);
   // The card is redrawn from the drive's answer, not from what was asked of it.
   assert.ok(requests.some((r) => r.method === 'GET'), 'the drive is read back afterwards');
   stopPolling();
