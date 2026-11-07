@@ -15,6 +15,13 @@ discarding silently is not. See `ADR-028`.
 
 ### Added
 
+- **A disk map above the partition table** (`FEATURES.md` A28) — one segment per top-level partition,
+  sized by its share of the disk, with the partition's own fullness filled in from the left. One
+  glance answers "what is on this disk?" and "where is the room?". The table underneath is the detail
+  for the segment you just pointed at. Three ways it could have lied, and does not: a logical volume
+  is never drawn beside the partition that contains it; a filesystem the container cannot see is
+  hatched rather than drawn at 0%; and free space — approximate, and only drawn when it is a real
+  share of the disk rather than an alignment remainder — is hatched and says so.
 - **A drive with no partition table now says what it holds** — a disk pulled from a RAID array was
   reported as "either unpartitioned or its table could not be read", which is true and useless for a
   drive doing exactly what it was built to do. An array member has no table *because* it is an array

@@ -166,8 +166,36 @@ func TestUsePercentValueParsesLsblksFormat(t *testing.T) {
 	}
 }
 
-// A disk pulled from a RAID array (`FEATURES.md` A28).
+// The disk map needs two things the flat list did not carry (`FEATURES.md` A28): which nodes are
+// laid out side by side on the disk, and how big the disk is.
 //
+// `TopLevel` is the correction to an earlier decision. "The node name carries the nesting, so no
+// depth field is needed" was right about the *table* — `/dev/mapper/tank-media` is visibly inside
+// something — and wrong about a map, where a logical volume drawn beside the partition containing it
+// would claim the disk is bigger than it is.
+func TestTheDiskMapFieldsReachTheLayout(t *testing.T) {
+	sda := parseFixture(t, "lsblk-gpt-lvm.json")[0]
+
+	top := map[string]bool{}
+	for _, p := range sda.Partitions {
+		top[p.Name] = p.TopLevel
+	}
+	if !top["/dev/sda1"] || !top["/dev/sda2"] {
+		t.Errorf("the partitions directly on the disk are not top-level: %v", top)
+	}
+	if top["/dev/mapper/tank-media"] {
+		t.Error("the logical volume was marked top-level; the map would draw it beside its container")
+	}
+
+	layout := sda.DiskLayout()
+	if layout == nil {
+		t.Fatal("no layout")
+	}
+	if layout.SizeBytes != sda.SizeBytes || layout.SizeBytes == 0 {
+		t.Errorf("layout size = %d, want the disk's own %d", layout.SizeBytes, sda.SizeBytes)
+	}
+}
+
 // This is the case that produced "either unpartitioned or its table could not be read" for a drive
 // that was working perfectly. An md member has no partition table *because* it is an array member —
 // the layout lives in the array — and lsblk reports exactly that as the disk node's own filesystem

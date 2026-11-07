@@ -716,6 +716,93 @@ export function partitionsOutsideContainer(partitions) {
 }
 
 /**
+ * A map of the disk: one segment per top-level partition, sized by how much of the disk it takes,
+ * with its own fullness filled in from the left (`FEATURES.md` A28).
+ *
+ * Three things this is careful about, each of which would otherwise make it lie:
+ *
+ * - **Top-level partitions only.** The partition list is flat and includes logical volumes and
+ *   dm-crypt mappings, which live *inside* a partition. Drawing one beside its container would claim
+ *   the disk holds more than it does. `top_level` is what the server sends to say which is which.
+ * - **Unknown fullness is not zero.** A segment whose filesystem the container cannot see is drawn
+ *   with a distinct "not measured" fill. A bar at 0% would read as an empty partition, which is the
+ *   opposite of what is known.
+ * - **Free space is approximate, and says so.** It is the disk size less the parts that claim it,
+ *   which ignores alignment gaps. The segment is hatched rather than solid, because on a visual a
+ *   wrong sliver is *visible* — and the tooltip says which kind of number it is.
+ *
+ * Returns null when there is nothing to draw, so a caller can fall back to the table alone.
+ */
+export function diskMap(layout) {
+  const all = (layout && layout.partitions) || [];
+  const total = Number((layout && layout.size_bytes) || 0);
+  const segments = all.filter((p) => p.top_level && Number(p.size_bytes) > 0);
+  if (!total || !segments.length) return null;
+
+  const claimed = segments.reduce((sum, p) => sum + Number(p.size_bytes), 0);
+  // Clamped: an extended partition makes its children add up to more than the disk, and a negative
+  // width would render as a broken map rather than as the approximation it is.
+  const free = Math.max(0, total - claimed);
+
+  const parts = segments.map((p) => {
+    const share = (Number(p.size_bytes) / total) * 100;
+    const pct = usePercentNumber(p);
+    const title = segmentTitle(p);
+    return el('div', {
+      class: 'disk-segment',
+      style: `width:${share}%`,
+      title,
+      // Named for a screen reader, since the whole thing is geometry.
+      role: 'img',
+      'aria-label': title,
+    }, [
+      pct === null
+        ? el('div', { class: 'disk-segment-fill disk-segment-unmeasured' })
+        : el('div', { class: 'disk-segment-fill', style: `width:${pct}%` }),
+    ]);
+  });
+
+  if (free > total / 100) {
+    // Only when it is a *share* of the disk. Below a percent it is an alignment remainder — the
+    // 1.4 MB left over after a partition table, which is real but is not "free space" in any sense a
+    // reader would use. The map's own background shows through there, which reads correctly as "the
+    // parts do not quite add up", and the figure is still in Details with its caveat.
+    parts.push(el('div', {
+      class: 'disk-segment disk-segment-free',
+      style: `width:${(free / total) * 100}%`,
+      role: 'img',
+      'aria-label': `${fmtBytes(free)} free, approximate`,
+      title: `${fmtBytes(free)} free — approximate: alignment gaps and the backup GPT header are ` +
+        'not counted',
+    }));
+  }
+
+  return el('div', { class: 'disk-map' }, parts);
+}
+
+/** What a segment says when pointed at, and to a screen reader. */
+function segmentTitle(p) {
+  const label = String(p.label || p.part_label || '').trim() || p.name;
+  const size = fmtBytes(p.size_bytes);
+  const pct = usePercentNumber(p);
+  const usage = pct === null
+    ? (p.mountpoints || []).length
+      ? 'usage not visible to the container'
+      : 'not mounted'
+    : `${pct}% full`;
+  const mount = (p.mountpoints || []).length ? ` at ${p.mountpoints[0]}` : '';
+  return `${label} — ${size}, ${usage}${mount}`;
+}
+
+/** lsblk formats this ("47%"), so the number has to be parsed back out of the string. */
+function usePercentNumber(p) {
+  const raw = String((p && p.use_percent) || '').replace('%', '').trim();
+  if (!raw) return null;
+  const n = Number(raw);
+  return Number.isFinite(n) ? n : null;
+}
+
+/**
  * What to say about a drive with no partition table (`FEATURES.md` A28).
  *
  * "Unpartitioned, or its table could not be read" is true and useless. A disk pulled from a RAID
@@ -855,14 +942,6 @@ function usageCell(p) {
   return el('td', { class: 'num' }, [bar
     ? el('div', { title: used && total ? `${used} of ${total}` : '' }, [bar])
     : null]);
-}
-
-/** lsblk formats this ("47%"), so the number has to be parsed back out of the string. */
-function usePercentNumber(p) {
-  const raw = String((p && p.use_percent) || '').replace('%', '').trim();
-  if (!raw) return null;
-  const n = Number(raw);
-  return Number.isFinite(n) ? n : null;
 }
 
 /**

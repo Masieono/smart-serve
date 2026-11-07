@@ -551,8 +551,11 @@ stop demanding a value that is never going to be typed into the form (`ADR-022`)
   backup GPT header are not counted), `log_sector_size`, `phy_sector_size`, `discard_support`, and
   `partitions`, one row per node below the disk in tree order. A partition carries `name`, `type`
   (`part`/`lvm`/`crypt`), `size_bytes`, `fstype`, `fs_version`, `label`, `part_label`, `part_type`
-  (`PARTTYPENAME` — "EFI System", "Linux LVM"), `mountpoints`, `read_only`, `state`, and `uuid` /
-  `part_uuid`. Usage (`use_percent`, `used_bytes`, `fs_size_bytes`, `avail_bytes`) is present **only
+  (`PARTTYPENAME` — "EFI System", "Linux LVM"), `mountpoints`, `read_only`, `state`, `uuid` /
+  `part_uuid`, and `top_level` — true for a direct child of the disk, false for anything nested inside
+  another partition. The disk map reads `top_level` to know which nodes are laid out side by side;
+  the table draws every row either way. `disk_layout` also carries `size_bytes`, the disk's own
+  capacity, which is the map's denominator. Usage (`use_percent`, `used_bytes`, `fs_size_bytes`, `avail_bytes`) is present **only
   where the container can see the mountpoint**, because `lsblk` reads it with `statvfs` on the mount
   path — absent is the honest answer and a zero would read as an empty filesystem. Detail endpoint
   only, and the field is absent rather than null for a drive whose layout was never read. When the

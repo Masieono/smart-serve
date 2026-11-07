@@ -757,6 +757,62 @@ tr:hover .part-copy,
   white-space: normal;
 }
 
+/* --- the disk map (FEATURES.md A28) ----------------------------------------- */
+
+/* One bar across the disk, split by how much of it each top-level partition takes. The table
+   underneath is the detail; this is the shape. */
+.disk-map {
+  display: flex;
+  width: 100%;
+  height: 28px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: var(--surface-2);
+}
+
+.disk-segment {
+  position: relative;
+  min-width: 2px;
+  border-right: 1px solid var(--border);
+}
+
+.disk-segment:last-child {
+  border-right: 0;
+}
+
+/* The partition's own fullness, filled from the left of its segment. The track behind it is the
+   segment, so a 40%-full partition of half the disk reads as half the bar, 40% filled. */
+.disk-segment-fill {
+  height: 100%;
+  background: var(--accent);
+}
+
+/* Not measured: a filesystem the container cannot see. Distinct from an empty one, because a bar at
+   0% would say "this partition is empty" about a partition nobody could look at. */
+.disk-segment-unmeasured {
+  width: 100%;
+  background: repeating-linear-gradient(
+    45deg,
+    var(--gauge-track),
+    var(--gauge-track) 4px,
+    transparent 4px,
+    transparent 8px
+  );
+}
+
+/* Free space is approximate, so it is hatched rather than solid: on a visual a wrong sliver is
+   *visible*, and a solid block would look like a measurement. */
+.disk-segment-free {
+  background: repeating-linear-gradient(
+    45deg,
+    var(--surface),
+    var(--surface) 4px,
+    transparent 4px,
+    transparent 8px
+  );
+}
+
 /* The self-test estimate, on the button (`FEATURES.md` §A20). Quiet enough that the button label still
    reads first, present enough to answer "how long will this take?" without a click. */
 .btn-cost {

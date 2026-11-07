@@ -9,7 +9,7 @@ import assert from 'node:assert/strict';
 import { installStubDom, StubNode } from './stub-dom.mjs';
 
 installStubDom();
-const { partitionTable, partitionUUID, sectorLabel, usageBar, outsideContainerNote, setStorageWarnPct, storageWarnLevel } =
+const { partitionTable, partitionUUID, sectorLabel, usageBar, outsideContainerNote, setStorageWarnPct, storageWarnLevel, diskMap } =
   await import('../assets/js/components.js');
 const { setDisplayOptions, currentDisplayOptions } = await import('../assets/js/views/device.js');
 
@@ -259,8 +259,130 @@ test('a partitioned drive never shows the whole-disk note', () => {
   assert.match(text, /\/dev\/sdd1/, 'the table itself is still drawn');
 });
 
-// A read-only device is worth a badge: it explains a write-protect switch, or a drive that has
-// failed into read-only, without the reader having to know that `RO` exists.
+// --- the disk map (`FEATURES.md` A28) ------------------------------------------
+
+/** The rendered segments of a map, in order. */
+function segmentsOf(map) {
+  return map.all('div').filter((n) => /(^| )disk-segment( |$)/.test(n.className));
+}
+
+/** A layout with the fields the map reads, sized in bytes. */
+function mapped(partitions, total) {
+  return { size_bytes: total, partitions };
+}
+
+const GIB = 1024 ** 3;
+
+// The map's whole job: a segment per top-level partition, sized by share of the disk, plus what is
+// left over.
+test('the map sizes each segment by its share of the disk', () => {
+  const map = diskMap(mapped([
+    { top_level: true, name: '/dev/sdb1', size_bytes: 250 * GIB, use_percent: '8%' },
+    { top_level: true, name: '/dev/sdb2', size_bytes: 750 * GIB, use_percent: '47%' },
+  ], 1000 * GIB));
+
+  const segs = segmentsOf(map);
+  assert.equal(segs.length, 2, 'no free-space segment: the partitions claim the whole disk');
+  assert.match(String(segs[0].style), /width:25%/, 'the 250 GiB partition is a quarter of the disk');
+  assert.match(String(segs[1].style), /width:75%/);
+  // And the fill inside a segment is its own fullness, not its share.
+  const fill = segs[1].all('div')[0];
+  assert.match(String(fill.style), /width:47%/, 'the segment fill is the partition usage');
+});
+
+// A logical volume lives *inside* a partition. Drawing it beside its container would claim the disk
+// holds more than it does, so only top-level nodes become segments.
+test('the map draws top-level partitions only', () => {
+  const map = diskMap(mapped([
+    { top_level: true, name: '/dev/sdb1', size_bytes: 200 * GIB, use_percent: '10%' },
+    { top_level: true, name: '/dev/sdb2', size_bytes: 800 * GIB },
+    { name: '/dev/mapper/vg-data', size_bytes: 700 * GIB, use_percent: '90%' },
+  ], 1000 * GIB));
+
+  const segs = segmentsOf(map);
+  assert.equal(segs.length, 2, 'the nested volume was drawn as if it were its own partition');
+  const text = segs.map((s) => s.getAttribute('title')).join(' | ');
+  assert.doesNotMatch(text, /vg-data/, 'the nested volume leaked into the map');
+});
+
+// Free space is the difference, and it is approximate — so it gets its own segment and says so.
+test('the map shows free space as approximate', () => {
+  const map = diskMap(mapped([
+    { top_level: true, name: '/dev/sdb1', size_bytes: 400 * GIB, use_percent: '20%' },
+  ], 1000 * GIB));
+
+  const segs = segmentsOf(map);
+  assert.equal(segs.length, 2);
+  const free = segs[1];
+  assert.match(free.className, /disk-segment-free/);
+  assert.match(String(free.style), /width:60%/);
+  assert.match(free.getAttribute('title'), /approximate/,
+    'the free figure must say it is approximate');
+});
+
+// Unknown fullness is not zero. A partition whose filesystem the container cannot see is hatched,
+// because a bar at 0% would say "this partition is empty" about one nobody could look at.
+test('an unmeasured partition is hatched, not drawn at zero', () => {
+  const map = diskMap(mapped([
+    { top_level: true, name: '/dev/sdb1', size_bytes: 500 * GIB, mountpoints: ['/mnt/x'] },
+  ], 1000 * GIB));
+
+  const fill = segmentsOf(map)[0].all('div')[0];
+  assert.match(fill.className, /disk-segment-unmeasured/);
+  assert.ok(!String(fill.style || '').includes('width'),
+    'an unmeasured partition must not be given a width');
+});
+
+// The whole thing is geometry, so the sentence a segment carries is what a screen reader gets — and
+// what a mouse gets. Both have to be complete enough to be worth having.
+test('a segment names its partition, its size and its usage', () => {
+  const map = diskMap(mapped([
+    { top_level: true, name: '/dev/sdb1', label: 'media', size_bytes: 500 * GIB,
+      mountpoints: ['/mnt/media'], use_percent: '47%' },
+  ], 1000 * GIB));
+
+  const seg = segmentsOf(map)[0];
+  const title = seg.getAttribute('title');
+  assert.match(title, /media/);
+  assert.match(title, /\/mnt\/media/);
+  assert.match(title, /47% full/);
+  assert.equal(seg.getAttribute('aria-label'), title, 'the screen-reader label differs from the tooltip');
+});
+
+// Nothing to draw is not an empty bar: a caller that gets null renders the table alone, where an
+// empty bar would claim the disk has no partitions.
+test('the map refuses to draw when there is nothing to map', () => {
+  assert.equal(diskMap(null), null);
+  assert.equal(diskMap({ partitions: [] }), null);
+  assert.equal(diskMap(mapped([{ top_level: true, name: '/dev/sdb1', size_bytes: 0 }], 1000 * GIB)), null);
+  // No total size: there is no denominator, so every share would be a division by zero.
+  assert.equal(diskMap(mapped([{ top_level: true, name: '/dev/sdb1', size_bytes: 100 }], 0)), null);
+  // Only nested nodes, which never become segments.
+  assert.equal(diskMap(mapped([{ name: '/dev/mapper/vg', size_bytes: 100 }], 1000 * GIB)), null);
+});
+
+// An alignment remainder is not free space. The 1.4 MB left after a partition table is real, and
+// drawing it as a labelled segment would give a visible sliver to a number nobody acts on — the same
+// figure that was confusing in the card's old summary line.
+test('the map does not draw a segment for an alignment remainder', () => {
+  const map = diskMap(mapped([
+    { top_level: true, name: '/dev/sdb1', size_bytes: 1000 * GIB - 1400832, use_percent: '20%' },
+  ], 1000 * GIB));
+
+  assert.equal(segmentsOf(map).length, 1, 'a 1.4 MB remainder was given its own segment');
+  assert.doesNotMatch(textOf(map), /free/);
+});
+
+// An extended partition makes its children add up to more than the disk. The map must clamp rather
+// than render a negative-width free segment.
+test('the map clamps free space instead of going negative', () => {
+  const map = diskMap(mapped([
+    { top_level: true, name: '/dev/sdb1', size_bytes: 600 * GIB, use_percent: '10%' },
+    { top_level: true, name: '/dev/sdb2', size_bytes: 600 * GIB, use_percent: '10%' },
+  ], 1000 * GIB));
+
+  assert.equal(segmentsOf(map).length, 2, 'a negative free segment was drawn');
+});
 test('a read-only partition is marked', () => {
   assert.match(textOf(partitionTable({ partitions: [partition({ read_only: true })] })), /Read-only/);
   assert.doesNotMatch(textOf(partitionTable({ partitions: [partition()] })), /Read-only/);

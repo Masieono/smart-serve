@@ -122,6 +122,10 @@ type lsblkDev struct {
 // and give the UI a second thing to get wrong.
 type Partition struct {
 	Name string `json:"name"`
+	// TopLevel is true for a direct child of the disk — the nodes laid out side by side on it. False
+	// for anything nested inside another partition: a logical volume or a dm-crypt mapping. Only the
+	// disk map reads it (`FEATURES.md` A28); the table draws every row either way.
+	TopLevel bool `json:"top_level,omitempty"`
 	// Type is lsblk's: `part`, `lvm`, `crypt`, `rom`. Kept as reported rather than mapped, because
 	// the set is open and the value is the answer to "what kind of thing is this".
 	Type         string   `json:"type"`
@@ -199,6 +203,10 @@ func mustPercent(p Partition) int {
 // would mean five more columns on `devices` and five more places to forget one.
 type DiskLayout struct {
 	Partitions []Partition `json:"partitions"`
+	// SizeBytes is the disk's own capacity, which is the disk map's denominator (`FEATURES.md` A28).
+	// It is the *reported* size rather than the sum of the partitions, so free space can be drawn as
+	// the difference — and so a disk whose partitions do not add up still draws at the right width.
+	SizeBytes uint64 `json:"size_bytes,omitempty"`
 	// WholeDiskFstype is what the disk node itself reports when it holds no partition table: a
 	// filesystem written directly to the device, or an array member signature.
 	//
@@ -235,6 +243,7 @@ func (d Discovered) DiskLayout() *DiskLayout {
 	}
 	return &DiskLayout{
 		Partitions:       d.Partitions,
+		SizeBytes:        d.SizeBytes,
 		UnallocatedBytes: d.UnallocatedBytes,
 		Table:            d.PartitionTable,
 		LogSectorSize:    d.LogSectorSize,
@@ -410,12 +419,20 @@ func parseLsblk(data []byte) ([]Discovered, error) {
 // A disk with no children returns nothing rather than a row for itself. The disk is already the
 // subject of the page; a partition table with one entry that says "the whole disk" would be a row
 // that tells the reader nothing they did not already know.
+//
+// `TopLevel` marks the direct children of the disk, and it exists for the disk map (`FEATURES.md`
+// A28). The table can do without it — the node name carries the nesting, so `/dev/mapper/vg-data`
+// is visibly inside something — but a map of the *disk* has to know which nodes are laid out side by
+// side and which sit inside another. A logical volume drawn beside the partition containing it would
+// claim the disk is bigger than it is. The earlier "no depth field is needed" was right about the
+// table and wrong about the map.
 func collectPartitions(disk lsblkDev) []Partition {
 	var out []Partition
-	var walk func(d lsblkDev)
-	walk = func(d lsblkDev) {
+	var walk func(d lsblkDev, topLevel bool)
+	walk = func(d lsblkDev, topLevel bool) {
 		for _, child := range d.Children {
 			out = append(out, Partition{
+				TopLevel:     topLevel,
 				Name:         child.Name,
 				Type:         child.Type,
 				SizeBytes:    child.Size,
@@ -434,10 +451,10 @@ func collectPartitions(disk lsblkDev) []Partition {
 				UUID:         deref(child.UUID),
 				PartUUID:     deref(child.PartUUID),
 			})
-			walk(child)
+			walk(child, false)
 		}
 	}
-	walk(disk)
+	walk(disk, true)
 	return out
 }
 

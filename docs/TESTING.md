@@ -153,6 +153,13 @@ and 7.5 can, with no hardware change — which is why the two are reported separ
 | 4.49 | Open a drive pulled from a RAID array. | "a member of a Linux md array (`linux_raid_member`)" — not "unpartitioned or could not be read" |
 | 4.50 | Open a disk with a filesystem written straight to it (no table). | "holds an `ext4` filesystem written directly to the disk" |
 | 4.51 | Open a disk that has genuinely never been set up. | The old message — the app must not claim to know more than it does |
+| 4.52 | Open a drive with a partition table. | A **map** above the table: one segment per partition, sized by share of the disk |
+| 4.53 | Point at a segment. | Its label, size, usage and mountpoint |
+| 4.54 | Look at a disk with free space. | A hatched free segment, whose tooltip says the figure is approximate |
+| 4.55 | Look at a drive whose partitions leave only an alignment remainder (a few MB). | **No** free segment — the background shows through instead |
+| 4.56 | Open a drive with a volume group on it. | The logical volume is **not** drawn as its own segment; it is a row in the table only |
+| 4.57 | Open a drive whose filesystem the container cannot see. | Its segment is hatched, not filled at 0% |
+| 4.58 | Turn **Storage usage** off in Settings → Appearance. | The map goes with the usage column |
 
 ## Pass 5 — notifications
 

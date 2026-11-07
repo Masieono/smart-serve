@@ -131,6 +131,24 @@ chart must never load a blob to draw a line. It is the one storage figure worth 
 40% today and 90% next month is the thing that runs out of room. The delta is in **points**, not per
 cent, because the value is already a percentage.
 
+**A map of the disk, above the table.** One segment per top-level partition, sized by how much of the
+disk it takes, with the partition's own fullness filled in from the left — so one glance answers both
+"what is on this disk?" and "where is the room?". The table underneath is the detail for the segment
+somebody just pointed at. Three things it is careful about, each of which would otherwise make it
+lie:
+
+- **Top-level partitions only.** The flat list includes logical volumes and dm-crypt mappings, which
+  live *inside* a partition. Drawing one beside its container would claim the disk holds more than it
+  does. This is where the earlier "no depth field is needed" had to be revisited: right about the
+  table, wrong about a map. `top_level` is one boolean, and it is the minimum that restores what the
+  map needs.
+- **Unknown fullness is not zero.** A segment whose filesystem the container cannot see is hatched,
+  because a bar at 0% would say "this partition is empty" about one nobody could look at.
+- **Free space is approximate, and says so** — and is only drawn when it is a *share* of the disk.
+  Below a percent it is an alignment remainder (the 1.4 MB left after a partition table), which is
+  real and is not free space in any sense a reader would use; drawing it gave a visible sliver to a
+  number nobody acts on. The map's background shows through there instead.
+
 **A drive with no partition table says what it holds.** "Unpartitioned, or its table could not be
 read" is true and useless, and it is what a disk pulled from a RAID array produced — for a drive
 doing exactly what it was built to do. An array member has no partition table *because* it is an

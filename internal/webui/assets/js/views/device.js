@@ -4,7 +4,7 @@ import {
   fmtMinutes, scoreGrade, convertTemp, convertTempDelta, temperatureUnitName,
 } from '../dom.js';
 import { api } from '../api.js';
-import { verdictBadge, healthGauge, attributeTable, errorBox, openDialog, toast, transportLabel, trendRow, dateAxis, helpButton, partitionTable, sectorLabel, usageBar, outsideContainerNote, setStorageWarnPct } from '../components.js';
+import { verdictBadge, healthGauge, attributeTable, errorBox, openDialog, toast, transportLabel, trendRow, dateAxis, helpButton, partitionTable, sectorLabel, usageBar, outsideContainerNote, setStorageWarnPct, diskMap } from '../components.js';
 import { nvmeHelp } from '../attributes.js';
 import { icon } from '../icons.js';
 import { selfTestCard } from './selftest.js';
@@ -1355,6 +1355,9 @@ function diskLayoutCard(layout, opts) {
         ? el('span', { class: 'muted', text: `${partitions.length}` })
         : null,
     ]),
+    // The map first: it answers "what is on this disk and where is the room" in one glance, and the
+    // table underneath is the detail for the segment somebody just pointed at.
+    showUsage ? diskMap(layout) : null,
     partitionTable(layout, { showUsage }),
     layoutDetails(layout, partitions),
   ]);
