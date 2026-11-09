@@ -389,9 +389,43 @@ test('the poll is cleared, never left running', async () => {
   });
 });
 
-// When a test ends, the log table above the card is still drawn from the last scan, so the drive is
-// rescanned once to record the outcome — and only once. The re-rendered card is drawn from stored
-// logs that still show the test running, so an unguarded rescan would poll, rescan, poll, forever.
+// A re-render must not postpone the poll.
+//
+// Every render builds a new card, and a new card watching a running test arms the timer — so arming a
+// fresh full interval each time means a page that re-renders more often than the interval never
+// reaches a read at all. That is what happened to the drive whose bar stayed stale: a
+// `selftest_progress` event, a device re-read and the freshness re-read all re-render the page, and
+// each one pushed back the very poll that would have cleared it.
+test('a re-render does not postpone the poll', async () => {
+  await withFakeTimers(async (pending) => {
+    const realNow = Date.now;
+    let clock = 1_000_000;
+    Date.now = () => clock;
+    try {
+      stopPolling();
+      stubSelfTestApi({ running: { type: 'Short offline', remaining: 50 } });
+      const stored = { self_test_entries: [{ type: 'Short offline', remaining: 50 }] };
+
+      selfTestCard(stubCtx(), { serial: 'S' }, stored);
+      await flush();
+      assert.equal([...pending][0].ms, POLL_MS, 'the first card arms a full interval');
+
+      // Ten seconds pass, and the page re-renders — a `selftest_progress` event, say.
+      clock += 10_000;
+      selfTestCard(stubCtx(), { serial: 'S' }, stored);
+      await flush();
+
+      assert.equal(pending.size, 1, 'the previous timer was left behind');
+      assert.equal([...pending][0].ms, POLL_MS - 10_000,
+        'the re-render restarted the interval instead of keeping the deadline');
+    } finally {
+      Date.now = realNow;
+      stopPolling();
+    }
+  });
+});
+
+
 test('a finished test is recorded once, not on every poll', async () => {
   await withFakeTimers(async (pending) => {
     const ctx = stubCtx();
@@ -505,6 +539,42 @@ test('a self-test log the app cannot read is stated', () => {
   const text = textOf(card);
   assert.match(text, /could not be read/);
   assert.match(text, /nvme_self_test_log/);
+  stopPolling();
+});
+
+// An unread log must not cost the drive its live read.
+//
+// The card paints a running entry from the *last scan* before that read starts, so for a drive that
+// finished its test since the scan the live read is the only thing that takes the bar down. Skipping
+// it — which is what the card did whenever `self_test_log_unread` was set, on the reasoning that the
+// read "could only fail" — kept `90% left` on the page across reloads while the drive's own log said
+// the test was over. That is the ARM test host's report, where the flag came from the selective
+// self-test log rather than from anything unreadable.
+test('an unread log does not stop the drive being read', async () => {
+  stopPolling();
+  const requests = stubSelfTestApi({
+    running: null,
+    logs: {
+      self_test_count: 1,
+      self_test_entries: [
+        { type: 'Short offline', status: 'Completed without error', passed: true, hours: 45446 },
+      ],
+    },
+  });
+  const card = selfTestCard(stubCtx(), { serial: 'S' }, {
+    self_test_supported: true,
+    self_test_log_unread: 'ata_smart_selective_self_test_log',
+    self_test_entries: [
+      { type: 'Short offline', status: 'Self-test routine in progress', remaining: 90 },
+    ],
+  });
+  await flush();
+
+  assert.equal(requests.filter((r) => r.method === 'GET').length, 1,
+    'the drive was never read, so the stored progress has no way out');
+  const text = textOf(card);
+  assert.doesNotMatch(text, /90% left/, 'the stale running entry survived the live read');
+  assert.ok(buttonsOf(card).length >= 1, 'the test buttons did not come back');
   stopPolling();
 });
 

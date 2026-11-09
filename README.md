@@ -179,6 +179,21 @@ native SATA SSD, and a USB flash drive that reports no S.M.A.R.T. at all — whi
 such rather than as a failure (`docs/DEPLOYMENT.md`). Measured idle cost on a long-running
 instance with no browser open: **0.00% CPU, 13.4 MiB RSS**.
 
+**ARM verification is partial.** On a Pi 5 running DietPi, native arm64 execution, startup health,
+a full container SMART read through USB SAT and app identity/attribute checks are confirmed for
+the tested disk (2026-11-08). The first process RSS sample was **21.97 MiB**; the idle figure above
+is from the earlier validation host. A short test completed without error, but automatic UI
+completion failed: 90% left persisted after waiting/reloading despite a completed live API response.
+The captured saved progress and unread-log flag matched the source path that skips the initial live
+read — **a bug, since found and fixed**: the flag was raised for a log the app reads, and the card no
+longer skips its live read. The same symptom is reported on amd64, so it was never ARM-specific.
+**Scan now** cleared the progress bar and restored the test buttons and successful history; those
+results persisted after reload. Opening the SD-card page also caused repeated `0/1 readable` scans
+and flicker, and that loop is **fixed too**: the staleness re-read is now one attempt per refresh
+window, per drive. Both fixes need a retest on the Pi. Stability and broader feature checks remain
+open. See
+[the ARM test record](docs/TESTING.md#pass-8--arm64-raspberry-pi).
+
 ## License
 
 The application source is licensed under the **MIT License** — see [`LICENSE`](LICENSE).

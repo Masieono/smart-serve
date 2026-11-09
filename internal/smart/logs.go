@@ -33,10 +33,10 @@ func ParseLogs(raw []byte) model.LogSummary {
 
 	var out model.LogSummary
 
-	// A self-test log the drive has that this parser does not read. Reported rather than ignored:
-	// the UI can then say that a test's progress and past results cannot be shown on this drive,
-	// instead of leaving a panel that stays empty — which looks exactly like a test that never ran.
-	out.SelfTestLogUnread = unreadSelfTestLog(raw)
+	// Whether the document carried a self-test log this parser *reads*. It decides whether an unread
+	// one is worth reporting at the end, and the rule is deliberately about what was read rather than
+	// about which key names exist — see `unreadSelfTestLog`.
+	selfTestLogSeen := r.ATASelfTestLog != nil || r.NVMeSelfTestLog != nil
 
 	// The drive's own answer to "do you implement self-tests?", when it gives one. A direct
 	// statement beats any inference drawn from whether a log could be read.
@@ -179,6 +179,14 @@ func ParseLogs(raw []byte) model.LogSummary {
 		}
 	}
 
+	// A self-test log the drive has that this parser does not read — and only when it is the *only*
+	// self-test log the drive offered. Reported rather than ignored: the UI can then say that a test's
+	// progress and past results cannot be shown on this drive, instead of leaving a panel that stays
+	// empty, which looks exactly like a test that never ran. `unreadSelfTestLog` has the rest.
+	if !selfTestLogSeen {
+		out.SelfTestLogUnread = unreadSelfTestLog(raw)
+	}
+
 	// smartctl's own words about a log it could not read. For an NVMe drive this is the
 	// *only* signal that there is no self-test log: the request comes back
 	// "Read Self-test Log failed: Invalid Field in Command" and nothing else reports it.
@@ -212,8 +220,24 @@ func ParseLogs(raw []byte) model.LogSummary {
 // drive whose test ran and left no trace in the UI is indistinguishable from a test that never ran,
 // and only one of those is true.
 //
-// The keys this parser *does* consume are excluded by name, so a drive whose log is read normally
-// can never be reported as unread.
+// **It is called only when the drive offered no self-test log this parser reads**, and that condition
+// is the fix for a real field failure rather than a tidy-up. The rule used to be a list of key names
+// to skip, which is a rule about smartctl's vocabulary — and smartctl has more self-test logs than
+// the two this parser reads. `ata_smart_selective_self_test_log` holds the *ranges* a selective test
+// covers, not a test's history, and this app never starts a selective test, so there is nothing in it
+// to show. It is also reported by most modern ATA drives, which meant nearly every ATA drive was told
+// its self-test log could not be read while the ordinary log was being parsed correctly beside it.
+//
+// That notice was wrong on its own. What made it a bug is the second thing it did: the self-test card
+// skips its initial *live* read for a drive carrying this flag, and the live read is the only thing
+// that can correct a progress bar drawn from a stale scan. The drive whose page this was found on —
+// a WD20EURX on the ARM test host — showed "90% left" for a test its own log had already recorded as
+// completed, on every reload, until a manual scan replaced the saved document. Asking "is there a
+// self-test log we can show?" makes both cases fall out: a drive whose ordinary log was read has
+// nothing missing to explain, whatever else it reports.
+//
+// The keys this parser *does* consume are still excluded by name, so the function is honest on its
+// own rather than only in the company of its caller.
 func unreadSelfTestLog(raw []byte) string {
 	var doc map[string]json.RawMessage
 	if json.Unmarshal(raw, &doc) != nil {
@@ -221,8 +245,8 @@ func unreadSelfTestLog(raw []byte) string {
 	}
 	var found []string
 	for key := range doc {
-		// The two logs this parser *does* read, by name, so a drive whose log is read normally can
-		// never be reported as unread.
+		// The two logs this parser reads, by name, so a drive whose log is read normally can never be
+		// reported as unread even if a caller asks anyway.
 		if !strings.Contains(key, "self_test") || key == "ata_smart_self_test_log" ||
 			key == "nvme_self_test_log" {
 			continue

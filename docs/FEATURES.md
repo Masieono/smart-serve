@@ -18,7 +18,7 @@ so. A blank Notes cell means the entry predates the column, not that the feature
 |---|---|---|
 | `D7` localization | `SCOPE.md`, `ADR-023` | Deferred, not dropped: extracting every string and keeping every locale in step is only worth doing for a translator who will maintain the result |
 | Error-log **entry lists** (`A20`) | §A20 above | The counts and the self-test entries are shown; smartctl emits no list at all for an empty log, and neither drive available here has ever logged an error, so the populated shape has never been captured |
-| arm64 on real hardware | `SCOPE.md`, `RELEASE.md`, `TESTING.md` Pass 8 | **Running on a Pi 5 (DietPi) — the container builds, starts and scans.** What is left is the methodical pass rather than the proof it works: the overnight stability run, the USB-bridge transport details, and the measured idle RSS, which is still a target rather than a figure |
+| arm64 on real hardware | [TESTING.md Pass 8](TESTING.md#pass-8--arm64-raspberry-pi), `SCOPE.md`, `RELEASE.md` | **Partial verification on Pi 5 / DietPi (2026-11-08):** native arm64 execution, startup health, a full container SMART read through USB SAT and app identity/attribute checks confirmed for the tested disk. First process RSS sample: **21.97 MiB**, not a controlled idle result. The drive and live API confirmed a completed short test, but the automatic UI completion check **failed**: 90% left and only **Stop test** persisted after waiting/reloading. The captured saved progress and unread-log flag **identified the bug, and it is fixed** — the flag was raised for a log the app reads, and the card no longer skips its live read. **Manual recovery passed:** **Scan now** cleared the progress bar, restored the test buttons and displayed the successful entry, persisting across reload. The same self-test symptom is reported on amd64, so it was never ARM-specific. **SD-card check failed:** opening its page caused flicker and repeated `0/1 readable` scan toasts. The API confirms `last_scan: null`, a type-detection error and five failed device reads in the same displayed second, which pinned it to the staleness re-read — **also fixed**, now one attempt per refresh window per drive. Both fixes need a retest on the Pi. Idle-budget acceptance, overnight stability and broader parity remain open. |
 | Multi-user accounts / roles | `SCOPE.md` Phase 3 | **Conflicts with `D23`** — authentication is delegated to a reverse proxy, so this needs that decision revisited rather than built |
 
 Everything else recorded in these documents is either shipped or an **explicit non-goal** — writing
@@ -146,6 +146,22 @@ field as "not running" would break every drive that reports progress only in the
 The app's own test fixture (`ata-bto-1tb-logs.json`) contained the contradiction, which is how it was
 found: its status field says "completed without error" while a log row carries `remaining_percent: 50`.
 
+**A third variant of the same mistake, and this one reached a person.** The app flagged a drive as
+having an unreadable self-test log whenever *any* unrecognised key containing `self_test` appeared in
+the document. That set includes `ata_smart_selective_self_test_log` — the *ranges* a selective test
+covers, which this app never starts and would have nothing to show for, and which most modern ATA
+drives report. So nearly every ATA drive was told its self-test log could not be read while its
+results were parsed correctly beside that sentence. The notice is now raised only when the drive
+offered **no** self-test log this app reads.
+
+What turned a wrong sentence into a stuck progress bar is the other half of it: the self-test card
+**skipped its live read** for a drive carrying that flag, on the reasoning that the read "could only
+fail". It could not — `smartctl -x` reads every log, and only the *parser* is limited — and the live
+read is the only thing that corrects a progress bar drawn from a stale scan. A WD20EURX on the ARM
+test host showed `90% left` for a test its own log had already recorded as completed, on every
+reload, until a manual scan replaced the saved document. The card now reads the drive on mount
+whatever the logs look like, and a log that genuinely cannot be read still gets said out loud.
+
 **A running test is re-read, so the badge tracks it.** The fleet badge and a drive page's progress both
 come from the *stored* row, which only a scan writes — so starting a long test and looking at another
 drive left the badge frozen at whatever the last scan caught, which on a quiet homelab could be
@@ -169,6 +185,15 @@ why it is a setting, why 0 means never, and why the page says when it is doing i
 parks its disks this is the number to turn down: a scan cannot wear a drive, but it can wake one. A
 drive with no data at all is read regardless — the window exists to stop *re-reads*, and applying it to
 a first read would leave the page empty for no reason.
+
+**Once per window, and that is a fix rather than a detail.** The re-read redraws the page, the redrawn
+page re-reads the stale drive, and the only thing that ends that is data arriving — which an unreadable
+drive never produces. `last_scan` is advanced by a read that *succeeded* and nothing else, so a drive
+that cannot be read is stale permanently and the age can never be the guard. It was reported from a
+Raspberry Pi: opening the SD card's page flickered and rolled in `scan complete: 0/1 readable` toasts,
+five failed reads in the same displayed second. There is now at most one attempt per refresh window per
+drive, so a drive that comes back is picked up on a later visit rather than being written off for the
+life of the tab.
 
 The scan's age now sits beside the drive's name rather than in a row of twelve facts, because "4 hours
 ago" among twelve is not where a reader notices it.
@@ -670,9 +695,11 @@ and all of them still hold.
   smartctl 7.4 reported "Read Self-test Log failed" and under 7.5, with no hardware change, reads it
   fine — so concluding "this drive cannot run self-tests" from a failed *read* was a confident
   statement about the wrong thing, and it told the reader to give up on a drive that tests itself
-  perfectly well. The unreadable case is now reported as exactly that (`self_test_log_unread`), and
-  the card offers the buttons while saying that progress cannot be shown. Only a drive that *says* it
-  does not implement self-tests is reported as unable to.
+  perfectly well. The unreadable case is now reported as exactly that (`self_test_log_unread`) — but
+  **only when the drive offered no self-test log this app reads**, because the flag used to be raised
+  by any unrecognised `self_test` key, and that is what put the sentence on drives whose logs were
+  being read. The card offers the buttons while saying that progress cannot be shown. Only a drive
+  that *says* it does not implement self-tests is reported as unable to.
 - **A long test needs a way out.** Added when the manual half was built. A long test
   runs for hours, so aborting is a first-class action rather than a footnote, and it
   sits behind a confirmation because stopping one cannot be undone.

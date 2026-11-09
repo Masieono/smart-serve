@@ -79,6 +79,28 @@ long-running instance with no browser open, `docker stats` reports **0.00% CPU**
 **13.36 MiB** RSS — inside the "near zero" and "under 20 MB" the MVP was written against. See
 `RELEASE.md` for how to re-measure.
 
+**ARM coverage (2026-11-08): partial.** The Pi 5 / DietPi development deployment confirms native
+arm64 execution, startup health and a full container SMART read through USB SAT. After an app scan,
+the operator verified the tested disk's model, serial, 17 attributes and selected raw values, with
+no apparent errors. Its first process RSS sample is **21.97 MiB**; the earlier resource figures above
+are not measurements from this Pi. A short test completed without error, but the automatic UI
+completion check **failed**: 90% left and **Stop test** persisted after waiting/reloading. The live
+API reported completion while the captured saved record contained 90% progress and an unread-log
+flag — **a real bug, found from that capture and fixed**: the flag was raised for a log the app does
+read, and the self-test card no longer skips its live read. The same symptom is reported on amd64, so
+it was never ARM-specific. **Manual scan recovery passed:** **Scan now** cleared the progress bar,
+restored the short/long buttons and displayed the successful history entry; these results persisted
+after reload. The SD card is visible in the app, but opening its page caused flicker and repeated
+`0/1 readable` scan toasts. The API confirms a type-detection error, `last_scan: null` and five
+failed device reads in the same displayed second, which pinned the loop to the staleness re-read —
+**now bounded to one attempt per refresh window, per drive.** **Returning to the dashboard stops the
+loop**, a verified workaround for any build without the fix. This second symptom has only been
+reported on the Pi. Both fixes need a retest on this hardware. The next check compares dashboard
+health and disconnected-device display with the API. Exact deployed-source/browser behavior,
+controlled idle-budget acceptance, persistence across restart/reboot, overnight stability and broader
+parity remain unverified.
+[TESTING.md Pass 8](TESTING.md#pass-8--arm64-raspberry-pi) records the evidence and next test.
+
 **Documentation corrected for the public release.** Three claims did not match the code and
 were fixed rather than carried into a release: the image is Alpine, not distroless
 (`ADR-020`); notification secrets are database-only, because the environment and `*_FILE`

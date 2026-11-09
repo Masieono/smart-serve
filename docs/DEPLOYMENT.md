@@ -6,6 +6,9 @@
 - `smartmontools` ships **inside the image** — nothing to install on the host.
 - **Multi-arch image**: `linux/amd64` and `linux/arm64` — x86-64 servers, ARM NAS
   boxes, Raspberry Pi, and Apple Silicon all pull the same tag (`ADR-010`, D14).
+  ARM hardware verification is **partial**: Pi 5 / DietPi execution, a full container SMART read
+  through USB SAT, and app identity/attribute checks are confirmed for the tested disk. See
+  [the dated test record](TESTING.md#pass-8--arm64-raspberry-pi) for coverage.
 - **Image size**: about **15 MB compressed** to pull and **54 MB on disk** once extracted
   (`docker image ls` reports both, as *content size* and *disk usage*). The bundled
   `smartmontools` and `util-linux` are most of it (`ADR-020`).
@@ -386,9 +389,23 @@ So the app can be developed and previewed outside a deployment host:
 
 ### A Raspberry Pi as a development host
 
-Worth doing for one reason: **arm64 has never been run.** CI builds it on every pull request, and
-nothing has executed it on ARM hardware — so this is the cheapest way to close that gap, and the
-findings are the point rather than the setup.
+**Verified in part on a Pi 5 running DietPi, as of 2026-11-08.** The development container runs
+natively on arm64, reports healthy and reads the attached USB SATA disk's full SMART data through
+SAT. An app scan also shows the matching model, serial and 17 attributes, with the selected raw
+values verified. A short test completed without error, but the automatic UI completion check
+failed: 90% left and **Stop test** persisted after waiting/reloading. That capture — a completed live
+API result beside stale saved progress and an unread-log flag — **identified the bug, which is now
+fixed**: the flag was raised for a log the app reads, and the card no longer skips its live read.
+The same symptom is reported on amd64, so it was never ARM-specific. **Scan now** restored idle
+controls and successful history, persisting after reload. The SD-card page also flickered and
+repeatedly reported `0/1 readable` scans, which pinned a second defect to the staleness re-read —
+**also fixed**, now one attempt per refresh window per drive. Both need a retest on the Pi.
+Stability checks remain pending. Results and the next check are in
+[TESTING.md Pass 8](TESTING.md#pass-8--arm64-raspberry-pi).
+
+Use a 64-bit Linux installation. Check `uname -m` (`aarch64`), `getconf LONG_BIT` (`64`), and
+the Docker server/image architecture; the image must be `linux/arm64`. No ARMv7 image is published.
+If the test container is already deployed, continue the test record without updating it first.
 
 **1. Docker.** On DietPi: `dietpi-software`, then *Software Optimised* → **Docker** and *Install*.
 Or the official script, which is what DietPi runs underneath:
@@ -406,24 +423,50 @@ cd smart-serve
 ./update.sh
 ```
 
-That builds and starts the stack. **The build is native on the Pi** — no QEMU, no `buildx` — so it
-takes a few minutes on a Pi 5 rather than the seconds an x86 box takes, and it is the same image the
-release publishes. The dashboard is then on `http://<pi-address>:8080`.
+That builds and starts the development stack natively on the Pi using the repository's Dockerfile.
+It is a local image, not the published GHCR artifact. The dashboard is on `http://<pi-address>:8080`.
+Record its image ID as well as the reported version: `update.sh` currently calculates the version
+before pulling, so the version string alone cannot prove which source revision was built.
 
-**3. Device access.** The same three gates as any other host, and `docker-compose.dev.yml` already
-carries them. Note that **the Pi's own storage is an SD card, which reports no S.M.A.R.T. at all** —
-it is not the interesting device. A USB SSD or HDD is: it exercises the `SG_IO` passthrough path and
-`CAP_SYS_RAWIO`, which are the parts most likely to differ from x86.
+**Development restart behavior:** `docker-compose.dev.yml` has no automatic restart policy;
+the Pi inspection confirmed `restart=no`. The production Compose file uses `unless-stopped`.
+Reboot/recovery testing is still pending; a healthy development container does not establish
+automatic startup after a reboot.
 
-**4. What to check, and what to write down:**
+**3. Device access.** The captured deployment has `/dev:/dev:ro`, the device-cgroup rule,
+`SYS_ADMIN` and `SYS_RAWIO`. Its startup probe succeeded on `/dev/sda`, and smartctl discovered
+that disk as `sat` / `ATA`. A subsequent `smartctl -x --json -d sat /dev/sda` returned exit 0,
+the WDC identity and 17 ATA attributes. The operator then verified these identity and attribute-table
+checks after an app scan, with no apparent errors. A short self-test starts and displays periodic
+status updates; the drive and live API subsequently reported successful completion. The app
+failed to clear its running state after waiting/reloading. **Scan now** then cleared the progress
+bar, restored short/long test buttons and displayed the successful history entry; these results
+persisted after reload. That stale state was a bug, and the capture that pinned it is in
+[TESTING.md Pass 8](TESTING.md#pass-8--arm64-raspberry-pi): the app raised an unread-self-test-log
+flag for a log it reads, and the card skipped its live read because of it. Both halves are fixed.
+The attached SD card is not expected to provide S.M.A.R.T. Its app page is visible, but opening
+it caused flicker and repeated `scan complete: 0/1 readable` toasts — a second bug, in the
+staleness re-read, also fixed: one attempt per refresh window per drive. The API reports
+`Unable to detect device type`, health/cause `unknown` and `last_scan: null`, which is what kept
+the re-read firing: only a *successful* read advances that timestamp. The detail-page notice itself
+has not been checked.
 
-- A scan finds the USB drive, and its device page shows attributes rather than a notice.
-- `docker compose -f docker-compose.dev.yml logs --tail=20` shows the startup probe reading a drive
-  successfully. If it does not, the log names which of the three gates is closed.
-- **Idle CPU and RSS.** This is the figure the ARM audience wants, and a Pi is where the memory
-  figure genuinely differs from an x86 server. `docker stats --no-stream`.
-- Anything that reads differently from x86 — a bridge that reports a serial differently, a USB
-  enclosure that needs a `-d` override, a temperature that arrives in a different field.
+Container `lsblk` reports the USB disk as `Dual SATA Bridge` without a serial, while host `lsblk`
+reports the WDC drive identity. The container's full smartctl read returns the matching WDC model
+and serial, and the operator confirmed both in the app. Container `lsblk` also reports
+container mountpoints rather than the host's `/` and `/boot/firmware`. For storage-usage testing,
+the reference mounts do not expose the host's filesystem layout at its original paths.
 
-Record what you find in `docs/TESTING.md`'s Pass 8, and update `SCOPE.md` and `RELEASE.md`, which
-both currently say arm64 has never been run.
+**4. Continue one test at a time.** The container SMART read and app identity/attribute checks are
+complete for this disk, and a short-test completion is confirmed in the drive log. The app's
+running-state check failed after both waiting and reloading, despite a completed live API response.
+The saved record captured old 90% progress and the unread-log flag that suppressed the initial live
+read — **the bug, now fixed**; and opening the SD-card page then failed the no-repeat-scan check,
+with the null successful-scan timestamp and rapid failed reads pinning it to the staleness re-read —
+**also fixed**. Both need a retest here; the retest steps are in
+[TESTING.md Pass 8](TESTING.md#pass-8--arm64-raspberry-pi). Pass 8 next checks dashboard health and
+the disconnected-device filter against the saved API state. Neither symptom was ARM-specific: a
+similar self-test report comes from amd64.
+Resource testing remains open: the first process RSS sample was **21.97 MiB**, and Docker's
+`0B / 0B` memory display was unusable. Measure process RSS from `/proc/1/status`, separately from
+Docker container memory, and establish a controlled idle baseline before claiming compliance.

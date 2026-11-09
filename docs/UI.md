@@ -16,8 +16,10 @@ that implementation cannot drift into a generic default look.
    *meaning* (health state) and is never decoration.
 3. **CrystalDiskInfo's data density, modernised.** Power users get the full attribute
    table; everyone else gets a clear verdict. Progressive disclosure, not clutter.
-4. **Honest freshness.** Every screen shows "last scanned …". The UI never implies
-   live monitoring — it reflects the last scan (`ADR-007`).
+4. **Honest freshness.** Every screen shows "last scanned …", and the UI never implies
+   live monitoring — it reflects the last scan (`ADR-007`). The one exception is stated
+   rather than silent: opening a drive page whose data is past `device_refresh_minutes`
+   reads *that drive* and says "reading the drive now…" while it does (`FEATURES.md` A28).
 5. **No framework, no CDN, no external fonts.** System font stack + inline SVG icons
    + CSS custom properties. Fast, offline-capable, and immune to framework/version
    churn — the single biggest cause of UI regressions in iterative development.
@@ -317,7 +319,14 @@ picker offers exactly `ThemeNames`.
   first. Reported as a direction, never as a date (`SCOPE.md` §2.2).
 
 ### 7.2 Device detail
-- **Header:** editable inline name, model, serial, firmware, capacity, drive age.
+- **Header:** the drive's name, with the model and device path beneath it, and the **scan age** beside
+  those (`FEATURES.md` A28 follow-up). The age is here rather than in a row of twelve facts because
+  "4 hours ago" among twelve is not where a reader notices it — and a stale figure that looks live is
+  the one thing this page must not do. It reads "data from 4 hours ago", "no data yet — reading the
+  drive now…" while the page re-reads a drive past `device_refresh_minutes`, or "— could not re-read
+  the drive" when that read fails, in which case the stored figures stay on screen because they are
+  still the last thing the drive actually said. The name is edited in the notes dialog, not inline;
+  serial, firmware and capacity live in the Identity card below.
 - **Health block:** large gauge + verdict badge + plain-language rationale
   ("5 pending sectors").
 - **Since the last scan** (`FEATURES.md` A18): the first card in the grid, because "what changed" is

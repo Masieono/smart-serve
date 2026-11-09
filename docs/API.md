@@ -220,7 +220,10 @@ drive said nothing, which is a different finding from an empty log:
 A count of `0` is a finding and is present. `note` carries smartctl's own words when a log could
 not be read — an NVMe drive with no self-test log answers the request with an error and reports
 nothing else about it. `self_test_supported: false` means the drive cannot run self-tests, or
-cannot have its self-test log read.
+cannot have its self-test log read. `self_test_log_unread` names a self-test log the drive holds
+that this app does not read, and it is raised **only** when no self-test log this app *does* read
+was found — so a drive reporting `ata_smart_selective_self_test_log` (the ranges a selective test
+covers) beside a normal self-test log is not flagged for it.
 
 The two entry lists differ because the two logs do. A **self-test** entry carries the test, its
 outcome, and `remaining` while one is running — the progress figure a running test has to show,

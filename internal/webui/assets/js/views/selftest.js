@@ -41,17 +41,28 @@ export function setPollSeconds(seconds) {
 
 const pollMs = () => pollSeconds * 1000;
 
-/** The poll timer for the card on screen.
+/** The poll timer for the card on screen, and the moment the next read is due.
  *
  *  One at a time, cleared before every start: a render replaces the card, and a timer left behind
- *  by the previous one would go on reading the drive for a panel nobody can see. */
+ *  by the previous one would go on reading the drive for a panel nobody can see.
+ *
+ *  `dueAt` is a *deadline* rather than an interval, and that is what stops a re-render from starving
+ *  the poll. Every render builds a new card, a new card watching a running test arms the timer, and
+ *  arming a fresh full interval each time means a page that re-renders more often than the interval
+ *  never reaches a read at all. That is not hypothetical here: a `selftest_progress` event, a
+ *  device re-read or the freshness re-read all re-render the page, and each one pushed back the very
+ *  poll that would have cleared a stale progress bar. Carrying the deadline across the re-render
+ *  means the read happens when it was always going to happen.
+ */
 let timer = null;
+let dueAt = null;
 
 export function stopPolling() {
   if (timer !== null) {
     clearTimeout(timer);
     timer = null;
   }
+  dueAt = null;
 }
 
 /**
@@ -403,12 +414,18 @@ export function selfTestCard(ctx, device, logs, onLogs = null, renderHistory = n
 
   /** Ask again later, unless the card has left the page in the meantime. */
   function schedule() {
-    stopPolling();
-    timer = setTimeout(tick, pollMs());
+    const now = Date.now();
+    if (dueAt === null) dueAt = now + pollMs();
+    if (timer !== null) clearTimeout(timer);
+    timer = setTimeout(tick, Math.max(0, dueAt - now));
   }
 
   async function tick() {
     timer = null;
+    // The cycle this deadline belonged to is over; the read below arms the next one if the drive is
+    // still testing. Cleared before the connected check so a card that was navigated away from leaves
+    // nothing pending for the next visit to inherit.
+    dueAt = null;
     // Navigating away detaches the card. A timer that outlived it would go on reading the drive
     // for a panel nobody can see, which is exactly what this feature must not do.
     if (card.isConnected === false) return;
@@ -433,13 +450,19 @@ export function selfTestCard(ctx, device, logs, onLogs = null, renderHistory = n
   // running test came to look like an idle card after navigating away and back, and how the same
   // drive could then be asked to start a second test it would refuse.
   //
+  // **Always, including when a log this app does not read is present** — which is the opposite of what
+  // this did. The read used to be skipped on the reasoning that it "could only fail", and that
+  // reasoning was wrong twice over: `smartctl -x` reads every log, so only the *parser* is limited;
+  // and a read that comes back with nothing is not a wasted request, it is the correction. The card
+  // paints a running entry from the last scan *before* this read starts, so for a drive that finished
+  // its test since that scan the live read is the only thing that takes the bar down — and skipping it
+  // is what kept `90% left` on a drive's page across reloads while the drive's own log said the test
+  // was over. The read is not silent about the limit either: `showIdle` names the unread log.
+  //
   // One read, not a poll: `read()` starts the timer itself when the drive turns out to be testing, so
   // visiting an idle drive costs exactly one request and nothing after it (the zero-idle-cost
-  // invariant, `DESIGN.md` §2.1). Skipped entirely when the drive's self-test log cannot be read,
-  // where the read could only fail.
-  if (!unreadLog) {
-    void read({ quiet: true });
-  }
+  // invariant, `DESIGN.md` §2.1).
+  void read({ quiet: true });
 
   return card;
 }

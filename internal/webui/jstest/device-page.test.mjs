@@ -15,7 +15,7 @@ import assert from 'node:assert/strict';
 import { installStubDom, StubNode } from './stub-dom.mjs';
 
 installStubDom();
-const { render, setDisplayOptions, startFreshness } = await import('../assets/js/views/device.js');
+const { render, setDisplayOptions, startFreshness, resetFreshness } = await import('../assets/js/views/device.js');
 const { el } = await import('../assets/js/dom.js');
 
 /** Every string in a subtree, in document order. */
@@ -101,6 +101,7 @@ const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
 // on a machine that parks its disks that is exactly the thing not to do.
 test('a fresh drive is not re-read', () => {
   setDisplayOptions({ device_refresh_minutes: '15' });
+  resetFreshness();
   const ctx = freshCtx();
 
   const line = el('div', {});
@@ -114,6 +115,7 @@ test('a fresh drive is not re-read', () => {
 // partition table all arrive together.
 test('a stale drive is re-read, and the page says so while it happens', async () => {
   setDisplayOptions({ device_refresh_minutes: '15' });
+  resetFreshness();
   const ctx = freshCtx();
   const long = new Date(Date.now() - 4 * 3600 * 1000).toISOString();
 
@@ -135,6 +137,7 @@ test('a stale drive is re-read, and the page says so while it happens', async ()
 // age is still shown — the reader can see it is old and press Scan themselves.
 test('a zero window never re-reads a drive', () => {
   setDisplayOptions({ device_refresh_minutes: '0' });
+  resetFreshness();
   const ctx = freshCtx();
   const long = new Date(Date.now() - 4 * 3600 * 1000).toISOString();
 
@@ -150,6 +153,7 @@ test('a zero window never re-reads a drive', () => {
 // for good.
 test('a failed re-read says so and leaves the page alone', async () => {
   setDisplayOptions({ device_refresh_minutes: '15' });
+  resetFreshness();
   const ctx = freshCtx({ failScan: true });
   const long = new Date(Date.now() - 4 * 3600 * 1000).toISOString();
 
@@ -166,6 +170,7 @@ test('a failed re-read says so and leaves the page alone', async () => {
 // applying it here would leave the page empty for no reason.
 test('a drive with no data at all is read whatever the window says', async () => {
   setDisplayOptions({ device_refresh_minutes: '0' });
+  resetFreshness();
   const ctx = freshCtx();
 
   const line = el('div', {});
@@ -175,6 +180,51 @@ test('a drive with no data at all is read whatever the window says', async () =>
   await flush();
   assert.equal(ctx.requests.filter((r) => r.method === 'POST').length, 1,
     'a drive with no data was left with an empty page');
+});
+
+// The loop that was reported from a Raspberry Pi: opening the SD card's page flickered and rolled in
+// `scan complete: 0/1 readable` toasts, five failed device reads inside the same displayed second.
+//
+// The read re-renders the page, the page re-reads the drive, and the only thing that ends that is data
+// arriving — which is exactly what an unreadable drive never produces. `last_scan` is advanced by a
+// read that *succeeded* and nothing else, so an unreadable drive is stale forever and the age can
+// never be the guard. The window is.
+test('a drive that cannot be read is not read over and over', async () => {
+  setDisplayOptions({ device_refresh_minutes: '15' });
+  resetFreshness();
+  const ctx = freshCtx();
+
+  // Three renders of the same unreadable drive, which is what three `ctx.refresh()` calls produce.
+  // The scan itself succeeds — a scan that finds nothing readable is still a scan that ran — and
+  // `last_scan` is still null afterwards, because a failed read never sets one.
+  const unreadable = { serial: 'SD-CARD', last_scan: null };
+  const lines = [el('div', {}), el('div', {}), el('div', {})];
+  for (const line of lines) startFreshness(ctx, unreadable, line);
+  await flush();
+
+  const posts = ctx.requests.filter((r) => r.method === 'POST');
+  assert.equal(posts.length, 1, `${posts.length} reads were made, want one: the page is looping`);
+  assert.equal(ctx.refreshed, 1, 'the page was redrawn more than once for one read');
+  // And the later renders say what happened rather than leaving "reading the drive now…" up for good.
+  assert.match(textOf(lines[1]), /could not re-read/);
+  assert.match(textOf(lines[2]), /could not re-read/);
+});
+
+// The guard is per drive, so opening a second drive is read as usual rather than inheriting the
+// first one's attempt.
+test('one drive failing to read does not stop another being read', async () => {
+  setDisplayOptions({ device_refresh_minutes: '15' });
+  resetFreshness();
+  const ctx = freshCtx();
+
+  startFreshness(ctx, { serial: 'SD-CARD', last_scan: null }, el('div', {}));
+  await flush();
+  startFreshness(ctx, { serial: 'OTHER', last_scan: null }, el('div', {}));
+  await flush();
+
+  const posts = ctx.requests.filter((r) => r.method === 'POST');
+  assert.equal(posts.length, 2, `${posts.length} reads were made, want one per drive`);
+  assert.match(posts[1].path, /\/api\/devices\/OTHER\/scan$/, 'the wrong drive was read');
 });
 
 /** A context that records what the freshness check did. */

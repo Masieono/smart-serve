@@ -486,6 +486,67 @@ func TestParseLogsNVMeSelfTestLog(t *testing.T) {
 	}
 }
 
+// A drive can carry a self-test log this parser does not read *alongside* one it does — and reporting
+// the first while showing the second is what put "this drive's self-test log could not be read" on
+// the page of a drive whose results were on the same page, and suppressed the live read that would
+// have corrected its stale progress bar.
+//
+// The document below is the shape captured from the ARM test host's WD20EURX: an ordinary ATA
+// self-test log with a completed short test, plus the selective self-test log that most modern ATA
+// drives report and this app never reads, because it holds the ranges a selective test covers rather
+// than a test's history.
+func TestParseLogsDoesNotCallASecondaryLogUnread(t *testing.T) {
+	got := ParseLogs([]byte(`{
+		"ata_smart_self_test_log": {
+			"standard": {
+				"revision": 1,
+				"count": 2,
+				"table": [
+					{"type": {"value": 1, "string": "Short offline"},
+					 "status": {"value": 0, "string": "Completed without error", "passed": true},
+					 "lifetime_hours": 45446},
+					{"type": {"value": 1, "string": "Short offline"},
+					 "status": {"value": 129, "string": "Aborted by host", "passed": false},
+					 "lifetime_hours": 45446}
+				]
+			}
+		},
+		"ata_smart_selective_self_test_log": {
+			"standard": {"revision": 1, "table": [{"lba_min": 0, "lba_max": 0}]}
+		}
+	}`))
+
+	if got.SelfTestLogUnread != "" {
+		t.Errorf("SelfTestLogUnread = %q, want empty: the drive's self-test log was read",
+			got.SelfTestLogUnread)
+	}
+	// And the flag must not be "empty because nothing parsed": the results have to be there, because
+	// they are what the notice was falsely claiming could not be shown.
+	if got.SelfTestCount == nil || *got.SelfTestCount != 2 {
+		t.Errorf("SelfTestCount = %v, want 2", got.SelfTestCount)
+	}
+	done := got.LatestFinished()
+	if done == nil || done.Status != "Completed without error" {
+		t.Errorf("LatestFinished() = %+v, want the completed short test", done)
+	}
+	if running := got.Running(); running != nil {
+		t.Errorf("Running() = %+v, want nil: nothing here is in progress", running)
+	}
+}
+
+// A drive whose *only* self-test log is one this parser cannot read still says so — the notice is the
+// useful half of an unreadable log, and narrowing the rule must not lose it.
+func TestParseLogsStillNamesAnOnlyUnreadLog(t *testing.T) {
+	got := ParseLogs([]byte(`{
+		"ata_smart_error_log": {"summary": {"revision": 1, "count": 0}},
+		"vendor_self_test_log": {"table": [{"when": 1}]}
+	}`))
+
+	if got.SelfTestLogUnread != "vendor_self_test_log" {
+		t.Errorf("SelfTestLogUnread = %q, want vendor_self_test_log", got.SelfTestLogUnread)
+	}
+}
+
 // A self-test log smartctl could not *read* is not the same finding as a drive that cannot test
 // itself, and this project has the receipts: the fixture below is the same SN730 under smartctl 7.4,
 // which reported "Read Self-test Log failed" — and under 7.5, with no hardware change, reads it

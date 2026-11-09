@@ -101,42 +101,70 @@ function projectionBlock(p) {
  * is already on screen and is still the last thing the drive actually said; a failure here means the
  * page keeps showing it, which is the right answer for a drive that has just been unplugged.
  */
+/**
+ * The last time this page asked for a drive to be read, and which drive it was.
+ *
+ * The guard that closes what used to be an unbounded loop. Reading a stale drive re-renders the page,
+ * the page reads the stale drive again, and the only thing that ends that is data arriving — which is
+ * exactly what an unreadable drive never produces. It was reported from a Raspberry Pi: opening the SD
+ * card's page flickered and rolled in `scan complete: 0/1 readable` toasts, five failed reads in the
+ * same displayed second. `last_scan` is advanced only by a read that *succeeded*, so an unreadable
+ * drive stays stale forever and the age can never be the guard.
+ *
+ * A window rather than a "tried once" flag, so a drive that comes back is picked up on a later visit
+ * instead of being written off for the life of the tab. It is also the app's own answer to "how often
+ * may I touch a drive nobody asked about?" — the question this setting already answers.
+ */
+let lastAttempt = { serial: '', at: 0 };
+
 export function startFreshness(ctx, d, line) {
   const minutes = deviceRefreshWindow();
   const scanned = d.last_scan ? Date.parse(d.last_scan) : NaN;
-  const age = Number.isFinite(scanned) ? (Date.now() - scanned) / 60000 : Infinity;
+  const never = !Number.isFinite(scanned);
+  const age = never ? Infinity : (Date.now() - scanned) / 60000;
 
   const paint = (text, tone) => {
     mount(line, [el('span', { class: tone ? `muted ${tone}` : 'muted', text })]);
   };
+  // What to say when the drive cannot be read. Two sentences for one situation, because "no data yet"
+  // and "data from four hours ago" are different things to be looking at while it fails.
+  const failed = never
+    ? 'no data yet — could not re-read the drive'
+    : `${fmtAgo(d.last_scan)} — could not re-read the drive`;
 
   const read = () => {
     api.scanDevice(d.serial).then(() => {
       // `ctx.refresh` rather than a second fetch of our own: the page's payload is assembled
       // server-side, and re-rendering is how the fresh verdict, score and partition table arrive
-      // together — and how the age stops being stale, so this does not loop.
+      // together.
       ctx.refresh();
     }).catch(() => {
-      paint(`${Number.isFinite(scanned) ? fmtAgo(d.last_scan) : 'no data'} — could not re-read the ` +
-        'drive');
+      paint(failed);
     });
   };
 
-  if (!Number.isFinite(scanned)) {
-    // A drive with no data at all has nothing to show, so reading it is the whole point of opening
-    // the page. The staleness window exists to stop *re-reads*; it has nothing to say about a first
-    // read, and applying it here would leave the page empty for no reason.
-    paint('no data yet — reading the drive now…', 'device-refreshing');
-    read();
+  // A drive with no data at all has nothing to show, so reading it is the whole point of opening the
+  // page. The staleness window exists to stop *re-reads*; it has nothing to say about a first read,
+  // and applying it here would leave the page empty for no reason.
+  const stale = never || (minutes > 0 && age > minutes);
+  if (!stale) {
+    paint(`data from ${fmtAgo(d.last_scan)}`);
     return;
   }
 
-  if (minutes > 0 && age > minutes) {
-    paint(`${fmtAgo(d.last_scan)} — reading the drive now…`, 'device-refreshing');
-    read();
+  // One attempt per window, per drive. `Math.max(minutes, 1)` because a window of 0 means "never
+  // re-read on age" — and that must not turn into "re-read as fast as the page can render" for a drive
+  // that has no data at all.
+  const wait = Math.max(minutes, 1) * 60000;
+  if (d.serial === lastAttempt.serial && Date.now() - lastAttempt.at < wait) {
+    paint(failed);
     return;
   }
-  paint(`data from ${fmtAgo(d.last_scan)}`);
+  lastAttempt = { serial: d.serial, at: Date.now() };
+  paint(never
+    ? 'no data yet — reading the drive now…'
+    : `${fmtAgo(d.last_scan)} — reading the drive now…`, 'device-refreshing');
+  read();
 }
 
 function draw(container, ctx, data, history) {
@@ -1413,6 +1441,17 @@ let deviceRefreshMinutes = 0;
 /** The refresh window in force, for the device view. */
 export function deviceRefreshWindow() {
   return deviceRefreshMinutes;
+}
+
+/**
+ * Forget the last freshness attempt.
+ *
+ * For the tests, and only for them: the guard above is module state, so one test's read would
+ * suppress the next one's. Nothing in the app needs it — a page view ends with a navigation, and the
+ * guard is keyed by serial, so opening a different drive is unaffected either way.
+ */
+export function resetFreshness() {
+  lastAttempt = { serial: '', at: 0 };
 }
 
 /** The options in force, for a caller that needs to know (and for the tests). */

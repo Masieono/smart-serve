@@ -56,9 +56,20 @@ side-by-side comparison. `SCOPE.md` Phase 4 is complete and `FEATURES.md` §H ha
   free-text reason but no attribute id, so the attribute table can only mark rows the *drive itself*
   flags. Adding an optional id would make it exact and retire the last UI-side judgement
   (`FEATURES.md` A12).
-- **arm64 has never been run.** CI builds it on every pull request; nothing has executed it on ARM
-  hardware. The Raspberry Pi procedure below is how that closes, and it needs hardware rather than
-  code (`SCOPE.md`).
+- **arm64 hardware verification was outstanding at this release.** Updated 2026-11-08:
+  a Pi 5 / DietPi deployment now confirms native execution, startup health and a full container
+  SMART read through USB SAT. App identity and attribute-table checks also passed for the tested
+  disk. A short test completed without error, but automatic UI completion failed: 90% left
+  persisted after waiting/reloading despite a completed live API response. That capture — saved
+  progress and an unread-log flag beside a completed live result — **identified the bug, which is
+  fixed**: the flag was raised for a log the app reads, and the self-test card no longer skips its
+  live read. **Scan now** restored idle controls and successful history, persisting after reload.
+  The same self-test symptom is reported on amd64, so it was never ARM-specific.
+  Opening the Pi's SD-card page also caused flicker and repeated `0/1 readable` scan toasts. The
+  API's `last_scan: null` and five failed device reads in the same displayed second pinned it to
+  the staleness re-read — **also fixed**, now one attempt per refresh window per drive. Both fixes
+  need a retest on the Pi. Controlled idle measurements, stability and broader parity remain open;
+  see [the current test record](TESTING.md#pass-8--arm64-raspberry-pi).
 - **No tag-size re-measurement.** v1.1.0 adds no runtime dependency and does not change the base
   image, so the v1.0.0 figures still hold. The rule stands: re-measure for any release that changes
   either.
@@ -111,34 +122,40 @@ three device-access gates is closed if it cannot (`DEPLOYMENT.md`).
 
 ## arm64 verification (Raspberry Pi)
 
-CI builds both architectures on every pull request, so an arm64 *build* failure is caught
-before release. That is not the same as arm64 *working* — nothing has run on ARM hardware
-yet. A Raspberry Pi is the cheapest way to close that, and the useful test is small.
+**Current status (2026-11-08): partial hardware verification on Raspberry Pi 5 / DietPi.**
+Native `linux/arm64` execution, the reference device-access configuration, startup probe,
+HTTP health, USB SAT auto-detection and a full container SMART read of the attached WDC disk are
+confirmed. The operator also verified the app's model, serial, 17 attributes and selected raw
+values after a completed scan, with no apparent errors. The local development image reports
+`v1.1.0-23-g949fbd6`. This is not verification of the published GHCR image or full amd64 parity.
+A later direct read confirmed a short self-test completed without error. Automatic UI completion
+failed: 90% left and **Stop test** persisted after waiting/reloading. The live API returned the
+completed history with no `running` field, while the saved record contained 90% progress and an
+unread-log flag — and **that pairing was the bug, which is now fixed**: the flag was raised for a
+log the app reads (`ata_smart_selective_self_test_log`), and the card skipped its live read because
+of it. **Manual recovery passed:** after **Scan now**, idle controls and successful history returned
+and persisted after reload. The same symptom is reported on amd64, so an ARM-specific cause was
+never in play. A second failed check concerns the SD-card page: opening it caused flicker and
+repeated `0/1 readable` scan toasts. The captured `last_scan: null`, device-type detection error and
+five failed device reads in the same displayed second pinned that to the staleness re-read —
+**also fixed**, now one attempt per refresh window per drive. This second symptom has only been
+reported on the Pi. Both fixes need a retest on this hardware.
 
-**What you need**
+[TESTING.md Pass 8](TESTING.md#pass-8--arm64-raspberry-pi) holds the dated evidence, image ID,
+individual test statuses and the single next check. Keep that record authoritative rather than
+duplicating the checklist here. A first process RSS sample is **21.97 MiB**, above the stated
+under-20-MB target; controlled idle conditions and overnight stability have not been measured.
 
-1. **A 64-bit Raspberry Pi OS.** Check with `uname -m` — it must say `aarch64`. A 32-bit
-   userland will pull the arm64 image and fail to `exec` it, which presents as a crash rather
-   than as the architecture mismatch it is. This is the single most common way to lose an
-   afternoon here.
-2. **A drive in a USB enclosure.** The Pi's own storage is an SD card, which reports no
-   S.M.A.R.T. at all, so it is not the interesting device. An SSD or HDD on USB is: it
-   exercises the `SG_IO` passthrough path and the `CAP_SYS_RAWIO` requirement, which are the
-   parts most likely to differ from x86.
-3. **The reference compose file, unchanged.** If the three device-access gates need something
-   different on ARM, that is precisely the finding worth having, and changing the compose file
-   first would hide it.
+For further verification:
 
-**What to check**
+1. Use a 64-bit Linux installation and confirm the Docker image is `linux/arm64`.
+   `uname -m` checks the kernel architecture only; also check `getconf LONG_BIT` and the
+   Docker server/image architecture. The published ARM platform is arm64, not ARMv7.
+2. Use a SMART-capable USB SSD/HDD, with optional NVMe coverage when that hardware is available.
+   The Pi's SD card is a no-SMART control, not evidence that USB SMART works.
+3. Keep the current deployment fixed for the baseline. Record any configuration workaround
+   separately, and identify the image actually tested. A local source build and a published image
+   need separate provenance records.
 
-- A scan finds the USB drive, and the device page shows its attributes rather than a notice.
-- `docker compose logs` shows the startup probe reading a drive successfully.
-- **Idle CPU and RSS.** A Pi is where the memory figure genuinely differs from an x86 server,
-  and it is the figure the ARM audience will want — the SD card as the boot device makes the
-  Pi a plausible always-on host for exactly this app.
-
-**When to do it**
-
-After v1. It verifies an architecture that already builds, and it needs hardware rather than
-code. Nothing in the release depends on it; the honest position until then is the one already
-recorded in `SCOPE.md` — arm64 is built by CI and has never been run.
+CI builds both architectures on pull requests, but its application tests run on x86;
+there is no ARM application/device test in the workflow. Continue the hardware checks one at a time.

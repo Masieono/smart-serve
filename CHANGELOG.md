@@ -30,6 +30,31 @@ discarding silently is not. See `ADR-028`.
   page now reads the drive back and says plainly that the test is still running — instead of claiming
   it stopped and showing it running again on the next read, which reads as a broken app rather than a
   bridge.
+- **A drive whose self-test log *was* read was told it could not be.** The unread-log notice was raised
+  by any unrecognised key containing `self_test`, and that set includes
+  `ata_smart_selective_self_test_log` — the ranges a selective test covers, which this app never starts
+  and which most modern ATA drives report. Nearly every ATA drive therefore carried a sentence saying
+  its self-test log could not be read while its results were being parsed correctly beside it. The
+  notice now requires that the drive offered **no** self-test log this app reads.
+- **`90% left` that never went away, for a test the drive had already finished.** This is the half of
+  the bug above that a person actually saw. The self-test card painted a running entry from the last
+  scan, then **skipped its live read** because the drive carried that flag — on the reasoning that the
+  read "could only fail". It could not: `smartctl -x` reads every log, and only the parser is limited,
+  and the live read is the only thing that takes the bar down. A WD20EURX on the ARM test host showed
+  the same stale figure on every reload until a manual scan replaced the saved document. The card now
+  reads the drive on mount whatever the logs look like.
+- **Opening a drive's page could re-read it forever.** The staleness re-read redraws the page, the
+  redrawn page re-reads the stale drive, and the only thing that ends that is data arriving — which an
+  unreadable drive never produces. `last_scan` is advanced by a read that *succeeded* and nothing else,
+  so a drive that cannot be read is stale permanently and the age can never be the guard. Reported from
+  a Raspberry Pi: the SD card's page flickered and rolled in `scan complete: 0/1 readable` toasts, five
+  failed reads in the same displayed second. There is now at most one attempt per refresh window, per
+  drive.
+- **A page re-render no longer postpones the self-test poll.** Every render builds a new card, and a
+  new card watching a running test armed a fresh full interval — so a page re-rendering more often than
+  the interval never reached a read at all. A `selftest_progress` event, a device re-read and the
+  freshness re-read all re-render, and each one pushed back the very poll that would have cleared a
+  stale progress bar. The deadline is now carried across the re-render.
 
 ### Added
 
