@@ -354,258 +354,44 @@ This passes the requested identity and attribute-table checks for the attached d
 power-on hours, the remaining individual fields, exports and history have not been explicitly
 compared; a general absence of visible errors does not establish complete UI or amd64 parity.
 
-### Partial result — 8.8 short self-test, 2026-11-08
+### Defect found — 8.8 self-test progress did not clear
 
-The operator initially reported that **Short test** started and the page updated every 15 seconds,
-but stayed at `In progress, 90% left`, including after manual reload. No elapsed-time estimate
-was visible. The earlier manually aborted attempt lasted much longer than five minutes. The
-subsequent direct read below establishes a completed short test; the UI state at that later
-capture was not separately confirmed.
+**Symptom:** a short test started, the page updated every 15 seconds, and it stayed at
+`In progress, 90% left` after waiting and reloading. A direct read of the drive showed the test had
+**completed without error** at 45,446 lifetime hours, above two earlier `Aborted by host` entries (50%
+and 10% remaining) — the 10% one being a test the operator had stopped by hand.
 
-The same symptom was also observed by the operator on AMD/amd64 systems. Later Pi captures
-support a shared application defect involving stale saved progress and a skipped live read.
-Matched build, drive/enclosure and live status captures from both architectures are not yet
-available, so this is not a confirmed ARM regression.
+**Cause, confirmed from the operator's saved scan record** — two inputs, one bug:
 
-**What the repository implements:**
+1. `self_test_log_unread` was raised for any unrecognised key containing `self_test`, and that set
+   includes `ata_smart_selective_self_test_log` — the ranges a selective test covers, which most
+   modern ATA drives report. So the notice appeared on drives whose self-test log was being read
+   correctly.
+2. The card **skipped its live read** whenever that flag was set, on the reasoning that the read
+   "could only fail". The live read is the only thing that corrects a progress bar painted from a
+   stale scan, so the saved record's stale `remaining: 90` stayed on screen across reloads.
 
-- [The self-test UI](../internal/webui/assets/js/views/selftest.js) polls at a default interval of
-  15 seconds. The button and confirmation show the drive's duration estimate when available
-  (two minutes in this drive's captured data). When a running percentage is returned, the card
-  shows that percentage without an elapsed-time estimate. The elapsed-time/estimated-duration
-  display is a fallback while awaiting a result without a reported running state; it is not
-  shown alongside `90% left` and its start time is held only in the current page.
-- [The SMART reader](../internal/smart/selftest.go) uses `smartctl -x --json` for progress reads.
-  [The parser](../internal/smart/logs.go) prefers the ATA execution-status field over old log
-  percentages when that field is present. These are source findings, not proof of the raw
-  status currently returned by the Pi's drive or of the exact code in its deployed image.
-- [The background watcher](../internal/scan/selftestwatch.go) can also read drives recorded as
-  testing. Closing a browser tab alone does not establish that all app polling has stopped.
-
-The absence of an elapsed-time estimate with a reported percentage matches the implementation.
-The drive and live API reported a completed short test while the UI stayed in a running state
-until the manual scan recorded below. The API's running/completed interpretation is correct in
-the captured response.
-Its additional unread-log flag and the UI's handling of that flag are the leading explanation
-from source inspection. The saved record below now confirms both stale progress and the flag;
-actual browser request behavior and the exact deployed source remain unverified.
-
-### Follow-up — 8.8 drive completion verified, 2026-11-08
-
-The operator supplied the output of:
-
-```sh
-docker exec smart-serve-dev smartctl -c -l xselftest,selftest -d sat /dev/sda
-```
-
-This reads the execution status/capabilities and extended self-test log, with a standard-log
-fallback, without starting or stopping a test. The options are documented in the
-[smartctl manual](https://github.com/smartmontools/smartmontools/blob/main/src/smartctl.8.in).
-
-The drive's execution status is **0** (no test running). Its generic status text allows either
-completion or no previous test; the newest log entry below establishes successful completion.
-This is an execution-status value, not a captured process exit code.
-
-| Log entry | Type | Result | Remaining | Drive lifetime hours |
-|---|---|---|---|---|
-| 1 (newest) | Short offline | Completed without error | 00% | 45,446 |
-| 2 | Short offline | Aborted by host | 50% | 45,446 |
-| 3 | Short offline | Aborted by host | 10% | 45,422 |
-
-The operator estimated about ten minutes since starting when this output was captured, without
-recording a start time. This is not a measured test duration; completion may have happened earlier.
-The drive still advertises a two-minute short-test estimate. Entry 2 is newly visible in this
-capture; its abort has not been separately explained. Entry 3 is the earlier operator-aborted test.
-
-**Verified:** a short test completed without error, and its result can be read through the ARM
-container. The later automatic UI check below **failed** to clear the running state. A subsequent
-manual scan restored the idle controls and made the successful entry visible across reloads.
-Exact duration remains unverified. The display symptom is reported on both architectures; these
-results do not establish an ARM-specific cause.
-
-### Failed check — 8.8 app state after completion, 2026-11-08
-
-After the direct read confirmed completion, the operator left the device page open for an extended
-period and manually reloaded it. Both before and after reload, the app still showed the progress
-bar and `90% left`, with **Stop test** as the only available test button. It did not return to idle.
-History visibility at that point was not reported; it was later verified after the manual scan below.
-
-This fails the app's running-state/automatic-completion acceptance check on the Pi. Keep drive
-completion marked passed and this app check marked failed until a retest verifies it. The same
-kind of symptom is reported on amd64. The later API result below narrows the likely cause to
-shared app logic; the deployed page's exact failure path is not yet verified.
-No application-code change has been made in this verification session.
-
-### Follow-up — 8.8 live API completion verified, 2026-11-08
-
-The operator ran the read-only live-state request:
-
-```sh
-docker exec smart-serve-dev wget -qO- \
-  'http://127.0.0.1:8080/api/devices/WD-WCC4M5VVF6RY/selftest'
-```
-
-The response contains **no top-level `running` field**. Its `logs` contain:
-
-| Field | Captured value |
-|---|---|
-| `self_test_count` / `error_count` | 3 / 0 |
-| `self_test_supported` | `true` |
-| `short_minutes` / `extended_minutes` | 2 / 275 |
-| Newest `self_test_entries` item | `Short offline`, `Completed without error`, `passed: true`, `hours: 45446` |
-| Other entries | Two `Aborted by host` results at 45,446 and 45,422 hours |
-| `self_test_log_unread` | `ata_smart_selective_self_test_log` |
-
-All three entries omit `remaining`. The captured live API therefore agrees with the completed
-drive test, while also marking a separate log as unread. This rules out an incorrect `running`
-value in this particular API response; it does not prove what response the browser received.
-
-**Likely cause from source inspection, supported by the saved-state capture below:**
-
-1. `unreadSelfTestLog` in [logs.go](../internal/smart/logs.go) flags top-level keys containing
-   `self_test`, except the recognized ATA and NVMe history logs. This catches
-   `ata_smart_selective_self_test_log` even when the ordinary self-test history is parsed correctly,
-   as it was in this response.
-2. [The device endpoint](../internal/httpapi/devices.go) builds `device.logs` from the saved raw
-   scan output. [The device page](../internal/webui/assets/js/views/device.js) gives those saved
-   logs to the self-test card. This is a different source from the live `/selftest` response.
-3. [The self-test card](../internal/webui/assets/js/views/selftest.js) first displays a saved entry
-   with `remaining` as running. If the saved logs have `self_test_log_unread`, it skips the live
-   read on page load. That path can preserve an old progress display across reloads, even though
-   the live endpoint correctly reports completion. The unread flag also gates the fallback
-   progress display when no running state is reported.
-
-These branches have no CPU-architecture condition. The Pi's saved logs below now confirm the
-two inputs to this path: stale running progress and the unread-log flag. This supports a shared
-application issue, consistent with the operator's amd64 observation. Browser network activity
-and the exact deployed source remain unverified; the issue is not fixed. No application code
-has been changed.
-
-### Follow-up — 8.8 stale saved progress confirmed, 2026-11-08
-
-The operator captured the saved device record with:
-
-```sh
-docker exec smart-serve-dev wget -qO- \
-  'http://127.0.0.1:8080/api/devices/WD-WCC4M5VVF6RY'
-```
-
-The response identifies the same WDC disk and serial. `device.last_scan`, `device.last_seen`
-and `snapshot.ts` are `2026-11-08T16:02:49Z`; `snapshot.scan_id` is **18**.
-
-| Reading | Saved device record | Previously captured live self-test API |
-|---|---|---|
-| Running progress | First log entry: `status: "in progress, 90% remaining"`, `remaining: 90` | No `running` field; no entry has `remaining` |
-| Finished history | Two `Aborted by host` entries at 45,446 and 45,422 hours | Newest entry is `Short offline`, `Completed without error`, `passed: true`, at 45,446 hours, followed by the two aborted entries |
-| `self_test_count` | 2 | 3 |
-| `self_test_log_unread` | `ata_smart_selective_self_test_log` | Same flag |
-| Short / extended estimate | 2 / 275 minutes | 2 / 275 minutes |
-
-The saved response has no `device.selftest` field, despite its log summary containing the running
-entry. The stale entry is in the saved scan data used to render the card. The count of two refers
-to the finished history; the synthetic running entry is additional.
-
-**Confirmed:** saved progress is stale relative to the live result, and both inputs to the
-refresh-suppression path are present. This explains why a page reload can reproduce `90% left`
-from the same saved scan. The source path is strongly supported, but browser requests and deployed
-assets have not been independently checked. This remains a likely shared application defect,
-not an established ARM-specific failure.
-
-Drive completion and live completion reporting remain verified. The automatic UI completion
-check remains **failed**; the subsequent manual recovery result is recorded below.
-
-### Passed — 8.8 manual scan recovery and history display, 2026-11-08
-
-The operator clicked **Scan now** and confirmed:
-
-- The page updated to show the completed short offline test.
-- The progress bar disappeared and the short/long test buttons returned.
-- The history showed the successful short offline entry at the expected test time.
-- Those results persisted across a page refresh.
-
-**Passed for this disk/setup:** manual recovery, successful-history display and persistence of
-that display across a browser reload. This supports stale saved scan data as the reason a reload
-alone did not help. It does not pass automatic completion or demonstrate persistence across a
-container restart, host reboot or image update.
-
-The unread-log notice after recovery was not reported. Its absence is not verified, and there
-is no post-scan API capture establishing whether the flag changed. Exact test duration remains
-unmeasured. This verification session changed no application code; the defect below was fixed
-afterwards.
-
-### Fixed — 8.8 the flag and the skipped live read
-
-The two inputs this section identified were the whole defect, and both are now closed in source.
-They are one bug rather than two, and the second half is what made it visible:
-
-- [The parser](../internal/smart/logs.go) raised `self_test_log_unread` for any top-level key
-  containing `self_test` that was not one of the two logs it reads. That set includes
-  `ata_smart_selective_self_test_log` — the *ranges* a selective test covers, which this app never
-  starts and would have nothing to show for, and which most modern ATA drives report. So the flag
-  was set on drives whose self-test log was being parsed correctly. It is now raised only when the
-  drive offered **no** self-test log this app reads.
-- [The card](../internal/webui/assets/js/views/selftest.js) **skipped its live read on mount**
-  whenever that flag was set, on the reasoning that the read "could only fail". It could not:
-  `smartctl -x` reads every log, and only the parser is limited — and the live read is the only
-  thing that corrects a progress bar painted from a stale scan. The card now always reads the drive
-  on mount, and a log that genuinely cannot be read is still named in the idle note.
-- A third defect in the same area, found while tracing this one: every page re-render built a new
-  card, and a new card watching a running test armed a *fresh* poll interval — so a page
-  re-rendering more often than the interval never reached a read at all. A `selftest_progress`
-  event, a device re-read and the freshness re-read all re-render. The poll deadline is now carried
-  across the re-render.
+**Fixed** (`FEATURES.md` A20): the flag is raised only when the drive offered **no** self-test log this
+app reads, and the card always reads the drive on mount. A third defect in the same area is fixed too:
+every re-render armed a fresh poll interval, so a page re-rendering more often than the interval never
+reached a read at all. The deadline is now carried across the re-render.
 
 **Retest:** on the same drive, start a short test and leave the page alone. The bar must clear by
-itself when the drive finishes, with no `Scan now`. The unread-log notice must **not** appear for
-this drive. The Go and JavaScript suites cover the three paths
-(`TestParseLogsDoesNotCallASecondaryLogUnread`, `an unread log does not stop the drive being read`,
-`a re-render does not postpone the poll`), but neither suite has this drive.
+itself when the drive finishes, with no **Scan now**, and the unread-log notice must **not** appear for
+this drive. Covered by `TestParseLogsDoesNotCallASecondaryLogUnread`,
+`an unread log does not stop the drive being read` and `a re-render does not postpone the poll` — but
+no suite has this drive.
 
-### Failed check — 8.9 SD-card page repeatedly scans, 2026-11-08
+The same symptom is reported on amd64, so an ARM-specific fault is not established. Manual recovery
+passed during the session: **Scan now** cleared the bar, restored the short/long buttons, and showed
+the successful entry, persisting across a reload.
 
-The operator could open the SD card's device page. On opening it, the page flickered and repeated
-toast notifications said `scan complete: 0/1 readable`. This verifies app visibility and **fails**
-the no-repeat-scan check. The subsequent API capture below establishes a device-type detection
-error, null successful-scan timestamp and repeated failed device reads. Exact duration/rate and
-the detail page's health/SMART-notice wording remain unverified.
+### Defect found — 8.9 the SD card's page scanned in a loop
 
-**Likely cause from source inspection, supported by the deployed data below:**
-
-1. `startFreshness` in [device.js](../internal/webui/assets/js/views/device.js) calls the scan API
-   whenever `last_scan` is absent or invalid. That branch runs even when
-   `device_refresh_minutes` is zero.
-2. [The store](../internal/store/devices.go) sets `last_scan` only for reads with no error.
-   A failed read keeps the previous timestamp, or leaves it null if none succeeded.
-3. The scan request can finish successfully at the HTTP/job level while its one device remains
-   unreadable. The page's scan callback refreshes the view; independently, the
-   `scan_complete` handler in [app.js](../internal/webui/assets/js/app.js) shows the toast and
-   redraws the current view. With no successful-scan timestamp, the new view tries again.
-
-This source path matches the symptom and has no CPU-architecture condition. It is a likely
-shared application defect, but this SD-card symptom has not been reported or tested on amd64.
-The saved record now confirms `last_scan: null`, and the operator confirms the loop stops on
-leaving the page, strongly supporting this path. Browser requests and exact deployed assets
-have not been independently checked. An old successful timestamp could also cause retries when
-the configured refresh interval has elapsed, but this capture specifically has no timestamp.
-Disabling that interval does not guard the missing-timestamp branch in source. This verification
-session changed no application code; the defect below was fixed afterwards.
-
-### Follow-up — 8.9 loop evidence and dashboard workaround verified, 2026-11-08
-
-The operator confirmed that returning to the main page stops the constant scans; they occur
-within the SD-card detail page. The operator then captured:
-
-```sh
-docker exec smart-serve-dev wget -qO- \
-  'http://127.0.0.1:8080/api/devices'
-```
-
-```sh
-docker exec smart-serve-dev wget -qO- \
-  'http://127.0.0.1:8080/api/scans?limit=5'
-```
-
-The SD-card record contains:
+**Symptom:** opening the SD card's page flickered and rolled in `scan complete: 0/1 readable` toasts.
+The API capture shows why: `last_scan: null`, `smart_available: false`,
+`error: /dev/mmcblk0: Unable to detect device type`, and five scan records (IDs **175–179**) in the
+same displayed second, each `devices_ok: 0` / `devices_failed: 1`. The SD card's own record:
 
 | Field | Captured value |
 |---|---|
@@ -613,84 +399,34 @@ The SD-card record contains:
 | Capacity | 31,914,983,424 bytes |
 | `last_scan` / `last_seen` | `null` / `2026-11-08T22:09:03Z` |
 | `smart_available` / `smart_cause` | `false` / `unknown` |
-| `smart_error` and `health_rationale` | `error: /dev/mmcblk0: Unable to detect device type` |
 | Health / score / missing | `unknown` / `-1` / `false` |
 
-The five newest scans are IDs **175–179**. Every entry has both timestamps at
-`2026-11-08T22:09:03Z`, trigger `device`, `devices_total: 1`, `devices_ok: 0` and
-`devices_failed: 1`. These are five distinct failed device reads in the same displayed second;
-the API truncates timestamp precision to seconds, so this is not a sustained-rate measurement.
-The scan history does not identify the device serial; the SD-card error, matching `last_seen`
-and page-specific reproduction connect it to the reported loop.
+**Cause:** `startFreshness` re-reads whenever `last_scan` is absent, and `last_scan` is advanced only
+by a read that *succeeded* — so an unreadable drive is stale permanently and the age can never be the
+guard. The re-read redraws the page, the redrawn page re-reads, and only data arriving ends that.
+Returning to the dashboard stops it, which was the workaround.
 
-Each job has `ok: true` and an empty job error: the job completed and recorded an unreadable
-device. This does not report a successful SMART read. The device's null `last_scan` persists
-because only a successful read sets that field. Returning to the dashboard is a **verified
-workaround**, not a fix or a general idle-resource test.
-
-**Other observations from this capture:**
-
-- The saved error is device-type detection, not a captured permission-denial message.
-  [The classifier](../internal/smart/failure.go) has no match for this wording and falls through
-  to `unknown`. The card has no readable SMART data in this setup; the capture does not prove
-  a failed SD card. The detail-page notice still has not been checked.
-- The API also ranks the SD card as `fine` with no replacement reasons. This is a replacement
-  priority, not a health measurement: [the ranking](../internal/interp/replacement.go) starts in
-  that band when no replacement trigger applies, and [the dashboard](../internal/webui/assets/js/views/dashboard.js)
-  omits `fine` entries from its replacement shortlist. Retain `health: unknown` as the health
-  result; this capture does not demonstrate a false healthy UI label.
-- The storage summary names `/etc/resolv.conf`, 19% used, 6,033,821,696 used bytes of
-  31,177,043,968 bytes. These are container-visible filesystem figures; host mount/usage parity
-  remains unverified.
-- Two records are marked present: this SD card and `WD-WCC4M5VVF6RY`, the tested 2 TB WDC disk.
-  The WDC record reports `health: good`, `smart_available: true` and a last scan of
-  `2026-11-08T22:02:34Z`. Three historical records are marked missing:
-
-| Historical device | Serial | Saved last scan |
-|---|---|---|
-| Samsung SSD 850 EVO 250GB | `S21NNSAFC00417P` | `2026-11-03T22:28:11Z` |
-| WDC WD101PURP-85B5BY0, 10 TB | `VCKJ5Y0P` | `2026-11-05T14:16:21Z` |
-| WDC WD101PURP-85B5BY0, 10 TB | `VCKJ95DP` | `2026-11-05T14:18:59Z` |
-
-Those older records do not expand this session's hardware verification or establish a successful
-hotplug/reconnect cycle. Reused saved paths such as `/dev/sda` are historical values, not evidence
-that all five records are currently attached.
-
-### Fixed — 8.9 the retry loop is bounded
-
-The source path this section describes was exactly right, and it is now closed. The re-read redraws
-the page, the redrawn page re-reads the stale drive, and the only thing that ends that is data
-arriving — which an unreadable drive never produces. `last_scan` is advanced by a read that
-*succeeded* and nothing else, so a drive that cannot be read is stale permanently and the age can
-never be the guard.
-
-[The freshness check](../internal/webui/assets/js/views/device.js) now allows **one attempt per
-refresh window, per drive**, so five failed reads inside one second become one. A window rather than
-a "tried once" flag, so a drive that comes back is picked up on a later visit instead of being
-written off for the life of the tab; and the line says the drive could not be read rather than
-leaving "reading the drive now…" on screen. `device_refresh_minutes` = 0 keeps its meaning: no
-re-read on age at all, and a drive with no data is still read once.
+**Fixed** (`FEATURES.md` A28 follow-up): one attempt per refresh window, per drive.
+`device_refresh_minutes` = 0 keeps its meaning, and a drive with no data is still read once.
 
 **Retest:** open the SD card's page and watch the scan history. One failed device read per refresh
-window is the pass, not the five-in-a-second the capture above records. Reopening the page after
-the window elapses should produce one more, and leaving and returning should not. The JavaScript
-suite covers it (`a drive that cannot be read is not read over and over`); the hardware does not.
+window is the pass, not five in a second, and reopening after the window elapses should produce one
+more. Covered by `a drive that cannot be read is not read over and over`; the hardware does not.
 
-### Next step — 8.9/8.10, verify dashboard health and disconnected-device display
+### Next step — 8.9/8.10, dashboard health and disconnected-device display
 
 Stay on the dashboard; do not reopen the SD-card detail page for these checks.
 
 1. With display filters clear, confirm that the SD card shows **Unknown** and the tested 2 TB WDC
    disk shows **Good**. Report the actual labels if different.
-2. Click **Show 3 disconnected** and check that the Samsung 250 GB SSD and two 10 TB WDC disks
-   appear as disconnected records. If they are already shown, use the corresponding **Hide**
-   toggle to verify filtering, then restore the preferred view. Do not open their detail pages
-   or run scans for this check.
+2. Click **Show 3 disconnected** and check that the Samsung 250 GB SSD (`S21NNSAFC00417P`) and the
+   two 10 TB WDC disks (`VCKJ5Y0P`, `VCKJ95DP`) appear as disconnected records. If they are already
+   shown, use the corresponding **Hide** toggle to verify filtering, then restore the preferred view.
+   Do not open their detail pages or run scans for this check.
 
-Record the labels/filter behavior before proceeding. This validates rendering of the saved API
-state, not physical hotplug detection. The SD-card retry loop and the automatic self-test completion
-both have their causes fixed in source and need a retest on this hardware (see the 8.8 and 8.9 fix
-notes above); resource/stability, scheduling and restart/reboot checks remain pending.
+This validates rendering of the saved API state, not physical hotplug detection. Both defects above
+are fixed in source and need a retest on this hardware. Resource/stability, scheduling and
+restart/reboot checks remain pending.
 
 ## Pass 7 — cross-cutting
 

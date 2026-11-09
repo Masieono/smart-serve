@@ -56,20 +56,13 @@ side-by-side comparison. `SCOPE.md` Phase 4 is complete and `FEATURES.md` §H ha
   free-text reason but no attribute id, so the attribute table can only mark rows the *drive itself*
   flags. Adding an optional id would make it exact and retire the last UI-side judgement
   (`FEATURES.md` A12).
-- **arm64 hardware verification was outstanding at this release.** Updated 2026-11-08:
-  a Pi 5 / DietPi deployment now confirms native execution, startup health and a full container
-  SMART read through USB SAT. App identity and attribute-table checks also passed for the tested
-  disk. A short test completed without error, but automatic UI completion failed: 90% left
-  persisted after waiting/reloading despite a completed live API response. That capture — saved
-  progress and an unread-log flag beside a completed live result — **identified the bug, which is
-  fixed**: the flag was raised for a log the app reads, and the self-test card no longer skips its
-  live read. **Scan now** restored idle controls and successful history, persisting after reload.
-  The same self-test symptom is reported on amd64, so it was never ARM-specific.
-  Opening the Pi's SD-card page also caused flicker and repeated `0/1 readable` scan toasts. The
-  API's `last_scan: null` and five failed device reads in the same displayed second pinned it to
-  the staleness re-read — **also fixed**, now one attempt per refresh window per drive. Both fixes
-  need a retest on the Pi. Controlled idle measurements, stability and broader parity remain open;
-  see [the current test record](TESTING.md#pass-8--arm64-raspberry-pi).
+- **arm64 hardware verification was outstanding at this release.** Updated 2026-11-08: a Pi 5 /
+  DietPi deployment confirms native execution, startup health, a full container SMART read through
+  USB SAT, and the app's identity and attribute-table checks for the tested disk. That session
+  surfaced two defects — a self-test progress bar stuck at a percentage the drive's own log had
+  moved past, and an SD-card page that re-read itself in a loop — **both fixed, both awaiting a
+  retest on the Pi**. Controlled idle measurements, stability and broader parity remain open; see
+  [the current test record](TESTING.md#pass-8--arm64-raspberry-pi).
 - **No tag-size re-measurement.** v1.1.0 adds no runtime dependency and does not change the base
   image, so the v1.0.0 figures still hold. The rule stands: re-measure for any release that changes
   either.

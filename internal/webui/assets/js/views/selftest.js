@@ -81,10 +81,8 @@ export function selfTestCard(ctx, device, logs, onLogs = null, renderHistory = n
   const note = el('p', { class: 'muted selftest-note' });
   const actions = el('div', { class: 'row selftest-actions' });
   const progress = el('div', { class: 'selftest-progress', hidden: true });
-  // The drive's self-test history, in this card (`FEATURES.md` A20). It used to be a single "Last
-  // test: …" line directly under the progress bar and a table in the Drive logs card — which put a
-  // finished test from last week beside the one running now, and split one subject across two cards.
-  // History goes under its own heading, and the newest result is the table's first row.
+  // The drive's self-test history, in this card (`FEATURES.md` A20): one subject, one place, under its
+  // own heading, with the newest result as the table's first row.
   const history = el('div', { class: 'selftest-history' });
 
   const card = el('div', { class: 'card stack panel-wide selftest' }, [
@@ -192,7 +190,7 @@ export function selfTestCard(ctx, device, logs, onLogs = null, renderHistory = n
    *
    * Some drives only write a self-test log entry when a test *finishes*, so there is no figure to
    * read while one runs — and "nothing is running" is indistinguishable from "this drive does not
-   * report progress", which is how a working test came to look like a button that did nothing.
+   * report progress".
    *
    * So it falls back to the only honest figure available: the drive's **own estimate** of how long
    * its tests take, against the clock this card started one at. That is a different kind of number
@@ -248,10 +246,9 @@ export function selfTestCard(ctx, device, logs, onLogs = null, renderHistory = n
         try {
           // Read the drive *before* asking it to do anything. Two reasons, both of them real:
           //
-          //   - the baseline this card compares against has to be what the drive actually holds.
-          //     Taken from the last scan's copy it is stale the moment a test has run since — and a
-          //     stale baseline makes the very first look after starting look like a *finished* test,
-          //     which is how the card came to skip straight to idle and never show progress at all.
+          //   - the baseline this card compares against has to be what the drive actually holds. Taken
+          //     from the last scan's copy it is stale the moment a test has run since, and a stale
+          //     baseline makes the first look after starting read as a *finished* test.
           //   - a drive already testing itself refuses a second request, and "the drive refused it"
           //     is a worse answer than not asking.
           let before = null;
@@ -300,9 +297,8 @@ export function selfTestCard(ctx, device, logs, onLogs = null, renderHistory = n
         }
       },
     }, [icon('scan'), label, cost
-      // The estimate on the button itself, which is where the decision is made. It used to be in the
-      // sentence above, and a person choosing between two buttons does not read the sentence — the
-      // whole point of the figure is to answer "how long will this take?" at the moment of asking.
+      // The estimate on the button itself, which is where the decision is made: the figure answers "how
+      // long will this take?" at the moment of asking.
       ? el('span', { class: 'btn-cost', text: `· ${cost}` })
       : null]);
   }
@@ -446,18 +442,14 @@ export function selfTestCard(ctx, device, logs, onLogs = null, renderHistory = n
   // Then read the drive, once, on mount.
   //
   // The stored copy is from the *last scan*, and a test started since then is not in it — so a card
-  // that only trusted it reported "no test running" for a drive that was mid-test. That is how a
-  // running test came to look like an idle card after navigating away and back, and how the same
-  // drive could then be asked to start a second test it would refuse.
+  // that only trusted it reported "no test running" for a drive that was mid-test, and could then ask
+  // that drive to start a second test it would refuse.
   //
-  // **Always, including when a log this app does not read is present** — which is the opposite of what
-  // this did. The read used to be skipped on the reasoning that it "could only fail", and that
-  // reasoning was wrong twice over: `smartctl -x` reads every log, so only the *parser* is limited;
-  // and a read that comes back with nothing is not a wasted request, it is the correction. The card
-  // paints a running entry from the last scan *before* this read starts, so for a drive that finished
-  // its test since that scan the live read is the only thing that takes the bar down — and skipping it
-  // is what kept `90% left` on a drive's page across reloads while the drive's own log said the test
-  // was over. The read is not silent about the limit either: `showIdle` names the unread log.
+  // **Always, including when a log this app does not read is present.** `smartctl -x` reads every log,
+  // so only the *parser* is limited, and a read that comes back with nothing is not a wasted request —
+  // it is the correction. The card paints a running entry from the last scan *before* this read starts,
+  // so for a drive that finished its test since that scan the live read is the only thing that takes
+  // the bar down. The read is not silent about the limit either: `showIdle` names the unread log.
   //
   // One read, not a poll: `read()` starts the timer itself when the drive turns out to be testing, so
   // visiting an idle drive costs exactly one request and nothing after it (the zero-idle-cost

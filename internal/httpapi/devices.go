@@ -447,14 +447,11 @@ func (s *Server) handleGetDevice(w http.ResponseWriter, r *http.Request) {
 }
 
 // projectionWindow is how far back the longevity estimate looks, and it is the user's own
-// `retention_days` setting (`A26`).
+// `retention_days` setting (`A26`). The window is the same number the pruning uses, so what the
+// user keeps is what the app reads — an owner who raised retention to five years to watch a slow
+// trend should not have that history discarded by the projection anyway.
 //
-// It used to be a fixed 180 days, which meant an owner who raised retention to five years to watch
-// a slow trend had that history discarded by the projection anyway. The window is now the same
-// number the pruning uses, so what the user keeps is what the app reads.
-//
-// Kept as a helper rather than inlined so the three callers cannot drift apart — and so the
-// reasoning has somewhere to live.
+// Kept as a helper rather than inlined so the three callers cannot drift apart.
 func (s *Server) projectionWindow(ctx context.Context) time.Duration {
 	return s.store.RetentionWindow(ctx)
 }

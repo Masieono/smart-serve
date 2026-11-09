@@ -163,7 +163,7 @@ export function sparkline(points, opts = {}) {
         // particular line; the same three positions in each plot are what make it readable.
         axisGuides(height) +
         // Closed at the ends of the series rather than at the ends of the box: with a time axis the
-        // line no longer reaches both edges, and an area stretched to the box would paint data
+        // line does not reach both edges, and an area stretched to the box would paint data
         // across a window the drive said nothing about.
         `<path class="spark-area" d="${line} L${x(usable[usable.length - 1].at).toFixed(1)} ${height}` +
           ` L${x(usable[0].at).toFixed(1)} ${height} Z"/>` +
@@ -291,8 +291,7 @@ export function trendRow(metric, points, opts = {}) {
  * One date axis for the whole card (`ADR-023`).
  *
  * Shared rather than one per sparkline: four sparklines in one window need one axis, and four
- * would be noise. It exists so the span is readable *without hovering* — the old card could only
- * tell you its window by pointing at it, which is a poor way to read a chart.
+ * would be noise. It exists so the span is readable *without hovering*.
  */
 export function dateAxis(window, ticks = AXIS_TICKS) {
   const { from, to } = window || {};
@@ -1053,9 +1052,8 @@ function usageCell(p) {
 /**
  * The one line that explains a column of "not visible" rows, for the Details disclosure.
  *
- * It used to sit under the table, and it was the most visually heavy thing in the card — a paragraph
- * of prose attached to a table of facts. It now lives in the disclosure with the other
- * explanation-shaped content, and the cell itself carries the short version as a tooltip.
+ * It lives in the disclosure with the other explanation-shaped content, and the cell itself carries the
+ * short version as a tooltip.
  *
  * Returned as a plain string so the caller can put it wherever the card's layout wants it.
  */

@@ -67,8 +67,8 @@ type SmartData struct {
 	InterfaceSpeed string `json:"interface_speed,omitempty"`
 	WWN            string `json:"wwn,omitempty"`
 	// InDatabase is whether smartctl's own database knows this drive's model (`FEATURES.md` A28).
-	// The attribute table used to *infer* this from seeing `Unknown_Attribute` names; this says it.
-	// Nil when smartctl did not say, which is a third answer rather than a missing one.
+	// This says it rather than inferring it from `Unknown_Attribute` names. Nil when smartctl did
+	// not say, which is a third answer rather than a missing one.
 	InDatabase   *bool       `json:"in_database,omitempty"`
 	Bus          Bus         `json:"bus"`
 	Passed       *bool       `json:"passed,omitempty"`

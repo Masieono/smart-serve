@@ -15,182 +15,137 @@ discarding silently is not. See `ADR-028`.
 
 ### Fixed
 
-- **A drive stuck reporting "testing 10%" forever** — and it was the app's bug, not the drives'. A
-  drive's self-test state is reported in two places: the self-test log's newest row (a percentage
-  remaining) and the drive's own self-test-execution status in the SMART data structure. The code let
-  the log row win unless no row had a percentage, so a drive holding a leftover percentage from an
-  interrupted test — while the ATA spec's own field says nothing is executing — reported itself as busy
-  indefinitely, at a figure that never moved. Two USB-attached drives, one of them healthy at 100/100,
-  were both stuck. **The drive's own status field now wins in both directions**, and a log row's stale
-  percentage is cleared rather than the row dropped, so its result text ("Aborted by host") survives.
-  The app's own test fixture contained the contradiction, which is how it was found.
-- **Stopping a test that would not stop now says so.** The abort already passed smartctl's words
-  through, but "the abort was sent" and "the test stopped" are different facts and only the drive knows
-  the second. A bridge that does not pass the abort through accepts the command and carries on, so the
-  page now reads the drive back and says plainly that the test is still running — instead of claiming
-  it stopped and showing it running again on the next read, which reads as a broken app rather than a
-  bridge.
-- **A drive whose self-test log *was* read was told it could not be.** The unread-log notice was raised
-  by any unrecognised key containing `self_test`, and that set includes
-  `ata_smart_selective_self_test_log` — the ranges a selective test covers, which this app never starts
-  and which most modern ATA drives report. Nearly every ATA drive therefore carried a sentence saying
-  its self-test log could not be read while its results were being parsed correctly beside it. The
-  notice now requires that the drive offered **no** self-test log this app reads.
-- **`90% left` that never went away, for a test the drive had already finished.** This is the half of
-  the bug above that a person actually saw. The self-test card painted a running entry from the last
-  scan, then **skipped its live read** because the drive carried that flag — on the reasoning that the
-  read "could only fail". It could not: `smartctl -x` reads every log, and only the parser is limited,
-  and the live read is the only thing that takes the bar down. A WD20EURX on the ARM test host showed
-  the same stale figure on every reload until a manual scan replaced the saved document. The card now
-  reads the drive on mount whatever the logs look like.
+- **A drive stuck reporting "testing 10%" forever** — the app's bug, not the drives'. A drive's
+  self-test state is reported in two places: the self-test log's newest row (a percentage remaining) and
+  the drive's own self-test-execution status in the SMART data structure. The log row was allowed to win,
+  so a drive holding a leftover percentage from an interrupted test — while the ATA spec's own field says
+  nothing is executing — reported itself busy indefinitely at a figure that never moved. **The drive's
+  own status field now wins in both directions**, and a log row's stale percentage is cleared rather than
+  the row dropped, so its result text ("Aborted by host") survives.
+- **Stopping a test that would not stop now says so.** "The abort was sent" and "the test stopped" are
+  different facts and only the drive knows the second. A bridge that does not pass the abort through
+  accepts the command and carries on, so the page reads the drive back and says the test is still
+  running, rather than claiming it stopped and showing it running again on the next read.
+- **A drive whose self-test log *was* read was told it could not be.** The notice was raised by any
+  unrecognised key containing `self_test`, which includes `ata_smart_selective_self_test_log` — the
+  ranges a selective test covers, which this app never starts and which most modern ATA drives report.
+  It now requires that the drive offered **no** self-test log this app reads.
+- **`90% left` that never went away, for a test the drive had already finished.** The self-test card
+  painted a running entry from the last scan, then **skipped its live read** because the drive carried
+  that flag, on the reasoning that the read "could only fail". It could not: `smartctl -x` reads every
+  log, and only the parser is limited, and the live read is the only thing that takes the bar down. The
+  card now reads the drive on mount whatever the logs look like.
 - **Opening a drive's page could re-read it forever.** The staleness re-read redraws the page, the
   redrawn page re-reads the stale drive, and the only thing that ends that is data arriving — which an
-  unreadable drive never produces. `last_scan` is advanced by a read that *succeeded* and nothing else,
-  so a drive that cannot be read is stale permanently and the age can never be the guard. Reported from
-  a Raspberry Pi: the SD card's page flickered and rolled in `scan complete: 0/1 readable` toasts, five
-  failed reads in the same displayed second. There is now at most one attempt per refresh window, per
-  drive.
-- **A page re-render no longer postpones the self-test poll.** Every render builds a new card, and a
-  new card watching a running test armed a fresh full interval — so a page re-rendering more often than
-  the interval never reached a read at all. A `selftest_progress` event, a device re-read and the
-  freshness re-read all re-render, and each one pushed back the very poll that would have cleared a
-  stale progress bar. The deadline is now carried across the re-render.
-- **Pointing at a partition on the disk map marked nothing.** The segment called a traversal helper
-  that exists only in the test double, not in a browser, and the guard around it turned the call into a
-  silent no-op — so the row the segment stood for was never marked, while every test stayed green. It
-  uses the DOM's own `querySelectorAll` now, and the double no longer offers a method the browser does
-  not have, so the same mistake fails a test instead of shipping.
-- **A navigation left the reader wherever the last page had been scrolled to.** The browser will not
-  start a new page at the top here: the sidebar is a full-height sticky column, so the document stays at
-  least a viewport tall, the old offset stays valid, and the new page opens as far down as it goes.
-  Clicking the wordmark or **Devices** from the bottom of a device page — where the self-test card sits —
-  meant scrolling the whole way up by hand. Navigation scrolls to the top; a refresh, a rescan and a scan
-  finishing still keep the reader's place.
+  unreadable drive never produces, because `last_scan` is advanced only by a read that *succeeded*.
+  There is now at most one attempt per refresh window, per drive.
+- **A page re-render no longer postpones the self-test poll.** Every render armed a fresh full interval,
+  so a page re-rendering more often than the interval never reached a read at all. The deadline is now
+  carried across the re-render.
+- **Pointing at a partition on the disk map marked nothing.** The segment called a traversal helper that
+  exists only in the test double, not in a browser, so the row it stood for was never marked while every
+  test stayed green. It uses the DOM's own `querySelectorAll`, and the double no longer offers a method
+  the browser lacks.
+- **A navigation left the reader wherever the last page had been scrolled to.** The sidebar is a
+  full-height sticky column, so the document stays at least a viewport tall, the old offset stays valid,
+  and the new page opens as far down as it goes. Navigation scrolls to the top; a refresh, a rescan and a
+  scan finishing keep the reader's place.
+- **Static assets are now cache-validated** — the JS and CSS were served with no `ETag` and no
+  `Last-Modified` at all, because `embed.FS` reports a zero modtime and `http.ServeContent` therefore
+  emitted neither. With no validator a browser or a reverse proxy was free to keep a module from before
+  an upgrade, and since the shell is `no-store` the result was a *mix* of new shell and old modules. ES
+  modules do not degrade gracefully across that mix: an old `components.js` missing a symbol a new
+  `device.js` imports is a hard failure. Assets now carry a content-hash `ETag` with
+  `Cache-Control: no-cache`, so a current copy is revalidated for one cheap 304 and a stale one is
+  replaced.
 
 ### Added
 
 - **A re-read when a drive's data has gone stale** (`FEATURES.md` A28 follow-up) — open a drive whose
-  last scan is older than the window you set (`device_refresh_minutes`, default 15 minutes) and the
-  page reads *that drive* and redraws: one smartctl call, not a fleet scan. Set it to 0 to never do
-  this, which is the setting for a machine that parks its disks — a scan cannot wear a drive, but it
-  can wake one. A drive with no data at all is read regardless, because that is the point of opening
-  its page.
-- **The scan age, next to the drive's name** — "data from 4 hours ago" was one row among twelve, and
-  that is not where a reader notices it. It is now beside the drive's own name, where a stale figure
-  cannot be mistaken for a live one, and it says "reading the drive now…" while the page refreshes
-  itself.
+  last scan is older than the window you set (`device_refresh_minutes`, default 15 minutes) and the page
+  reads *that drive* and redraws: one smartctl call, not a fleet scan. 0 means never, which is the
+  setting for a machine that parks its disks — a scan cannot wear a drive, but it can wake one. A drive
+  with no data at all is read regardless, because that is the point of opening its page.
+- **The scan age, next to the drive's name** — where a stale figure cannot be mistaken for a live one,
+  and it says "reading the drive now…" while the page refreshes itself.
 - **The fleet badge tracks a running test** (`FEATURES.md` A20) — a server-side watcher re-reads only
   drives that are already mid-test, on the self-test refresh interval, and pushes the change over SSE.
-  Start a long test and look at another drive: the badge moves. It cannot wake a sleeping drive,
-  because it only ever looks at drives already working, and it idles without touching anything when
-  nothing is testing.
+  It cannot wake a sleeping drive, and it idles without touching anything when nothing is testing.
 - **The disk map answers a mouse immediately** (`FEATURES.md` A28) — the label appears at once rather
   than after the browser's own tooltip delay, and pointing at a segment highlights the table row it
-  stands for, so the bar and the partition list are visibly the same thing. The bare partition count
-  has gone from the card's heading: it was a number with nothing saying what it counted, above a map
-  that answers the question it was reaching for.
-- **The self-test log lives in the Self-test card** (`FEATURES.md` A20) — with the buttons that start
-  a test and the progress of the one running. It was split across two cards: a "Last test: …" line
-  directly under the progress bar, and the rest of the same log in the Drive logs card. That put a
-  test which finished last week beside the one running now, with nothing between them, which is
-  exactly what made it read as confusing. History is now a labelled table under a rule, and the newest
-  result is simply its first row — one subject, one place. The Drive logs card keeps the summary
-  counts and the error log.
-- **The fleet badges the drive that is testing itself** (`FEATURES.md` A20) — start a long test, look
-  at another drive, and the fleet says which one is busy. The reported problem was exactly that: the
-  app had to be asked to start a second test before it would tell you one was already running. The
-  scan records it (three columns, migration `0017`) from the self-test log it was already parsing, and
-  starting a test kicks a rescan of that one drive so the badge appears immediately rather than at the
-  next full scan. The state is **overwritten** by each scan, not merged, so a finished test stops
-  showing as running. The badge is neutral, not green: a test in progress is neither a fault nor a
-  clean bill of health.
+  stands for, so the bar and the partition list are visibly the same thing.
+- **The self-test log lives in the Self-test card** (`FEATURES.md` A20) — with the buttons that start a
+  test and the progress of the one running. History is a labelled table under a rule, and the newest
+  result is simply its first row: one subject, one place. The Drive logs card keeps the summary counts
+  and the error log.
+- **The fleet badges the drive that is testing itself** (`FEATURES.md` A20) — the scan records it (three
+  columns, migration `0017`) from the self-test log it was already parsing, and starting a test kicks a
+  rescan of that one drive so the badge appears immediately rather than at the next full scan. The state
+  is **overwritten** by each scan, not merged, so a finished test stops showing as running. The badge is
+  neutral, not green: a test in progress is neither a fault nor a clean bill of health.
 - **A disk map above the partition table** (`FEATURES.md` A28) — one segment per top-level partition,
-  sized by its share of the disk, with the partition's own fullness filled in from the left. One
-  glance answers "what is on this disk?" and "where is the room?". The table underneath is the detail
-  for the segment you just pointed at. Three ways it could have lied, and does not: a logical volume
-  is never drawn beside the partition that contains it; a filesystem the container cannot see is
-  hatched rather than drawn at 0%; and free space — approximate, and only drawn when it is a real
-  share of the disk rather than an alignment remainder — is hatched and says so.
-- **A drive with no partition table now says what it holds** — a disk pulled from a RAID array was
-  reported as "either unpartitioned or its table could not be read", which is true and useless for a
-  drive doing exactly what it was built to do. An array member has no table *because* it is an array
-  member, and `lsblk` already reported it: the disk node's own `FSTYPE` is `linux_raid_member`. The
-  card now says "a member of a Linux md array" with the exact `blkid` token beside it, and the same
-  path covers a ZFS pool member, an LVM physical volume, a LUKS container, and a filesystem written
-  straight to the device.
+  sized by its share of the disk, with the partition's own fullness filled in from the left. Three ways
+  it could have lied, and does not: a logical volume is never drawn beside the partition that contains
+  it; a filesystem the container cannot see is hatched rather than drawn at 0%; and free space —
+  approximate, and only drawn when it is a real share of the disk rather than an alignment remainder —
+  is hatched and says so.
+- **A drive with no partition table now says what it holds** — an array member has no table *because* it
+  is an array member, and `lsblk` already reported it: the disk node's own `FSTYPE` is
+  `linux_raid_member`. The card says "a member of a Linux md array" with the exact `blkid` token beside
+  it, and the same path covers a ZFS pool member, an LVM physical volume, a LUKS container, and a
+  filesystem written straight to the device.
 - **Usage bars turn amber at a level you set** (`A28`) — `storage_warn_pct`, default 90%, on the
   Thresholds page. A *display* threshold and nothing else: the verdict is unaffected, so a 95%-full
-  drive can still be Good. Fullness and health answer different questions, which is why the bar's
-  colour cannot contradict the badge at the top of the same page. The previous version was
-  deliberately one colour, on the argument that a UI threshold is the browser inventing a judgement —
-  right about where a number like that belongs, wrong about this number.
+  drive can still be Good. Fullness and health answer different questions, which is why the bar's colour
+  cannot contradict the badge at the top of the same page.
 - **Score breakdown (`A12`)** — the device page says *why* the score is what it is: every penalty the
-  interpreter applied, what it cost, and which attribute each one read. It was always computed — the
-  scan threw it away, so the app knew a drive had lost 40 points and could not say for what. Persisted
-  per drive (`devices.penalties`, migration `0014`) rather than recomputed on read, so the breakdown
-  shown is the one the verdict was made from rather than a fresh guess at it. The attribute table
-  marks the rows the verdict **read** ("Counted") separately from the rows the drive itself reports
-  **at its own threshold** ("At threshold") — the difference between "this cost you points" and "this
-  is where the drive's own line is", which are not the same statement and are both worth seeing at
-  once. The trend penalty is included, so the parts sum to the whole. See `ADR-029`.
-- **Partition schema and storage usage (`A28`)** — a **Partitions** card on the device page: one row
-  per partition with its size, filesystem, label, mountpoint and how full it is, plus a **copy UUID**
-  button. The `lsblk` tree was always fetched and then flattened to two strings — the sizes, labels,
-  types and usage were paid for on every scan and never seen. `unallocated_bytes` is approximate and
-  says so; a partition the device reports read-only is badged; a partition that is not mounted shows a
-  dash rather than "not visible", because those are different answers. Usage needs the host's mount
-  roots bind-mounted read-only, and where the container cannot see a filesystem the cell says so and
-  the table explains the fix once. Sector sizes (512e / 4Kn) and whether the device passes TRIM
-  through sit behind a **Details** disclosure — facts worth having, not worth putting in front of
-  everybody. Two settings, `show_partitions` and `show_usage`, both on by default, turn the card and
-  the column off. Two dead struct fields (`device.protocol`, decoded and read by nothing) are gone.
-  And `in_smartctl_database` is now read, so the attribute table's "smartctl does not know this
-  model" note is a **fact rather than an inference from seeing `Unknown_Attribute` names** — three
-  situations, three wordings, where the old note claimed the first for all of them. See `ADR-028`.
+  interpreter applied, what it cost, and which attribute each one read. Persisted per drive
+  (`devices.penalties`, migration `0014`) rather than recomputed on read, so the breakdown shown is the
+  one the verdict was made from rather than a fresh guess at it. The attribute table marks the rows the
+  verdict **read** ("Counted") separately from the rows the drive itself reports **at its own threshold**
+  ("At threshold") — "this cost you points" and "this is where the drive's own line is" are not the same
+  statement. The trend penalty is included, so the parts sum to the whole. See `ADR-029`.
+- **Partition schema and storage usage (`A28`)** — a **Partitions** card on the device page: one row per
+  partition with its size, filesystem, label, mountpoint and how full it is, plus a **copy UUID** button.
+  `unallocated_bytes` is approximate and says so; a partition the device reports read-only is badged; a
+  partition that is not mounted shows a dash rather than "not visible", because those are different
+  answers. Usage needs the host's mount roots bind-mounted read-only, and where the container cannot see
+  a filesystem the cell says so and the table explains the fix once. Sector sizes (512e / 4Kn) and
+  whether the device passes TRIM through sit behind a **Details** disclosure — facts worth having, not
+  worth putting in front of everybody. Two settings, `show_partitions` and `show_usage`, both on by
+  default, turn the card and the column off. And `in_smartctl_database` is now read, so the attribute
+  table's "smartctl does not know this model" note is a **fact rather than an inference from seeing
+  `Unknown_Attribute` names** — three situations, three wordings, where the old note claimed the first
+  for all of them. See `ADR-028`.
 
 ### Changed
 
-- **Storage is now a bar, on the fleet card and the drive page** (`A28`) — "how full is this drive?"
-  is a proportion, and a proportion is read faster as a length than as two byte counts. The figure is
-  the **fullest** filesystem, named, because that is the one that runs out first; it is chosen
-  server-side and sent to both pages, so the fleet card and the drive page cannot disagree about the
-  same drive. The bar is deliberately **one colour**: turning amber at 85% would be the browser
-  re-deriving "is this bad?" while the verdict is computed server-side, and the two could contradict
-  each other on the same screen.
+- **Storage is now a bar, on the fleet card and the drive page** (`A28`) — "how full is this drive?" is
+  a proportion, and a proportion is read faster as a length than as two byte counts. The figure is the
+  **fullest** filesystem, named, because that is the one that runs out first; it is chosen server-side
+  and sent to both pages, so the fleet card and the drive page cannot disagree about the same drive. The
+  bar is deliberately **one colour**: turning amber at 85% would be the browser re-deriving "is this
+  bad?" while the verdict is computed server-side, and the two could contradict each other on the same
+  screen.
 - **The trend card tracks storage over time** (`A28`) — a **Storage** row, from `snapshots.used_pct`
   (migration `0016`). A drive at 40% today and 90% next month is the thing that runs out of room, and
-  that is a question about history. Denormalized for the same reason `sectors` was: the partition
-  schema lives on the device, so the chart would otherwise have nothing to read. The delta is in
-  *points*, not per cent, because the value is already a percentage.
+  that is a question about history. Denormalized for the same reason `sectors` was: the partition schema
+  lives on the device, so the chart would otherwise have nothing to read. The delta is in *points*, not
+  per cent, because the value is already a percentage.
 - **The partition table lost a column and gained a second line** (`A28`) — the partition type now sits
   under the filesystem rather than in a column of its own, because the two answer one question. A
-  partition with no filesystem reads "Linux LVM" under a dash, which is the *reason* there is nothing
-  to mount, where two columns left the reader to join them up. Eight columns down to six.
+  partition with no filesystem reads "Linux LVM" under a dash, which is the *reason* there is nothing to
+  mount, where two columns left the reader to join them up. Eight columns down to six.
 - **The partition card's summary line is gone** (`A28`) — it read `GPT partition table · 1.4 MB
-  unallocated · 512e`, and it was confusing for a reason worth recording: those are facts about the
-  *drive* above a table of *partitions*, and the unallocated figure is an alignment remainder. The
-  heading carries a count now, and both facts moved into **Details** where there is room to say the
-  unallocated figure is approximate. The "mounted outside the container" explanation moved there too —
-  it was the most visually heavy thing in the card, and the cell keeps the short version as a tooltip.
+  unallocated · 512e`: facts about the *drive* above a table of *partitions*, and the unallocated figure
+  is an alignment remainder. The heading carries a count now, and both facts moved into **Details** where
+  there is room to say the unallocated figure is approximate. The "mounted outside the container"
+  explanation moved there too, and the cell keeps the short version as a tooltip.
 - **The settings page is four pages under Settings in the sidebar** — Thresholds, Notifications,
-  Appearance and Data, listed while you are in that part of the app. This replaces the collapsible
-  headings from the previous attempt, which made the wall shorter to look at without making it shorter
-  to use. Each page draws only its own controls and loads only what it needs.
+  Appearance and Data, listed while you are in that part of the app. Each page draws only its own
+  controls and loads only what it needs.
 - **Save is per page, and disabled until something changes** — a page sends only its own fields, so
   saving Appearance cannot disturb a threshold. Leaving a page with unsaved edits asks first.
-
-### Fixed
-
-- **Static assets are now cache-validated** — the JS and CSS were served with no `ETag` and no
-  `Last-Modified` at all, because `embed.FS` reports a zero modtime and `http.ServeContent` therefore
-  emitted neither. With no validator, a browser or a reverse proxy was free to keep a module from
-  before an upgrade; the shell is `no-store`, so the HTML was always fresh and the result was a
-  *mix* of new shell and old modules. Because the frontend is ES modules that mix does not degrade
-  gracefully — an old `components.js` missing a symbol a new `device.js` imports is a hard failure,
-  and "the new card is not there" is the mild version of the symptom. Assets now carry a content-hash
-  `ETag` with `Cache-Control: no-cache`, so a current copy is revalidated for one cheap 304 and a
-  stale one is replaced. Found by chasing a missing card rather than by a test, which is worth
-  recording: the feature was working the whole time.
 
 ## [1.1.0] — 2026-11-02
 

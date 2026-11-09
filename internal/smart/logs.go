@@ -220,21 +220,16 @@ func ParseLogs(raw []byte) model.LogSummary {
 // drive whose test ran and left no trace in the UI is indistinguishable from a test that never ran,
 // and only one of those is true.
 //
-// **It is called only when the drive offered no self-test log this parser reads**, and that condition
-// is the fix for a real field failure rather than a tidy-up. The rule used to be a list of key names
-// to skip, which is a rule about smartctl's vocabulary — and smartctl has more self-test logs than
-// the two this parser reads. `ata_smart_selective_self_test_log` holds the *ranges* a selective test
-// covers, not a test's history, and this app never starts a selective test, so there is nothing in it
-// to show. It is also reported by most modern ATA drives, which meant nearly every ATA drive was told
-// its self-test log could not be read while the ordinary log was being parsed correctly beside it.
+// **It is called only when the drive offered no self-test log this parser reads.** The rule cannot be a
+// list of key names to skip: that is a rule about smartctl's vocabulary, and smartctl has more
+// self-test logs than the two this parser reads. `ata_smart_selective_self_test_log` holds the *ranges*
+// a selective test covers, not a test's history, and this app never starts a selective test, so there
+// is nothing in it to show — and most modern ATA drives report it, which meant nearly every ATA drive
+// was told its self-test log could not be read while the ordinary log was parsed correctly beside it.
 //
-// That notice was wrong on its own. What made it a bug is the second thing it did: the self-test card
-// skips its initial *live* read for a drive carrying this flag, and the live read is the only thing
-// that can correct a progress bar drawn from a stale scan. The drive whose page this was found on —
-// a WD20EURX on the ARM test host — showed "90% left" for a test its own log had already recorded as
-// completed, on every reload, until a manual scan replaced the saved document. Asking "is there a
-// self-test log we can show?" makes both cases fall out: a drive whose ordinary log was read has
-// nothing missing to explain, whatever else it reports.
+// Asking "is there a self-test log we can show?" makes both cases fall out: a drive whose ordinary log
+// was read has nothing missing to explain, whatever else it reports. The flag also gated the card's
+// live read, which is the only thing that corrects a progress bar drawn from a stale scan.
 //
 // The keys this parser *does* consume are still excluded by name, so the function is honest on its
 // own rather than only in the company of its caller.

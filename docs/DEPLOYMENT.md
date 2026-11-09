@@ -390,18 +390,12 @@ So the app can be developed and previewed outside a deployment host:
 ### A Raspberry Pi as a development host
 
 **Verified in part on a Pi 5 running DietPi, as of 2026-11-08.** The development container runs
-natively on arm64, reports healthy and reads the attached USB SATA disk's full SMART data through
-SAT. An app scan also shows the matching model, serial and 17 attributes, with the selected raw
-values verified. A short test completed without error, but the automatic UI completion check
-failed: 90% left and **Stop test** persisted after waiting/reloading. That capture — a completed live
-API result beside stale saved progress and an unread-log flag — **identified the bug, which is now
-fixed**: the flag was raised for a log the app reads, and the card no longer skips its live read.
-The same symptom is reported on amd64, so it was never ARM-specific. **Scan now** restored idle
-controls and successful history, persisting after reload. The SD-card page also flickered and
-repeatedly reported `0/1 readable` scans, which pinned a second defect to the staleness re-read —
-**also fixed**, now one attempt per refresh window per drive. Both need a retest on the Pi.
-Stability checks remain pending. Results and the next check are in
-[TESTING.md Pass 8](TESTING.md#pass-8--arm64-raspberry-pi).
+natively on arm64, reports healthy, reads the attached USB SATA disk's full SMART data through SAT,
+and an app scan shows the matching model, serial and 17 attributes with the selected raw values
+verified. That session surfaced two defects — a self-test progress bar stuck at a percentage the
+drive's own log had moved past, and an SD-card page that re-read itself in a loop — **both fixed,
+both awaiting a retest on the Pi**. Stability checks remain pending. Results and the next check are
+in [TESTING.md Pass 8](TESTING.md#pass-8--arm64-raspberry-pi).
 
 Use a 64-bit Linux installation. Check `uname -m` (`aarch64`), `getconf LONG_BIT` (`64`), and
 the Docker server/image architecture; the image must be `linux/arm64`. No ARMv7 image is published.

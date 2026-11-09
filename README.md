@@ -107,6 +107,12 @@ Then open `http://<host>:8080` and press **Scan**.
 | [`docs/RELEASE.md`](docs/RELEASE.md) | Release checklist, screenshot list, image-size and arm64 verification notes |
 | [`CHANGELOG.md`](CHANGELOG.md) | What changed in each release |
 
+These documents describe **what the app does now and why**, not how it got there. Keep them that
+way: state the rule and the reason it is the rule, and leave out the history of finding it — a
+narrative of a bug hunt, a transcript of a debugging session and a list of superseded decisions are
+all things `git log` already holds. Prune anything that no longer describes the current build. The
+one exception is `CHANGELOG.md`, whose job is the history.
+
 ## Development
 
 `make ci` runs exactly what CI runs, in the same order, so a green run locally means a
@@ -182,17 +188,10 @@ instance with no browser open: **0.00% CPU, 13.4 MiB RSS**.
 **ARM verification is partial.** On a Pi 5 running DietPi, native arm64 execution, startup health,
 a full container SMART read through USB SAT and app identity/attribute checks are confirmed for
 the tested disk (2026-11-08). The first process RSS sample was **21.97 MiB**; the idle figure above
-is from the earlier validation host. A short test completed without error, but automatic UI
-completion failed: 90% left persisted after waiting/reloading despite a completed live API response.
-The captured saved progress and unread-log flag matched the source path that skips the initial live
-read — **a bug, since found and fixed**: the flag was raised for a log the app reads, and the card no
-longer skips its live read. The same symptom is reported on amd64, so it was never ARM-specific.
-**Scan now** cleared the progress bar and restored the test buttons and successful history; those
-results persisted after reload. Opening the SD-card page also caused repeated `0/1 readable` scans
-and flicker, and that loop is **fixed too**: the staleness re-read is now one attempt per refresh
-window, per drive. Both fixes need a retest on the Pi. Stability and broader feature checks remain
-open. See
-[the ARM test record](docs/TESTING.md#pass-8--arm64-raspberry-pi).
+is from the earlier validation host. That session surfaced two defects — a self-test progress bar
+stuck at a percentage the drive's own log had moved past, and an SD-card page that re-read itself
+in a loop — **both fixed and awaiting a retest on the Pi**. Stability and broader feature checks
+remain open. See [the ARM test record](docs/TESTING.md#pass-8--arm64-raspberry-pi).
 
 ## License
 

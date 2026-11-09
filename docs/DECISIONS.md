@@ -456,7 +456,7 @@ bench — produced a set of additions that are not "more features" so much as a 
    a listing rather than a verdict, so a threshold the user changed since the scan cannot
    make the two disagree. The fleet export (`A23`) is the same idea applied to a whole
    rack: one row per drive, from the same rows and the same ranking the dashboard shows, so
-   the file and the screen cannot disagree either. Its two rules are worth recording. **A
+   the file and the screen cannot disagree either. Its two rules:
    missing reading is an empty cell, never a zero** — the em-dash rule from the UI, and it
    has teeth here because this is the file the numbers get aggregated in: a blank is what a
    spreadsheet's `AVERAGE` skips, while a `0` drags every average down and reads as a
@@ -586,7 +586,7 @@ Environment and `*_FILE` resolution is a v1.1 candidate, and the shape is alread
 - *Leave the docs alone and implement it later* — rejected outright. The gap is not that a
   feature is missing; it is that the docs assert it exists, so a reader is actively misled.
 - *Quietly delete the section* — rejected: a reader who found the old text in a cached copy
-  deserves to learn it was wrong, and the deferral is a real commitment worth recording.
+  deserves to learn it was wrong.
 
 **Consequences.** (+) the documentation is true, and the gap is recorded rather than
 rediscovered. (−) secrets live in `/data/smartserve.db`, and therefore in whatever that
@@ -859,11 +859,10 @@ the global settings use, parsed by the *same* function: one vocabulary for one s
 one place where a setting name becomes a field. An override map is simply a settings map for one
 model, which is why `applyThresholdSetting` is a switch and not two parsers.
 
-**Decision — resolved per drive, not per scan.** The scanner used to resolve thresholds once and hand
-the same set to every drive. It now resolves a *resolver* once per scan and asks it per drive, because
-the model is not known until the drive has been read. Reading the settings once per scan and then
-asking per drive also keeps a twenty-four-drive scan to one trip to the settings table rather than
-twenty-four.
+**Decision — resolved per drive, not per scan.** The scan resolves a *resolver* once per scan and asks
+it per drive, because the model is not known until the drive has been read. Reading the settings once
+per scan and then asking per drive also keeps a twenty-four-drive scan to one trip to the settings table
+rather than twenty-four.
 
 **Decision — the report does not move.** `A27` requires the exported evidence to name the attributes
 failing the **drive's own manufacturer threshold**, which the drive publishes itself. These thresholds

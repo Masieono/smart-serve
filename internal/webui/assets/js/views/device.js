@@ -104,16 +104,13 @@ function projectionBlock(p) {
 /**
  * The last time this page asked for a drive to be read, and which drive it was.
  *
- * The guard that closes what used to be an unbounded loop. Reading a stale drive re-renders the page,
- * the page reads the stale drive again, and the only thing that ends that is data arriving — which is
- * exactly what an unreadable drive never produces. It was reported from a Raspberry Pi: opening the SD
- * card's page flickered and rolled in `scan complete: 0/1 readable` toasts, five failed reads in the
- * same displayed second. `last_scan` is advanced only by a read that *succeeded*, so an unreadable
- * drive stays stale forever and the age can never be the guard.
+ * Without it, reading a stale drive re-renders the page, the page reads the stale drive again, and the
+ * only thing that ends that is data arriving — which an unreadable drive never produces. `last_scan` is
+ * advanced only by a read that *succeeded*, so an unreadable drive stays stale forever and the age can
+ * never be the guard.
  *
  * A window rather than a "tried once" flag, so a drive that comes back is picked up on a later visit
- * instead of being written off for the life of the tab. It is also the app's own answer to "how often
- * may I touch a drive nobody asked about?" — the question this setting already answers.
+ * instead of being written off for the life of the tab.
  */
 let lastAttempt = { serial: '', at: 0 };
 
@@ -1017,9 +1014,8 @@ export function logSummary(logs, hours = []) {
 /**
  * The drive's self-test log, for the Self-test card (`FEATURES.md` A20).
  *
- * Exported because the card owns it now: the newest result used to be summarised in a line directly
- * under the progress bar, where a test that finished last week read as part of the one running now.
- * History belongs under its own heading, and the newest result is simply the table's first row.
+ * Exported because the card owns it: history belongs under its own heading, and the newest result is
+ * simply the table's first row.
  *
  * Returns null when the drive holds no results, so the card can leave the space to the buttons.
  */
@@ -1467,15 +1463,12 @@ export function currentDisplayOptions() {
  * sector size, whether the device passes TRIM through, the partition table type, and why a usage
  * figure is missing. Those are worth having and not worth putting in front of everybody.
  *
- * The heading carries a count and nothing else. It used to carry a summary line — table type,
- * unallocated bytes, sector label — and that was a mistake worth recording: "GPT partition table" and
- * "1.4 MB unused" are facts about the *drive* sitting above a table of *partitions*, they answer no
- * question anybody has while looking at one, and the unallocated figure is an alignment remainder
- * that invites a question with no useful answer. A summary position has no room to explain an
- * approximation, so an approximation should not be in one.
+ * The heading carries a count and nothing else. Table type and unallocated bytes are facts about the
+ * *drive* sitting above a table of *partitions*: they answer no question anybody has while looking at
+ * one, and the unallocated figure is an alignment remainder. A summary position has no room to explain
+ * an approximation, so an approximation should not be in one.
  *
- * Absent entirely when the layout was never read, which is the honest answer for a drive whose
- * `lsblk` entry predates this.
+ * Absent entirely when the layout was never read.
  */
 export function diskLayoutCard(layout, opts) {
   if (!layout) return null;
@@ -1507,9 +1500,8 @@ export function diskLayoutCard(layout, opts) {
  * for the partition rather than by position — which matters on a drive whose table also has a row per
  * logical volume, where the positions deliberately do not line up.
  *
- * `querySelectorAll` rather than the test stub's own traversal helper, which this used to call: that
- * helper does not exist in a browser, so the guard below turned the whole thing into a no-op and no
- * row was ever marked. The stub no longer offers it, so the same mistake fails a test instead.
+ * `querySelectorAll` specifically: the test stub's own traversal helper does not exist in a browser, and
+ * reaching for it made this a silent no-op. See `stub-dom.mjs`.
  */
 function highlightPartitionRow(table, name) {
   if (!table || !table.querySelectorAll) return;
@@ -1546,8 +1538,8 @@ function layoutDetails(layout, partitions) {
       'and the backup GPT header are not counted']);
   }
 
-  // The explanation for a "not visible" usage cell. It used to be a paragraph under the table, which
-  // made the card read as a wall of text; the cell carries the short version as a tooltip.
+  // The explanation for a "not visible" usage cell; the cell itself carries the short version as a
+  // tooltip.
   const note = outsideContainerNote(partitions);
   if (note) rows.push(['Usage', note]);
 

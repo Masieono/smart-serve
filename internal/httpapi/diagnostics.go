@@ -159,12 +159,9 @@ func safeFilename(s string) string {
 // made of it; whether that is a warranty case is the vendor's call, and a tool that overstated its
 // own authority would be the one thing that got a claim rejected.
 //
-// **It closes the report rather than opening it**, with `reportNote` beneath it. The two used to
-// sandwich the drive's own data — three lines of purpose above it, two of provenance below — which
-// put roughly eighty words about the *document* around the content the document exists to carry.
-// The facts were worth keeping and the sandwich was not: the reader opened the file for the drive,
-// and where it came from is what they want once they have read it. Same information, half the
-// length, and nothing above the drive's identity.
+// **It closes the report rather than opening it**, with `reportNote` beneath it: the reader opened
+// the file for the drive, and where it came from is what they want once they have read it. Nothing
+// sits above the drive's identity.
 const reportPurpose = "Warranty / RMA evidence: the drive's identity, the S.M.A.R.T. data it " +
 	"reported, and this app's assessment of it."
 

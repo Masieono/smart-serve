@@ -146,7 +146,7 @@ picker offers exactly `ThemeNames`.
 | **Panel grid, capped** (`.panel-grid-pair`) | `.panel-grid` capped at two columns however wide the viewport gets — one below 1024px, two above. Auto-fit fits *four* 460px panels across a 2560px monitor, which squeezed the trend sparklines and the health-log table into columns too narrow for the type they carry. The device detail page uses this; settings keeps auto-fit, because three short cards genuinely do fit. |
 | **Scan button** | Primary action. States: idle · scanning (spinner + "3/5 devices") · done (toast). |
 | **Toasts** | Scan complete, saved, notification sent; auto-dismiss, stacked. |
-| **Dialogs / sheets** | Schedule editor, channel editor, maintenance window, device notes, acknowledge, export, confirmations. Full-screen sheets on mobile. A dialog holding unsaved input — every editor above — does **not** close on a click outside it; only **Cancel** and `Esc` do, because a stray click beside a half-filled form should cost the click rather than the form. Confirmations and the export picker still dismiss on a backdrop click, where there is nothing to lose. Dismissal turns on where the *press* landed, not where the release did: a drag that starts on a field and ends outside the box is a text selection, and it used to close the schedule editor mid-edit. |
+| **Dialogs / sheets** | Schedule editor, channel editor, maintenance window, device notes, acknowledge, export, confirmations. Full-screen sheets on mobile. A dialog holding unsaved input — every editor above — does **not** close on a click outside it; only **Cancel** and `Esc` do, because a stray click beside a half-filled form should cost the click rather than the form. Confirmations and the export picker still dismiss on a backdrop click, where there is nothing to lose. Dismissal turns on where the *press* landed, not where the release did: a drag that starts on a field and ends outside the box is a text selection, not a dismissal. |
 | **Empty states** | "No scan yet — press Scan to discover drives", "No devices found", "No schedules", "No history yet — trends appear once this drive has been scanned a few times". |
 | **Skeletons** | Placeholder shapes while data loads — never a blank screen. |
 | **Settings forms** | Inline validation; each field shows its **effective value, default, and source** (`env` or `db`, per `ADR-009`). |
@@ -191,7 +191,7 @@ picker offers exactly `ThemeNames`.
   only takes up room, and both actions are labelled on the things they act on.
   The sort field and its direction are one labelled pair, and the direction says **Ascending** or
   **Descending** with a real arrow: a bare ↑ in a ghost button beside a dropdown read as decoration
-  rather than as the other half of the sort, which is exactly how it was reported. The transport filter
+  rather than as the other half of the sort. The transport filter
   carries its own label, and lists only the transports present on this host — in a fixed order rather
   than alphabetically, so the control keeps its shape as drives come and go.
 - **Two views** (`FEATURES.md` D8): Cards and Table, switched from the controls row. The card grid

@@ -379,7 +379,7 @@ func parseLsblk(data []byte) ([]Discovered, error) {
 		var mounts, fstypes, fsvers []string
 		collectTree(d, &mounts, &fstypes, &fsvers)
 
-		// A28: and keep the tree, which is what the flattening above used to throw away.
+		// A28: and keep the tree, rather than flattening it away.
 		partitions := collectPartitions(d)
 
 		out = append(out, Discovered{

@@ -190,10 +190,9 @@ func (m *Manager) start(ctx context.Context, t Trigger, o only) (res Result, joi
 	return res, false, err
 }
 
-// There is deliberately no accessor for the last result. The raw-output view used to
-// read one, and depending on a value that only exists in the current process is what
-// made it 404 after a restart. The result is still kept on the Manager for the
-// joined-scan return above, but nothing outside should reach for it.
+// There is deliberately no accessor for the last result. Depending on a value that only exists in
+// the current process is what made the raw-output view 404 after a restart. The result is still
+// kept on the Manager for the joined-scan return above, but nothing outside should reach for it.
 
 func (m *Manager) run(ctx context.Context, t Trigger, o only) (Result, error) {
 	started := time.Now().UTC()

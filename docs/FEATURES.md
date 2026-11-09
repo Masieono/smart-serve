@@ -18,7 +18,7 @@ so. A blank Notes cell means the entry predates the column, not that the feature
 |---|---|---|
 | `D7` localization | `SCOPE.md`, `ADR-023` | Deferred, not dropped: extracting every string and keeping every locale in step is only worth doing for a translator who will maintain the result |
 | Error-log **entry lists** (`A20`) | §A20 above | The counts and the self-test entries are shown; smartctl emits no list at all for an empty log, and neither drive available here has ever logged an error, so the populated shape has never been captured |
-| arm64 on real hardware | [TESTING.md Pass 8](TESTING.md#pass-8--arm64-raspberry-pi), `SCOPE.md`, `RELEASE.md` | **Partial verification on Pi 5 / DietPi (2026-11-08):** native arm64 execution, startup health, a full container SMART read through USB SAT and app identity/attribute checks confirmed for the tested disk. First process RSS sample: **21.97 MiB**, not a controlled idle result. The drive and live API confirmed a completed short test, but the automatic UI completion check **failed**: 90% left and only **Stop test** persisted after waiting/reloading. The captured saved progress and unread-log flag **identified the bug, and it is fixed** — the flag was raised for a log the app reads, and the card no longer skips its live read. **Manual recovery passed:** **Scan now** cleared the progress bar, restored the test buttons and displayed the successful entry, persisting across reload. The same self-test symptom is reported on amd64, so it was never ARM-specific. **SD-card check failed:** opening its page caused flicker and repeated `0/1 readable` scan toasts. The API confirms `last_scan: null`, a type-detection error and five failed device reads in the same displayed second, which pinned it to the staleness re-read — **also fixed**, now one attempt per refresh window per drive. Both fixes need a retest on the Pi. Idle-budget acceptance, overnight stability and broader parity remain open. |
+| arm64 on real hardware | [TESTING.md Pass 8](TESTING.md#pass-8--arm64-raspberry-pi), `SCOPE.md`, `RELEASE.md` | **Partial verification on Pi 5 / DietPi (2026-11-08):** native arm64 execution, startup health, a full container SMART read through USB SAT, and identity/attribute checks confirmed for the tested disk. First process RSS sample **21.97 MiB**, not a controlled idle result. That session surfaced two defects — the self-test progress bar sticking at a percentage the drive's own log had already moved past, and an SD-card page that re-read itself in a loop — **both fixed and awaiting a retest on the Pi**. The same self-test symptom is reported on amd64, so it was never ARM-specific. Idle-budget acceptance, overnight stability and broader parity remain open. |
 | Multi-user accounts / roles | `SCOPE.md` Phase 3 | **Conflicts with `D23`** — authentication is delegated to a reverse proxy, so this needs that decision revisited rather than built |
 
 Everything else recorded in these documents is either shipped or an **explicit non-goal** — writing
@@ -133,34 +133,27 @@ cent, because the value is already a percentage.
 
 **The drive's own self-test status outvotes the self-test log.** A running test is reported in two
 places: the log's newest row carries a `remaining_percent`, and `ata_smart_data.self_test.status` is
-the field the ATA spec defines for exactly this. The app used to prefer the log row — it won unless no
-row had a percentage — which meant a drive holding a leftover percentage from an interrupted test
-reported itself as busy **forever**, at a figure that never moved. Two USB-attached drives, one of them
-healthy at 100/100, were both stuck reading "10%". The status field now wins **in both directions**:
-when it says a test is executing, that is the running test and the log's leftover percentages are
-cleared; when it says nothing is executing, no log row is a running test either. The rows are kept
-rather than dropped, because their result text ("Aborted by host") is the explanation. Absent status is
-*silence* rather than a statement of idle, and the log is all there is — a rule that reads an absent
-field as "not running" would break every drive that reports progress only in the log.
+the field the ATA spec defines for exactly this. The log row must not win — a drive holding a leftover
+percentage from an interrupted test would report itself busy **forever**, at a figure that never moves.
+The status field wins **in both directions**: when it says a test is executing, that is the running test
+and the log's leftover percentages are cleared; when it says nothing is executing, no log row is a
+running test either. The rows are kept rather than dropped, because their result text ("Aborted by
+host") is the explanation. Absent status is *silence* rather than a statement of idle, and the log is
+all there is — reading an absent field as "not running" would break every drive that reports progress
+only in the log.
 
-The app's own test fixture (`ata-bto-1tb-logs.json`) contained the contradiction, which is how it was
-found: its status field says "completed without error" while a log row carries `remaining_percent: 50`.
+**A drive whose self-test log was read is not told it could not be.** The unread-log notice was raised
+by any unrecognised key containing `self_test`, and that set includes
+`ata_smart_selective_self_test_log` — the *ranges* a selective test covers, which this app never starts
+and which most modern ATA drives report. Nearly every ATA drive therefore carried a sentence saying its
+self-test log could not be read while its results were parsed correctly beside it. The notice is raised
+only when the drive offered **no** self-test log this app reads.
 
-**A third variant of the same mistake, and this one reached a person.** The app flagged a drive as
-having an unreadable self-test log whenever *any* unrecognised key containing `self_test` appeared in
-the document. That set includes `ata_smart_selective_self_test_log` — the *ranges* a selective test
-covers, which this app never starts and would have nothing to show for, and which most modern ATA
-drives report. So nearly every ATA drive was told its self-test log could not be read while its
-results were parsed correctly beside that sentence. The notice is now raised only when the drive
-offered **no** self-test log this app reads.
-
-What turned a wrong sentence into a stuck progress bar is the other half of it: the self-test card
-**skipped its live read** for a drive carrying that flag, on the reasoning that the read "could only
-fail". It could not — `smartctl -x` reads every log, and only the *parser* is limited — and the live
-read is the only thing that corrects a progress bar drawn from a stale scan. A WD20EURX on the ARM
-test host showed `90% left` for a test its own log had already recorded as completed, on every
-reload, until a manual scan replaced the saved document. The card now reads the drive on mount
-whatever the logs look like, and a log that genuinely cannot be read still gets said out loud.
+That flag also **suppressed the card's live read**, which is what made it visible: the read was skipped
+on the reasoning that it "could only fail". It could not — `smartctl -x` reads every log, and only the
+*parser* is limited — and the live read is the only thing that corrects a progress bar drawn from a
+stale scan. The card reads the drive on mount whatever the logs look like, and a log that genuinely
+cannot be read is still said out loud.
 
 **A running test is re-read, so the badge tracks it.** The fleet badge and a drive page's progress both
 come from the *stored* row, which only a scan writes — so starting a long test and looking at another
@@ -175,8 +168,7 @@ itself when the last test ends, because the query it runs then returns nothing.
 about a second to appear, which is wrong for something you sweep across, so the label is the app's own.
 Pointing at a segment also marks the table row it stands for — matched by the drive's own name for the
 partition rather than by position, because a table carrying logical volumes has more rows than the map
-has segments, deliberately so. The card's heading no longer carries a bare partition count: it was a
-number with nothing saying what it counted, above a map that answers the question it was reaching for.
+has segments, deliberately so. The heading carries only a count.
 
 **A drive's data is re-read when it has gone stale.** Opening a drive page whose last scan is older
 than `device_refresh_minutes` (default 15) reads *that drive* and redraws — one smartctl call, not a
@@ -189,11 +181,9 @@ a first read would leave the page empty for no reason.
 **Once per window, and that is a fix rather than a detail.** The re-read redraws the page, the redrawn
 page re-reads the stale drive, and the only thing that ends that is data arriving — which an unreadable
 drive never produces. `last_scan` is advanced by a read that *succeeded* and nothing else, so a drive
-that cannot be read is stale permanently and the age can never be the guard. It was reported from a
-Raspberry Pi: opening the SD card's page flickered and rolled in `scan complete: 0/1 readable` toasts,
-five failed reads in the same displayed second. There is now at most one attempt per refresh window per
-drive, so a drive that comes back is picked up on a later visit rather than being written off for the
-life of the tab.
+that cannot be read is stale permanently and the age can never be the guard. There is at most one attempt
+per refresh window per drive, so a drive that comes back is picked up on a later visit rather than being
+written off for the life of the tab.
 
 The scan's age now sits beside the drive's name rather than in a row of twelve facts, because "4 hours
 ago" among twelve is not where a reader notices it.
@@ -243,22 +233,21 @@ person can recognise once named. It is kept **only when there is no partition ta
 partitioned disk the node's own signature *is* the table, and reporting it would say the drive holds
 a "gpt filesystem".
 
-**The card's summary line was wrong, and it is worth recording why.** The first version put a summary
-in the heading — `GPT partition table · 1.4 MB unallocated · 512e`. It was reported back as confusing,
-and it was: those are facts about the *drive* sitting above a table of *partitions*, they answer no
-question anybody has while reading one, and the unallocated figure is an alignment remainder that
-invites a question with no useful answer. A summary position has no room to explain an approximation,
-so an approximation does not belong in one. The heading now carries a count; the table type moved to
-Details where it explains the `PARTTYPENAME` values above it; the unallocated figure moved to Details
-too, where there is space to say it is approximate. **A summary line is a claim that a fact is
-important enough to lead with — and "this is on the drive" is not the same as "you need this".**
+**The card's summary line was wrong.** A heading reading `GPT partition table · 1.4 MB unallocated ·
+512e` puts facts about the *drive* above a table of *partitions*: they answer no question anybody has
+while reading one, and the unallocated figure is an alignment remainder that invites a question with no
+useful answer. A summary position has no room to explain an approximation, so an approximation does not
+belong in one. The heading carries a count; the table type moved to Details, where it explains the
+`PARTTYPENAME` values above it; the unallocated figure moved there too, where there is space to say it is
+approximate. **A summary line is a claim that a fact is important enough to lead with — and "this is on
+the drive" is not the same as "you need this".**
 
 **The explanation moved into the disclosure.** The "N of these filesystems are mounted on the host but
 not inside this container…" paragraph sat under the table and was the most visually heavy thing in the
-card: a block of prose attached to a table of facts. It is now a row in **Details**, and the cell
-itself carries the short version as a tooltip. The tradeoff is real — somebody who sees "not visible"
-in the table has to open Details to find out why — and it is accepted because the *cell* still names
-the condition rather than showing a dash, and the explanation is one click away rather than absent.
+card. It is now a row in **Details**, and the cell itself carries the short version as a tooltip. The
+tradeoff is real — somebody who sees "not visible" in the table has to open Details to find out why —
+and it is accepted because the *cell* still names the condition rather than showing a dash, and the
+explanation is one click away rather than absent.
 
 **The bar turns amber at a level the user sets, and that level is a stored setting.** The first
 version was deliberately one colour, on the argument that a bar turning amber at 85% is the browser
@@ -354,9 +343,8 @@ A counter the drive has just started reporting is marked *new*, which is the dif
 
 
 Most USB flash drives and card readers do not implement S.M.A.R.T. at all, and some USB
-bridges do not pass it through. `smartctl` fails on them, which used to mean the app
-showed a raw error and nothing else. It cannot invent health data, so it does the two
-things that are actually available:
+bridges do not pass it through. `smartctl` fails on them, and the app cannot invent health
+data, so it does the two things that are actually available:
 
 - **Say so plainly.** The device page shows a neutral **notice**, not an error box: the
   drive does not report S.M.A.R.T., here is why, and the identity, capacity, filesystem
@@ -414,11 +402,10 @@ which also records why the breakdown is *stored* rather than recomputed on read:
 recomputed at read time can disagree with the score beside it. The same pattern — a computed fact
 being discarded — then turned out to have two more instances, which became `ADR-028`.
 
-The `attribute_id` came with it, which is what this note originally asked for: the attribute table
-marks the rows the verdict actually **read**, so a row can now be either *"at threshold"* (the
-drive's own alarm), *"counted"* (part of this app's score), both, or neither. Two different claims,
-worded differently, because conflating them was the whole reason the marker could only ever be a
-guess.
+The `attribute_id` came with it: the attribute table marks the rows the verdict actually **read**, so
+a row can now be either *"at threshold"* (the drive's own alarm), *"counted"* (part of this app's
+score), both, or neither. Two different claims, worded differently, because conflating them was the
+whole reason the marker could only ever be a guess.
 
 **The trend adjustment is in the breakdown too.** `applyTrendPenalties` lowers a score after the
 interpreter has finished, so a breakdown without it would sum to *less* than the score it claims to
@@ -491,8 +478,7 @@ collapsed into a boolean.
 ### A23–A27 / C7 / D8–D11 — The NAS fleet
 
 The MVP is sized for a workstation with a handful of drives. A NAS changes the *shape*
-of the problem, and the reason each item exists is worth recording rather than leaving
-as a bare list entry.
+of the problem; each item below carries the reason it exists.
 
 - **The dashboard has to scale.** A card grid is right for four drives and wrong for
   twenty-four; what a fleet owner wants is one list ordered by risk (`D8`), which the
@@ -623,7 +609,7 @@ as a bare list entry.
   they did.
 - **Evidence is cheap** (`A27`). The report export already exists; saying on it that it is
   warranty/RMA evidence costs almost nothing and is the whole reason some people run a
-  scan at all. **Built**, and it turned out to be worth more than the sentence: the default
+  scan at all. It turned out to be worth more than the sentence: the default
   text format had no attribute table at all, so a report could say `BAD` and name no
   reason a support engineer could check. Every format now names **the attributes that fail
   the drive's *own* manufacturer threshold** — the limit the vendor wrote into the drive,
@@ -689,16 +675,15 @@ and all of them still hold.
   field rather than a table row, and its progress is a separate number rather than a field on an
   entry. A parser that knew only the ATA log therefore reported "no test running" for a drive that
   was mid-test — and the card, believing it, offered the run buttons again, which the drive refused
-  with a bare exit status. That is what made this feature look broken on NVMe, and it was fixed
-  against a real WDC SN730 capture (`nvme-sn730-selftest.json`).
+  with a bare exit status. Fixed against a real WDC SN730 capture (`nvme-sn730-selftest.json`).
   **A log that cannot be read is not a drive that cannot test itself.** The same SN730 under
   smartctl 7.4 reported "Read Self-test Log failed" and under 7.5, with no hardware change, reads it
   fine — so concluding "this drive cannot run self-tests" from a failed *read* was a confident
   statement about the wrong thing, and it told the reader to give up on a drive that tests itself
-  perfectly well. The unreadable case is now reported as exactly that (`self_test_log_unread`) — but
-  **only when the drive offered no self-test log this app reads**, because the flag used to be raised
-  by any unrecognised `self_test` key, and that is what put the sentence on drives whose logs were
-  being read. The card offers the buttons while saying that progress cannot be shown. Only a drive
+  perfectly well. The unreadable case is reported as exactly that (`self_test_log_unread`) — but
+  **only when the drive offered no self-test log this app reads**, so a drive reporting a
+  `self_test` key this parser ignores is not flagged for it. The card offers the buttons while saying
+  that progress cannot be shown. Only a drive
   that *says* it does not implement self-tests is reported as unable to.
 - **A long test needs a way out.** Added when the manual half was built. A long test
   runs for hours, so aborting is a first-class action rather than a footnote, and it

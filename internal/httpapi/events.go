@@ -54,8 +54,7 @@ func (s *Server) handleScan(w http.ResponseWriter, r *http.Request) {
 
 // handleScanDevice rescans a single drive.
 //
-// This is what makes the per-drive Scan button honest: it used to call the full
-// scan, so pressing it on one card re-read every drive (docs/API.md).
+// What makes the per-drive Scan button honest: it reads one drive, not the fleet (docs/API.md).
 func (s *Server) handleScanDevice(w http.ResponseWriter, r *http.Request) {
 	serial := r.PathValue("serial")
 	if serial == "" {
