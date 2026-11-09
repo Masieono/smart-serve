@@ -67,6 +67,22 @@ export function holdHeight(node) {
   };
 }
 
+/**
+ * Put the window back at the top of the page.
+ *
+ * A navigation asks for a new page, and the reader is usually somewhere down the old one — the
+ * self-test card is the last thing on a device page, so every trip back to the fleet meant scrolling
+ * the whole way up first. The browser will not do this for us here: the shell's sidebar is a
+ * full-height sticky column, so the document stays at least a viewport tall, the old offset stays
+ * valid, and the new page opens wherever the last one left off.
+ *
+ * A no-op without a window, which is how the tests run.
+ */
+export function scrollToTop() {
+  if (typeof window === 'undefined' || typeof window.scrollTo !== 'function') return;
+  window.scrollTo(0, 0);
+}
+
 /** Parse an SVG string into an element. */
 export function svg(markup) {
   const wrap = document.createElement('div');

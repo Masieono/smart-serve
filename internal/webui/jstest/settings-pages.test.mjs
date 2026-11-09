@@ -114,7 +114,7 @@ test('each page draws only its own rows', async () => {
 test('the page heading names the page', async () => {
   for (const id of settings.settingsPageIds()) {
     const { container } = await renderPage(id);
-    const heading = container.all('h1')[0];
+    const heading = container.querySelectorAll('h1')[0];
     assert.ok(heading, `page ${id} has no heading`);
     assert.equal(heading.textContent, settings.settingsPage(id).label);
   }
@@ -133,21 +133,21 @@ test('an untouched page is left without a question', async () => {
 // An edit that has not been saved must be asked about — and answered, either way.
 test('an edited page asks before it is left', async () => {
   const { container, ctx } = await renderPage('thresholds');
-  const slider = container.all('input').find((n) => n.className === 'setting-range');
+  const slider = container.querySelectorAll('input').find((n) => n.className === 'setting-range');
   slider.value = String(Number(slider.getAttribute('min')) + 1);
   slider.dispatch('input');
 
   // Cancel: the navigation is refused.
   const refused = ctx.guard();
   await flush();
-  const [cancel] = globalThis.document.body.all('button').slice(-2);
+  const [cancel] = globalThis.document.body.querySelectorAll('button').slice(-2);
   cancel.click();
   assert.equal(await refused, false, 'cancelling the prompt allowed the navigation anyway');
 
   // Confirm: it goes through.
   const allowed = ctx.guard();
   await flush();
-  const [, confirm] = globalThis.document.body.all('button').slice(-2);
+  const [, confirm] = globalThis.document.body.querySelectorAll('button').slice(-2);
   confirm.click();
   assert.equal(await allowed, true, 'confirming the prompt blocked the navigation');
 });
@@ -156,11 +156,11 @@ test('an edited page asks before it is left', async () => {
 // after a save would prompt about changes that no longer exist.
 test('saving clears the question', async () => {
   const { container, ctx } = await renderPage('thresholds');
-  const slider = container.all('input').find((n) => n.className === 'setting-range');
+  const slider = container.querySelectorAll('input').find((n) => n.className === 'setting-range');
   slider.value = String(Number(slider.getAttribute('min')) + 1);
   slider.dispatch('input');
 
-  const save = container.all('button').find((b) => b.textContent === 'Save');
+  const save = container.querySelectorAll('button').find((b) => b.textContent === 'Save');
   assert.equal(save.disabled, false, 'the edit did not enable Save');
   save.click();
   await flush();

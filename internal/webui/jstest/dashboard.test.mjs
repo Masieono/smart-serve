@@ -301,12 +301,12 @@ test('the testing session names the whole batch and offers its verbs', () => {
   // Named as chips rather than as one row each: every drive is still there, in a fraction of the
   // card. The tag name is deliberately not spelled out — it is the mechanism, and what a reader
   // needs is what the state *means*.
-  const chips = card.all('button').filter((b) => b.className.includes('chip-link'));
+  const chips = card.querySelectorAll('button').filter((b) => b.className.includes('chip-link'));
   assert.equal(chips.length, 2, 'the batch is not listed as chips');
   assert.ok(!/tagged bench/.test(text), 'the card explains the tag rather than the state');
 
   // The batch's own sheet, scoped by tag: it cannot be the whole fleet's file under another name.
-  const link = card.all('a')[0];
+  const link = card.querySelectorAll('a')[0];
   assert.equal(link.getAttribute('href'), '/api/devices/export?format=csv&tag=bench');
   assert.equal(link.getAttribute('download'), 'smart-serve-fleet-bench.csv');
 
@@ -341,7 +341,7 @@ test('the heat card reports the group and its ratio, not a diagnosis', () => {
   }
 
   // Every drive named is reachable, because the next step is always to go and look at one.
-  assert.equal(card.all('button').length, 3);
+  assert.equal(card.querySelectorAll('button').length, 3);
 });
 
 // Two enclosures heating at once are two findings, not one.
@@ -351,7 +351,7 @@ test('the heat card shows every group', () => {
     { group: 'media', drives: ['d', 'e', 'f'], total: 6, delta_c: 12 },
   ], { openDevice: () => {} });
 
-  assert.equal(card.all('button').length, 6);
+  assert.equal(card.querySelectorAll('button').length, 6);
   assert.match(textOf(card), /media/);
 });
 
@@ -363,7 +363,7 @@ test('the heat card shows every group', () => {
 
 /** The first button whose label is exactly this text. */
 function buttonLabelled(node, label) {
-  return node.all('button').find((b) => b.childNodes
+  return node.querySelectorAll('button').find((b) => b.childNodes
     .filter((n) => n.tagName === '#TEXT')
     .map((n) => n.data)
     .join('') === label);
@@ -380,7 +380,7 @@ test('the list opens in the stored view', async () => {
     setView('table');
     const container = document.createElement('div');
     await render(container, listCtx);
-    assert.ok(container.all('table').length, 'the stored table view was not drawn');
+    assert.ok(container.querySelectorAll('table').length, 'the stored table view was not drawn');
   } finally {
     // The module keeps the choice, so leaving it set would decide the next test's first render.
     setView('cards');
@@ -396,7 +396,7 @@ test('choosing a view stores it, so it survives a refresh', async () => {
     setView('cards');
     const container = document.createElement('div');
     await render(container, listCtx);
-    assert.equal(container.all('table').length, 0, 'cards were expected to be the default');
+    assert.equal(container.querySelectorAll('table').length, 0, 'cards were expected to be the default');
 
     const table = buttonLabelled(container, 'Table');
     assert.ok(table, 'the table half of the switch is not rendered');
@@ -406,7 +406,7 @@ test('choosing a view stores it, so it survives a refresh', async () => {
     const put = requests.find((r) => r.method === 'PUT');
     assert.ok(put, 'choosing a view should store it');
     assert.equal(put.body.dashboard_view, 'table');
-    assert.ok(container.all('table').length, 'the table was not drawn after the switch');
+    assert.ok(container.querySelectorAll('table').length, 'the table was not drawn after the switch');
   } finally {
     setView('cards');
   }

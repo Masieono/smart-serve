@@ -59,7 +59,7 @@ test('every band is named in words rather than shown as a code', () => {
 test('the list is capped and says how many are left', () => {
   const many = Array.from({ length: 8 }, (_, i) => rank(`s${i}`, 'watch'));
   const card = replaceFirstCard(many, stubCtx());
-  assert.equal(card.all('li').length, 5);
+  assert.equal(card.querySelectorAll('li').length, 5);
   assert.match(textOf(card), /3 more drives/);
 });
 
@@ -84,6 +84,6 @@ test('a drive with no name falls back to its serial', () => {
 // A drive with no reasons still renders: the band is the answer, and the reasons are the detail.
 test('a drive with no reasons still appears', () => {
   const card = replaceFirstCard([{ serial: 'S1', band: 'now', reasons: [] }], stubCtx());
-  assert.equal(card.all('li').length, 1);
+  assert.equal(card.querySelectorAll('li').length, 1);
   assert.match(textOf(card), /Replace now/);
 });

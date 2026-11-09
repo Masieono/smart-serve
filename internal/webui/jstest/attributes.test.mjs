@@ -38,7 +38,7 @@ function textOf(node) {
 }
 
 const helpButtons = (node) =>
-  node.all('button').filter((b) => String(b.className).includes('attr-help'));
+  node.querySelectorAll('button').filter((b) => String(b.className).includes('attr-help'));
 
 const attr = (id, name, value, worst, threshold) => ({
   id, name, value, worst, threshold, raw_value: 0, raw_string: '0',
@@ -87,7 +87,7 @@ test('pressing ? explains the attribute', () => {
   const table = attributeTable([attr(197, 'Current Pending Sector Count', 100, 100, 0)]);
   helpButtons(table)[0].click();
 
-  const dialogs = document.body.all('dialog');
+  const dialogs = document.body.querySelectorAll('dialog');
   const shown = dialogs[dialogs.length - 1];
   assert.ok(shown, 'pressing ? should open a dialog');
   const text = textOf(shown);
@@ -97,14 +97,14 @@ test('pressing ? explains the attribute', () => {
 
 test('a row the drive reports at its own threshold is marked', () => {
   const table = attributeTable([attr(5, 'Reallocated Sector Count', 10, 10, 10)]);
-  const flagged = table.all('tr').filter((r) => String(r.className).includes('attr-flagged'));
+  const flagged = table.querySelectorAll('tr').filter((r) => String(r.className).includes('attr-flagged'));
   assert.equal(flagged.length, 1);
   assert.match(textOf(flagged[0]), /At threshold/);
 });
 
 test('a clean attribute table marks nothing', () => {
   const table = attributeTable([attr(5, 'Reallocated Sector Count', 100, 100, 10)]);
-  const flagged = table.all('tr').filter((r) => String(r.className).includes('attr-flagged'));
+  const flagged = table.querySelectorAll('tr').filter((r) => String(r.className).includes('attr-flagged'));
   assert.equal(flagged.length, 0);
 });
 
@@ -230,7 +230,7 @@ test('no attribute help dialog renders null or undefined', () => {
     assert.ok(button, `attribute ${id} has help text but no ? button`);
     button.click();
 
-    const dialogs = document.body.all('dialog');
+    const dialogs = document.body.querySelectorAll('dialog');
     const text = textOf(dialogs[dialogs.length - 1]);
     assert.doesNotMatch(text, /null/, `attribute ${id} dialog: ${text}`);
     assert.doesNotMatch(text, /undefined/, `attribute ${id} dialog: ${text}`);
@@ -243,7 +243,7 @@ test('no NVMe help dialog renders null or undefined', () => {
 
   for (const button of buttons) {
     button.click();
-    const dialogs = document.body.all('dialog');
+    const dialogs = document.body.querySelectorAll('dialog');
     const text = textOf(dialogs[dialogs.length - 1]);
     assert.doesNotMatch(text, /null|undefined/, `NVMe dialog: ${text}`);
   }

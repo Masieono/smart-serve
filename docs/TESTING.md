@@ -178,6 +178,7 @@ and 7.5 can, with no hardware change — which is why the two are reported separ
 | 4.74 | Open a drive that reports `ata_smart_selective_self_test_log` (most modern ATA drives do). | **No** "this drive's self-test log could not be read" notice — its results are on the page. The notice is for drives with no readable self-test log at all |
 | 4.75 | Start a short test on that drive and leave the page alone. | The bar clears **by itself** when the drive finishes. If it needs **Scan now**, the live read was skipped — see `TESTING.md` §8.8 |
 | 4.76 | Open a drive whose read always fails (the Pi's SD card, or a card reader with no card). | The age line says it could not be read, and the scan history gains **one** failed read — not five in a second. Reopening after the window elapses gives one more |
+| 4.77 | Scroll to the bottom of a device page, then click **Devices** in the sidebar (or the wordmark). | The fleet opens **at the top** — no scrolling back up by hand. Press **Scan now** instead, and your place is kept |
 
 ## Pass 5 — notifications
 

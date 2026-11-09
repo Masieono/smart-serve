@@ -1506,10 +1506,14 @@ export function diskLayoutCard(layout, opts) {
  * The row and the segment carry the same `data-partition`, so they are matched by the drive's own name
  * for the partition rather than by position — which matters on a drive whose table also has a row per
  * logical volume, where the positions deliberately do not line up.
+ *
+ * `querySelectorAll` rather than the test stub's own traversal helper, which this used to call: that
+ * helper does not exist in a browser, so the guard below turned the whole thing into a no-op and no
+ * row was ever marked. The stub no longer offers it, so the same mistake fails a test instead.
  */
 function highlightPartitionRow(table, name) {
-  if (!table || !table.all) return;
-  for (const row of table.all('tr')) {
+  if (!table || !table.querySelectorAll) return;
+  for (const row of table.querySelectorAll('tr')) {
     const classes = String(row.className || '').split(/\s+/).filter((c) => c && c !== 'is-hover');
     if (name && row.getAttribute('data-partition') === name) classes.push('is-hover');
     row.className = classes.join(' ');

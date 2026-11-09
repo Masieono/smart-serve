@@ -130,7 +130,7 @@ test('a drive testing itself is badged on its fleet card', () => {
 
   // Which *drive* is the badge's job, and a card is not the place for "Extended offline" in the
   // label — but which *test* has to be somewhere, and the tooltip is where a sentence belongs.
-  const badge = running.all('span').find((n) => /selftest-badge/.test(n.className));
+  const badge = running.querySelectorAll('span').find((n) => /selftest-badge/.test(n.className));
   assert.ok(badge, 'no badge');
   assert.match(badge.getAttribute('title'), /Extended offline/);
 
@@ -148,7 +148,7 @@ test('a drive testing itself is badged on its fleet card', () => {
 // health, and a green mark on a drive that has not reported yet would be a claim it cannot make.
 test('the testing badge does not wear a health tone', () => {
   const node = card({ selftest: { kind: 'Extended offline', pct: 62 } })
-    .all('span')
+    .querySelectorAll('span')
     .find((n) => /selftest-badge/.test(n.className));
   assert.ok(node, 'no badge');
   assert.match(node.className, /badge-unknown/);

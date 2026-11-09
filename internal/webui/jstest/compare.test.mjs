@@ -137,7 +137,7 @@ test('the comparison renders the aligned rows, one column per drive', async () =
   openCompare({}, ['SN-A', 'SN-B']);
   await flush();
 
-  const dialog = document.body.all('dialog').pop();
+  const dialog = document.body.querySelectorAll('dialog').pop();
   assert.ok(dialog, 'the comparison should open a dialog');
 
   const text = textOf(dialog);
@@ -148,7 +148,7 @@ test('the comparison renders the aligned rows, one column per drive', async () =
     `the serials should reach the API in order: ${requests[0]}`);
 
   // One header cell per drive, plus the attribute column.
-  assert.equal(dialog.all('th').length, 3,
+  assert.equal(dialog.querySelectorAll('th').length, 3,
     'expected an attribute column and two drives');
 
   // A reader is told how much of the table is worth reading, rather than being left to scan it.
@@ -164,12 +164,12 @@ test('a drive without an attribute shows an absence, not a zero', async () => {
   openCompare({}, ['SN-A', 'SN-B']);
   await flush();
 
-  const dialog = document.body.all('dialog').pop();
-  const rows = dialog.all('tr').filter((r) => r.all('td').length);
+  const dialog = document.body.querySelectorAll('dialog').pop();
+  const rows = dialog.querySelectorAll('tr').filter((r) => r.querySelectorAll('td').length);
   const hours = rows.find((r) => textOf(r).includes('Power_On_Hours'));
   assert.ok(hours, 'the power-on-hours row should be rendered');
 
-  const cells = hours.all('td');
+  const cells = hours.querySelectorAll('td');
   assert.equal(cells.length, 3, 'an attribute column and one cell per drive');
   assert.equal(cells[2].textContent, '—', 'the missing cell should be an em dash');
 });
@@ -188,6 +188,6 @@ test('a failed comparison explains itself', async () => {
   openCompare({}, ['SN-A', 'SN-B']);
   await flush();
 
-  const dialog = document.body.all('dialog').pop();
+  const dialog = document.body.querySelectorAll('dialog').pop();
   assert.match(textOf(dialog), /Could not compare/, 'the dialog should say the comparison failed');
 });

@@ -229,13 +229,26 @@ export class StubNode {
     });
   }
 
-  /** Every descendant with the given tag, in document order. */
-  all(tag) {
+  /**
+   * The slice of `Element.querySelectorAll` the views and the tests use: a tag name, optionally with
+   * one class. Same limited parsing as `querySelector` above, and an array rather than a `NodeList`
+   * so callers can go on filtering and indexing it.
+   *
+   * This is the *only* traversal helper here, deliberately. It used to be called `all`, and the
+   * production code started calling it too: the device page's map-to-table hover used `table.all('tr')`,
+   * which is `undefined` in a browser, so a row was never marked while every test stayed green. A
+   * double must not offer a method the DOM does not have, or it hides exactly the bugs it exists to
+   * catch — if production reaches for `all` again, this stub has no such method and the test fails.
+   */
+  querySelectorAll(selector) {
+    const [tag, className] = String(selector).split('.');
     const out = [];
     const walk = (node) => {
       for (const child of node.childNodes) {
         if (!(child instanceof StubNode)) continue;
-        if (child.tagName === tag.toUpperCase()) out.push(child);
+        const tagOk = !tag || child.tagName === tag.toUpperCase();
+        const classOk = !className || String(child.className).split(/\s+/).includes(className);
+        if (tagOk && classOk) out.push(child);
         walk(child);
       }
     };

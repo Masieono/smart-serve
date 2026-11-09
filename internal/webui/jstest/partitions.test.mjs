@@ -160,8 +160,8 @@ test('the usage bar clamps and labels itself', () => {
 
 /** The fill's class, which is where the amber level shows. */
 function fillClass(node) {
-  const track = node.all('div').find((n) => n.className === 'usage-track');
-  return track.all('div')[0].className;
+  const track = node.querySelectorAll('div').find((n) => n.className === 'usage-track');
+  return track.querySelectorAll('div')[0].className;
 }
 
 // The level travels with the other display preferences, because that is what it is. The device page
@@ -264,7 +264,7 @@ test('a partitioned drive never shows the whole-disk note', () => {
 
 /** The rendered segments of a map, in order. */
 function segmentsOf(map) {
-  return map.all('div').filter((n) => /(^| )disk-segment( |$)/.test(n.className));
+  return map.querySelectorAll('div').filter((n) => /(^| )disk-segment( |$)/.test(n.className));
 }
 
 /** A layout with the fields the map reads, sized in bytes. */
@@ -281,7 +281,7 @@ function mapped(partitions, total) {
 function tooltipFor(seg) {
   seg.dispatch('mouseenter');
   assert.match(seg.className, /is-hover/, 'the hovered segment did not mark itself');
-  const tip = seg.parent.all('div').find((n) => n.className === 'disk-tooltip');
+  const tip = seg.parent.querySelectorAll('div').find((n) => n.className === 'disk-tooltip');
   assert.ok(tip, 'the map has no tooltip');
   assert.equal(tip.hidden, false, 'the tooltip stayed hidden on hover');
   return String(tip.textContent);
@@ -303,8 +303,8 @@ test('pointing at a segment marks the row it stands for', () => {
   ], 1000 * GIB);
 
   const card = diskLayoutCard(layout, { showUsage: true });
-  const segs = card.all('div').filter((n) => /(^| )disk-segment( |$)/.test(n.className));
-  const rows = card.all('tr');
+  const segs = card.querySelectorAll('div').filter((n) => /(^| )disk-segment( |$)/.test(n.className));
+  const rows = card.querySelectorAll('tr');
 
   segs[1].dispatch('mouseenter');
   const marked = rows.filter((r) => /is-hover/.test(r.className));
@@ -325,10 +325,10 @@ test('the partition heading carries no bare count', () => {
     { top_level: true, name: '/dev/sdb2', size_bytes: 600 * GIB, use_percent: '80%' },
   ], 1000 * GIB), { showUsage: true });
 
-  const heading = card.all('h2')[0];
+  const heading = card.querySelectorAll('h2')[0];
   assert.equal(String(heading.textContent), 'Partitions');
-  const row = card.all('div').find((n) => /(^| )row( |$)/.test(n.className));
-  assert.equal(row.all('span').filter((n) => /muted/.test(n.className)).length, 0,
+  const row = card.querySelectorAll('div').find((n) => /(^| )row( |$)/.test(n.className));
+  assert.equal(row.querySelectorAll('span').filter((n) => /muted/.test(n.className)).length, 0,
     'a bare count is still in the heading');
 });
 
@@ -348,7 +348,7 @@ test('the map sizes each segment by its share of the disk', () => {
   assert.match(String(segs[0].style), /width:25%/, 'the 250 GiB partition is a quarter of the disk');
   assert.match(String(segs[1].style), /width:75%/);
   // And the fill inside a segment is its own fullness, not its share.
-  const fill = segs[1].all('div')[0];
+  const fill = segs[1].querySelectorAll('div')[0];
   assert.match(String(fill.style), /width:47%/, 'the segment fill is the partition usage');
 });
 
@@ -388,7 +388,7 @@ test('an unmeasured partition is hatched, not drawn at zero', () => {
     { top_level: true, name: '/dev/sdb1', size_bytes: 500 * GIB, mountpoints: ['/mnt/x'] },
   ], 1000 * GIB));
 
-  const fill = segmentsOf(map)[0].all('div')[0];
+  const fill = segmentsOf(map)[0].querySelectorAll('div')[0];
   assert.match(fill.className, /disk-segment-unmeasured/);
   assert.ok(!String(fill.style || '').includes('width'),
     'an unmeasured partition must not be given a width');

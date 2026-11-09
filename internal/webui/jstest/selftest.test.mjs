@@ -38,7 +38,7 @@ function textOf(node) {
 
 /** The buttons the card is currently offering. */
 function buttonsOf(node) {
-  return node.all('button');
+  return node.querySelectorAll('button');
 }
 
 /** Press a button and let its async handler settle. */
@@ -52,7 +52,7 @@ async function press(button) {
 // The dialog is built by components.js and appended to document.body; its buttons are the last
 // two in the document. Pressing one closes it, which settles the promise.
 function dialogButtons() {
-  const dialogs = globalThis.document.body.all('button');
+  const dialogs = globalThis.document.body.querySelectorAll('button');
   return dialogs.slice(-2);
 }
 

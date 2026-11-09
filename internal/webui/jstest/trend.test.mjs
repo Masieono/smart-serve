@@ -122,7 +122,7 @@ test('trendRow reports the latest value and the change', () => {
     { ts: '2026-01-02T00:00:00Z', value: 60 },
   ]);
 
-  const texts = row.all('span').map((n) => n.textContent);
+  const texts = row.querySelectorAll('span').map((n) => n.textContent);
   assert.ok(texts.includes('60/100'), `expected the latest value, got ${texts}`);
   assert.ok(texts.includes('-30'), `expected the delta, got ${texts}`);
 });
@@ -140,7 +140,7 @@ test('trendRow draws against the window it is given', () => {
   };
   const window = { from: START, to: START + 30 * DAY };
   const row = trendRow(metric, [at(0, 90), at(1, 80)], { window });
-  const texts = row.all('span').map((n) => n.textContent);
+  const texts = row.querySelectorAll('span').map((n) => n.textContent);
   assert.ok(texts.includes('80'), `expected the latest value, got ${texts}`);
   // Measured across the *series*, not the window: a drive watched for one day has one day of
   // change, and reporting 30 days of it would invent a trend.
@@ -151,7 +151,7 @@ test('trendRow draws against the window it is given', () => {
 
 test('the axis labels the two ends and the middle', () => {
   const axis = dateAxis({ from: START, to: START + 30 * DAY });
-  const ticks = axis.all('span').map((n) => n.textContent);
+  const ticks = axis.querySelectorAll('span').map((n) => n.textContent);
   assert.equal(ticks.length, 3);
   assert.equal(ticks[0], fmtDate(new Date(START).toISOString()));
   assert.equal(ticks[2], fmtDate(new Date(START + 30 * DAY).toISOString()));

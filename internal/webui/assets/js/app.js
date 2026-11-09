@@ -1,5 +1,5 @@
 // App shell: navigation, routing, SSE wiring, shortcuts (docs/UI.md §2, §8).
-import { el, mount, clear, holdHeight, setTemperatureUnit as applyTemperatureUnit } from './dom.js';
+import { el, mount, clear, holdHeight, scrollToTop, setTemperatureUnit as applyTemperatureUnit } from './dom.js';
 import { icon } from './icons.js';
 import { api, appPath } from './api.js';
 import { toast, confirmDialog } from './components.js';
@@ -127,6 +127,9 @@ async function route({ keepScroll = false } = {}) {
   // one sets it again on the way in.
   navGuard = null;
   renderSidebar(path);
+  // A navigation starts at the top; a re-render keeps the reader where they were. Nothing else does
+  // this — see `scrollToTop`, and the shell comment in `UI.md` §2.
+  if (!keepScroll) scrollToTop();
 
   // Every view mounts a skeleton and then awaits its data, so the container is empty for the length
   // of the request and the browser clamps the scroll position to the top of a very short page.

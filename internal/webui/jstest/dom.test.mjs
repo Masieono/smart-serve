@@ -5,7 +5,7 @@ import { installStubDom, StubNode } from './stub-dom.mjs';
 installStubDom();
 
 const {
-  el, mount, fmtBytes, fmtHours, fmtInt, scoreGrade, holdHeight,
+  el, mount, fmtBytes, fmtHours, fmtInt, scoreGrade, holdHeight, scrollToTop,
   fmtTemp, setTemperatureUnit, temperatureUnitName, convertTemp, toCelsius, convertTempDelta,
 } = await import('../assets/js/dom.js');
 
@@ -93,6 +93,30 @@ test('holdHeight does nothing when there is no height to hold', () => {
   const release = holdHeight(node);
   assert.equal(node.style.minHeight, undefined);
   assert.equal(typeof release, 'function', 'a no-op hold still has to be safe to release');
+});
+
+/**
+ * `scrollToTop` is the other half of the same concern, and the opposite direction: a *navigation*
+ * starts at the top (`docs/UI.md` §2). Nothing else does it — the sidebar is a full-height sticky
+ * column, so the document stays at least a viewport tall and the old offset stays valid.
+ *
+ * Reported from a device page: the self-test card is the last thing on it, so every trip back to the
+ * fleet meant scrolling the whole way up by hand.
+ */
+test('scrollToTop puts the window back at the top', () => {
+  const calls = [];
+  globalThis.window = { scrollTo: (x, y) => calls.push([x, y]) };
+  try {
+    scrollToTop();
+  } finally {
+    delete globalThis.window;
+  }
+  assert.deepEqual(calls, [[0, 0]], 'the window was not scrolled to the top');
+});
+
+test('scrollToTop is safe where there is no window', () => {
+  assert.equal(typeof window, 'undefined', 'this test needs no window to be installed');
+  scrollToTop(); // must not throw
 });
 
 test('formatters', () => {

@@ -55,6 +55,17 @@ discarding silently is not. See `ADR-028`.
   the interval never reached a read at all. A `selftest_progress` event, a device re-read and the
   freshness re-read all re-render, and each one pushed back the very poll that would have cleared a
   stale progress bar. The deadline is now carried across the re-render.
+- **Pointing at a partition on the disk map marked nothing.** The segment called a traversal helper
+  that exists only in the test double, not in a browser, and the guard around it turned the call into a
+  silent no-op — so the row the segment stood for was never marked, while every test stayed green. It
+  uses the DOM's own `querySelectorAll` now, and the double no longer offers a method the browser does
+  not have, so the same mistake fails a test instead of shipping.
+- **A navigation left the reader wherever the last page had been scrolled to.** The browser will not
+  start a new page at the top here: the sidebar is a full-height sticky column, so the document stays at
+  least a viewport tall, the old offset stays valid, and the new page opens as far down as it goes.
+  Clicking the wordmark or **Devices** from the bottom of a device page — where the self-test card sits —
+  meant scrolling the whole way up by hand. Navigation scrolls to the top; a refresh, a rescan and a scan
+  finishing still keep the reader's place.
 
 ### Added
 

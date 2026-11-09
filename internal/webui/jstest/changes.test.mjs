@@ -106,7 +106,7 @@ test('a troubling counter gets a row of its own', () => {
   const text = textOf(card);
   assert.match(text, /Reallocated_Sector_Ct/);
   assert.match(text, /Counter/);
-  assert.equal(card.all('tbody')[0].all('tr').length, 1);
+  assert.equal(card.querySelectorAll('tbody')[0].querySelectorAll('tr').length, 1);
 });
 
 test('an appeared counter is marked as new', () => {

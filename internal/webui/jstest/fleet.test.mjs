@@ -48,8 +48,8 @@ function textOf(node) {
 }
 
 const table = (devices, opts) => fleetTable(devices, opts);
-const bodyRows = (node) => node.all('tr').slice(1);
-const headers = (node) => node.all('th');
+const bodyRows = (node) => node.querySelectorAll('tr').slice(1);
+const headers = (node) => node.querySelectorAll('th');
 
 test('one row per drive', () => {
   const rows = bodyRows(table([drive({ serial: 'a' }), drive({ serial: 'b' }), drive({ serial: 'c' })]));
@@ -140,7 +140,7 @@ test('an empty table is not an error', () => {
 
 // Grouping (`FEATURES.md` D9). The separator spans every column so the header above stays the only
 // one — a second table per group would repeat an eleven-column header once per pool.
-const separators = (node) => node.all('tr').filter((r) => r.className === 'fleet-group');
+const separators = (node) => node.querySelectorAll('tr').filter((r) => r.className === 'fleet-group');
 
 test('groups add a separator row with the label and a count', () => {
   const node = table([], {
@@ -158,7 +158,7 @@ test('groups add a separator row with the label and a count', () => {
 
 test('a group separator spans every column', () => {
   const node = table([], { groups: [{ label: 'tank', devices: [] }] });
-  const cell = separators(node)[0].all('td')[0];
+  const cell = separators(node)[0].querySelectorAll('td')[0];
   assert.equal(cell.getAttribute('colspan'), String(headers(node).length));
 });
 
@@ -169,7 +169,7 @@ test('a flat list gets no separator', () => {
 // --- selecting drives to compare (FEATURES.md D6) ------------------------------
 
 /** The select boxes in a table, in row order. */
-const boxes = (node) => node.all('input').filter((n) => n.getAttribute('type') === 'checkbox');
+const boxes = (node) => node.querySelectorAll('input').filter((n) => n.getAttribute('type') === 'checkbox');
 
 // Off by default, so every table that is not the fleet list keeps the shape it had: a checkbox
 // column on a table nobody compares from is a column of noise.
@@ -216,7 +216,7 @@ test('a group separator counts the select column', () => {
     selected: new Set(),
     onSelect: () => {},
   });
-  const cell = separators(node)[0].all('td')[0];
+  const cell = separators(node)[0].querySelectorAll('td')[0];
   assert.equal(cell.getAttribute('colspan'), String(headers(node).length));
   assert.equal(headers(node).length, 12, 'eleven columns plus the select box');
 });

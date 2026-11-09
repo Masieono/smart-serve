@@ -29,7 +29,7 @@ const KNOWLEDGE = {
 /** Every element of a tag under a class, for asserting on what the card actually says. */
 function textsFor(container, tag, className) {
   return container
-    .all(tag)
+    .querySelectorAll(tag)
     .filter((node) => node.className === className)
     .map((node) => node.textContent);
 }
@@ -54,7 +54,7 @@ test('the knowledge card reports every layer', async () => {
 
   // The two editors live on different pages now: the knowledge overrides on Data, the per-model
   // thresholds on Thresholds. Both are still reachable, and neither page renders the other's.
-  const editors = container.all('textarea').filter((n) => n.className === 'settings-editor');
+  const editors = container.querySelectorAll('textarea').filter((n) => n.className === 'settings-editor');
   assert.equal(editors.length, 1, 'the Data page renders the knowledge editor and nothing else');
   const knowledgeEditor = editors.find((n) => n.getAttribute('aria-label') === 'Your knowledge base entries');
   assert.ok(knowledgeEditor, 'no knowledge editor');
@@ -63,7 +63,7 @@ test('the knowledge card reports every layer', async () => {
   // The shipped table is offered as a download, which is how somebody starts their own copy to point
   // the URL at.
   const download = container
-    .all('a')
+    .querySelectorAll('a')
     .find((n) => n.getAttribute('download') === 'smart-serve-knowledge.json');
   assert.ok(download, 'the shipped table is not offered as a download');
   assert.ok(download.getAttribute('href').startsWith('data:application/json'),
@@ -84,7 +84,7 @@ test('the knowledge card copes with nothing fetched and nothing typed', async ()
   assert.ok(status.includes('nothing fetched yet'));
   assert.ok(!status.includes('yours'), 'a layer nobody has written is reported as present');
 
-  const discard = container.all('button').find((n) => n.textContent.includes('Discard'));
+  const discard = container.querySelectorAll('button').find((n) => n.textContent.includes('Discard'));
   assert.ok(!discard, 'a discard button for a copy that does not exist');
 });
 
@@ -105,7 +105,7 @@ test('a stale fetched copy is called out', async () => {
 /** The label of every setting row on the page, in order. */
 function rowLabels(container) {
   return container
-    .all('div')
+    .querySelectorAll('div')
     .filter((node) => node.className === 'setting-label')
     .map((node) => node.textContent);
 }
@@ -158,7 +158,7 @@ test('every numeric setting gets a slider bound to its own range', async () => {
   const containers = await renderEveryPage({ settings: {} });
 
   const sliders = containers
-    .flatMap((container) => container.all('input'))
+    .flatMap((container) => container.querySelectorAll('input'))
     .filter((n) => n.className === 'setting-range');
   // Five health thresholds, three operational settings, the two correlated-heat tunables, the
   // self-test refresh interval, the storage warning level, and the on-open refresh window.
@@ -202,13 +202,13 @@ test('a Fahrenheit preference converts the threshold and its bounds', async () =
   const container = document.createElement('div');
   await render(container);
 
-  const slider = container.all('input').find((n) => n.className === 'setting-range');
+  const slider = container.querySelectorAll('input').find((n) => n.className === 'setting-range');
   assert.equal(slider.getAttribute('min'), '86'); // 30 °C
   assert.equal(slider.getAttribute('max'), '194'); // 90 °C
   assert.equal(slider.value, '131'); // 55 °C
 
   const unit = container
-    .all('span')
+    .querySelectorAll('span')
     .find((n) => n.className === 'setting-unit');
   assert.equal(unit.textContent, '°F');
 });
@@ -217,16 +217,16 @@ test('a Fahrenheit preference converts the threshold and its bounds', async () =
 
 /** The Celsius/Fahrenheit picker. */
 function unitPicker(container) {
-  return container.all('select').find((s) => s.all('option').some((o) => o.value === 'f'));
+  return container.querySelectorAll('select').find((s) => s.querySelectorAll('option').some((o) => o.value === 'f'));
 }
 
 function saveButton(container) {
-  return container.all('button').find((b) => /save/i.test(b.textContent));
+  return container.querySelectorAll('button').find((b) => /save/i.test(b.textContent));
 }
 
 /** The first button whose label is exactly this text. */
 function buttonLabelled(container, label) {
-  return container.all('button').find((b) => b.childNodes
+  return container.querySelectorAll('button').find((b) => b.childNodes
     .filter((n) => n.tagName === '#TEXT')
     .map((n) => n.data)
     .join('') === label);
@@ -288,7 +288,7 @@ test('a threshold edited in Fahrenheit is stored in Celsius', async () => {
   const container = document.createElement('div');
   await render(container, 'thresholds');
 
-  const box = container.all('input').find((n) =>
+  const box = container.querySelectorAll('input').find((n) =>
     n.className === 'setting-number'
     && n.getAttribute('aria-label') === 'Temperature caution threshold value');
   assert.equal(box.value, '131', 'the stored Celsius value was not shown in Fahrenheit');
@@ -360,7 +360,7 @@ test('Reset to recommended loads the shipped values without saving them', async 
   const container = document.createElement('div');
   await render(container);
 
-  const threshold = () => container.all('input').find((n) =>
+  const threshold = () => container.querySelectorAll('input').find((n) =>
     n.className === 'setting-number'
     && n.getAttribute('aria-label') === 'Temperature caution threshold value');
   assert.equal(threshold().value, '70', 'the stored value was not rendered first');
@@ -394,7 +394,7 @@ test('Save can be pressed again after it has been pressed', async () => {
   await render(container);
 
   const save = saveButton(container);
-  const slider = container.all('input').find((n) => n.className === 'setting-range');
+  const slider = container.querySelectorAll('input').find((n) => n.className === 'setting-range');
   const nudge = (by) => {
     slider.value = String(Number(slider.getAttribute('min')) + by);
     slider.dispatch('input');
@@ -495,19 +495,19 @@ test('the per-model editor is saved with the rest of the settings', async () => 
   await settings.render(container, ctx);
 
   const editor = container
-    .all('textarea')
+    .querySelectorAll('textarea')
     .find((n) => n.getAttribute('aria-label') === 'Per-model health thresholds');
   assert.ok(editor, 'the page should carry a per-model threshold editor');
 
   // Seeding is the only way to get an entry without typing JSON by hand, which is the whole reason
   // the button exists.
-  const seed = container.all('button').find((b) => b.textContent === 'Load the fleet’s models');
+  const seed = container.querySelectorAll('button').find((b) => b.textContent === 'Load the fleet’s models');
   assert.ok(seed, 'the page should offer the seed');
   assert.equal(seed.disabled, false, 'the fleet has models, so the seed should be usable');
   seed.click();
   assert.match(editor.value, /Samsung SSD 870 EVO/, 'the seed did not name the fleet models');
 
-  container.all('button').find((b) => b.textContent === 'Save').click();
+  container.querySelectorAll('button').find((b) => b.textContent === 'Save').click();
   await flush();
 
   const put = requests.find((r) => r.method === 'PUT');
@@ -527,7 +527,7 @@ test('the seed is disabled when the fleet has no models', async () => {
   const container = document.createElement('div');
   await settings.render(container, ctx);
 
-  const seed = container.all('button').find((b) => b.textContent === 'Load the fleet’s models');
+  const seed = container.querySelectorAll('button').find((b) => b.textContent === 'Load the fleet’s models');
   assert.ok(seed, 'the seed should still be offered, so the feature is discoverable');
   assert.equal(seed.disabled, true, 'there is nothing to seed from');
 });
@@ -556,11 +556,11 @@ test('a rejected per-model value is shown beside the editor', async () => {
   const container = document.createElement('div');
   await settings.render(container, ctx);
 
-  container.all('button').find((b) => b.textContent === 'Save').click();
+  container.querySelectorAll('button').find((b) => b.textContent === 'Save').click();
   await flush();
 
   const shown = container
-    .all('div')
+    .querySelectorAll('div')
     .filter((n) => n.className === 'settings-error' && !n.hidden)
     .map((n) => n.textContent);
   assert.ok(shown.some((t) => t.includes('unknown threshold')),

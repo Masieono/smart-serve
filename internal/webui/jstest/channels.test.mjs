@@ -160,7 +160,7 @@ function stubApi(channels, devices = [], requests = null) {
 
 /** The dialog the last `openDialog` opened. */
 function lastDialog() {
-  const dialogs = document.body.all('dialog');
+  const dialogs = document.body.querySelectorAll('dialog');
   return dialogs[dialogs.length - 1];
 }
 
@@ -210,14 +210,14 @@ test('the editor offers the fleet groups and saves the ticked ones', async () =>
   const dialog = lastDialog();
   assert.ok(dialog, 'Edit should have opened a dialog');
 
-  const groups = dialog.all('input').filter((box) => box.dataset.group);
+  const groups = dialog.querySelectorAll('input').filter((box) => box.dataset.group);
   assert.deepEqual(groups.map((box) => box.dataset.group), ['bench', 'spare', 'tank'],
     'the editor should offer every group in the fleet, in the shared stable order');
   assert.ok(groups.every((box) => !box.checked), 'nothing is narrowed by default');
 
   groups.find((box) => box.dataset.group === 'tank').checked = true;
 
-  const save = dialog.all('button').find((b) => b.textContent === 'Save');
+  const save = dialog.querySelectorAll('button').find((b) => b.textContent === 'Save');
   assert.ok(save, 'the dialog should offer Save');
   save.click();
   await flush();
@@ -242,7 +242,7 @@ test('an existing scope is shown as ticked', async () => {
   await render(container, { refresh() {} });
   container.find((n) => n.getAttribute('title') === 'Edit').click();
 
-  const groups = lastDialog().all('input').filter((box) => box.dataset.group);
+  const groups = lastDialog().querySelectorAll('input').filter((box) => box.dataset.group);
   assert.deepEqual(
     groups.filter((box) => box.checked).map((box) => box.dataset.group),
     ['tank'],
@@ -262,7 +262,7 @@ test('a stored scope matches a group whatever the case', async () => {
   await render(container, { refresh() {} });
   container.find((n) => n.getAttribute('title') === 'Edit').click();
 
-  const groups = lastDialog().all('input').filter((box) => box.dataset.group);
+  const groups = lastDialog().querySelectorAll('input').filter((box) => box.dataset.group);
   assert.deepEqual(groups.filter((box) => box.checked).map((box) => box.dataset.group), ['tank']);
 });
 
@@ -277,7 +277,7 @@ test('with no groups at all the editor explains how to get some', async () => {
   container.find((n) => n.getAttribute('title') === 'Edit').click();
 
   const dialog = lastDialog();
-  assert.equal(dialog.all('input').filter((box) => box.dataset.group).length, 0,
+  assert.equal(dialog.querySelectorAll('input').filter((box) => box.dataset.group).length, 0,
     'there are no groups to offer');
   assert.match(textOf(dialog), /No groups yet/, 'the editor should say how to create one');
 });

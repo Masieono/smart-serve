@@ -129,7 +129,7 @@ test('an absent verdict is not rendered as a failure', () => {
   const failed = selfTestLogSection({
     self_test_entries: [{ type: 'Short offline', status: 'Completed: read failure', passed: false }],
   });
-  assert.ok(failed.all('span').some((n) => /log-fail/.test(n.className)),
+  assert.ok(failed.querySelectorAll('span').some((n) => /log-fail/.test(n.className)),
     'a test the drive failed carries no failure marking');
 });
 

@@ -50,7 +50,9 @@ Persistent global elements: **Scan button** (primary action, always reachable),
   it and would get it wrong behind a proxy (`ADR-015`).
 
 URL routing uses hash or path segments (`/`, `/device/{serial}`, `/schedules`, …) so
-views are bookmarkable and the browser back button works.
+views are bookmarkable and the browser back button works. A navigation starts the new
+page at the top — the wordmark and the sidebar entries all go through it — while a
+refresh, a rescan or a scan finishing keeps your place (§8).
 
 ## 3. Layout & responsive behaviour
 

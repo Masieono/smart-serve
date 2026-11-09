@@ -10,7 +10,7 @@ function openConfirm(...args) {
   const promise = confirmDialog(...args);
   const dialog = document.body.firstElementChild;
   assert.ok(dialog, 'a dialog should have been opened');
-  const [cancel, confirm] = dialog.all('button');
+  const [cancel, confirm] = dialog.querySelectorAll('button');
   return { promise, dialog, cancel, confirm };
 }
 
@@ -57,7 +57,7 @@ test('confirmDialog waits for a decision instead of settling on its own', async 
   await new Promise((resolve) => setTimeout(resolve, 25));
   assert.equal(settled, false, 'the promise must not settle before the user decides');
 
-  document.body.firstElementChild.all('button')[1].click();
+  document.body.firstElementChild.querySelectorAll('button')[1].click();
   assert.equal(await promise, true);
 });
 
@@ -92,7 +92,7 @@ test('a press on the backdrop dismisses the dialog', () => {
 test('a drag that starts inside the dialog does not dismiss it', () => {
   installStubDom();
   const dialog = openInBox();
-  const field = dialog.all('div')[0]; // anything inside the box
+  const field = dialog.querySelectorAll('div')[0]; // anything inside the box
 
   // The press lands on a field...
   dialog.dispatch('pointerdown', { ...BACKDROP, target: field });

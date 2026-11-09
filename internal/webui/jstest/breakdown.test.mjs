@@ -70,9 +70,9 @@ const attr = (id, name) => ({ id, name, value: 100, worst: 100, threshold: 0, ra
 /** The "Counted" badges in a table, as the ids they sit on. */
 function countedIds(node) {
   return node
-    .all('tr')
+    .querySelectorAll('tr')
     .filter((row) => textOf(row).includes('Counted'))
-    .map((row) => row.all('td')[0].textContent);
+    .map((row) => row.querySelectorAll('td')[0].textContent);
 }
 
 // Two different claims on one row, and the table has to be able to make both: the drive's own
