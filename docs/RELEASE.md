@@ -68,7 +68,45 @@ side-by-side comparison. `SCOPE.md` Phase 4 is complete and `FEATURES.md` §H ha
   either.
 
 **What the tag is for.** `make ci` green, the changelog section as the release body, and then the one
-thing a tag proves — that the published image reports `1.1.0` in the sidebar rather than `0.0.0-dev`.
+thing a tag proves — that the published image reports *that tag's version* in the sidebar rather than
+`0.0.0-dev`. A `0.0.0-dev` there means the `VERSION` build-arg did not reach the build.
+
+## At v1.2.0
+
+The audit round. A question about reporting partition sizes turned into an audit of what the app
+fetches and then discards, and three things that were being paid for on every scan and never shown are
+now shown (`A28` partition schema and storage usage, `A12` score breakdown, `in_smartctl_database`).
+The ARM pass then turned up two long-standing defects — a self-test progress bar stuck on a stale
+percentage, and a drive page that re-read an unreadable drive forever — both fixed here. Three additive
+migrations (`0015`–`0017`); no schema rewrite, so the v1.1.0 rollback note still holds.
+
+**Deliberately left undone, and where each is recorded:**
+
+- **`D7` localization.** Unchanged from v1.1.0: deferred, not dropped, and still waiting on a
+  translator who will maintain the result (`ADR-023`, `SCOPE.md`).
+- **Error-log entry *lists* are still not rendered.** Unchanged, and still blocked on the same thing —
+  smartctl emits no entry list for an empty log, and no drive available to this project has ever logged
+  an error, so the populated shape has never been observed (`FEATURES.md` A20).
+- **RAID / LVM / ZFS member naming is built and unit-tested but never exercised on real hardware.** The
+  no-partition-table path names a disk by its `blkid` signature — `linux_raid_member`, and so on — and
+  the fixtures prove the naming, but nothing has pulled a disk from an array and opened its page
+  (`TESTING.md` 4.73, `FEATURES.md` A28). This is the weakest claim in the release.
+- **arm64: the two fixed defects need a retest on the Pi**, and **idle-budget acceptance is unmeasured
+  there.** The first RSS sample was 21.97 MiB, above the MVP's under-20-MB criterion — but it was not a
+  controlled idle measurement, and the reference host measures 13.4 MiB. Do not read the release as
+  passing that criterion on ARM until it is measured properly (`TESTING.md` Pass 8).
+- **The image size was last measured at v1.0.0** (14.8 MB content / 53.5 MB on disk, 2026-10-17). This
+  release changes no base image and adds no runtime dependency, so those figures should still hold —
+  but `Dockerfile` installs `smartmontools` and `util-linux` **unpinned**, so the base is not actually
+  frozen. Re-measure before publishing the figures again.
+
+**Closed at this release:** an attribute row can now be marked as one the verdict *read*, via the score
+breakdown's `attribute_id` — the v1.1.0 note asking for it is done (`FEATURES.md` A12).
+
+**Consider a release candidate first.** `v1.2.0-rc1` publishes `1.2.0-rc1` without moving `latest`
+(step 3 above), which is the only way to have the Pi retest the two fixes against a *published*
+artifact rather than a local build — and every ARM check so far has been against a local development
+image. Tag `v1.2.0` once that retest passes.
 
 ## Screenshots to take
 
