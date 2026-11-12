@@ -265,23 +265,17 @@ test('the device page renders rather than throwing', async () => {
 // And the storage summary actually reaching the screen — a page that renders without the feature it
 // was supposed to show would pass the test above.
 //
-// `/47%/` alone could not carry this. The payload's partition also reports 47%, so that assertion was
-// satisfied by the *partition table* while the storage row printed `[object HTMLDivElement]` — a node
-// passed where a string was expected, which prints as its own type name and throws nothing. The bar is
-// now found by its own class, inside the block that owns it, and no stringified node is allowed
-// anywhere on the page.
-test('the storage bar and the partition table reach the page', async () => {
+// Matched as **one string**, which only the Storage row can produce. The partition table on this same
+// page reports the same 47% and the same /mnt/media in separate cells, so asserting either of them
+// on its own was satisfied by the table while the storage row printed `[object HTMLDivElement]` — a
+// node where a string was expected, which renders as its own type name and throws nothing.
+test('the storage figure and the partition table reach the page', async () => {
   const container = await renderDevice(devicePayload());
   const text = textOf(container);
 
   assert.doesNotMatch(text, /\[object /, 'a DOM node was stringified into the page');
-
-  const block = container.find((n) => /(^| )storage-block( |$)/.test(String(n.className)));
-  assert.ok(block, 'the Storage row is not on the page at all');
-  assert.ok(block.find((n) => /(^| )usage-track( |$)/.test(String(n.className))),
-    'the Storage row has no bar in it');
-  assert.match(textOf(block), /47%/, 'the storage bar does not show its figure');
-  assert.match(textOf(block), /\/mnt\/media/, 'the storage bar does not say which filesystem it is');
+  assert.match(text, /Storage used/, 'the Storage row is missing');
+  assert.match(text, /47% \(\/mnt\/media\)/, 'the Storage row does not name its figure and its filesystem');
 
   assert.match(text, /Partitions/, 'the partition card is missing');
   assert.match(text, /EFI System/, 'the partition type is missing');

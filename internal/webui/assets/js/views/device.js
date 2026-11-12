@@ -4,7 +4,7 @@ import {
   fmtMinutes, scoreGrade, convertTemp, convertTempDelta, temperatureUnitName,
 } from '../dom.js';
 import { api } from '../api.js';
-import { verdictBadge, healthGauge, attributeTable, errorBox, openDialog, toast, transportLabel, trendRow, dateAxis, helpButton, partitionTable, sectorLabel, usageBar, outsideContainerNote, setStorageWarnPct, diskMap } from '../components.js';
+import { verdictBadge, healthGauge, attributeTable, errorBox, openDialog, toast, transportLabel, trendRow, dateAxis, helpButton, partitionTable, sectorLabel, outsideContainerNote, setStorageWarnPct, diskMap } from '../components.js';
 import { nvmeHelp } from '../attributes.js';
 import { icon } from '../icons.js';
 import { selfTestCard } from './selftest.js';
@@ -224,7 +224,7 @@ function draw(container, ctx, data, history) {
     // (`FEATURES.md` A28). The fullest filesystem, named, because that is the one that will run out
     // first — and a blended figure across a 20%-full boot partition and a 95%-full data volume would
     // hide exactly the volume somebody needs to be told about.
-    d.storage ? stat('Storage', storageBar(d.storage)) : null,
+    d.storage ? stat('Storage used', storageText(d.storage)) : null,
     stat('Power-on hours', powerOnHours != null ? `${fmtHours(powerOnHours)} (${fmtInt(powerOnHours)} h)` : null),
     stat('Power cycles', m.power_cycles != null ? fmtInt(m.power_cycles) : null),
     stat('Temperature', fmtTemp(d.temperature_c)),
@@ -630,19 +630,13 @@ function advisoryCard(known) {
 /**
  * One labelled fact in a stat grid.
  *
- * `value` is usually a string, but the Storage row leads with a bar (`FEATURES.md` A28) — and a node
- * has to be *appended*, not stringified. `String(node)` is `"[object HTMLDivElement]"`, which is what
- * every drive page showed for its storage figure: the bar was built, passed here, and printed as its
- * own type name. Nothing threw, so nothing said so.
+ * Strings only, deliberately. A node passed here stringifies to its own type name and renders as
+ * `[object HTMLDivElement]` rather than failing, which is exactly how every drive page came to show
+ * that for its storage figure. Every row on these cards is a figure; a caller that wants a graphic
+ * wants a different component.
  */
 function stat(label, value) {
   if (value === null || value === undefined) return null;
-  if (value instanceof Node) {
-    return el('div', {}, [
-      el('span', { class: 'stat-label', text: label }),
-      el('span', { class: 'stat-value' }, [value]),
-    ]);
-  }
   const text = String(value).trim();
   if (text === '' || text === '—') return null;
   return el('div', {}, [
@@ -663,26 +657,29 @@ function statGrid(rows, emptyNote) {
 }
 
 /**
- * The drive's storage as a bar, with the filesystem it belongs to named underneath.
+ * How full the drive is, for the Usage and media card (`FEATURES.md` A28).
  *
- * `storage` is the server's summary of the fullest filesystem (`API.md`): one implementation of
- * "which filesystem is fullest" for the list and this page both, so the two cannot disagree.
+ * A figure, like every other row on this card. It was a bar, and a bar is the wrong shape here: the
+ * only graphic in a column of labels and values, and the Partitions card below already shows fullness
+ * properly — per filesystem, with a table to explain it and room to say which is which. This row's job
+ * is the headline.
  *
- * The mountpoint is shown because "47%" is not actionable on its own — *which* filesystem is at 47%
- * is the difference between a pool with room and a pool with a problem.
+ * The filesystem is named because the figure is the *fullest* one, and "47%" is not actionable on its
+ * own: which filesystem is at 47% is the difference between a pool with room and a pool with a problem.
+ *
+ * `storage` is the server's summary of the fullest filesystem (`API.md`), so the fleet card and this
+ * page cannot disagree about the same drive.
  */
-function storageBar(storage) {
+function storageText(storage) {
   if (!storage) return null;
-  const bar = usageBar(storage.used_pct, {
-    title: storage.total_bytes
-      ? `${fmtBytes(storage.used_bytes)} of ${fmtBytes(storage.total_bytes)} used`
-      : `${storage.used_pct}% used`,
-  });
-  if (!bar) return null;
-  return el('div', { class: 'storage-block' }, [
-    bar,
-    storage.mount ? el('span', { class: 'storage-mount muted', text: storage.mount }) : null,
-  ]);
+  const pct = storage.used_pct;
+  // Checked explicitly, because `Number(null)` and `Number('')` are both 0 — and "0% used" for a drive
+  // nobody could measure is a confident wrong answer rather than a missing one.
+  if (pct === null || pct === undefined || pct === '') return null;
+  const value = Number(pct);
+  if (!Number.isFinite(value)) return null;
+  const clamped = Math.max(0, Math.min(100, Math.round(value)));
+  return storage.mount ? `${clamped}% (${storage.mount})` : `${clamped}%`;
 }
 
 /** "96% remaining (4% used)" — prefers the drive's own life figure. */

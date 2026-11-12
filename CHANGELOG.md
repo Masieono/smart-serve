@@ -42,12 +42,15 @@ discarding silently is not. See `ADR-028`.
 - **A page re-render no longer postpones the self-test poll.** Every render armed a fresh full interval,
   so a page re-rendering more often than the interval never reached a read at all. The deadline is now
   carried across the re-render.
-- **Every drive page printed `[object HTMLDivElement]` for its storage figure.** The Usage and media
-  card leads with a bar (`A28`), and the bar was built, passed to the stat-grid helper, and stringified
-  there — a node where a string was expected prints as its own type name, and throws nothing. The test
-  that should have caught it asserted the figure `47%` was on the page, which the *partition table* also
-  reports, so it passed for the wrong reason. The helper appends a node now, and the test looks for the
-  bar inside the row that owns it and refuses a stringified node anywhere on the page.
+- **Every drive page printed `[object HTMLDivElement]` for its storage figure.** The Usage and media card
+  led with a bar (`A28`), and the bar — a node — was passed to the stat-grid helper, which only ever took
+  strings and stringified it. Nothing threw, so the row rendered its own type name and the bar had never
+  once appeared. It is now a **figure**, like every other row on that card: the percentage with the
+  filesystem that decides it in brackets. A fullness *bar* belongs in the Partitions card, which has a
+  table to say which filesystem is which. The test that should have caught this asserted `47%` was on the
+  page — which the *partition table* also reports, in a cell of its own — so it passed for the wrong
+  reason; it now matches the row's figure and filesystem as one string, and refuses a stringified node
+  anywhere on the page.
 - **Pointing at a partition on the disk map marked nothing.** The segment called a traversal helper that
   exists only in the test double, not in a browser, so the row it stood for was never marked while every
   test stayed green. It uses the DOM's own `querySelectorAll`, and the double no longer offers a method
@@ -127,10 +130,12 @@ discarding silently is not. See `ADR-028`.
 
 ### Changed
 
-- **Storage is now a bar, on the fleet card and the drive page** (`A28`) — "how full is this drive?" is
-  a proportion, and a proportion is read faster as a length than as two byte counts. The figure is the
-  **fullest** filesystem, named, because that is the one that runs out first; it is chosen server-side
-  and sent to both pages, so the fleet card and the drive page cannot disagree about the same drive. The
+- **Storage is now a bar on the fleet card** (`A28`) — "how full is this drive?" is a proportion, and a
+  proportion is read faster as a length than as two byte counts. The figure is the **fullest** filesystem,
+  named, because that is the one that runs out first; it is chosen server-side and sent to both pages, so
+  the fleet card and the drive page cannot disagree about the same drive. The drive page's Usage and media
+  card carries the same figure as **text**, not a bar: that card is a column of labels and values, and the
+  Partitions card below it already shows fullness per filesystem, with a table to say which is which. The
   bar is deliberately **one colour**: turning amber at 85% would be the browser re-deriving "is this
   bad?" while the verdict is computed server-side, and the two could contradict each other on the same
   screen.

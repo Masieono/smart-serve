@@ -931,20 +931,8 @@ tr.is-hover > td:first-child {
   white-space: nowrap;
 }
 
-/* The drive's storage on the device page: the bar, with the filesystem it belongs to under it. */
-.storage-block {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-  min-width: 8rem;
-}
-
-.storage-mount {
-  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
-  font-size: var(--text-xs);
-}
-
-/* And on the fleet card, where the bar spans the card under the facts. */
+/* The drive's storage on the fleet card, where the bar spans the card under the facts. The drive
+   page shows the same figure as text in its stat grid, so there is no bar to lay out there. */
 .device-card-storage {
   padding: 0 var(--space-4) var(--space-3);
 }

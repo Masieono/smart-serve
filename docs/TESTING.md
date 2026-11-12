@@ -131,7 +131,7 @@ and 7.5 can, with no hardware change — which is why the two are reported separ
 | 4.27 | Look at the Used column. | A **bar** with the percentage, not a bare number |
 | 4.28 | Open a drive whose filesystem the container can see, and check the fleet card. | A storage bar under the card's facts, with the mountpoint it belongs to |
 | 4.29 | Compare the fleet card's storage figure with the drive page's. | Identical — both come from the server's "fullest filesystem" |
-| 4.30 | Open the drive page's Usage and media card. | **Storage** leads the card as a bar, with the filesystem named underneath |
+| 4.30 | Open the drive page's Usage and media card. | **Storage used** is a figure — the percentage with the filesystem it belongs to in brackets — not a bar |
 | 4.31 | Look at a partition holding a volume group (no filesystem). | "Linux LVM" under the dash in the Filesystem cell, not in a column of its own |
 | 4.32 | Open **Details** under the partition table. | Sector sizes, TRIM, partition table type, **approximate** unallocated space, and the outside-container explanation if any |
 | 4.33 | Scan the same drive twice, a day apart. | The trend card gains a **Storage** row, with the delta in *points* |

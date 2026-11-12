@@ -365,11 +365,12 @@ picker offers exactly `ThemeNames`.
   speed, transport, rotation, removable, WWN, device path.
 - **Usage and media card:** power-on hours, power cycles, temperature, total data
   read / written, life remaining, mountpoints, filesystem, first seen, last scanned.
-  **Storage leads the card as a bar** (`FEATURES.md` A28) — how full the drive is, with the
-  filesystem it belongs to named underneath, because "47%" is not actionable until you know
-  *what* is at 47%. The figure is the fullest filesystem, chosen server-side (`API.md`), so
-  this card and the fleet card cannot disagree. The same bar appears on each fleet card,
-  under the facts.
+  **Storage used** (`FEATURES.md` A28) is a **figure like every other row here** — the percentage
+  with the filesystem that decides it in brackets, because "47%" is not actionable until you know
+  *what* is at 47%. It is the fullest filesystem, chosen server-side (`API.md`), so this card and
+  the fleet card cannot disagree. The *bar* belongs on the fleet card, under the facts, and in the
+  Partitions card where there is a table to say which filesystem is which — a bar was the only
+  graphic in a column of labels and values, and read as a different kind of thing bolted on.
   Throughput and power figures come from the API's derived `metrics` block
   (`API.md`), so ATA and NVMe drives read identically.
 - **Outlook** (`.projection`, at the foot of the Usage card): the longevity estimate from
