@@ -9,7 +9,7 @@ at ~0% CPU and ~10–15 MB RAM. It only wakes up when you look at it, when you p
 **Scan**, or when a scheduled scan fires. No polling loops, no metrics scrapers, no
 database daemon.
 
-![The dashboard: one card per drive, with verdict, score and last scan](docs/images/dashboard.png)
+![The dashboard: one card per drive, with verdict, score, storage and last scan](docs/images/dashboard.png)
 
 ## Feature highlights
 
@@ -48,17 +48,23 @@ database daemon.
 
 **A device page** — verdict, score, identity, usage, and the trend sparklines.
 
-![The device page for a Samsung SSD](docs/images/device-page.png)
+![The device page for a drive](docs/images/device-page.png)
+
+**Partitions** — a map of the disk above the table of what is on it. The two are linked **both ways**:
+point at a segment and the row it stands for is marked; point at a row and the segment is.
+
+![The partition card: a disk map above a table of partitions](docs/images/partitions.png)
 
 **Attribute help** — every attribute the interpreter acts on carries a `?` explaining what it is
 and how to read it.
 
 ![An attribute explanation open over the attribute table](docs/images/attribute-explanation.png)
 
-**A self-test running** — the one place the UI reads a drive live, and only while a test it
-started is still running.
+**The self-test card** — a test is started from here, and its progress and history appear in the same
+card. This is the one place the UI reads a drive live, and only while a test it started is still
+running.
 
-![The self-test card mid-test, with progress and a Stop test button](docs/images/selftest-progress.png)
+![The self-test card, with the test buttons and the drive's own self-test log](docs/images/selftest-card.png)
 
 ## Quick start
 
@@ -187,11 +193,11 @@ instance with no browser open: **0.00% CPU, 13.4 MiB RSS**.
 
 **ARM verification is partial.** On a Pi 5 running DietPi, native arm64 execution, startup health,
 a full container SMART read through USB SAT and app identity/attribute checks are confirmed for
-the tested disk (2026-11-08). The first process RSS sample was **21.97 MiB**; the idle figure above
-is from the earlier validation host. That session surfaced two defects — a self-test progress bar
-stuck at a percentage the drive's own log had moved past, and an SD-card page that re-read itself
-in a loop — **both fixed and awaiting a retest on the Pi**. Stability and broader feature checks
-remain open. See [the ARM test record](docs/TESTING.md#pass-8--arm64-raspberry-pi).
+the tested disk. Two defects that host surfaced — a self-test progress bar stuck at a percentage the
+drive's own log had moved past, and an SD-card page that re-read itself in a loop — are **fixed and
+retested on both architectures**. Idle CPU is confirmed near zero; the idle memory figure is not
+measurable on that host. Overnight stability and NVMe checks remain open. See
+[the ARM test record](docs/TESTING.md#pass-8--arm64-raspberry-pi).
 
 ## License
 

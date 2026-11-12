@@ -91,10 +91,12 @@ migrations (`0015`–`0017`); no schema rewrite, so the v1.1.0 rollback note sti
   no-partition-table path names a disk by its `blkid` signature — `linux_raid_member`, and so on — and
   the fixtures prove the naming, but nothing has pulled a disk from an array and opened its page
   (`TESTING.md` 4.73, `FEATURES.md` A28). This is the weakest claim in the release.
-- **arm64: the two fixed defects need a retest on the Pi**, and **idle-budget acceptance is unmeasured
-  there.** The first RSS sample was 21.97 MiB, above the MVP's under-20-MB criterion — but it was not a
-  controlled idle measurement, and the reference host measures 13.4 MiB. Do not read the release as
-  passing that criterion on ARM until it is measured properly (`TESTING.md` Pass 8).
+- **arm64 idle-memory acceptance is unmeasured**, and cannot be measured on that host as things stand —
+  `docker stats` reports `0B / 0B` there. CPU is confirmed near zero (about 0.02% over an idle minute,
+  with the scan count unchanged). The process's own `VmRSS` is 21.25 MiB, which is *not* the metric the
+  under-20-MB criterion names: on the amd64 host the same build reads **18.4 MiB** by `docker stats` and
+  **30.0 MiB** by `VmRSS`. Read the container's cgroup for a comparable figure (`TESTING.md` Pass 8).
+  The two defects this host found are fixed and **retested on 2026-11-11**, on both architectures.
 - **The image size was last measured at v1.0.0** (14.8 MB content / 53.5 MB on disk, 2026-10-17). This
   release changes no base image and adds no runtime dependency, so those figures should still hold —
   but `Dockerfile` installs `smartmontools` and `util-linux` **unpinned**, so the base is not actually
@@ -108,20 +110,23 @@ breakdown's `attribute_id` — the v1.1.0 note asking for it is done (`FEATURES.
 artifact rather than a local build — and every ARM check so far has been against a local development
 image. Tag `v1.2.0` once that retest passes.
 
-## Screenshots to take
+## Screenshots
 
-Needed for the README and for the release announcement. In priority order:
+The README's set, cropped to the app viewport and committed to `docs/images/`:
 
-1. **Dashboard** with several drives attached — verdict badges, health gauges, and the
-   clickable health summary beside the search box. This is the hero shot.
-2. **Device page, top half** — verdict, score and grade, the identity grid, temperature.
-3. **Attribute table with a `?` explanation open** (`FEATURES.md` A12). This is the most
-   distinctive thing the app does, and it is invisible in every other screenshot.
-4. **Trend sparklines** with a hover readout showing value, date and time.
-5. **A notification** — either the message as received, or the channel editor.
+| File | Shows |
+|---|---|
+| `dashboard.png` | The fleet: verdict badges, scores, the storage bar on each card, the last-scan line, the health summary |
+| `device-page.png` | A drive's top half: verdict, score and grade, identity, temperature, the scan age beside the name |
+| `partitions.png` | The partition card: the disk map above the table, linked both ways |
+| `attribute-explanation.png` | A `?` explanation open over the attribute table |
+| `selftest-card.png` | The self-test card: the buttons and the drive's own self-test log |
 
-Store them in `docs/images/` and reference them from `README.md`. Keep them at a consistent
-width and theme; the dark theme shows the palettes off best.
+**Take them as viewport captures, not full screens**, so no cropping is needed — Firefox's right-click
+*Take Screenshot* → *Save visible*, or Chrome DevTools → `Ctrl+Shift+P` → *Capture screenshot*. Keep
+them at one consistent window size (the committed ones are 1900×965) and on the dark theme, which
+shows the palettes off best. Full-screen captures with browser chrome in them go in
+`temp screenshots/`, which is gitignored and keeps them out of the history.
 
 ## Image size
 
@@ -153,29 +158,23 @@ three device-access gates is closed if it cannot (`DEPLOYMENT.md`).
 
 ## arm64 verification (Raspberry Pi)
 
-**Current status (2026-11-08): partial hardware verification on Raspberry Pi 5 / DietPi.**
-Native `linux/arm64` execution, the reference device-access configuration, startup probe,
-HTTP health, USB SAT auto-detection and a full container SMART read of the attached WDC disk are
-confirmed. The operator also verified the app's model, serial, 17 attributes and selected raw
-values after a completed scan, with no apparent errors. The local development image reports
-`v1.1.0-23-g949fbd6`. This is not verification of the published GHCR image or full amd64 parity.
-A later direct read confirmed a short self-test completed without error. Automatic UI completion
-failed: 90% left and **Stop test** persisted after waiting/reloading. The live API returned the
-completed history with no `running` field, while the saved record contained 90% progress and an
-unread-log flag — and **that pairing was the bug, which is now fixed**: the flag was raised for a
-log the app reads (`ata_smart_selective_self_test_log`), and the card skipped its live read because
-of it. **Manual recovery passed:** after **Scan now**, idle controls and successful history returned
-and persisted after reload. The same symptom is reported on amd64, so an ARM-specific cause was
-never in play. A second failed check concerns the SD-card page: opening it caused flicker and
-repeated `0/1 readable` scan toasts. The captured `last_scan: null`, device-type detection error and
-five failed device reads in the same displayed second pinned that to the staleness re-read —
-**also fixed**, now one attempt per refresh window per drive. This second symptom has only been
-reported on the Pi. Both fixes need a retest on this hardware.
+**Current status (2026-11-11): verified in part on Raspberry Pi 5 / DietPi.** Native `linux/arm64`
+execution, the reference device-access configuration, startup probe, HTTP health, USB SAT
+auto-detection and a full container SMART read of the attached WDC disk are confirmed, as are the app's
+model, serial, 17 attributes and selected raw values after a completed scan. This is not verification of
+the published GHCR image, nor full amd64 parity.
 
-[TESTING.md Pass 8](TESTING.md#pass-8--arm64-raspberry-pi) holds the dated evidence, image ID,
-individual test statuses and the single next check. Keep that record authoritative rather than
-duplicating the checklist here. A first process RSS sample is **21.97 MiB**, above the stated
-under-20-MB target; controlled idle conditions and overnight stability have not been measured.
+The 2026-11-08 session on this host (then `v1.1.0-23-g949fbd6`) turned up two defects — a short test
+whose progress never cleared, and an SD-card page that re-read itself in a loop. Both were diagnosed
+from that session's own captures, fixed, and **retested on 2026-11-11 against `v1.1.0-28-g6fee3dc`, on
+this Pi and on amd64 — both pass.** The retest ran against a local build of the fixes rather than the
+published image.
+
+**Still open:** the idle *memory* figure, which this host cannot report at all (CPU is confirmed near
+zero), overnight stability, NVMe, and restart/reboot persistence.
+
+[TESTING.md Pass 8](TESTING.md#pass-8--arm64-raspberry-pi) holds the dated evidence, image IDs and
+per-check statuses. Keep that record authoritative rather than duplicating the checklist here.
 
 For further verification:
 

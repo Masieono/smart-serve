@@ -79,17 +79,16 @@ long-running instance with no browser open, `docker stats` reports **0.00% CPU**
 **13.36 MiB** RSS — inside the "near zero" and "under 20 MB" the MVP was written against. See
 `RELEASE.md` for how to re-measure.
 
-**ARM coverage (2026-11-08): partial.** The Pi 5 / DietPi development deployment confirms native
-arm64 execution, startup health and a full container SMART read through USB SAT. After an app scan,
-the operator verified the tested disk's model, serial, 17 attributes and selected raw values, with
-no apparent errors. Its first process RSS sample is **21.97 MiB**; the resource figures above are
-not measurements from this Pi. That session surfaced two defects — the self-test progress bar sticking
-at a percentage the drive's own log had already moved past, and an SD-card page that re-read itself in
-a loop — **both fixed and awaiting a retest on this hardware**. Returning to the dashboard stops the
-loop, which is the workaround for any build without the fix. The next check compares dashboard health
-and disconnected-device display with the API. Controlled idle-budget acceptance, persistence across
-restart/reboot, overnight stability and broader parity remain unverified.
-[TESTING.md Pass 8](TESTING.md#pass-8--arm64-raspberry-pi) records the evidence and next test.
+**ARM coverage (2026-11-11): verified in part.** The Pi 5 / DietPi development deployment confirms
+native arm64 execution, startup health and a full container SMART read through USB SAT. After an app
+scan, the operator verified the tested disk's model, serial, 17 attributes and selected raw values, with
+no apparent errors. The 2026-11-08 session surfaced two defects — the self-test progress bar sticking at
+a percentage the drive's own log had already moved past, and an SD-card page that re-read itself in a
+loop — **both fixed and retested on this hardware and on amd64**. Idle CPU is confirmed near zero
+(about 0.02%); the idle *memory* figure is still not measurable here, because this host reports no usable
+Docker memory number (see `TESTING.md` Pass 8). Overnight stability, NVMe and restart/reboot checks
+remain unverified.
+[TESTING.md Pass 8](TESTING.md#pass-8--arm64-raspberry-pi) records the evidence and what is left.
 
 **Documentation corrected for the public release.** Three claims did not match the code and
 were fixed rather than carried into a release: the image is Alpine, not distroless

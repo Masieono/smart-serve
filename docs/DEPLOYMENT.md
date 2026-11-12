@@ -389,13 +389,14 @@ So the app can be developed and previewed outside a deployment host:
 
 ### A Raspberry Pi as a development host
 
-**Verified in part on a Pi 5 running DietPi, as of 2026-11-08.** The development container runs
+**Verified in part on a Pi 5 running DietPi, as of 2026-11-11.** The development container runs
 natively on arm64, reports healthy, reads the attached USB SATA disk's full SMART data through SAT,
 and an app scan shows the matching model, serial and 17 attributes with the selected raw values
-verified. That session surfaced two defects — a self-test progress bar stuck at a percentage the
-drive's own log had moved past, and an SD-card page that re-read itself in a loop — **both fixed,
-both awaiting a retest on the Pi**. Stability checks remain pending. Results and the next check are
-in [TESTING.md Pass 8](TESTING.md#pass-8--arm64-raspberry-pi).
+verified. Two defects this host surfaced — a self-test progress bar stuck at a percentage the drive's
+own log had moved past, and an SD-card page that re-read itself in a loop — are **fixed and retested
+here**. Idle CPU is near zero; the idle memory figure is not measurable on this host. Overnight
+stability and NVMe checks remain pending. Results are in
+[TESTING.md Pass 8](TESTING.md#pass-8--arm64-raspberry-pi).
 
 Use a 64-bit Linux installation. Check `uname -m` (`aarch64`), `getconf LONG_BIT` (`64`), and
 the Docker server/image architecture; the image must be `linux/arm64`. No ARMv7 image is published.
