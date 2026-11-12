@@ -18,7 +18,7 @@ so. A blank Notes cell means the entry predates the column, not that the feature
 |---|---|---|
 | `D7` localization | `SCOPE.md`, `ADR-023` | Deferred, not dropped: extracting every string and keeping every locale in step is only worth doing for a translator who will maintain the result |
 | Error-log **entry lists** (`A20`) | §A20 above | The counts and the self-test entries are shown; smartctl emits no list at all for an empty log, and neither drive available here has ever logged an error, so the populated shape has never been captured |
-| arm64 on real hardware | [TESTING.md Pass 8](TESTING.md#pass-8--arm64-raspberry-pi), `SCOPE.md`, `RELEASE.md` | **Partial verification on Pi 5 / DietPi (2026-11-08):** native arm64 execution, startup health, a full container SMART read through USB SAT, and identity/attribute checks confirmed for the tested disk. First process RSS sample **21.97 MiB**, not a controlled idle result. That session surfaced two defects — the self-test progress bar sticking at a percentage the drive's own log had already moved past, and an SD-card page that re-read itself in a loop — **both fixed and awaiting a retest on the Pi**. The same self-test symptom is reported on amd64, so it was never ARM-specific. Idle-budget acceptance, overnight stability and broader parity remain open. |
+| arm64 on real hardware | [TESTING.md Pass 8](TESTING.md#pass-8--arm64-raspberry-pi), `SCOPE.md`, `RELEASE.md` | **Partial verification on Pi 5 / DietPi (2026-11-08):** native arm64 execution, startup health, a full container SMART read through USB SAT, and identity/attribute checks confirmed for the tested disk. That session surfaced two defects — the self-test progress bar sticking at a percentage the drive's own log had already moved past, and an SD-card page that re-read itself in a loop — **both fixed and retested on 2026-11-11, on the Pi and on amd64**. The self-test symptom was never ARM-specific. Idle-budget acceptance, overnight stability and broader parity remain open. |
 | Multi-user accounts / roles | `SCOPE.md` Phase 3 | **Conflicts with `D23`** — authentication is delegated to a reverse proxy, so this needs that decision revisited rather than built |
 
 Everything else recorded in these documents is either shipped or an **explicit non-goal** — writing
@@ -164,11 +164,14 @@ it cannot wake a sleeping drive, because it only ever looks at drives already wo
 document and writes three columns rather than a whole row, so it does not fight a scan; and it stops by
 itself when the last test ends, because the query it runs then returns nothing.
 
-**The disk map answers a mouse immediately, and points at the table.** The browser's own tooltip takes
-about a second to appear, which is wrong for something you sweep across, so the label is the app's own.
-Pointing at a segment also marks the table row it stands for — matched by the drive's own name for the
-partition rather than by position, because a table carrying logical volumes has more rows than the map
-has segments, deliberately so. The heading carries only a count.
+**The disk map answers a mouse immediately, and is linked to the table both ways.** The browser's own
+tooltip takes about a second to appear, which is wrong for something you sweep across, so the label is
+the app's own. Pointing at a segment marks the table row it stands for, and pointing at a row marks the
+segment it came from — the same link in both directions, so the bar and the list read as one thing
+whichever end you start from. Matched by the drive's own name for the partition rather than by position,
+because a table carrying logical volumes has more rows than the map has segments, deliberately so — and
+a row with no segment (a volume group, which the map does not draw) simply marks nothing. The heading
+carries only a count.
 
 **A drive's data is re-read when it has gone stale.** Opening a drive page whose last scan is older
 than `device_refresh_minutes` (default 15) reads *that drive* and redraws — one smartctl call, not a

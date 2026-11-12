@@ -945,7 +945,7 @@ export function noPartitionsNote(layout) {
  * emptied: an empty column is a worse way to say "you asked not to see this" than no column.
  */
 export function partitionTable(layout, opts = {}) {
-  const { showUsage = true } = opts;
+  const { showUsage = true, onHover = null } = opts;
   const partitions = (layout && layout.partitions) || [];
   if (!partitions.length) {
     return el('p', { class: 'muted', text: noPartitionsNote(layout) });
@@ -993,10 +993,22 @@ export function partitionTable(layout, opts = {}) {
     // value, so pointing at one marks the other. Keyed by the drive's own name for the partition
     // rather than by row order, because a table with logical volumes in it has more rows than the map
     // has segments — deliberately so.
-    return el('tr', {
+    const row = el('tr', {
       class: p.read_only ? 'part-readonly' : null,
       'data-partition': p.name,
     }, cells);
+
+    // The table's half of the same link, in the other direction: pointing at a row marks the segment
+    // it came from. `mouseenter`/`mouseleave` rather than the bubbling pair, because a row is mostly
+    // cells and the bubbling pair fires again on every cell the pointer crosses.
+    //
+    // A row with no segment — a logical volume inside a partition, which the map deliberately does
+    // not draw — simply marks nothing, which is the honest answer.
+    if (onHover) {
+      row.addEventListener('mouseenter', () => onHover(p.name));
+      row.addEventListener('mouseleave', () => onHover(null));
+    }
+    return row;
   });
 
   return el('div', { class: 'table-wrap' }, [

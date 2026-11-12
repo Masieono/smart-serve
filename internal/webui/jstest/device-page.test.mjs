@@ -264,11 +264,25 @@ test('the device page renders rather than throwing', async () => {
 
 // And the storage summary actually reaching the screen — a page that renders without the feature it
 // was supposed to show would pass the test above.
+//
+// `/47%/` alone could not carry this. The payload's partition also reports 47%, so that assertion was
+// satisfied by the *partition table* while the storage row printed `[object HTMLDivElement]` — a node
+// passed where a string was expected, which prints as its own type name and throws nothing. The bar is
+// now found by its own class, inside the block that owns it, and no stringified node is allowed
+// anywhere on the page.
 test('the storage bar and the partition table reach the page', async () => {
-  const text = textOf(await renderDevice(devicePayload()));
+  const container = await renderDevice(devicePayload());
+  const text = textOf(container);
 
-  assert.match(text, /47%/, 'the storage bar is missing');
-  assert.match(text, /\/mnt\/media/, 'the storage bar does not say which filesystem it is');
+  assert.doesNotMatch(text, /\[object /, 'a DOM node was stringified into the page');
+
+  const block = container.find((n) => /(^| )storage-block( |$)/.test(String(n.className)));
+  assert.ok(block, 'the Storage row is not on the page at all');
+  assert.ok(block.find((n) => /(^| )usage-track( |$)/.test(String(n.className))),
+    'the Storage row has no bar in it');
+  assert.match(textOf(block), /47%/, 'the storage bar does not show its figure');
+  assert.match(textOf(block), /\/mnt\/media/, 'the storage bar does not say which filesystem it is');
+
   assert.match(text, /Partitions/, 'the partition card is missing');
   assert.match(text, /EFI System/, 'the partition type is missing');
 });

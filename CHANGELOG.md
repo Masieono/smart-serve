@@ -42,6 +42,12 @@ discarding silently is not. See `ADR-028`.
 - **A page re-render no longer postpones the self-test poll.** Every render armed a fresh full interval,
   so a page re-rendering more often than the interval never reached a read at all. The deadline is now
   carried across the re-render.
+- **Every drive page printed `[object HTMLDivElement]` for its storage figure.** The Usage and media
+  card leads with a bar (`A28`), and the bar was built, passed to the stat-grid helper, and stringified
+  there — a node where a string was expected prints as its own type name, and throws nothing. The test
+  that should have caught it asserted the figure `47%` was on the page, which the *partition table* also
+  reports, so it passed for the wrong reason. The helper appends a node now, and the test looks for the
+  bar inside the row that owns it and refuses a stringified node anywhere on the page.
 - **Pointing at a partition on the disk map marked nothing.** The segment called a traversal helper that
   exists only in the test double, not in a browser, so the row it stood for was never marked while every
   test stayed green. It uses the DOM's own `querySelectorAll`, and the double no longer offers a method
@@ -72,8 +78,9 @@ discarding silently is not. See `ADR-028`.
   drives that are already mid-test, on the self-test refresh interval, and pushes the change over SSE.
   It cannot wake a sleeping drive, and it idles without touching anything when nothing is testing.
 - **The disk map answers a mouse immediately** (`FEATURES.md` A28) — the label appears at once rather
-  than after the browser's own tooltip delay, and pointing at a segment highlights the table row it
-  stands for, so the bar and the partition list are visibly the same thing.
+  than after the browser's own tooltip delay, and the map and the partition list are linked **both
+  ways**: pointing at a segment highlights the row it stands for, and pointing at a row highlights the
+  segment it came from.
 - **The self-test log lives in the Self-test card** (`FEATURES.md` A20) — with the buttons that start a
   test and the progress of the one running. History is a labelled table under a rule, and the newest
   result is simply its first row: one subject, one place. The Drive logs card keeps the summary counts

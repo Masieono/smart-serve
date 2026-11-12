@@ -627,8 +627,22 @@ function advisoryCard(known) {
   ]);
 }
 
+/**
+ * One labelled fact in a stat grid.
+ *
+ * `value` is usually a string, but the Storage row leads with a bar (`FEATURES.md` A28) — and a node
+ * has to be *appended*, not stringified. `String(node)` is `"[object HTMLDivElement]"`, which is what
+ * every drive page showed for its storage figure: the bar was built, passed here, and printed as its
+ * own type name. Nothing threw, so nothing said so.
+ */
 function stat(label, value) {
   if (value === null || value === undefined) return null;
+  if (value instanceof Node) {
+    return el('div', {}, [
+      el('span', { class: 'stat-label', text: label }),
+      el('span', { class: 'stat-value' }, [value]),
+    ]);
+  }
   const text = String(value).trim();
   if (text === '' || text === '—') return null;
   return el('div', {}, [
@@ -1474,8 +1488,20 @@ export function diskLayoutCard(layout, opts) {
   if (!layout) return null;
   const { showUsage = true } = opts || {};
   const partitions = layout.partitions || [];
-  const table = partitionTable(layout, { showUsage });
-  const map = showUsage ? diskMap(layout, {
+
+  // The map and the table mark each other, and only one of them can be built first — so the callbacks
+  // close over a binding filled in below. They run on hover, long after both exist.
+  let map = null;
+  const table = partitionTable(layout, {
+    showUsage,
+    // Pointing at a row marks the segment it came from. Both ends are marked rather than just the
+    // segment, so a row reached from the table looks exactly like one reached from the map.
+    onHover: (name) => {
+      highlightPartitionRow(table, name);
+      highlightSegment(map, name);
+    },
+  });
+  map = showUsage ? diskMap(layout, {
     // Pointing at a segment highlights the row it stands for. The map is the shape and the table is
     // the detail; without this the reader has to match a bar to a path by eye.
     onHover: (name) => highlightPartitionRow(table, name),
@@ -1509,6 +1535,24 @@ function highlightPartitionRow(table, name) {
     const classes = String(row.className || '').split(/\s+/).filter((c) => c && c !== 'is-hover');
     if (name && row.getAttribute('data-partition') === name) classes.push('is-hover');
     row.className = classes.join(' ');
+  }
+}
+
+/**
+ * Marks the map segment for a partition, or clears every mark when `name` is null.
+ *
+ * The other half of `highlightPartitionRow`, matched the same way — by the drive's own name for the
+ * partition, which the segment and the row both carry. The free-space segment carries no
+ * `data-partition`, so it is never marked, which is right: it is not a partition.
+ *
+ * A no-op when there is no map, which is the case when the usage column is switched off.
+ */
+function highlightSegment(map, name) {
+  if (!map || !map.querySelectorAll) return;
+  for (const seg of map.querySelectorAll('.disk-segment')) {
+    const classes = String(seg.className || '').split(/\s+/).filter((c) => c && c !== 'is-hover');
+    if (name && seg.getAttribute('data-partition') === name) classes.push('is-hover');
+    seg.className = classes.join(' ');
   }
 }
 

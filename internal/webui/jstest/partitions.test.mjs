@@ -316,6 +316,66 @@ test('pointing at a segment marks the row it stands for', () => {
   assert.equal(rows.filter((r) => /is-hover/.test(r.className)).length, 0);
 });
 
+// The same link in the other direction, and the one that makes the card readable: pointing at a row
+// marks the segment it came from. Without it the map is a decoration you have to decode by eye from
+// the table above it.
+test('pointing at a row marks the segment it came from', () => {
+  const layout = mapped([
+    { top_level: true, name: '/dev/sdb1', size_bytes: 400 * GIB, use_percent: '20%' },
+    { top_level: true, name: '/dev/sdb2', size_bytes: 600 * GIB, use_percent: '80%' },
+    { name: '/dev/mapper/vg-data', size_bytes: 500 * GIB, use_percent: '90%' },
+  ], 1000 * GIB);
+
+  const card = diskLayoutCard(layout, { showUsage: true });
+  const segs = card.querySelectorAll('div').filter((n) => /(^| )disk-segment( |$)/.test(n.className));
+  const rows = card.querySelectorAll('tr').filter((r) => r.getAttribute('data-partition'));
+  const rowFor = (name) => rows.find((r) => r.getAttribute('data-partition') === name);
+
+  rowFor('/dev/sdb2').dispatch('mouseenter');
+  const marked = segs.filter((s) => /is-hover/.test(s.className));
+  assert.equal(marked.length, 1, `${marked.length} segments were marked, want exactly one`);
+  assert.equal(marked[0].getAttribute('data-partition'), '/dev/sdb2');
+
+  // The row is marked too, so a row reached from the table looks exactly like one reached from the map.
+  assert.equal(rows.filter((r) => /is-hover/.test(r.className)).length, 1);
+
+  // And letting go clears both ends.
+  rowFor('/dev/sdb2').dispatch('mouseleave');
+  assert.equal(segs.filter((s) => /is-hover/.test(s.className)).length, 0);
+  assert.equal(rows.filter((r) => /is-hover/.test(r.className)).length, 0);
+});
+
+// A logical volume has a row and no segment — the map deliberately draws only top-level partitions —
+// so pointing at it marks nothing rather than marking the wrong segment or throwing.
+test('pointing at a row with no segment marks nothing', () => {
+  const layout = mapped([
+    { top_level: true, name: '/dev/sdb1', size_bytes: 400 * GIB, use_percent: '20%' },
+    { name: '/dev/mapper/vg-data', size_bytes: 500 * GIB, use_percent: '90%' },
+  ], 1000 * GIB);
+
+  const card = diskLayoutCard(layout, { showUsage: true });
+  const segs = card.querySelectorAll('div').filter((n) => /(^| )disk-segment( |$)/.test(n.className));
+  const rows = card.querySelectorAll('tr').filter((r) => r.getAttribute('data-partition'));
+
+  rows.find((r) => r.getAttribute('data-partition') === '/dev/mapper/vg-data').dispatch('mouseenter');
+  assert.equal(segs.filter((s) => /is-hover/.test(s.className)).length, 0,
+    'a volume group is not a partition and the map has no segment for it');
+});
+
+// The usage column being off means there is no map at all, and a row hover must not throw on the way
+// to marking nothing.
+test('hovering a row is safe when the map is switched off', () => {
+  const layout = mapped([
+    { top_level: true, name: '/dev/sdb1', size_bytes: 400 * GIB, use_percent: '20%' },
+  ], 1000 * GIB);
+
+  const card = diskLayoutCard(layout, { showUsage: false });
+  const rows = card.querySelectorAll('tr').filter((r) => r.getAttribute('data-partition'));
+  rows[0].dispatch('mouseenter');
+  rows[0].dispatch('mouseleave');
+  assert.ok(true, 'no throw');
+});
+
 // The heading used to carry the partition count on its own — a bare number with nothing saying what it
 // counted. The map answers the question the count was reaching for, and a number nobody can label is
 // not worth a corner of the card.

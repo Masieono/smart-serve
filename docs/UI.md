@@ -399,7 +399,11 @@ picker offers exactly `ThemeNames`.
   outside the container says **not visible**, with the explanation and the compose fix in **Details**
   rather than as a paragraph under the table. **Details**, collapsed, also holds the sector sizes
   (512e / 4Kn), TRIM support, the partition table type and the approximate unallocated space. Two
-  settings turn the card and the column off (`show_partitions`, `show_usage`).
+  settings turn the card and the column off (`show_partitions`, `show_usage`). Above the table sits the
+  **disk map** (`FEATURES.md` A28): one segment per top-level partition, sized by its share of the disk,
+  with the partition's own fullness filled in from the left. The map and the table are **linked both
+  ways** — pointing at a segment marks the row it stands for, and pointing at a row marks the segment it
+  came from — which is what makes the bar and the list read as one thing rather than two.
 - **Drives with no S.M.A.R.T. reading:** the page shows a **notice** — a neutral panel,
   not an error box — and it distinguishes two situations that smartctl reports
   identically (`smart_cause`, `API.md`):
