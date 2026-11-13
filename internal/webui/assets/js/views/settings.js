@@ -698,7 +698,7 @@ function draw(container, ctx, data, page, { carried = {}, unit: unitOverride } =
     // Only the page's own sections are mounted. Everything above is built either way — it is DOM, not
     // requests — but a section nobody is looking at is never read, and `fieldsFor` only asks its own
     // page.
-    el('div', { class: 'card stack panel-wide settings-sheet' }, {
+    el('div', { class: 'card stack settings-sheet' }, {
       thresholds: [thresholdsSection()],
       notifications: [notificationsSection()],
       appearance: [appearanceSection()],

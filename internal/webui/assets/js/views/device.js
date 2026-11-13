@@ -304,67 +304,81 @@ function draw(container, ctx, data, history) {
       ackNotice(d),
     ]),
 
-    el('div', { class: 'panel-grid panel-grid-pair' }, [
+    // Two independent columns, not a grid of rows. A grid row is as tall as its tallest card, so the
+    // shorter card beside it leaves a hole underneath — and this page pairs cards of very different
+    // heights, so the holes were large. In a column, a card is followed immediately by the next one
+    // *in that column*, and the only slack left is at the foot of the shorter column.
+    //
+    // The split is a decision rather than an accident of height: the facts about the drive down the
+    // left, and what is on it and what is happening to it down the right. Below 1024px the columns
+    // stack, which keeps that reading order.
+    el('div', { class: 'panel-flow' }, [
       // A18 first: "what changed" is the news, and the cards below it are the reference material
       // you read afterwards.
       changesCard(d.changes),
 
-      el('div', { class: 'card stack' }, [
-        el('h2', { text: 'Identity' }),
-        identity,
-      ]),
-
-      // A28. Beside Identity rather than with the S.M.A.R.T. tables: what is *on* the drive is a
-      // fact about the drive as a device, and it is the first thing somebody adding a disk to a
-      // machine wants.
-      displayOptions.showPartitions ? diskLayoutCard(d.disk_layout, displayOptions) : null,
-
-      el('div', { class: 'card stack' }, [
-        el('h2', { text: 'Usage and media' }),
-        usage,
-        projectionBlock(projection),
-      ]),
-
-      // Prose about the drive rather than a column of facts, so it spans the grid
-      // instead of taking a cell.
-      d.notes ? el('div', { class: 'card stack panel-wide' }, [
-        el('h2', { text: 'Notes' }),
-        el('p', { text: d.notes }),
-      ]) : null,
-
       // A21. Only when one applies to *this* drive's firmware: an advisory for a revision it is not
-      // running is noise, and noise is what makes people stop reading advisories.
+      // running is noise, and noise is what makes people stop reading advisories. Full width and near
+      // the top, because it is a warning rather than reference material.
       known && known.advisories && known.advisories.length ? advisoryCard(known) : null,
 
-      trendCard(series, async (next) => {
-        trendRange = next;
-        // Re-render in place: a window change is not a navigation, so it must not move the
-        // page under the pointer.
-        await render(container, ctx, d.serial, { keepScroll: true });
-      }),
+      el('div', { class: 'panel-cols' }, [
+        el('div', { class: 'panel-col' }, [
+          el('div', { class: 'card stack' }, [
+            el('h2', { text: 'Identity' }),
+            identity,
+          ]),
 
-      el('div', { class: 'card stack' }, [
-        el('div', { class: 'row' }, [
-          el('h2', { text: nvme ? 'NVMe health log' : 'S.M.A.R.T. attributes' }),
-          el('span', { class: 'spacer' }),
-          el('button', { class: 'btn btn-sm btn-ghost', type: 'button',
-            onclick: (e) => toggleRaw(d, e.currentTarget) }, ['Show raw output']),
+          el('div', { class: 'card stack' }, [
+            el('h2', { text: 'Usage and media' }),
+            usage,
+            projectionBlock(projection),
+          ]),
+
+          el('div', { class: 'card stack' }, [
+            el('div', { class: 'row' }, [
+              el('h2', { text: nvme ? 'NVMe health log' : 'S.M.A.R.T. attributes' }),
+              el('span', { class: 'spacer' }),
+              el('button', { class: 'btn btn-sm btn-ghost', type: 'button',
+                onclick: (e) => toggleRaw(d, e.currentTarget) }, ['Show raw output']),
+            ]),
+            nvme ? nvmeTable(nvme) : attributeTable(attrs, { blamed, inDatabase: payload ? payload.in_database : undefined }),
+            logHolder,
+            el('div', { id: 'raw-holder' }),
+          ]),
         ]),
-        nvme ? nvmeTable(nvme) : attributeTable(attrs, { blamed, inDatabase: payload ? payload.in_database : undefined }),
-        logHolder,
-        el('div', { id: 'raw-holder' }),
-      ]),
 
-      // A19. The only control in the app that changes a drive, so it sits with the log it writes
-      // to rather than up in the header with the read-only actions.
-      //
-      // The fourth argument is how a fresh log reaches the *error* panel without a scan: the card
-      // reads the drive live while a test runs, and hands over the log it read. The fifth is the
-      // reverse direction — the card owns the self-test log now (`FEATURES.md` A20), so it asks the
-      // page to draw it, and redraws it from every live read.
-      selfTestCard(ctx, d, d.logs, (fresh) => {
-        mount(logHolder, logSummary(fresh, seriesFor('power_on_hours', series)));
-      }, (summary) => selfTestLogSection(summary, seriesFor('power_on_hours', series))),
+        el('div', { class: 'panel-col' }, [
+          // A28. What is *on* the drive: a fact about the drive as a device, and the first thing
+          // somebody adding a disk to a machine wants.
+          displayOptions.showPartitions ? diskLayoutCard(d.disk_layout, displayOptions) : null,
+
+          trendCard(series, async (next) => {
+            trendRange = next;
+            // Re-render in place: a window change is not a navigation, so it must not move the
+            // page under the pointer.
+            await render(container, ctx, d.serial, { keepScroll: true });
+          }),
+
+          // A19. The only control in the app that changes a drive, so it sits with the log it writes
+          // to rather than up in the header with the read-only actions.
+          //
+          // The fourth argument is how a fresh log reaches the *error* panel without a scan: the card
+          // reads the drive live while a test runs, and hands over the log it read. The fifth is the
+          // reverse direction — the card owns the self-test log now (`FEATURES.md` A20), so it asks the
+          // page to draw it, and redraws it from every live read.
+          selfTestCard(ctx, d, d.logs, (fresh) => {
+            mount(logHolder, logSummary(fresh, seriesFor('power_on_hours', series)));
+          }, (summary) => selfTestLogSection(summary, seriesFor('power_on_hours', series))),
+
+          // The reader's own prose about the drive, at the foot of its column rather than spanning the
+          // page: it belongs to this side, and a full-width card would put a row boundary back in.
+          d.notes ? el('div', { class: 'card stack' }, [
+            el('h2', { text: 'Notes' }),
+            el('p', { text: d.notes }),
+          ]) : null,
+        ]),
+      ]),
     ]),
   );
 }
@@ -408,7 +422,7 @@ export function changesCard(c) {
     }
   }
 
-  return el('div', { class: 'card stack panel-wide changes' }, [
+  return el('div', { class: 'card stack changes' }, [
     el('div', { class: 'row' }, [
       el('h2', { text: 'Since the last scan' }),
       el('span', { class: 'spacer' }),
@@ -606,7 +620,7 @@ const SEVERITY_TONE = { critical: 'bad', warning: 'caution', info: 'unknown' };
  */
 function advisoryCard(known) {
   const plural = known.advisories.length > 1;
-  return el('div', { class: 'card stack panel-wide advisory' }, [
+  return el('div', { class: 'card stack advisory' }, [
     el('h2', { text: plural ? 'Known issues' : 'Known issue' }),
     el('p', { class: 'muted', text: `From the knowledge base, matched on the model and firmware this ` +
       `drive reports (${known.family}).` }),

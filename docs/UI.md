@@ -142,8 +142,7 @@ picker offers exactly `ThemeNames`.
 | **Sparkline / trend card** | Inline SVG per metric (health score, temperature, power-on hours, wear) with the current value and the change across the window, plus a 7 / 30 / 90 day / all range selector. Hovering (or arrowing, when focused) shows a marker and a three-line readout — value, date, time — for that reading. A row with fewer than two readings is dropped — one point is not a trend. |
 | **Notice** | A neutral panel for an explanation that is not a fault. Two of them: "this drive does not report S.M.A.R.T." (with the transport-override control), and — added later — "the container was not allowed to read this drive", which names which of the three access gates is closed and prints the compose fragment that opens it. Deliberately not an error box in either case: neither is the drive failing. |
 | **Export dialog** | One row per format (plain text / web page / spreadsheet / JSON) with what each is for, rather than a single button that silently picks one. |
-| **Panel grid** (`.panel-grid`) | The shared page layout, shared by the settings page and the device detail page: `repeat(auto-fit, minmax(min(100%, 460px), 1fr))`, so the settings page's three cards sit side by side at wide widths. One grid per page, never one per row: two separate grids size their columns independently and their gutters drift apart. Cards end where their content ends — `align-items: start` — rather than stretching to the row height: stretching moved the slack *inside* the short card, where it read as a block of nothing at the foot of a card rather than as padding. `.panel-wide` spans both columns, for prose like the notes card. |
-| **Panel grid, capped** (`.panel-grid-pair`) | `.panel-grid` capped at two columns however wide the viewport gets — one below 1024px, two above. Auto-fit fits *four* 460px panels across a 2560px monitor, which squeezed the trend sparklines and the health-log table into columns too narrow for the type they carry. The device detail page uses this; settings keeps auto-fit, because three short cards genuinely do fit. |
+| **Panel columns** (`.panel-flow`, `.panel-cols`, `.panel-col`) | The device page's card layout. `.panel-flow` stacks the full-width cards (the change list, a firmware advisory) with the column pair between them; `.panel-cols` holds two columns, one below 1024px and two above; `.panel-col` stacks its cards with the same gap. **Columns, not a grid of rows:** a grid row is as tall as its tallest card, so the shorter card beside it leaves a hole underneath, and this page pairs cards of very different heights. Explicit columns rather than CSS multi-column, because multicol balances content to choose a card's column — the layout would rearrange itself as the data changed, and which card sits where has to be a decision rather than an outcome. |
 | **Scan button** | Primary action. States: idle · scanning (spinner + "3/5 devices") · done (toast). |
 | **Toasts** | Scan complete, saved, notification sent; auto-dismiss, stacked. |
 | **Dialogs / sheets** | Schedule editor, channel editor, maintenance window, device notes, acknowledge, export, confirmations. Full-screen sheets on mobile. A dialog holding unsaved input — every editor above — does **not** close on a click outside it; only **Cancel** and `Esc` do, because a stray click beside a half-filled form should cost the click rather than the form. Confirmations and the export picker still dismiss on a backdrop click, where there is nothing to lose. Dismissal turns on where the *press* landed, not where the release did: a drag that starts on a field and ends outside the box is a text selection, not a dismissal. |
@@ -351,16 +350,18 @@ picker offers exactly `ThemeNames`.
   it spans exactly the history that exists. The change figure is measured across the *series*, not
   the window: a drive watched for five days has five days of change, and reporting 30 would invent
   a trend. Per-metric y-scaling stays automatic.
-- **Two columns**, from a single `.panel-grid .panel-grid-pair`: **Identity** beside
-  **Usage and media**, then the trend card beside the attribute table, with the notes card
-  spanning both. One grid for the whole page, not one per row — two separate grids each
-  size their own columns and their gutters drift apart as soon as their contents differ.
-  The grid is capped at two columns (§6): at 2560px an auto-fitting grid fits four panels
-  across, which is not the layout this page was designed around.
-- **Even gutters.** Cards are stretched to their row, deliberately *not* `align-items:
-  start`. A grid row is as tall as its tallest card either way, so a short card that
-  stops early leaves the gap *beneath* it looking wider than the gap *beside* it;
-  stretching moves that slack inside the card, where it reads as padding.
+- **Two independent columns**, from `.panel-cols` and `.panel-col`: the facts about the drive down the
+  left — **Identity**, **Usage and media**, the attribute table — and what is on it and what is
+  happening to it down the right — **Partitions**, **Trend**, **Self-test**, notes. Full-width cards
+  (the change list, a firmware advisory) sit above them in `.panel-flow`.
+  **Columns rather than a grid of rows, and that is the point.** A grid row is as tall as its tallest
+  card, so the shorter card beside it leaves a hole underneath — and this page pairs cards of very
+  different heights, so the holes were large. In a column a card is followed immediately by the next
+  one in that column, and the only slack left is at the foot of the shorter column.
+  Two explicit columns rather than CSS multi-column, because multicol balances the content to decide
+  which column a card lands in: the layout would rearrange itself as the data changed, and which card
+  sits where has to be a decision rather than an outcome. Below 1024px the columns stack, which keeps
+  the reading order.
 - Each card holds its own heading and content in a `.card.stack`, so the internal
   spacing comes from the container's gap and never from a per-heading margin.
 - **Identity card:** model, model family, serial, firmware, capacity, interface

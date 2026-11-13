@@ -135,10 +135,12 @@ discarding silently is not. See `ADR-028`.
 
 ### Changed
 
-- **Cards end where their content ends.** The two-column grid stretched every card to the height of its
-  row, which moved a short card's slack *inside* it — so the Usage and media card carried a block of
-  empty space at its foot, reading as a layout that ran out of content rather than as padding. The cost
-  of the change is a slightly ragged column edge, which is the honest shape.
+- **The device page is two independent columns, not a grid of rows.** A grid row is as tall as its
+  tallest card, so the shorter card beside it leaves a hole underneath — and this page pairs cards of
+  very different heights, so the holes were large: the Trend card ended well above the bottom of the
+  Usage and media card beside it. In a column, a card is followed immediately by the next one *in that
+  column*. The split is the facts about the drive down the left and what is on it and happening to it
+  down the right; below 1024px the columns stack, keeping that reading order.
 - **The self-test card is a normal grid cell, not a full-width panel.** It spanned the page and sat at
   the very bottom, which made it the one card you had to scroll to find, and it left the detail table
   beside it sitting alone with an empty half.

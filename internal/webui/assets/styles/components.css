@@ -523,42 +523,46 @@ a:hover {
   gap: var(--space-4);
 }
 
-/* The two-column page layout, used by the settings page and the device detail page.
+/* The device page's card layout: full-width cards, then two independent columns of cards.
 
-   One grid for the whole page, never one per row: two separate grids each size their
-   own columns, and their gutters drift apart as soon as their contents differ.
+   Columns rather than a grid of rows, and that is the whole point. A grid row is as tall as
+   its tallest card, so the shorter card beside it leaves a hole underneath — and this page
+   pairs cards of very different heights, so the holes were large. In a column, a card is
+   followed immediately by the next one *in that column*, and the only slack left is at the
+   foot of the shorter column.
 
-   Cards end where their content ends rather than stretching to the height of the row.
-   Stretching was the original choice — a grid row is as tall as its tallest card either
-   way, so a short card that stops early leaves the gap *beneath* it wider than the gap
-   *beside* it, and stretching moves that slack inside the card instead. That is true, and
-   it is worse: the slack lands at the foot of the card as a block of nothing, which reads
-   as a layout that ran out of content rather than as padding. */
-.panel-grid {
+   Two explicit columns rather than CSS multi-column: multicol decides which column a card
+   lands in by balancing the content, so the layout would rearrange itself as the data
+   changed — a card that is second today would be in the other column tomorrow. Which card
+   sits where has to be a decision, not an outcome. */
+.panel-flow {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.panel-cols {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 460px), 1fr));
+  grid-template-columns: 1fr;
   align-items: start;
   gap: var(--space-4);
 }
 
-/* Capped at two columns however wide the viewport gets.
-   Auto-fit fits four 460px panels side by side at 2560px, which squeezes the trend
-   sparklines and the health-log table into columns too narrow for the type they carry.
-   Two columns is the layout the device page was designed around, and it keeps the
-   reading order predictable: identity and usage, then trend and detail. */
-.panel-grid-pair {
-  grid-template-columns: 1fr;
-}
-
+/* Two columns is the layout the device page was designed around. One below 1024px, which
+   stacks the columns and keeps the reading order. */
 @media (min-width: 1024px) {
-  .panel-grid-pair {
+  .panel-cols {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
-/* A panel that spans the grid: prose about the subject rather than a column of facts. */
-.panel-wide {
-  grid-column: 1 / -1;
+/* One column of cards. A flex column rather than a grid, because a grid would give each card
+   its own row and reintroduce exactly the row alignment the columns exist to avoid. */
+.panel-col {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
 }
 
 /* The knowledge base card (FEATURES.md A21).
@@ -1357,8 +1361,8 @@ tr.is-hover > td:first-child {
 /* A list of settings, not a grid of labelled boxes. The label and its explanation
    sit together on the left and the control is right-aligned, so every value lands
    in one column and the whole page can be scanned and compared at a glance.
-   Side by side (`.panel-grid`), which is what keeps the gap between a label and its
-   control from stretching across a whole wide screen. */
+   Side by side, which is what keeps the gap between a label and its control from
+   stretching across a whole wide screen. */
 .setting-row {
   display: flex;
   align-items: center;
