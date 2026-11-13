@@ -11,8 +11,8 @@ import { installStubDom, StubNode, stubFetch } from './stub-dom.mjs';
 
 installStubDom();
 
-const { visibleDevices, groupByTag, exportButton, fleetTags, benchSession, heatCard, render, setView } =
-  await import('../assets/js/views/dashboard.js');
+const { visibleDevices, groupByTag, exportButton, fleetTags, benchSession, heatCard, render, setView,
+  setReplaceFirst } = await import('../assets/js/views/dashboard.js');
 
 /** Every string in a subtree, in document order. */
 function textOf(node) {
@@ -371,6 +371,37 @@ function buttonLabelled(node, label) {
 
 const listCtx = { openDevice() {}, scanDevice() {}, refresh() {} };
 const flush = () => new Promise((resolve) => setTimeout(resolve, 1));
+
+// A24. The shortlist sits above the fleet, so it is the first thing on the page whether or not the
+// reader wants it — and somebody who has already acted on it should not have to scroll past it every
+// visit. Off means off; on is the default, and an unset or unparseable value must not hide it.
+test('the Replace first shortlist can be turned off', async () => {
+  const payload = {
+    devices: [drive({ serial: 'a' })],
+    ranking: [{ serial: 'a', name: 'a', band: 'now', reasons: ['96 reallocated sectors'] }],
+  };
+
+  try {
+    setReplaceFirst(undefined);
+    const on = document.createElement('div');
+    stubFetch(payload);
+    await render(on, listCtx);
+    assert.match(textOf(on), /Replace first/, 'the shortlist is missing by default');
+
+    for (const off of ['false', 'FALSE', ' false ']) {
+      setReplaceFirst(off);
+      const hidden = document.createElement('div');
+      stubFetch(payload);
+      await render(hidden, listCtx);
+      assert.doesNotMatch(textOf(hidden), /Replace first/,
+        `the shortlist was drawn with the setting set to ${JSON.stringify(off)}`);
+    }
+  } finally {
+    // The module keeps the preference, so leaving it set would decide the next test's render.
+    setReplaceFirst(undefined);
+  }
+});
+
 
 test('the list opens in the stored view', async () => {
   installStubDom();

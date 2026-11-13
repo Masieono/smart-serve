@@ -569,7 +569,10 @@ of the problem; each item below carries the reason it exists.
   problems in 30 days", "94% of its rated write endurance used". A reader can disagree with
   a band and act on it; they cannot do either with an unexplained 63.4. A disconnected drive
   is deliberately left out: it is a finding of its own, and ranking it would put a backup
-  drive someone unplugged on purpose above a drive that is actually failing.
+  drive someone unplugged on purpose above a drive that is actually failing. The card can be **turned
+  off** (`show_replace_first`, on the Appearance page): it sits above the fleet, so it is the first
+  thing on the page whether or not the reader wants it today. The ranking is computed and sent either
+  way — this hides a card, not a feature.
 - **Bench work is the second use case** (`D11`). Testing a batch of drives you do not want
   in your permanent fleet: label them, test them, export the reports, forget them. **Built**,
   and the design is that **the tag *is* the session** — no mode, no new column, no new

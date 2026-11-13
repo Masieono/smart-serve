@@ -142,7 +142,7 @@ picker offers exactly `ThemeNames`.
 | **Sparkline / trend card** | Inline SVG per metric (health score, temperature, power-on hours, wear) with the current value and the change across the window, plus a 7 / 30 / 90 day / all range selector. Hovering (or arrowing, when focused) shows a marker and a three-line readout — value, date, time — for that reading. A row with fewer than two readings is dropped — one point is not a trend. |
 | **Notice** | A neutral panel for an explanation that is not a fault. Two of them: "this drive does not report S.M.A.R.T." (with the transport-override control), and — added later — "the container was not allowed to read this drive", which names which of the three access gates is closed and prints the compose fragment that opens it. Deliberately not an error box in either case: neither is the drive failing. |
 | **Export dialog** | One row per format (plain text / web page / spreadsheet / JSON) with what each is for, rather than a single button that silently picks one. |
-| **Panel grid** (`.panel-grid`) | The shared page layout, shared by the settings page and the device detail page: `repeat(auto-fit, minmax(min(100%, 460px), 1fr))`, so the settings page's three cards sit side by side at wide widths. One grid per page, never one per row: two separate grids size their columns independently and their gutters drift apart. Cards are stretched to their row rather than `align-items: start`, so the gap beneath a short card matches the gap beside it. `.panel-wide` spans both columns, for prose like the notes card. |
+| **Panel grid** (`.panel-grid`) | The shared page layout, shared by the settings page and the device detail page: `repeat(auto-fit, minmax(min(100%, 460px), 1fr))`, so the settings page's three cards sit side by side at wide widths. One grid per page, never one per row: two separate grids size their columns independently and their gutters drift apart. Cards end where their content ends — `align-items: start` — rather than stretching to the row height: stretching moved the slack *inside* the short card, where it read as a block of nothing at the foot of a card rather than as padding. `.panel-wide` spans both columns, for prose like the notes card. |
 | **Panel grid, capped** (`.panel-grid-pair`) | `.panel-grid` capped at two columns however wide the viewport gets — one below 1024px, two above. Auto-fit fits *four* 460px panels across a 2560px monitor, which squeezed the trend sparklines and the health-log table into columns too narrow for the type they carry. The device detail page uses this; settings keeps auto-fit, because three short cards genuinely do fit. |
 | **Scan button** | Primary action. States: idle · scanning (spinner + "3/5 devices") · done (toast). |
 | **Toasts** | Scan complete, saved, notification sent; auto-dismiss, stacked. |
@@ -179,7 +179,9 @@ picker offers exactly `ThemeNames`.
   carries its band and the reasons that produced it, in the drive's own terms: a reader can disagree
   with a band and act on it, and cannot do either with an unexplained number. It is absent when
   nothing is worth replacing, and capped at five — past a handful, "which one first?" stops being an
-  answer. A shortlist, not a list.
+  answer. A shortlist, not a list. It can be **turned off** (`show_replace_first`, on the Appearance
+  page): it sits above the grid, so it is the first thing on the page whether or not the reader wants
+  it today, and somebody who has already acted on it should not have to scroll past it every visit.
 - **The header is three rows at most**, and each row has one job: the identity and the counts you
   filter by, then the controls that arrange the list, then one muted line for the notes the counts
   raise. The view switch and the exports are separated by a rule, because "how is this shown" and

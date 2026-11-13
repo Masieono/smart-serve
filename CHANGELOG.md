@@ -70,6 +70,11 @@ discarding silently is not. See `ADR-028`.
 
 ### Added
 
+- **The "Replace first" shortlist can be turned off** (`A24`) — `show_replace_first`, on the Appearance
+  page. It sits above the fleet, so it is the first thing on the page whether or not you want it today,
+  and somebody who has already acted on it should not have to scroll past it every visit. The ranking is
+  still computed and sent either way: this hides a card, not a feature.
+
 - **A re-read when a drive's data has gone stale** (`FEATURES.md` A28 follow-up) — open a drive whose
   last scan is older than the window you set (`device_refresh_minutes`, default 15 minutes) and the page
   reads *that drive* and redraws: one smartctl call, not a fleet scan. 0 means never, which is the
@@ -129,6 +134,19 @@ discarding silently is not. See `ADR-028`.
   for all of them. See `ADR-028`.
 
 ### Changed
+
+- **Cards end where their content ends.** The two-column grid stretched every card to the height of its
+  row, which moved a short card's slack *inside* it — so the Usage and media card carried a block of
+  empty space at its foot, reading as a layout that ran out of content rather than as padding. The cost
+  of the change is a slightly ragged column edge, which is the honest shape.
+- **The self-test card is a normal grid cell, not a full-width panel.** It spanned the page and sat at
+  the very bottom, which made it the one card you had to scroll to find, and it left the detail table
+  beside it sitting alone with an empty half.
+- **Settings → Data is three sections again.** They were nested inside one another, so the `+` separator
+  rule never applied and the page read as one undifferentiated block; and Prometheus metrics was a
+  control sitting among prose, with a bold label and a smaller help line than the paragraphs around it.
+  It has its own section now, and the prose uses the sheet's own note style rather than paragraphs
+  carrying default margins inside a gap grid.
 
 - **Storage is now a bar on the fleet card** (`A28`) — "how full is this drive?" is a proportion, and a
   proportion is read faster as a length than as two byte counts. The figure is the **fullest** filesystem,

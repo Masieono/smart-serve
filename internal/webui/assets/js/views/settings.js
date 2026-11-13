@@ -200,6 +200,7 @@ const DEFAULTS = {
   theme_base: 'dark',
   theme_accent: '#3b82f6',
   theme_surface_tint: 'neutral',
+  show_replace_first: 'true',
 };
 
 /**
@@ -295,6 +296,11 @@ function draw(container, ctx, data, page, { carried = {}, unit: unitOverride } =
   });
   const showUsage = el('input', {
     type: 'checkbox', checked: settings.show_usage !== 'false',
+  });
+  // A24. On by default, and the only one of these three that gates the *dashboard*: the shortlist sits
+  // above the grid, so it is the first thing on the page whether or not the reader wants it today.
+  const showReplaceFirst = el('input', {
+    type: 'checkbox', checked: settings.show_replace_first !== 'false',
   });
 
   // Where the knowledge base refreshes from (`FEATURES.md` A21). Empty means the documented default,
@@ -435,6 +441,7 @@ function draw(container, ctx, data, page, { carried = {}, unit: unitOverride } =
           temperature_unit: unit.value,
           show_partitions: showPartitions.checked ? 'true' : 'false',
           show_usage: showUsage.checked ? 'true' : 'false',
+          show_replace_first: showReplaceFirst.checked ? 'true' : 'false',
           ...currentTheme(),
           ...numbers(DISPLAY_SPECS),
         };
@@ -615,41 +622,62 @@ function draw(container, ctx, data, page, { carried = {}, unit: unitOverride } =
           'Show how full each filesystem is. Needs the host’s mount roots bind-mounted read-only — ' +
           'for example `- /mnt:/mnt:ro` — or there is nothing to measure.',
           showUsage),
+        settingRow('Replace first on the dashboard',
+          'The shortlist above the fleet, ordered by how strongly each drive argues for replacement. ' +
+          'Turn it off to go straight to the drives.',
+          showReplaceFirst),
       ]),
     ]);
   }
 
-  /** Getting settings in and out, and serving them to something else. */
-  function dataSection() {
-    return el('section', { class: 'settings-section' }, [
-      el('h2', { text: 'Import and export' }),
-      el('div', { class: 'settings-rows' }, [
-        el('p', { class: 'muted', text: 'Device labels, settings and schedules, as one JSON file. For ' +
-          'moving to another host: names, bays and tags live in the database, which survives a ' +
-          'restart but not a move.' }),
-        el('p', { class: 'muted', text: 'Notification channels are deliberately not included. Their ' +
-          'config holds tokens and passwords, and a backup file is exactly the thing that gets ' +
-          'emailed around.' }),
-        el('div', { class: 'row', style: 'gap:var(--space-2)' }, [
-          // An anchor with `download`, not a button: this is a file to keep, and the browser's own
-          // save dialog is the right one to use.
-          el('a', {
-            class: 'btn', href: api.configExportUrl(), download: 'smart-serve-config.json',
-          }, [icon('download'), 'Export']),
-          el('button', {
-            class: 'btn', type: 'button',
-            onclick: (e) => importConfig(ctx, e.currentTarget),
-          }, ['Import']),
+  /**
+   * Getting settings in and out, serving them to something else, and the knowledge base.
+   *
+   * Returns *sections*, plural, because the page's sections have to be siblings: the separator between
+   * them is a `+` rule, so a section nested inside another loses both its rule and its padding and the
+   * page reads as one undifferentiated block. All three of this page's were nested that way.
+   */
+  function dataSections() {
+    return [
+      el('section', { class: 'settings-section' }, [
+        el('h2', { text: 'Import and export' }),
+        el('div', { class: 'settings-rows' }, [
+          el('p', { class: 'muted settings-note', text: 'Device labels, settings and schedules, as one ' +
+            'JSON file. For moving to another host: names, bays and tags live in the database, which ' +
+            'survives a restart but not a move.' }),
+          el('p', { class: 'muted settings-note', text: 'Notification channels are deliberately not ' +
+            'included. Their config holds tokens and passwords, and a backup file is exactly the thing ' +
+            'that gets emailed around.' }),
+          el('div', { class: 'row', style: 'gap:var(--space-2)' }, [
+            // An anchor with `download`, not a button: this is a file to keep, and the browser's own
+            // save dialog is the right one to use.
+            el('a', {
+              class: 'btn', href: api.configExportUrl(), download: 'smart-serve-config.json',
+            }, [icon('download'), 'Export']),
+            el('button', {
+              class: 'btn', type: 'button',
+              onclick: (e) => importConfig(ctx, e.currentTarget),
+            }, ['Import']),
+          ]),
         ]),
-        settingRow('Prometheus metrics',
-          'Serve /metrics for a Prometheus scrape. Off by default: the endpoint costs nothing, but ' +
-          'turning it on invites another service to poll this app.',
-          prometheus),
+      ]),
+      // A section of its own rather than a row under "Import and export". A control among prose reads as
+      // a different kind of thing: it has a bold label and a smaller help line where the paragraphs
+      // around it have neither, and its right-aligned switch wraps the text above it at a different
+      // width — which is what made this page look like two designs.
+      el('section', { class: 'settings-section' }, [
+        el('h2', { text: 'Prometheus metrics' }),
+        el('div', { class: 'settings-rows' }, [
+          settingRow('Serve /metrics',
+            'For a Prometheus scrape. Off by default: the endpoint costs nothing, but turning it on ' +
+            'invites another service to poll this app.',
+            prometheus),
+        ]),
       ]),
       // Read from `data`, not from the local `settings` map — that one is the stored settings, and the
       // knowledge status is its own payload.
       knowledgeSection(data.knowledge, ctx, knowledgeUrl),
-    ]);
+    ];
   }
   mount(container,
     el('div', { class: 'page-head' }, [
@@ -674,7 +702,7 @@ function draw(container, ctx, data, page, { carried = {}, unit: unitOverride } =
       thresholds: [thresholdsSection()],
       notifications: [notificationsSection()],
       appearance: [appearanceSection()],
-      data: [dataSection()],
+      data: dataSections(),
     }[page.id] || []),
   );
 }

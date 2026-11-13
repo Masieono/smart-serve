@@ -38,6 +38,27 @@ export function setView(stored) {
   if (stored === 'cards' || stored === 'table') view = stored;
 }
 
+/**
+ * Whether the "Replace first" shortlist is drawn at all (`FEATURES.md` A24).
+ *
+ * A preference rather than view state, so it is stored and survives a reload — but a reader who has
+ * heard what the shortlist has to say should be able to get it out of the way without scrolling past
+ * it every time. Set before the first render for the same reason as everything else here: a card that
+ * appeared and then vanished would be worse than either state.
+ */
+let showReplaceFirst = true;
+
+/**
+ * Apply the "Replace first" preference.
+ *
+ * Anything other than an explicit `"false"` leaves the card on, so a missing setting, a typo or an
+ * older server all read as the default rather than as "hide" — the same rule the A28 display settings
+ * use, and the reason is the same: a setting nobody has ever written must not silently hide a card.
+ */
+export function setReplaceFirst(stored) {
+  showReplaceFirst = String(stored ?? '').trim().toLowerCase() !== 'false';
+}
+
 // Worst first. The rank is what makes "sort by risk" mean something: the server's own ORDER BY
 // uses the same order, and this is the client's copy of it for the sorts below.
 const HEALTH_RANK = { bad: 0, caution: 1, unknown: 2, good: 3 };
@@ -846,6 +867,6 @@ function draw(container, ctx, data) {
   // Order is "a condition before a suggestion": something happening now, then the batch in hand,
   // then the advice about what to buy.
   mount(container, head, heatCard(data.correlation, ctx), benchSession(bench, ctx, benchTag),
-    replaceFirstCard(data.ranking, ctx), grid);
+    showReplaceFirst ? replaceFirstCard(data.ranking, ctx) : null, grid);
 }
 

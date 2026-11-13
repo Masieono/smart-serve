@@ -64,7 +64,12 @@ const ctx = {
   },
   // Display preferences the settings view can change without a reload.
   setTemperatureUnit: applyTemperatureUnit,
-  setDisplayOptions,
+  setDisplayOptions(options) {
+    setDisplayOptions(options);
+    // The dashboard's own display preference, pushed from here rather than by each caller, so the boot
+    // path and the settings-save path cannot disagree about it.
+    dashboard.setReplaceFirst(options && options.show_replace_first);
+  },
   async scan() {
     if (scanning) return;
     scanning = true;
@@ -308,9 +313,10 @@ async function loadDisplayPreferences() {
     // And again: a card that polls should start at the interval the user chose, not at the default
     // and then change under them.
     setSelfTestRefresh(stored.selftest_poll_seconds);
-    // A28: the partition table and its usage column, read here for the same reason as the rest —
-    // a card that appeared and then vanished on first load is worse than either state.
-    setDisplayOptions(stored);
+    // A28: the partition table, its usage column and the dashboard's "Replace first" shortlist, read
+    // here for the same reason as the rest — a card that appeared and then vanished on first load is
+    // worse than either state. Through `ctx` so the boot path and the save path run the same code.
+    ctx.setDisplayOptions(stored);
   } catch {
     /* keep the defaults; the first view will report the real error */
   }

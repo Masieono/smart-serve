@@ -85,7 +85,10 @@ export function selfTestCard(ctx, device, logs, onLogs = null, renderHistory = n
   // own heading, with the newest result as the table's first row.
   const history = el('div', { class: 'selftest-history' });
 
-  const card = el('div', { class: 'card stack panel-wide selftest' }, [
+  // A normal grid cell, not a full-width panel. It pairs with the detail table beside it — which
+  // otherwise sat alone with an empty half — and a card that spans the page only to sit at the very
+  // bottom is the one card a reader has to hunt for.
+  const card = el('div', { class: 'card stack selftest' }, [
     el('h2', { text: 'Self-test' }),
     note,
     actions,
