@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
@@ -91,6 +92,12 @@ func newTestServer(t *testing.T, opts Options) (*Server, *store.Store, *fakeRunn
 	runner := &fakeRunner{devices: sampleDevices()}
 	hub := events.NewHub()
 	manager := scan.NewManager(runner, st, hub)
+	// The request log is on for every handler under test; without somewhere quiet to put
+	// it, a passing run still emits a line per request. Tests that assert on log content
+	// pass their own logger through Options.
+	if opts.Logger == nil {
+		opts.Logger = slog.New(slog.NewTextHandler(io.Discard, nil))
+	}
 	return New(st, manager, hub, opts), st, runner, hub
 }
 

@@ -124,11 +124,13 @@ func New(st *store.Store, sc *scan.Manager, hub *events.Hub, opts Options) *Serv
 	if bp := strings.TrimRight(opts.BasePath, "/"); bp != "" {
 		h = http.StripPrefix(bp, h)
 	}
-	// Outermost first: recovery has to catch a panic from any layer below it, and the
+	// Outermost first: recovery has to catch a panic from any layer below it, the
 	// security headers have to be set before the CSRF guard can reject a request, so
-	// that a 403 is as constrained as a 200.
+	// that a 403 is as constrained as a 200, and the log line has to see the status the
+	// client was actually given — including the 500 the recovery synthesises.
 	h = securityHeadersMiddleware(h)
 	h = recoverMiddleware(logger, h)
+	h = logMiddleware(logger, h)
 	s.handler = h
 	return s
 }
@@ -232,9 +234,22 @@ func sameOriginMiddleware(next http.Handler) http.Handler {
 	})
 }
 
+// fail logs the error and answers with a reference rather than the error's own words.
+//
+// A store error can name a column, a file or a SQL statement — internals whose only use
+// to a reader is as a hint about what to probe, and whose only use to us is in the log.
+// The reference is the bridge between the two: the same four bytes appear in the log
+// line, so "it said 3f2a91c4" is a search that finds the failure, its action and its
+// stack, instead of a message the reader cannot act on and we would rather not have sent.
+//
+// This is the 500 path only. Messages that describe the *hardware* — smartctl's own
+// reason strings, a drive that will not answer — are the app's product, not its
+// internals, and those go out unchanged under their own status.
 func (s *Server) fail(w http.ResponseWriter, action string, err error) {
-	s.log.Error("request failed", "action", action, "err", err)
-	writeError(w, http.StatusInternalServerError, err.Error())
+	ref := newRef()
+	s.log.Error("request failed", "action", action, "ref", ref, "err", err)
+	writeError(w, http.StatusInternalServerError,
+		"something went wrong (ref "+ref+") — the detail is in the server log")
 }
 
 // --- helpers ------------------------------------------------------------------

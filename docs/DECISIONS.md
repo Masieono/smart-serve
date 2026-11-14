@@ -1273,3 +1273,45 @@ layer between the mux and the wire, and CSP is now a thing to remember when addi
 panic on the day it is answered. (±) the CSP allows `style-src 'unsafe-inline'` for the rest of the
 app's life unless the theme mechanism changes; that is the one relaxation, and it is written down here
 so it reads as a decision rather than an oversight.
+
+## ADR-031: The log gets the error, the response gets a reference
+
+**Context.** Every 500 answered with `err.Error()` verbatim. Most of those errors come from the store,
+so the sentence that reached a browser could name a column, a statement, or `/data/smartserve.db` —
+internals whose only use to the reader is as a hint about what to probe. At the same time nothing
+logged requests at all: no status, no duration, no record that an endpoint was ever called. The two
+problems are one problem. A generic failure message is infuriating without a way to find the detail,
+and a log with the detail is useless if the reader cannot point at the failure they saw.
+
+**Decision — one line per request, and a reference that joins the two.** `logMiddleware` records
+method, path, status, bytes and duration, at info for a success, warning for a 4xx and error for a 5xx.
+`fail` logs the error with a random four-byte `ref` and answers `something went wrong (ref 3f2a91c4) —
+the detail is in the server log`. The same `ref` is a field on the log line, so the reference is a
+search key rather than an apology.
+
+**Decision — the rule is about provenance, not severity.** Messages the application wrote about
+hardware — `smartctl`'s reason strings, "Unknown USB bridge", a drive that will not answer — still go
+out unchanged under their own status, because they are the product: a user's whole reason for opening
+this app is to read what the drive said. Only errors that describe *our* internals are replaced. The
+per-drive rescan is the boundary case, and it is scrubbed: its failure can come from the store write at
+the end of the pipeline, and the drive's own reason reaches the card through the stored snapshot
+(`smart_error`) either way, so nothing the user needs is lost.
+
+**Alternatives.**
+- *Keep the raw error and trust the network* — rejected: the app is unauthenticated by design
+  (`ADR-016`) and "trusted LAN" is a statement about the neighbours, not about what belongs in a
+  response body.
+- *A fixed "internal error" with no reference* — rejected: it is the current situation with the useful
+  part removed. The operator then has to guess which of the forty logged failures is theirs.
+- *Log the request body or query for correlation* — rejected: notes and channel configs (tokens,
+  passwords) live in those bodies, and a log is the last place they should be copied to.
+- *A full tracing stack* — rejected: one process, one user, one log. A four-byte random id is enough to
+  disambiguate failures within a session and costs a `crypto/rand` call.
+
+**Consequences.** (+) a 500 is debuggable from a screenshot, a slow endpoint is visible without a
+profiler, and the response no longer describes the schema. (−) the UI cannot show the underlying
+reason for a server-side failure — it shows the reference, and the reader has to look at the log, which
+is a real cost for someone running this from a NAS GUI with no shell. That is the trade: the class of
+error that is hidden is exactly the class a user could not act on. (±) `logMiddleware` is outermost and
+`recoverMiddleware` inside it, so a panic is logged once as a 500 with the stack beside it; the request
+log is the thing that made that ordering matter, and it is now pinned by a test.

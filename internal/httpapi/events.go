@@ -76,7 +76,11 @@ func (s *Server) handleScanDevice(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusNotFound, err.Error())
 			return
 		}
-		writeError(w, http.StatusInternalServerError, err.Error())
+		// The failure itself is not always about the drive: it can come from the store
+		// write at the end of the pipeline. The drive's own reason string reaches the
+		// card through the stored snapshot (`smart_error`), so nothing useful is lost by
+		// keeping the database's words out of this response.
+		s.fail(w, "scan device", err)
 		return
 	}
 
