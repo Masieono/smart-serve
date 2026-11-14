@@ -45,6 +45,12 @@ discarding silently is not. See `ADR-028`.
 
 ### Fixed
 
+- **A command timeout too large to represent wrapped into a positive one.** `SMARTSERVE_COMMAND_TIMEOUT`
+  was read by a hand-rolled digit loop that added digits without checking for overflow, so a 20-digit
+  value arrived as `2190664h` instead of falling back to the default — and because every caller checks
+  `> 0` before using a timeout, the garbage was accepted. `strconv.Atoi` reports the overflow, and an
+  unrepresentable setting now falls back like any other unusable value. Found by the new
+  `internal/config` tests, which are the first this package has had.
 - **A drive stuck reporting "testing 10%" forever** — the app's bug, not the drives'. A drive's
   self-test state is reported in two places: the self-test log's newest row (a percentage remaining) and
   the drive's own self-test-execution status in the SMART data structure. The log row was allowed to win,
