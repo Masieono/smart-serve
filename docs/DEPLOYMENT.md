@@ -453,15 +453,15 @@ container mountpoints rather than the host's `/` and `/boot/firmware`. For stora
 the reference mounts do not expose the host's filesystem layout at its original paths.
 
 **4. Continue one test at a time.** The container SMART read and app identity/attribute checks are
-complete for this disk, and a short-test completion is confirmed in the drive log. The app's
-running-state check failed after both waiting and reloading, despite a completed live API response.
-The saved record captured old 90% progress and the unread-log flag that suppressed the initial live
-read — **the bug, now fixed**; and opening the SD-card page then failed the no-repeat-scan check,
-with the null successful-scan timestamp and rapid failed reads pinning it to the staleness re-read —
-**also fixed**. Both need a retest here; the retest steps are in
-[TESTING.md Pass 8](TESTING.md#pass-8--arm64-raspberry-pi). Pass 8 next checks dashboard health and
-the disconnected-device filter against the saved API state. Neither symptom was ARM-specific: a
-similar self-test report comes from amd64.
-Resource testing remains open: the first process RSS sample was **21.97 MiB**, and Docker's
-`0B / 0B` memory display was unusable. Measure process RSS from `/proc/1/status`, separately from
-Docker container memory, and establish a controlled idle baseline before claiming compliance.
+complete for this disk, and a short-test completion is confirmed in the drive log. Two defects this
+host surfaced — a self-test progress bar stuck on a stale percentage, and an SD-card page that re-read
+itself in a loop — are **fixed and retested here on 2026-11-11**, as are the dashboard-health and
+disconnected-device checks. Neither was ARM-specific: a similar self-test report came from amd64.
+Steps and results are in [TESTING.md Pass 8](TESTING.md#pass-8--arm64-raspberry-pi).
+
+**One resource figure cannot be measured on this host.** It exposes no memory controller to the
+container — there are no `memory.*` files in its cgroup — so `docker stats` reports `0B / 0B` and there
+is no cgroup figure to read. Idle CPU is confirmed near zero, and the amd64 host measures **18.9 MiB**
+idle. Enable memory accounting (`cgroup_enable=memory cgroup_memory=1` in the Pi's
+`/boot/firmware/cmdline.txt`, then reboot) before trying to claim the under-20-MB figure here; the
+process's own `VmRSS` from `/proc/1/status` is a *different* metric and reads about 21 MiB.
