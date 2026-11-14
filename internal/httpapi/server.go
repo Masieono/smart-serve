@@ -57,6 +57,10 @@ type Options struct {
 	// SelfTests, when set, reports what a scheduled self-test pass is doing. Without it the
 	// schedules page simply says nothing about a pass.
 	SelfTests SelfTests
+	// SelfTestCommands, when set, replaces the smartctl calls the self-test endpoints make. It
+	// exists for tests: without it the only endpoints that write to a drive are also the only
+	// ones that cannot be exercised. Nil means the real smartctl wrappers.
+	SelfTestCommands SelfTestCommands
 }
 
 // SelfTests reports on a scheduled self-test pass (`FEATURES.md` A19). *selftest.Runner satisfies it.
@@ -67,6 +71,35 @@ type Options struct {
 // wrote (`ADR-024`).
 type SelfTests interface {
 	Progress() selftest.Progress
+}
+
+// SelfTestCommands is the three drive operations the self-test endpoints perform.
+//
+// It exists as an interface for one reason: these are the only endpoints in the API that change a
+// drive, and a direct call into the `smart` package cannot be exercised by a test that has no drive
+// to change. The production implementation is a thin adapter over the allow-listed `smartctl`
+// wrappers, so the seam adds no behaviour of its own — it only lets the endpoint logic (status codes,
+// the read-back after an abort, the timeout it passes down) be tested without hardware.
+type SelfTestCommands interface {
+	Read(ctx context.Context, timeout time.Duration, path, transport string) (smart.Result, error)
+	Start(ctx context.Context, timeout time.Duration, path, transport string, kind smart.SelfTestKind) (smart.Result, error)
+	Abort(ctx context.Context, timeout time.Duration, path, transport string) (smart.Result, error)
+}
+
+// smartCommands is the production reading of SelfTestCommands: smartctl, through the wrappers whose
+// arguments are fixed in the package that owns them.
+type smartCommands struct{}
+
+func (smartCommands) Read(ctx context.Context, timeout time.Duration, path, transport string) (smart.Result, error) {
+	return smart.ReadSelfTestLog(ctx, timeout, path, transport)
+}
+
+func (smartCommands) Start(ctx context.Context, timeout time.Duration, path, transport string, kind smart.SelfTestKind) (smart.Result, error) {
+	return smart.StartSelfTest(ctx, timeout, path, transport, kind)
+}
+
+func (smartCommands) Abort(ctx context.Context, timeout time.Duration, path, transport string) (smart.Result, error) {
+	return smart.AbortSelfTest(ctx, timeout, path, transport)
 }
 
 // Server is the HTTP API.
@@ -80,6 +113,9 @@ type Server struct {
 	notifier  Notifier
 	selfTests SelfTests
 	handler   http.Handler
+
+	// selfTestCmd runs the smartctl self-test commands; never nil after New.
+	selfTestCmd SelfTestCommands
 
 	// commandTimeoutFn resolves the per-command timeout for the smartctl calls this package
 	// makes directly, so they honour the same setting the scans do.
@@ -106,10 +142,14 @@ func New(st *store.Store, sc *scan.Manager, hub *events.Hub, opts Options) *Serv
 	if logger == nil {
 		logger = slog.Default()
 	}
+	selfTestCmd := opts.SelfTestCommands
+	if selfTestCmd == nil {
+		selfTestCmd = smartCommands{}
+	}
 	s := &Server{
 		store: st, scanner: sc, hub: hub, log: logger, version: opts.Version,
 		scheduler: opts.Scheduler, notifier: opts.Notifier, selfTests: opts.SelfTests,
-		commandTimeoutFn: opts.CommandTimeout,
+		commandTimeoutFn: opts.CommandTimeout, selfTestCmd: selfTestCmd,
 	}
 
 	mux := http.NewServeMux()
