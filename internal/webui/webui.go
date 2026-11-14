@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"html/template"
 	"io/fs"
+	"log/slog"
 	"math"
 	"net/http"
 	"strconv"
@@ -39,11 +40,19 @@ type ThemeFunc func(ctx context.Context) Theme
 type Options struct {
 	BasePath string
 	Version  string
+	// Logger records a shell render failure. The shell is HTML rather than JSON, but a
+	// template that will not render is still an internal detail, and a 500 that quotes it
+	// describes the app's own structure to whoever asked.
+	Logger *slog.Logger
 }
 
 // New returns a handler serving the UI, with SPA fallback so deep links such as
 // /device/<serial> survive a refresh.
 func New(themeFn ThemeFunc, opts Options) (http.Handler, error) {
+	logger := opts.Logger
+	if logger == nil {
+		logger = slog.Default()
+	}
 	sub, err := fs.Sub(assets, "assets")
 	if err != nil {
 		return nil, err
@@ -104,7 +113,7 @@ func New(themeFn ThemeFunc, opts Options) (http.Handler, error) {
 		if themeFn != nil {
 			theme = themeFn(r.Context())
 		}
-		renderIndex(w, tmpl, theme, baseHref, basePath, opts.Version)
+		renderIndex(w, tmpl, theme, baseHref, basePath, opts.Version, logger)
 	}), nil
 }
 
@@ -185,7 +194,7 @@ type indexData struct {
 	Version   string
 }
 
-func renderIndex(w http.ResponseWriter, tmpl *template.Template, theme Theme, baseHref, basePath, version string) {
+func renderIndex(w http.ResponseWriter, tmpl *template.Template, theme Theme, baseHref, basePath, version string, logger *slog.Logger) {
 	name := normalize(theme.Name, ThemeNames, "auto")
 	data := indexData{
 		Theme:     name,
@@ -199,7 +208,10 @@ func renderIndex(w http.ResponseWriter, tmpl *template.Template, theme Theme, ba
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-store")
 	if err := tmpl.ExecuteTemplate(w, "index.html", data); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		// The template names a field or a line, so the error is ours, not the reader's —
+		// the same rule the JSON API follows (`ADR-031`). It goes to the log instead.
+		logger.Error("rendering the shell", "err", err)
+		http.Error(w, "internal error", http.StatusInternalServerError)
 	}
 }
 

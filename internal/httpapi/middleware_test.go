@@ -2,9 +2,12 @@ package httpapi
 
 import (
 	"bytes"
+	"errors"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -193,5 +196,101 @@ func TestRecordingWriterKeepsStreaming(t *testing.T) {
 
 	if rec.flushes != 1 {
 		t.Errorf("flushes = %d, want 1 — the wrapper is swallowing Flush", rec.flushes)
+	}
+}
+
+// TestFailKeepsInternalsOutOfTheResponse is the point of the reference: the reader gets
+// something to quote, the log gets something to search, and the sentence in between stops
+// carrying a file path or a column name to a browser.
+func TestFailKeepsInternalsOutOfTheResponse(t *testing.T) {
+	var logw bytes.Buffer
+	srv := &Server{log: slog.New(slog.NewTextHandler(&logw, nil))}
+
+	internal := errors.New(`read devices: sqlite3: no such column: devices.bay_tag (/data/smartserve.db)`)
+	rec := httptest.NewRecorder()
+	srv.fail(rec, "list devices", internal)
+
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("status = %d, want 500", rec.Code)
+	}
+	body := rec.Body.String()
+	for _, leak := range []string{"sqlite3", "bay_tag", "/data/smartserve.db", "no such column"} {
+		if strings.Contains(body, leak) {
+			t.Errorf("response body leaks %q: %s", leak, body)
+		}
+	}
+
+	// The reference in the body must be the one in the log, or it is decoration.
+	var ref string
+	if m := regexp.MustCompile(`ref ([0-9a-f]{8})`).FindStringSubmatch(body); len(m) == 2 {
+		ref = m[1]
+	} else {
+		t.Fatalf("response body has no usable reference: %s", body)
+	}
+	logged := logw.String()
+	if !strings.Contains(logged, "ref="+ref) {
+		t.Errorf("log does not carry ref=%s: %s", ref, logged)
+	}
+	// ...and the log has to keep the detail the response dropped.
+	for _, want := range []string{"sqlite3", "bay_tag", "list devices"} {
+		if !strings.Contains(logged, want) {
+			t.Errorf("log is missing %q: %s", want, logged)
+		}
+	}
+}
+
+// TestLogMiddlewareRecordsStatus covers the line every request now leaves behind: level by
+// status, and the figures that make "what is slow" answerable.
+func TestLogMiddlewareRecordsStatus(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		status int
+		level  string
+	}{
+		{"ok", http.StatusOK, "level=INFO"},
+		{"client error", http.StatusNotFound, "level=WARN"},
+		{"server error", http.StatusInternalServerError, "level=ERROR"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var logw bytes.Buffer
+			logger := slog.New(slog.NewTextHandler(&logw, nil))
+			h := logMiddleware(logger, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(tc.status)
+				_, _ = w.Write([]byte("body"))
+			}))
+
+			h.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/api/devices/S1", nil))
+
+			logged := logw.String()
+			for _, want := range []string{tc.level, "status=" + strconv.Itoa(tc.status), "path=/api/devices/S1", "duration_ms=", "bytes=4"} {
+				if !strings.Contains(logged, want) {
+					t.Errorf("log is missing %q: %s", want, logged)
+				}
+			}
+		})
+	}
+}
+
+// TestLogMiddlewareAfterPanic pins the ordering: recovery synthesises the 500 inside the
+// log line, so the request is recorded once, as a failure, rather than vanishing.
+func TestLogMiddlewareAfterPanic(t *testing.T) {
+	var logw bytes.Buffer
+	logger := slog.New(slog.NewTextHandler(&logw, nil))
+
+	panicky := http.HandlerFunc(func(http.ResponseWriter, *http.Request) { panic("boom") })
+	h := logMiddleware(logger, recoverMiddleware(logger, panicky))
+
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/devices", nil))
+
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("status = %d, want 500", rec.Code)
+	}
+	logged := logw.String()
+	if !strings.Contains(logged, "status=500") {
+		t.Errorf("the request was not logged as a 500: %s", logged)
+	}
+	if !strings.Contains(logged, "handler panic") {
+		t.Errorf("the panic was not logged: %s", logged)
 	}
 }

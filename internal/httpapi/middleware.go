@@ -1,9 +1,12 @@
 package httpapi
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"log/slog"
 	"net/http"
 	"runtime/debug"
+	"time"
 )
 
 // contentSecurityPolicy is the policy every response carries.
@@ -63,17 +66,27 @@ func securityHeadersMiddleware(next http.Handler) http.Handler {
 // break visibly, it would turn every live scan into "streaming unsupported".
 type recordingWriter struct {
 	http.ResponseWriter
-	wrote bool
+	status int
+	bytes  int
+	wrote  bool
 }
 
 func (w *recordingWriter) WriteHeader(code int) {
+	if !w.wrote {
+		w.status = code
+	}
 	w.wrote = true
 	w.ResponseWriter.WriteHeader(code)
 }
 
 func (w *recordingWriter) Write(b []byte) (int, error) {
+	if !w.wrote {
+		w.status = http.StatusOK
+	}
 	w.wrote = true
-	return w.ResponseWriter.Write(b)
+	n, err := w.ResponseWriter.Write(b)
+	w.bytes += n
+	return n, err
 }
 
 func (w *recordingWriter) Flush() {
@@ -122,6 +135,67 @@ func recoverMiddleware(logger *slog.Logger, next http.Handler) http.Handler {
 				return
 			}
 			writeError(rw, http.StatusInternalServerError, "internal error")
+		}()
+		next.ServeHTTP(rw, r)
+	})
+}
+
+// newRef is a short reference for one failed request.
+//
+// Four bytes, because the reference is read aloud off a screen and typed into a search
+// box: long enough that two failures in the same log will not collide, short enough to
+// survive being retyped. It is not a secret and does not need to be.
+func newRef() string {
+	var b [4]byte
+	if _, err := rand.Read(b[:]); err != nil {
+		// A reference that cannot be generated is not worth failing a request over: the
+		// log line still has everything, and "unknown" is honest about what happened.
+		return "unknown"
+	}
+	return hex.EncodeToString(b[:])
+}
+
+// logMiddleware records one line per request: method, path, status, bytes and duration.
+//
+// Without it the only evidence a request ever happened is the absence of a complaint,
+// which makes "are we 500ing", "what is slow" and "was that endpoint even called"
+// unanswerable without a debugger. One line per request is cheap: an idle tab holds a
+// single long-lived SSE stream and produces exactly one line, when that stream closes.
+//
+// It sits outermost so the status it records is the status the client actually got,
+// including the 500 that recoverMiddleware synthesises from a panic.
+func logMiddleware(logger *slog.Logger, next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		started := time.Now()
+		rw := &recordingWriter{ResponseWriter: w}
+		defer func() {
+			status := rw.status
+			if status == 0 {
+				// No status line was written: the handler returned without answering, or a
+				// panic re-raised as http.ErrAbortHandler unwound past recovery. net/http's
+				// own answer — an empty 200 for a bare return, a closed connection for the
+				// abort — is written after this runs and is not visible here; a 0 would be
+				// skipped by a log scan, so the request is recorded as a failure.
+				status = http.StatusInternalServerError
+			}
+			attrs := []any{
+				"method", r.Method,
+				"path", r.URL.Path,
+				"status", status,
+				"bytes", rw.bytes,
+				"duration_ms", time.Since(started).Milliseconds(),
+			}
+			switch {
+			case status >= 500:
+				logger.Error("request", attrs...)
+			case status >= 400:
+				// A 4xx is usually the client's mistake — an unknown serial, a bad scan
+				// target — but it is the line that explains a broken bookmark, so it is a
+				// warning rather than silence.
+				logger.Warn("request", attrs...)
+			default:
+				logger.Info("request", attrs...)
+			}
 		}()
 		next.ServeHTTP(rw, r)
 	})

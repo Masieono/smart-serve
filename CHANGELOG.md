@@ -15,6 +15,17 @@ discarding silently is not. See `ADR-028`.
 
 ### Security
 
+- **A 500 no longer quotes the database.** Every failed request used to answer `err.Error()` verbatim,
+  and most of those errors come from the store — so the sentence that reached a browser could name a
+  column, a statement, or the path of the data file. The response now carries a reference and the log
+  carries the error, joined by that same four bytes: `something went wrong (ref 3f2a91c4) — the detail
+  is in the server log`. Messages that describe the *hardware* (smartctl's own reason strings, a drive
+  that will not answer) are unchanged — those are the product, not internals. The shell's own 500 — a
+  template that will not render — is covered by the same rule and no longer quotes the template error.
+  See `ADR-031`.
+- **Every request now leaves a line**: method, path, status, bytes, duration, at info for a success, a
+  warning for a 4xx and an error for a 5xx. Without it the only evidence a request happened was the
+  absence of a complaint, which made "are we 500ing" and "what is slow" unanswerable.
 - **A handler panic is now a 500 the client can read, not a dropped connection.** A panic used to
   unwind to `net/http`, which closes the connection and logs a stack trace with no request attached:
   the browser showed a network error, the SPA had nothing to render, and the only record was a trace
