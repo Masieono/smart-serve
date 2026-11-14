@@ -13,6 +13,25 @@ walked on every scan for two strings; the score breakdown was computed on every 
 the list of what is deliberately *not* captured, each with its reason — discarding is allowed,
 discarding silently is not. See `ADR-028`.
 
+### Security
+
+- **A handler panic is now a 500 the client can read, not a dropped connection.** A panic used to
+  unwind to `net/http`, which closes the connection and logs a stack trace with no request attached:
+  the browser showed a network error, the SPA had nothing to render, and the only record was a trace
+  in the container log with no way to tell which drive it was about. `recoverMiddleware` answers in
+  JSON, logs the method, path and stack together, and does **not** echo the panic value — the reader
+  already knows the request failed. If the response had already begun it stops rather than appending a
+  500 to half a document. `http.ErrAbortHandler` is re-panicked, because that one is a deliberate
+  abort and net/http suppresses its stack for a reason.
+- **Every response now carries a Content-Security-Policy.** Nothing in this app loads from anywhere
+  but its own origin — embedded assets, no CDN, no web font, no analytics — so `default-src 'self'`
+  costs nothing to enforce, and it constrains the strings this app renders that it did not write:
+  drive names, user notes, serials, and `smartctl`'s own log lines. `script-src` gets no
+  `'unsafe-inline'` (no inline handler or inline script exists); `style-src` does, because the shell
+  emits the theme as a `style` attribute before first paint, which is what prevents the flash of the
+  wrong theme. With it: `nosniff`, `Referrer-Policy: no-referrer` (serials and mountpoints are in
+  these paths), and `X-Frame-Options: DENY`. See `ADR-030`.
+
 ### Fixed
 
 - **A drive stuck reporting "testing 10%" forever** — the app's bug, not the drives'. A drive's

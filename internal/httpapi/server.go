@@ -124,6 +124,11 @@ func New(st *store.Store, sc *scan.Manager, hub *events.Hub, opts Options) *Serv
 	if bp := strings.TrimRight(opts.BasePath, "/"); bp != "" {
 		h = http.StripPrefix(bp, h)
 	}
+	// Outermost first: recovery has to catch a panic from any layer below it, and the
+	// security headers have to be set before the CSRF guard can reject a request, so
+	// that a 403 is as constrained as a 200.
+	h = securityHeadersMiddleware(h)
+	h = recoverMiddleware(logger, h)
 	s.handler = h
 	return s
 }

@@ -1228,3 +1228,48 @@ same transaction. (±) the interpreter now has a public shape (`Penalty`) that t
 which widens an interface that was previously internal to the scan — accepted, because the alternative
 is a second implementation of the same reasoning.
 
+
+## ADR-030: Every response leaves through one shell — recovery, then headers, then routing
+
+**Context.** The HTTP surface had exactly one middleware, the CSRF guard from `ADR-015`, and nothing
+around it. Two consequences followed, and neither showed up in any test because both are about what
+happens *outside* a handler. A panic in a handler — a nil map, an index off the end of a slice parsed
+from a drive's JSON — unwound to `net/http`, which closes the connection and writes a stack trace to
+stderr with no request on it; the browser got a network error with no body, the SPA had nothing to
+render, and the operator had a trace they could not tie to a drive or an endpoint. And every response
+was served with no policy at all, in an app that renders strings it did not write: model names, user
+notes on a drive, serials in paths, and `smartctl`'s own log lines.
+
+**Decision — a panic is answered in the protocol it happened in.** `recoverMiddleware` catches it,
+logs method, path, panic value and stack as one line, and returns the same JSON error shape every
+other failure uses, with a deliberately generic message. It re-panics `http.ErrAbortHandler`, which is
+not a failure but the documented way for a handler to abort a response. It tracks whether the response
+has begun, because a 500 appended to half a JSON document is a worse answer than a truncated one.
+
+**Decision — the policy is strict where it matters and loose only where the app needs it.** No inline
+scripts exist, so `script-src` gets no `'unsafe-inline'`; the theme arrives as a `style` attribute
+before first paint, so `style-src` does. The alternative — a nonce or a hash — would require templating
+every response and would break the theme mechanism's whole point, which is that the server renders the
+correct theme attribute into the HTML it already sends (`docs/UI.md` §5).
+
+**Alternatives.**
+- *Let `net/http` keep doing it* — it already "recovers" (it drops the connection and logs). Rejected:
+  that is recovery from the server's point of view and a dead end from the client's, and the stack it
+  logs has no request attached.
+- *A per-handler `defer recover()`* — rejected: 41 routes, and the one that is added without it is the
+  one that panics.
+- *`'unsafe-inline'` everywhere because the LAN is trusted* — rejected: the app is unauthenticated by
+  design (`ADR-016`) and renders text captured from hardware, which is the cheapest possible path from
+  "a weird drive" to "a page". Trust in the network is not trust in the content.
+- *HSTS* — not now: the app is normally reached over plain HTTP on a LAN or behind a proxy that
+  terminates TLS, and `Strict-Transport-Security` on a plain-HTTP response is ignored. The proxy's job.
+
+**Consequences.** (+) a panic becomes a 200-line-range answer the SPA can show, and a 403 or 404 is as
+constrained as a 200 because the headers sit outside the CSRF guard; the wrapper keeps `http.Flusher`
+and `Unwrap`, so the SSE stream still works through it (pinned by a test, because a wrapper that hides
+`Flusher` fails as "streaming unsupported" rather than as anything obviously related). (−) one more
+layer between the mux and the wire, and CSP is now a thing to remember when adding an asset type —
+`font-src 'self'` is deliberately present ahead of the embedded-font question rather than added in
+panic on the day it is answered. (±) the CSP allows `style-src 'unsafe-inline'` for the rest of the
+app's life unless the theme mechanism changes; that is the one relaxation, and it is written down here
+so it reads as a decision rather than an oversight.
