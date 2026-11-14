@@ -276,7 +276,7 @@ Existing test numbers are retained so subsequent results can refer to them.
 | 8.2 | Device-access setup, startup probe and HTTP health. | **Verified for this setup.** Probe: `device access ok`, `devices=2`, `probed=/dev/sda`; server listening on `:8080`; Docker `healthy`. This probe alone does not verify full SMART reads or every drive. |
 | 8.3 | Container SMART read and app scan, identity and attribute-table checks. | **Passed for this disk/setup.** The container read returned exit 0. The operator completed an app scan and confirmed the WDC model, matching serial, 17 attributes and raw values 0 for IDs 5, 197 and 198, with no apparent errors or missing values. Other displayed fields were not individually compared. |
 | 8.4 | USB transport and any required override. | **SAT discovery, explicit SAT read and app scan verified for current settings.** `--scan-open` detected `sat` / `ATA`; the full read succeeded with `-d sat`. The app also reads the disk successfully. Its override setting was not reported, so automatic-vs-manual transport selection is not established. Override controls, bridge chipset and any second bay remain unverified. |
-| 8.5 | Ten-minute idle CPU/RSS measurement with no browser, scan or self-test active. | **CPU passed; memory cannot be measured with the criterion's own metric on this host.** Across a 61-second sample inside a 10-minute idle period, the process used **1 CPU tick** — about **0.02%** — and the scan count was unchanged (44 before and after), so nothing ran. `docker stats` reports **`0B / 0B`** for memory here (see the note below), leaving the process's own `VmRSS` as the only figure: **21.25 MiB**, flat across the sample. That is *not* the metric the criterion was written against — the reference host's 13.36 MiB came from `docker stats` — and the two are not interchangeable: on the amd64 host this same build reports **18.4 MiB** by `docker stats` and **30.0 MiB** by `VmRSS`. So this host is very probably inside the budget, and this capture does not prove it. |
+| 8.5 | Ten-minute idle CPU/RSS measurement with no browser, scan or self-test active. | **CPU passed; the memory figure is not measurable on this host.** Across a 61-second sample inside a 10-minute idle period the process used **1 CPU tick** — about **0.02%** — and the scan count was unchanged (44 before and after), so nothing ran. Memory cannot be read here at all: the container's cgroup has **no `memory.*` files** and `docker stats` reports `0B / 0B` for the same reason, so this host does not expose the memory controller. The only figure available is the process's own `VmRSS`, **21.25 MiB**, flat across the sample — and that is *not* the metric the criterion names. The amd64 host, where the controller *is* exposed, reads **18.9 MiB** by the cgroup (`memory.current` − `inactive_file`), the same number `docker stats` gives and inside the 20 MB budget. The Pi is very probably inside it too; this capture does not prove it. |
 | 8.6 | NVMe temperature, health fields and comparison with amd64. | **Not tested.** No NVMe device appears in this capture. |
 | 8.7 | Overnight scheduled scans and stable memory/file-descriptor usage. | **Not tested.** Startup and later log timestamps alone do not establish a controlled stability run. |
 | 8.8 | App-triggered short self-test: start, progress, completion and result after page reload. | **Drive completion passed; UI running-state check failed, and the cause is now fixed — retest needed.** Direct smartctl output shows execution status 0 and the newest short test `Completed without error` at 45,446 hours. The operator confirmed the app continues showing `90% left` and only **Stop test** after extended waiting and manual reload. The live API confirmed completion (`passed: true`, no `running`) but also set `self_test_log_unread` for the selective-test log; the saved record from 16:02:49 UTC (scan 18) carried that flag and `remaining: 90`. **Fixed:** the flag was raised for a log the app reads (see the 8.8 fix note below), and the card no longer skips its live read on mount. **Manual recovery and completed-log visibility passed:** after **Scan now**, the progress bar disappeared, short/long buttons returned and the successful short offline entry was visible; these results survived a page reload. **Retested 2026-11-11 on `v1.1.0-28-g6fee3dc` — passed**, on this Pi and on the amd64 host, in both variants: staying on the page, the progress cleared **on its own** when the drive finished, the buttons returned and the log gained the completed entry; leaving the page and watching the fleet, the testing badge tracked the run and cleared with it. No unread-log notice appeared. Exact duration remains unverified. |
@@ -421,15 +421,17 @@ published tag takes about four minutes and is worth doing if the release needs t
 
 ### Still open on this hardware
 
-1. **Idle budget (8.5).** CPU is confirmed near zero; memory needs a figure this host can produce.
-   `docker stats` reports `0B / 0B` here, so read the container's own cgroup instead:
+1. **Idle budget (8.5) — blocked on the host, not on the app.** This host exposes no memory controller
+   to the container: there are no `memory.*` files in its cgroup, and `docker stats` reports `0B / 0B`
+   for the same reason. Confirm it in one line:
    ```sh
-   docker exec smart-serve-dev sh -c \
-     'cat /sys/fs/cgroup/memory.current 2>/dev/null || \
-      cat /sys/fs/cgroup/memory/memory.usage_in_bytes 2>/dev/null'
+   docker exec smart-serve-dev cat /sys/fs/cgroup/cgroup.controllers
    ```
-   That is the number `docker stats` is derived from, so it is directly comparable with the reference
-   host's 13.36 MiB.
+   If `memory` is absent from that list, the figure cannot be read on this host as configured —
+   Raspberry Pi OS normally needs `cgroup_enable=memory cgroup_memory=1` in
+   `/boot/firmware/cmdline.txt` plus a reboot before Docker can account memory at all. Until then the
+   only figure here is the process's `VmRSS` (21.25 MiB), which is not the metric the criterion names.
+   The amd64 host measures **18.9 MiB** idle, inside the 20 MB budget.
 2. **8.7 overnight stability** — scheduled scans and stable memory/file-descriptor use over a full night.
 3. **8.6 NVMe** — no NVMe device is attached to this host.
 4. **Restart/reboot persistence**, and identity across a different enclosure bay.

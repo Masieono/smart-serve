@@ -93,7 +93,8 @@ remain unverified.
 **Documentation corrected for the public release.** Three claims did not match the code and
 were fixed rather than carried into a release: the image is Alpine, not distroless
 (`ADR-020`); notification secrets are database-only, because the environment and `*_FILE`
-sources `ADR-013` described were never built (`ADR-021`); and the README quick start omitted
+sources `ADR-013` described were never built (`ADR-021`) — **since built**, per-channel and keyed by
+the channel's label (`ADR-022`); and the README quick start omitted
 the device-access flags it needs.
 
 ## Phase 2 — "insight"

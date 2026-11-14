@@ -18,7 +18,7 @@ so. A blank Notes cell means the entry predates the column, not that the feature
 |---|---|---|
 | `D7` localization | `SCOPE.md`, `ADR-023` | Deferred, not dropped: extracting every string and keeping every locale in step is only worth doing for a translator who will maintain the result |
 | Error-log **entry lists** (`A20`) | §A20 above | The counts and the self-test entries are shown; smartctl emits no list at all for an empty log, and neither drive available here has ever logged an error, so the populated shape has never been captured |
-| arm64 on real hardware | [TESTING.md Pass 8](TESTING.md#pass-8--arm64-raspberry-pi), `SCOPE.md`, `RELEASE.md` | **Partial verification on Pi 5 / DietPi (2026-11-08):** native arm64 execution, startup health, a full container SMART read through USB SAT, and identity/attribute checks confirmed for the tested disk. That session surfaced two defects — the self-test progress bar sticking at a percentage the drive's own log had already moved past, and an SD-card page that re-read itself in a loop — **both fixed and retested on 2026-11-11, on the Pi and on amd64**. The self-test symptom was never ARM-specific. Idle-budget acceptance, overnight stability and broader parity remain open. |
+| arm64 on real hardware | [TESTING.md Pass 8](TESTING.md#pass-8--arm64-raspberry-pi), `SCOPE.md`, `RELEASE.md` | **Partial verification on Pi 5 / DietPi (2026-11-08):** native arm64 execution, startup health, a full container SMART read through USB SAT, and identity/attribute checks confirmed for the tested disk. That session surfaced two defects — the self-test progress bar sticking at a percentage the drive's own log had already moved past, and an SD-card page that re-read itself in a loop — **both fixed and retested on 2026-11-11, on the Pi and on amd64**. The self-test symptom was never ARM-specific. Idle **memory** cannot be read on that host at all — it exposes no memory controller, so `docker stats` reports `0B / 0B` — though CPU is confirmed near zero and the amd64 host measures **18.9 MiB** idle. Overnight stability and broader parity remain open. |
 | Multi-user accounts / roles | `SCOPE.md` Phase 3 | **Conflicts with `D23`** — authentication is delegated to a reverse proxy, so this needs that decision revisited rather than built |
 
 Everything else recorded in these documents is either shipped or an **explicit non-goal** — writing
@@ -706,13 +706,14 @@ and all of them still hold.
   press rescan themselves. The card now also shows the last finished result itself rather than
   leaving it only in the log table above: "did the test I ran pass?" is asked at the card, and
   the answer belongs where the question was.
-- **It lands last.** Docker device access had to be validated on real hardware first
+- **It landed last.** Docker device access had to be validated on real hardware first
   (`DEPLOYMENT.md`), because a self-test is the one operation where getting the device
-  plumbing wrong actually matters. **That is done** — native NVMe, USB-attached NVMe
-  and USB-attached SATA SSD all read correctly.
-- **Scheduling is not built yet.** A fleet-wide schedule needs one-drive-at-a-time
-  staggering; 24 simultaneous long tests is an I/O meltdown, not a feature. The manual
-  button is the primitive that has to exist first.
+  plumbing wrong actually matters. That is done — native NVMe, USB-attached NVMe and
+  USB-attached SATA SSD all read correctly.
+- **Scheduling followed the button** (`ADR-024`). A fleet-wide pass staggers **one drive at a time**,
+  in serial order, because 24 simultaneous long tests is an I/O meltdown rather than a feature. It
+  rides the schedule table as a `selftest` action rather than a second timer, so it costs nothing
+  while idle.
 
 
 ## B. Alerts & notification

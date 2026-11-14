@@ -30,7 +30,7 @@ is listed for a decision before implementation begins.
 | D3 (was Q4) | `device_appeared` is **opt-in per channel** (default priority `low`). | `NOTIFICATIONS.md` |
 | D4 (was Q5) | RAID-controller pass-through stays **out of scope**. | `SCOPE.md` non-goals |
 | D5 (was Q6) | **No default schedule** on first run; the user creates schedules explicitly. | `SCOPE.md`, `DATA_MODEL.md` |
-| D6 (was Q7) | **Reverse-proxy auth** for MVP; built-in single-user auth is Phase 2. | `DEPLOYMENT.md`, `SCOPE.md` |
+| D6 (was Q7) | **Reverse-proxy auth** — the app ships no authentication. Built-in single-user auth was considered and **not planned**; multi-user accounts conflict with `D23`. | `ADR-016`, `DEPLOYMENT.md`, `SCOPE.md` |
 | D7 (was Q8) | **180-day** snapshot retention default. | `DATA_MODEL.md` |
 | D8 | **No hot-plug watcher** confirmed — on-demand/scheduled scans are the freshness mechanism. | `ADR-007` |
 | D9 | **Go stack accepted** on the strength of the idle-cost analysis; implementation risks and mitigations are documented. | `ADR-001`, `ADR-010` |
@@ -39,9 +39,9 @@ is listed for a decision before implementation begins.
 
 | ID | Decision | Recorded in |
 |---|---|---|
-| D10 (was Q9) | **Self-test** — a UI trigger offering **short/long**, defaulting to **short**; the default is changeable in Settings; scheduled self-tests also supported. Phase 2, **next to be built** — opt-in only, never automatic, and it must show a progress reading (a long test on a large drive runs for hours). Device plumbing is validated, which was the gate; the earlier "and last" ordering is overtaken (`ADR-019` note). | `SCOPE.md` P2#4/#9, `API.md`, `FEATURES.md` A19, `ADR-017` |
+| D10 (was Q9) | **Self-test** — a UI trigger offering **short/long**; scheduled self-tests also supported. **Built**, opt-in only and never automatic, with a progress reading (a long test on a large drive runs for hours). Device plumbing was the gate, and it is validated. | `SCOPE.md` P2#4/#9, `API.md`, `FEATURES.md` A19, `ADR-017`, `ADR-024` |
 | D11 (was Q10) | **Report export** — four formats (plain text, self-contained web page, spreadsheet, JSON) chosen from an Export dialog. A per-format enable list and a zip bundle are **not** implemented; the formats are all always offered. | `API.md`, `DATA_MODEL.md`, `FEATURES.md` A8 |
-| D12 (was Q11) | **Alert acknowledgement + maintenance/silence windows** — maintenance windows **implemented** as a `maintenance_windows` setting (no table, no endpoints). Acknowledgement **deferred**: wanted, but its state costs more than the noise it removes at single-host scale. | `SCOPE.md` P2#10, `NOTIFICATIONS.md`, `ADR-017` |
+| D12 (was Q11) | **Alert acknowledgement + maintenance/silence windows** — both **built**. Maintenance windows are a `maintenance_windows` setting (no table, no endpoints); acknowledgement is scoped to the verdict it was granted for and lives as columns on `device_notes`, rather than the table `ADR-017` proposed. | `SCOPE.md` P2#10, `NOTIFICATIONS.md`, `ADR-017` |
 | D13 (was Q12) | **Both** a 0–100 health score **and** Good/Caution/Bad. Basic score ships in MVP; the trend-aware refinement lands in Phase 2. | `SCOPE.md` MVP#14 + P2#8, `FEATURES.md` A17 |
 | D14 (was Q13) | **Multi-arch image (amd64 + arm64)** in MVP. Clarified: this is the host CPU architecture the container runs on (x86-64 servers vs ARM NAS / Raspberry Pi / Apple Silicon), not a different deployment model. | `DEPLOYMENT.md`, `FEATURES.md` C8 |
 | D15 (was C18) | **Licensing** — application source is **MIT**; the image carries smartmontools' GPLv2 notices + source pointer. | `ADR-012`, `README.md` |

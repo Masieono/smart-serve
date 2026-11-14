@@ -3,10 +3,8 @@
 > **Status: implemented.** The scheduler lives in `internal/sched` and the delivery
 > pipeline in `internal/notify`: transition detection, six channel types (ntfy,
 > Gotify, Telegram, Discord, SMTP, generic webhook), squelching, maintenance
-> windows, the delivery log (`GET /api/notifications`), and
+> windows, acknowledgement, the delivery log (`GET /api/notifications`), and
 > `POST /api/channels/{id}/test`.
->
-> Acknowledgement (`FEATURES.md` B7) is **deferred** — see §Suppression.
 
 ## Event catalog
 
@@ -577,24 +575,23 @@ A window is either **one-off** or **recurring**:
 - The UI labels a recurring window by its schedule rather than "active", because the
   browser's clock is not necessarily the server's.
 
-### Acknowledgement (deferred)
+### Acknowledgement
 
-A user would acknowledge a specific `event_key`, muting it until the underlying
-condition changes or the acknowledgement expires, leaving the verdict untouched
-(`FEATURES.md` B7).
-
-Deferred deliberately rather than dropped: it belongs in the app, but at single-host
-scale the state it needs (`alert_acknowledgements`, with expiry and "has the
-condition changed since?" bookkeeping) costs more to maintain than the noise it
-removes. The event key already exists and is already recorded, which is the part that
-would have been expensive to retrofit.
+Acknowledging a drive mutes its alerts until the **verdict changes**, leaving the verdict itself
+untouched (`FEATURES.md` B7). It is scoped to the verdict it was granted for rather than to a clock:
+an acknowledgement is *spent* the moment the drive moves, so it can never hide a drive getting worse,
+and there is no expiry to tune. It lives as columns on `device_notes` rather than the
+`alert_acknowledgements` table `ADR-017` sketched — the state turned out to be one row per drive
+rather than a log, and the `event_key` that ADR identified as the expensive part to retrofit is what
+the scope is derived from.
 
 ## Delivery mechanics
 
 - Sequential sends within the post-scan notifier pass; total notifier budget
   capped (default 30 s) so a hung channel can't stall the next scheduled scan.
-- All delivery outcomes land in `notification_log` for debugging and for a
-  "recent notifications" view in Settings (Phase 2 UI surface).
+- All delivery outcomes land in `notification_log`, which is what the Notifications page's
+  recent-deliveries list reads (`GET /api/notifications?limit=`), so an operator can confirm an alert
+  was really sent (`ADR-008`).
 
 ## Post-scan hand-off
 

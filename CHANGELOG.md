@@ -179,6 +179,17 @@ discarding silently is not. See `ADR-028`.
 - **Save is per page, and disabled until something changes** — a page sends only its own fields, so
   saving Appearance cannot disturb a threshold. Leaving a page with unsaved edits asks first.
 
+### Documentation
+
+- **Five stale claims, in eight places — every one of them describing something as unbuilt that is
+  built.** Scheduled self-tests (`FEATURES.md` A19 still said "not built yet"; `ADR-024` built them,
+  and `SCOPE.md` already said so). Alert acknowledgement (`NOTIFICATIONS.md` and `REQUIREMENTS.md` D12
+  called it deferred; it ships, scoped to the verdict so it cannot outlive the problem it mutes). The
+  notification delivery log (`NOTIFICATIONS.md` described it as a future "Phase 2 UI surface"; the
+  Notifications page reads it today). The `*_FILE` secret sources (`SCOPE.md` said they were never
+  built; `ADR-022` built them, per-channel). And `REQUIREMENTS.md` D6 promising built-in single-user
+  auth in Phase 2, which `ADR-016` considered and declined — the app ships no authentication by design.
+
 ## [1.1.0] — 2026-11-02
 
 Everything the roadmap had left. A self-test can now be **scheduled** — every drive that can take
