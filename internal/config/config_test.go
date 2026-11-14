@@ -92,10 +92,12 @@ func TestNormalizeBasePath(t *testing.T) {
 	}
 }
 
-// TestCommandTimeoutParsing covers the hand-rolled integer reader: anything that is not a
+// TestCommandTimeoutParsing covers how the command timeout is read: anything that is not a
 // positive whole number falls back to the default rather than becoming zero, because a zero
 // timeout means "no limit" to exec and a drive that has stopped answering would then hang
-// the request for as long as the kernel allows.
+// the request for as long as the kernel allows. The last case is the one that was wrong — a
+// value too large to represent wrapped into a positive duration, which the caller's `> 0`
+// check then accepted.
 func TestCommandTimeoutParsing(t *testing.T) {
 	for _, tc := range []struct {
 		in   string

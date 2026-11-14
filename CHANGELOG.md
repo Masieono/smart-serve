@@ -226,6 +226,21 @@ discarding silently is not. See `ADR-028`.
   built; `ADR-022` built them, per-channel). And `REQUIREMENTS.md` D6 promising built-in single-user
   auth in Phase 2, which `ADR-016` considered and declined — the app ships no authentication by design.
 
+### Known limitations
+
+Two things the hardening pass — `harden/middleware-shell`, `harden/request-log-and-error-refs`,
+`harden/config-tests` — left open, recorded so they are not lost:
+
+- **`GET /api/devices/{serial}/selftest` answers a reference when a drive will not answer.** Its read
+  failure goes through the same 500 path as a store error, so a device timeout shows a reference
+  instead of the text. The start and abort endpoints return `smartctl`'s own words with a `502`, so
+  the three self-test endpoints disagree about what a drive problem looks like (`ADR-031`).
+- **A command timeout can still overflow the duration multiplication.** `envInt` rejects a value that
+  does not fit an `int`, but `time.Duration(seconds) * time.Second` still wraps for a value that
+  *does* fit — about 9.2e9 seconds and up — so `SMARTSERVE_COMMAND_TIMEOUT=18446744074` produces a
+  0.3-second timeout rather than the default. The same class of bug the `strconv.Atoi` change closed,
+  one step further along.
+
 ## [1.1.0] — 2026-11-02
 
 Everything the roadmap had left. A self-test can now be **scheduled** — every drive that can take

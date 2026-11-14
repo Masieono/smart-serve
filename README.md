@@ -159,7 +159,7 @@ and self-tests, the knowledge base, and the notification work. What is *not* bui
 is listed in [`docs/SCOPE.md`](docs/SCOPE.md).
 
 Decisions are recorded in [`docs/REQUIREMENTS.md`](docs/REQUIREMENTS.md) (D1–D27, C1–C24) and
-[`docs/DECISIONS.md`](docs/DECISIONS.md) (ADR-001–ADR-023). Image:
+[`docs/DECISIONS.md`](docs/DECISIONS.md) (ADR-001–ADR-031). Image:
 `ghcr.io/masieono/smart-serve`. CI: GitHub Actions.
 
 ### What is built
