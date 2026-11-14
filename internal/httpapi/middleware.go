@@ -159,9 +159,8 @@ func newRef() string {
 //
 // Without it the only evidence a request ever happened is the absence of a complaint,
 // which makes "are we 500ing", "what is slow" and "was that endpoint even called"
-// unanswerable without a debugger. The app has no polling loops and no per-second timers
-// by design, so one line per request stays cheap: an idle tab produces exactly one line
-// when its SSE stream opens and one when it closes.
+// unanswerable without a debugger. One line per request is cheap: an idle tab holds a
+// single long-lived SSE stream and produces exactly one line, when that stream closes.
 //
 // It sits outermost so the status it records is the status the client actually got,
 // including the 500 that recoverMiddleware synthesises from a panic.
@@ -172,9 +171,11 @@ func logMiddleware(logger *slog.Logger, next http.Handler) http.Handler {
 		defer func() {
 			status := rw.status
 			if status == 0 {
-				// Nothing was written: the handler returned without answering, or it
-				// panicked before a status line existed. Both are a 500 from the client's
-				// point of view, and reporting 0 would hide them in a log scan.
+				// No status line was written: the handler returned without answering, or a
+				// panic re-raised as http.ErrAbortHandler unwound past recovery. net/http's
+				// own answer — an empty 200 for a bare return, a closed connection for the
+				// abort — is written after this runs and is not visible here; a 0 would be
+				// skipped by a log scan, so the request is recorded as a failure.
 				status = http.StatusInternalServerError
 			}
 			attrs := []any{

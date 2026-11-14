@@ -4,7 +4,7 @@ All endpoints JSON unless noted. Unauthenticated at MVP (see SECURITY notes in
 `DESIGN.md` §7). Paths are relative to `SMARTSERVE_BASE_PATH` (default `/`,
 `ADR-015`). State-changing requests (POST/PUT/DELETE) require a same-origin/CSRF
 check. Error envelope: `{ "error": "message" }` with an appropriate HTTP status.
-A `500` never carries the underlying error: it carries a reference
+A `500` never carries the underlying error: the API answers with a reference
 (`something went wrong (ref 3f2a91c4)`) that appears on the same line of the server log as
 the error itself (`ADR-031`). Messages describing the *hardware* — `smartctl`'s own reason
 strings, a drive that will not answer — are part of the product and are returned unchanged.

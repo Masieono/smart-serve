@@ -214,7 +214,7 @@ func runServe() error {
 			Accent: settings["theme_accent"],
 			Tint:   settings["theme_surface_tint"],
 		}
-	}, webui.Options{BasePath: cfg.BasePath, Version: cfg.Version})
+	}, webui.Options{BasePath: cfg.BasePath, Version: cfg.Version, Logger: logger})
 	if err != nil {
 		return err
 	}

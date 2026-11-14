@@ -1287,7 +1287,9 @@ and a log with the detail is useless if the reader cannot point at the failure t
 method, path, status, bytes and duration, at info for a success, warning for a 4xx and error for a 5xx.
 `fail` logs the error with a random four-byte `ref` and answers `something went wrong (ref 3f2a91c4) —
 the detail is in the server log`. The same `ref` is a field on the log line, so the reference is a
-search key rather than an apology.
+search key rather than an apology. The shell is not the API but follows the same rule: `renderIndex`
+logs a template that will not render and answers a plain `internal error`, because a template error
+names our own fields and lines.
 
 **Decision — the rule is about provenance, not severity.** Messages the application wrote about
 hardware — `smartctl`'s reason strings, "Unknown USB bridge", a drive that will not answer — still go

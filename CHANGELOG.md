@@ -20,7 +20,9 @@ discarding silently is not. See `ADR-028`.
   column, a statement, or the path of the data file. The response now carries a reference and the log
   carries the error, joined by that same four bytes: `something went wrong (ref 3f2a91c4) — the detail
   is in the server log`. Messages that describe the *hardware* (smartctl's own reason strings, a drive
-  that will not answer) are unchanged — those are the product, not internals. See `ADR-031`.
+  that will not answer) are unchanged — those are the product, not internals. The shell's own 500 — a
+  template that will not render — is covered by the same rule and no longer quotes the template error.
+  See `ADR-031`.
 - **Every request now leaves a line**: method, path, status, bytes, duration, at info for a success, a
   warning for a 4xx and an error for a 5xx. Without it the only evidence a request happened was the
   absence of a complaint, which made "are we 500ing" and "what is slow" unanswerable.
