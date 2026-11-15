@@ -1,6 +1,9 @@
 # Smart-Serve — manual test plan
 
-`go test ./...` and `node --test internal/webui/jstest/*.test.mjs` cover the rules. This plan covers
+`make ci` — `gofmt`, `go vet`, `go test -race` and `node --test internal/webui/jstest/*.test.mjs` — covers
+the rules. The race detector is part of it rather than an extra: the scheduler, the SSE hub, the
+scan manager and the self-test watcher share one process and one store, and a race between them
+fails nothing and corrupts something. This plan covers
 what they cannot: whether the right thing appears at all, whether it says the right thing, and whether
 it is where you would look for it.
 

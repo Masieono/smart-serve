@@ -28,7 +28,12 @@ jobs:
       - name: Vet
         run: go vet ./...
       - name: Test
-        run: go test -count=1 ./...
+        # -race is not optional here. This app runs a scheduler, an SSE hub, a scan
+        # manager with a condvar, and a self-test watcher that ticks once a second while
+        # a drive is testing — all in one process, sharing a store. A race in that set
+        # does not fail a test, it corrupts a snapshot or drops an event, and the symptom
+        # appears days later on someone's NAS.
+        run: go test -race -count=1 ./...
       - uses: actions/setup-node@v7
         with:
           # Pinned to the current LTS. The test command below is version-proof, but
