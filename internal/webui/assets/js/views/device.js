@@ -19,7 +19,11 @@ const TREND_RANGES = [
 ];
 
 // Module-level so the choice survives navigating between drives.
-let trendRange = '30';
+//
+// "All" rather than 30 days because a young install has a week of readings, and a 30-day window draws
+// those as a short line pinned to the right edge — which reads as a broken chart until you know why.
+// Across the whole history, the line spans the plot and the shape is the shape.
+let trendRange = 'all';
 
 export async function render(container, ctx, serial, opts = {}) {
   // A range change re-renders the same page, and mounting the one-line skeleton collapses the
