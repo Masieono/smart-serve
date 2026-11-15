@@ -171,10 +171,10 @@ discarding silently is not. See `ADR-028`.
 
 ### Changed
 
-- **The self-test endpoints can be tested, and now are.** They were the only three endpoints at zero
-  coverage, and the reason was structural: the handlers called `smart.ReadSelfTestLog`,
-  `smart.StartSelfTest` and `smart.AbortSelfTest` directly, so exercising them meant having a drive to
-  write to. `Options.SelfTestCommands` is the seam — a three-method interface whose production value is
+- **The self-test endpoints can be tested, and now are.** They were at zero coverage, and the reason
+  was structural: the handlers called `smart.ReadSelfTestLog`, `smart.StartSelfTest` and
+  `smart.AbortSelfTest` directly, so exercising them meant having a drive to write to.
+  `Options.SelfTestCommands` is the seam — a three-method interface whose production value is
   a thin adapter over those same allow-listed wrappers, so behaviour is unchanged and the decisions the
   endpoints make are testable: the kind is validated before anything reaches hardware, a drive's refusal
   comes back as 502 with its own words, the abort's read-back distinguishes "sent" from "stopped", and
@@ -236,18 +236,22 @@ discarding silently is not. See `ADR-028`.
 
 ### Known limitations
 
-Two things the hardening pass — `harden/middleware-shell`, `harden/request-log-and-error-refs`,
-`harden/config-tests` — left open, recorded so they are not lost:
+Three things the hardening pass — `harden/middleware-shell`, `harden/request-log-and-error-refs`,
+`harden/config-tests`, `harden/selftest-endpoint-tests` — left open, recorded so they are not lost:
 
-- **`GET /api/devices/{serial}/selftest` answers a reference when a drive will not answer.** Its read
-  failure goes through the same 500 path as a store error, so a device timeout shows a reference
-  instead of the text. The start and abort endpoints return `smartctl`'s own words with a `502`, so
-  the three self-test endpoints disagree about what a drive problem looks like (`ADR-031`).
+- **`GET /api/devices/{serial}/selftest` answers a reference when a *drive* will not answer.** A store
+  error there is deliberately the same 500 shape as the rest of the API, and a test now pins that. But
+  the read's *device* errors — a `smartctl` timeout, a missing tool — take that path too, so a drive
+  that does not answer shows a reference where its start and abort siblings return `smartctl`'s own
+  words with a `502` (`ADR-031`).
 - **A command timeout can still overflow the duration multiplication.** `envInt` rejects a value that
   does not fit an `int`, but `time.Duration(seconds) * time.Second` still wraps for a value that
   *does* fit — about 9.2e9 seconds and up — so `SMARTSERVE_COMMAND_TIMEOUT=18446744074` produces a
   0.3-second timeout rather than the default. The same class of bug the `strconv.Atoi` change closed,
   one step further along.
+- **`GET /api/devices/{serial}/history` and `PUT /api/devices/{serial}/transport` are still at zero
+  coverage.** The self-test handlers are the ones this release made testable; these two endpoints stay
+  unexercised, and the seam that fixed the self-test ones is the shape to copy.
 
 ## [1.1.0] — 2026-11-02
 
