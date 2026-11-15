@@ -115,6 +115,11 @@ func TestCommandTimeoutParsing(t *testing.T) {
 		// number can land on a positive duration that is absurd rather than zero, so the
 		// caller would keep it instead of the default.
 		{"99999999999999999999", 15 * time.Second},
+		// Values that fit an int but overflow the *duration* multiplication (~9.2e9 seconds).
+		// This is the case the first fix missed: 18446744074 seconds wrapped to 0.3 s, which a
+		// caller cannot tell from a drive that has stopped answering.
+		{"9223372037", 15 * time.Second},
+		{"18446744074", 15 * time.Second},
 	} {
 		clearEnv(t)
 		t.Setenv("SMARTSERVE_COMMAND_TIMEOUT", tc.in)

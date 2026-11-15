@@ -601,7 +601,10 @@ stop demanding a value that is never going to be typed into the form (`ADR-022`)
   restart and is unaffected by rescanning a different drive; `404` when nothing has
   been stored yet, with a message saying to rescan.
 - `PUT /api/devices/{serial}/transport` — set a per-device `-d` transport override
-  (`{ "smart_d": "sat" }`), persisted in `device_transport_overrides`
+  (`{ "smart_d": "sat" }`), persisted in `device_transport_overrides`. The value must look like a
+  device type — letters, digits, commas, dots, dashes and underscores, up to 32 characters, not
+  starting with a dash — and an empty string clears the override. Anything else is `400`: the value
+  reaches `smartctl` as an argument and is stored, so it is not a free-text field.
   (`FEATURES.md` A11).
 - `POST /api/devices/{serial}/scan` — rescan **only this drive**, synchronously.
   Returns `{ "scan_id": 2, "status": "completed", "serial": "…", "devices_total": 1 }`.
@@ -677,7 +680,9 @@ stop demanding a value that is never going to be typed into the form (`ADR-022`)
   The route shadows a device whose serial is literally `export`. Go's mux resolves a literal
   segment ahead of a wildcard, so the only cost is that such a serial is unreachable, and no
   drive has one.
-- `GET /api/devices/{serial}/selftest` — the drive's self-test state, read **live**
+- `GET /api/devices/{serial}/selftest` — the drive's self-test state, read **live**. A drive that
+  will not answer is `502` carrying `smartctl`'s own words, the same as its start and abort siblings;
+  only a request that cannot be addressed at all (`404` unknown drive, `409` no device path) differs
   rather than from the stored document, because a test's progress exists nowhere the
   app stores. Returns `{ logs, running }`: `logs` in the same shape the device detail
   uses, so the UI renders it with the function it already has, and `running` the entry

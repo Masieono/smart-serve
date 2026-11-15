@@ -32,7 +32,12 @@ func (s *Server) handleGetSelfTest(w http.ResponseWriter, r *http.Request) {
 	res, err := s.selfTestCmd.Read(r.Context(), s.commandTimeout(r.Context()),
 		rec.DevicePath, rec.TransportOverride)
 	if err != nil {
-		s.fail(w, "read self-test log", err)
+		// A read that fails here has failed at the drive: `selfTestTarget` has already answered
+		// for a drive that does not exist or cannot be addressed, so nothing left in this path
+		// comes from the store. That makes it the same 502 its start and abort siblings return,
+		// carrying smartctl's own words — a drive that will not answer is this app's subject
+		// rather than its internals (`ADR-031`).
+		writeError(w, http.StatusBadGateway, err.Error())
 		return
 	}
 	writeJSON(w, http.StatusOK, selfTestResponse(smart.ParseLogs(res.Stdout)))

@@ -242,22 +242,20 @@ discarding silently is not. See `ADR-028`.
 
 ### Known limitations
 
-Three things the hardening pass — `harden/middleware-shell`, `harden/request-log-and-error-refs`,
-`harden/config-tests`, `harden/selftest-endpoint-tests` — left open, recorded so they are not lost:
+The three items the hardening pass left open are closed in this release, and the section is kept
+(rather than deleted) because it is the record that they were real:
 
-- **`GET /api/devices/{serial}/selftest` answers a reference when a *drive* will not answer.** A store
-  error there is deliberately the same 500 shape as the rest of the API, and a test now pins that. But
-  the read's *device* errors — a `smartctl` timeout, a missing tool — take that path too, so a drive
-  that does not answer shows a reference where its start and abort siblings return `smartctl`'s own
-  words with a `502` (`ADR-031`).
-- **A command timeout can still overflow the duration multiplication.** `envInt` rejects a value that
-  does not fit an `int`, but `time.Duration(seconds) * time.Second` still wraps for a value that
-  *does* fit — about 9.2e9 seconds and up — so `SMARTSERVE_COMMAND_TIMEOUT=18446744074` produces a
-  0.3-second timeout rather than the default. The same class of bug the `strconv.Atoi` change closed,
-  one step further along.
-- **`GET /api/devices/{serial}/history` and `PUT /api/devices/{serial}/transport` are still at zero
-  coverage.** The self-test handlers are the ones this release made testable; these two endpoints stay
-  unexercised, and the seam that fixed the self-test ones is the shape to copy.
+- **A self-test *read* that fails now answers `502` with the drive's own words**, like its start and
+  abort siblings, instead of a `500` with a reference. Nothing in that path can fail at the store —
+  the drive's existence and addressability are settled before it — so a reference there was sending
+  the reader to a log that had nothing to say about their drive.
+- **The command timeout cannot wrap any more.** `strconv.Atoi` stopped a value that does not fit an
+  `int`; the multiplication into a `time.Duration` still wrapped for values that *do*, so
+  `SMARTSERVE_COMMAND_TIMEOUT=18446744074` produced a 0.3-second timeout rather than the default —
+  and a timeout that short is indistinguishable from a drive that has stopped answering.
+- **`GET /api/devices/{serial}/history` and `PUT /api/devices/{serial}/transport` are covered**, both
+  with their query and validation paths, and the transport endpoint now validates its value rather
+  than storing arbitrary text that reaches a `smartctl` argument.
 
 ## [1.1.0] — 2026-11-02
 
