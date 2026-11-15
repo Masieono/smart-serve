@@ -155,7 +155,14 @@ function channelTable(channels, ctx, catalog) {
       el('td', {}, [
         el('div', { class: 'v2-chips' }, events.length
           ? events.map((e) => el('span', { class: 'v2-chip', text: e }))
-          : [el('span', { class: 'v2-chip', text: 'Every event' })]),
+          // The chip is short; the explanation the incumbent carried survives as a tooltip rather
+          // than disappearing. An empty subscription is not "nothing" — it is everything, including
+          // the scheduled-scan heartbeat and group heat, which are the events nobody remembers to tick.
+          : [el('span', {
+            class: 'v2-chip',
+            text: 'Every event',
+            title: 'every alert and digest — the scheduled-scan heartbeat and group heat included',
+          })]),
       ]),
       el('td', {}, [
         el('div', { class: 'v2-chips' }, scope.length
