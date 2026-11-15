@@ -45,6 +45,12 @@ discarding silently is not. See `ADR-028`.
 
 ### Fixed
 
+- **The device page's freshness re-read was off on every install older than the setting.** A database
+  created before `device_refresh_minutes` existed has no row for it, and the client read an absent value
+  as "never re-read" — while the settings editor displayed its own default of 15 beside a switch that did
+  nothing. Absent now means "not written yet" and takes the documented default; an explicit zero, a
+  negative or nonsense still means "never", because re-reading a drive is the one thing here that can
+  wake a parked disk.
 - **The three items the hardening pass left open are closed.** A self-test *read* that fails now
   answers `502` with the drive's own words, like its start and abort siblings, instead of a `500` with
   a reference — nothing in that path can fail at the store, so the reference pointed at a log with

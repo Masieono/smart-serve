@@ -1444,10 +1444,22 @@ export function setDisplayOptions(settings) {
   // preferences because that is what it is — the bar's colour is presentation, not a verdict.
   setStorageWarnPct((settings || {}).storage_warn_pct);
   // How stale a drive's data may be before opening its page re-reads it (`FEATURES.md` A28 follow-up).
-  // A negative or unparseable value means "never", which is the safe reading: re-reading a drive is the
-  // one thing here that can wake a parked disk, so anything unclear errs towards not doing it.
-  const minutes = Number((settings || {}).device_refresh_minutes);
-  deviceRefreshMinutes = Number.isFinite(minutes) && minutes > 0 ? minutes : 0;
+  //
+  // Absent is not the same as "never". A database that predates this setting has no row for it, and
+  // reading that as "never" turned the feature off on every install older than the setting — silently,
+  // because the settings editor cheerfully showed its own default of 15 beside a switch that did
+  // nothing. Absent means "not written yet", so the documented default applies.
+  //
+  // An unparseable or non-positive value still means "never", and that is deliberate: re-reading a
+  // drive is the one thing here that can wake a parked disk, so an explicit zero, a negative number or
+  // nonsense errs towards not doing it.
+  const raw = (settings || {}).device_refresh_minutes;
+  if (raw === undefined || raw === null || String(raw).trim() === '') {
+    deviceRefreshMinutes = DEFAULT_REFRESH_MINUTES;
+  } else {
+    const minutes = Number(raw);
+    deviceRefreshMinutes = Number.isFinite(minutes) && minutes > 0 ? minutes : 0;
+  }
 }
 
 /**
@@ -1457,7 +1469,11 @@ export function setDisplayOptions(settings) {
  * is a setting and why the page says when it is doing it. On a machine that parks its disks this is
  * the number to turn down — a scan cannot wear a drive, but it can wake one.
  */
-let deviceRefreshMinutes = 0;
+// The documented default, matching the settings editor. One number, named once, so the switch and the
+// page it controls cannot disagree about what "not configured" means.
+const DEFAULT_REFRESH_MINUTES = 15;
+
+let deviceRefreshMinutes = DEFAULT_REFRESH_MINUTES;
 
 /** The refresh window in force, for the device view. */
 export function deviceRefreshWindow() {
