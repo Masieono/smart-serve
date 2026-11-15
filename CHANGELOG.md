@@ -171,6 +171,12 @@ discarding silently is not. See `ADR-028`.
 
 ### Changed
 
+- **CI runs the race detector.** `go test -race` was green but nobody was running it: `make ci` and the
+  workflow both used `-count=1` alone. This app has a scheduler, an SSE hub, a scan manager behind a
+  condvar and a self-test watcher that ticks while a drive is testing, all in one process sharing one
+  store — a race between them does not fail a test, it corrupts a snapshot or drops an event, and the
+  symptom surfaces days later on somebody's NAS. Cost is a slower suite (roughly 3 s → 16 s); the
+  alternative is finding out from a user.
 - **The self-test endpoints can be tested, and now are.** They were at zero coverage, and the reason
   was structural: the handlers called `smart.ReadSelfTestLog`, `smart.StartSelfTest` and
   `smart.AbortSelfTest` directly, so exercising them meant having a drive to write to.
