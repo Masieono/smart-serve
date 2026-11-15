@@ -3,6 +3,8 @@ package httpapi
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 	"time"
@@ -562,12 +564,45 @@ func (s *Server) handleSetNotes(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// validateSmartD keeps a free-text field from being anything but a device type.
+//
+// The value reaches smartctl as a single `-d` argument, so it cannot open a second flag. It is
+// still unvalidated text on a command line in an app that is unauthenticated by design
+// (`ADR-016`), and it is stored, so it outlives the request that sent it. A device type is a
+// word — `sat`, `sat,12`, `nvme`, `usbjmicron,0` — so the rule is a character set and a length
+// rather than an allow-list of known types: the list of bridge chips is long, open-ended, and
+// belongs to smartmontools, not to this app.
+func validateSmartD(v string) error {
+	if v == "" {
+		return nil // clearing the override is a legitimate write
+	}
+	if strings.HasPrefix(v, "-") {
+		return errors.New("device type may not start with a dash")
+	}
+	if len(v) > 32 {
+		return errors.New("device type is too long")
+	}
+	for _, c := range v {
+		switch {
+		case c >= 'a' && c <= 'z', c >= 'A' && c <= 'Z', c >= '0' && c <= '9':
+		case c == ',', c == '.', c == '-', c == '_':
+		default:
+			return fmt.Errorf("device type may only contain letters, digits, commas, dots, dashes and underscores")
+		}
+	}
+	return nil
+}
+
 func (s *Server) handleSetTransport(w http.ResponseWriter, r *http.Request) {
 	serial := r.PathValue("serial")
 	var body struct {
 		SmartD string `json:"smart_d"`
 	}
 	if !decodeJSON(w, r, &body) {
+		return
+	}
+	if err := validateSmartD(body.SmartD); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 	if err := s.store.SetTransportOverride(r.Context(), serial, body.SmartD); err != nil {
