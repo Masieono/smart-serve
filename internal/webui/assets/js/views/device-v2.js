@@ -290,9 +290,12 @@ function spark(label, series, key, fmt, d) {
   const span = max - min || 1;
   const w = 200;
   const h = 40;
+  // A series that never moved is drawn through the middle. Pinned to an edge it reads as "zero" or
+  // "maxed out", which is the opposite of what a flat line means.
+  const flat = max === min;
   const coords = points.map((p, i) => {
     const x = (i / (points.length - 1)) * w;
-    const y = h - ((p.v - min) / span) * (h - 4) - 2;
+    const y = flat ? h / 2 : h - ((p.v - min) / span) * (h - 4) - 2;
     return `${x.toFixed(1)},${y.toFixed(1)}`;
   }).join(' ');
 

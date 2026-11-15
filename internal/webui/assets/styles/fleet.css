@@ -622,6 +622,26 @@
 .v2-trend .chart {
   position: relative;
   margin-top: var(--space-2);
+  padding-bottom: 14px;
+}
+
+/* The scale belongs under the plot, not floating beside it: these four charts each have their own
+   units, and an unlabelled line is a shape rather than a reading. */
+.v2-trend .chart .min,
+.v2-trend .chart .max {
+  position: absolute;
+  bottom: 0;
+  font-size: 11px;
+  font-family: var(--font-mono);
+  color: var(--muted);
+}
+
+.v2-trend .chart .min {
+  left: 0;
+}
+
+.v2-trend .chart .max {
+  right: 0;
 }
 
 .v2-trend .chart svg {
