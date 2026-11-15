@@ -171,6 +171,14 @@ discarding silently is not. See `ADR-028`.
 
 ### Changed
 
+- **The self-test endpoints can be tested, and now are.** They were the only three endpoints at zero
+  coverage, and the reason was structural: the handlers called `smart.ReadSelfTestLog`,
+  `smart.StartSelfTest` and `smart.AbortSelfTest` directly, so exercising them meant having a drive to
+  write to. `Options.SelfTestCommands` is the seam — a three-method interface whose production value is
+  a thin adapter over those same allow-listed wrappers, so behaviour is unchanged and the decisions the
+  endpoints make are testable: the kind is validated before anything reaches hardware, a drive's refusal
+  comes back as 502 with its own words, the abort's read-back distinguishes "sent" from "stopped", and
+  the timeout the setting resolves to is the one the command receives. 0% → 100/87/79%.
 - **The device page is two independent columns, not a grid of rows.** A grid row is as tall as its
   tallest card, so the shorter card beside it leaves a hole underneath — and this page pairs cards of
   very different heights, so the holes were large: the Trend card ended well above the bottom of the

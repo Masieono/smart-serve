@@ -29,7 +29,7 @@ func (s *Server) handleGetSelfTest(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	res, err := smart.ReadSelfTestLog(r.Context(), s.commandTimeout(r.Context()),
+	res, err := s.selfTestCmd.Read(r.Context(), s.commandTimeout(r.Context()),
 		rec.DevicePath, rec.TransportOverride)
 	if err != nil {
 		s.fail(w, "read self-test log", err)
@@ -59,7 +59,7 @@ func (s *Server) handleStartSelfTest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	res, err := smart.StartSelfTest(r.Context(), s.commandTimeout(r.Context()),
+	res, err := s.selfTestCmd.Start(r.Context(), s.commandTimeout(r.Context()),
 		rec.DevicePath, rec.TransportOverride, kind)
 	if err != nil {
 		// 502: the request was well-formed, the drive would not take it. smartctl's own words
@@ -85,7 +85,7 @@ func (s *Server) handleAbortSelfTest(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	res, err := smart.AbortSelfTest(r.Context(), s.commandTimeout(r.Context()),
+	res, err := s.selfTestCmd.Abort(r.Context(), s.commandTimeout(r.Context()),
 		rec.DevicePath, rec.TransportOverride)
 	if err != nil {
 		writeError(w, http.StatusBadGateway, err.Error())
@@ -103,7 +103,7 @@ func (s *Server) handleAbortSelfTest(w http.ResponseWriter, r *http.Request) {
 		"status": "aborted",
 		"note":   smart.Messages(res.Stdout, res.Stderr),
 	}
-	if after, rerr := smart.ReadSelfTestLog(r.Context(), s.commandTimeout(r.Context()),
+	if after, rerr := s.selfTestCmd.Read(r.Context(), s.commandTimeout(r.Context()),
 		rec.DevicePath, rec.TransportOverride); rerr == nil {
 		running := smart.ParseLogs(after.Stdout).Running()
 		out["stopped"] = running == nil
