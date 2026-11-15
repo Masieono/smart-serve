@@ -593,9 +593,15 @@
   padding-right: var(--space-4);
 }
 
-.v2-trend + .v2-trend {
+/* A rule between columns, but not at the start of a row. */
+.v2-trend {
   border-left: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
   padding-left: var(--space-4);
+}
+
+.v2-trend:nth-child(3n + 1) {
+  border-left: 0;
+  padding-left: 0;
 }
 
 .v2-trend .label {
@@ -836,19 +842,26 @@
 
 /* --- trend strip ------------------------------------------------------------ */
 
+/* Two rows of three: six metrics, and each plot gets twice the width of a five-across row. */
 .v2-trend-grid {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: var(--space-3) var(--space-4);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-5) var(--space-5);
 }
 
 .v2-trend {
   min-width: 0;
 }
 
-.v2-trend + .v2-trend {
+/* A rule between columns, but not at the start of a row. */
+.v2-trend {
   border-left: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
   padding-left: var(--space-4);
+}
+
+.v2-trend:nth-child(3n + 1) {
+  border-left: 0;
+  padding-left: 0;
 }
 
 .v2-trend .label {
@@ -886,10 +899,22 @@
   color: var(--muted);
 }
 
-/* The plot keeps the incumbent's hover readout; in a narrow cell the readout is what needs the
-   space, so it is clamped rather than allowed to widen the column. */
+/* The plot keeps the incumbent's hover readout, laid out for a narrow cell: three stacked lines
+   reserve 57px under every plot, which over six plots is a row's worth of empty page. One line —
+   value, date, time — reserves a third of that and still reads left to right. */
 .v2-trend .spark-plot {
   margin-top: var(--space-1);
+  padding-bottom: 20px;
+}
+
+.v2-trend .spark-readout {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 2px 6px;
+  font-size: 11px;
+  line-height: 1.3;
+  white-space: nowrap;
 }
 
 .v2-trend .spark-readout {
@@ -947,13 +972,24 @@
 }
 
 @media (max-width: 1100px) {
-  .v2-trend-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .v2-trend-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .v2-trend:nth-child(3n + 1) { border-left: 1px solid color-mix(in srgb, var(--border) 60%, transparent); padding-left: var(--space-4); }
+  .v2-trend:nth-child(2n + 1) { border-left: 0; padding-left: 0; }
   .v2-nvme { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 @media (max-width: 760px) {
-  .v2-trend-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .v2-trend-grid { grid-template-columns: 1fr; }
+  .v2-trend { border-left: 0; padding-left: 0; }
   .v2-nvme { grid-template-columns: 1fr; }
+}
+
+/* The freshness line: what the last scan was, or that the drive is being read right now. */
+.v2-freshness {
+  margin-top: calc(-1 * var(--space-3));
+  font-size: var(--text-xs);
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
 }
 
 .v2-readings {

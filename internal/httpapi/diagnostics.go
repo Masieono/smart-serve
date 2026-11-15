@@ -61,6 +61,10 @@ func (s *Server) handleHistory(w http.ResponseWriter, r *http.Request) {
 			"power_on_hours": snap.PowerOnHours,
 			"wear_pct":       snap.WearPct,
 			"used_pct":       snap.UsedPct,
+			// The count that predicts failure (`FEATURES.md` A28). On the series because it is the
+			// one trend worth a slot next to health and temperature: a drive can be "good" while its
+			// reallocated count climbs, and that is the shape that precedes a failure.
+			"sectors": snap.Sectors,
 		})
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"serial": serial, "series": out})

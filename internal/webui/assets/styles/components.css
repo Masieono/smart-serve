@@ -2458,3 +2458,9 @@ tr.attr-flagged > td {
 }
 
 
+
+/* A dot per reading, for a caller that asked for them (v2's trend strip). Sparse data is the case
+   this exists for: two readings in a thirty-day window are otherwise a speck at the right edge. */
+.sparkline .spark-dot {
+  fill: var(--sparkline);
+}

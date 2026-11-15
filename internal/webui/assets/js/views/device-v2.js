@@ -15,7 +15,8 @@ import {
 import { nvmeHelp } from '../attributes.js';
 import {
   TREND_METRICS, seriesFor, trendWindow, setTrendRange, currentTrendRange, trendFrom,
-  currentDisplayOptions, nvmeSections, parsePenalties,
+  currentDisplayOptions, nvmeSections, parsePenalties, startFreshness,
+  highlightPartitionRow, highlightSegment,
 } from './device.js';
 
 const STATE_WORD = {
@@ -26,6 +27,22 @@ const STATE_WORD = {
 };
 
 const RANGES = [['7', '7d'], ['30', '30d'], ['90', '90d'], ['all', 'All']];
+
+/**
+ * The sixth trend.
+ *
+ * Six fits two rows of three, and this is the metric worth the slot: reallocated sectors is the shape
+ * that precedes a failure, and a drive can read "good" while the count climbs. Health score and wear
+ * both summarise it after the fact; this is the raw evidence.
+ */
+const SECTOR_METRIC = {
+  key: 'sectors',
+  label: 'Bad sectors',
+  format: (v) => `${Math.round(v)}`,
+  delta: (d) => ({ text: d === 0 ? 'no change' : `${d > 0 ? '+' : ''}${Math.round(d)}`, tone: d > 0 ? 'bad' : 'good' }),
+};
+
+const V2_METRICS = [...TREND_METRICS, SECTOR_METRIC];
 
 let currentSerial = null;
 
@@ -62,9 +79,11 @@ export async function render(content, ctx, serial, opts = {}) {
   const payload = snapshot && snapshot.attributes ? snapshot.attributes : null;
 
   clear(content);
+  const freshness = el('div', { class: 'v2-freshness' });
   append(content, [
     backLink(ctx),
     head(ctx, content, d),
+    freshness,
     facts(d, snapshot),
     diskSection(d),
     trendSection(serial),
@@ -74,6 +93,11 @@ export async function render(content, ctx, serial, opts = {}) {
 
   if (release) release();
   if (keep) window.scrollTo(0, y);
+
+  // Opening a drive reads it when the stored data is older than the refresh window, and says so
+  // while it does. Dropped from the first v2 cut, which quietly made every page show scan-era data
+  // — the app's honest-freshness promise (`docs/UI.md` §1) depends on this.
+  startFreshness(ctx, d, freshness);
 }
 
 // --- head -------------------------------------------------------------------
@@ -165,8 +189,19 @@ function diskSection(d) {
   if (usage) children.push(usage);
 
   if (parts.length) {
-    const map = diskMap(d.disk_layout, {});
-    const table = partitionTable(d.disk_layout, { showUsage: showUsage() });
+    // The table and the map mark each other. `diskLayoutCard` wires this; here the two are laid out
+    // by hand so the layout can differ, and the behaviour has to come with them (`docs/UI.md` §6).
+    let map = null;
+    const table = partitionTable(d.disk_layout, {
+      showUsage: showUsage(),
+      onHover: (name) => {
+        highlightPartitionRow(table, name);
+        highlightSegment(map, name);
+      },
+    });
+    map = diskMap(d.disk_layout, {
+      onHover: (name) => highlightPartitionRow(table, name),
+    });
     if (map) children.push(el('div', { class: 'v2-disk-map' }, [map]));
     if (table) children.push(el('div', { class: 'v2-disk-table' }, [table]));
   } else if (d.disk_layout && !parts.length) {
@@ -269,7 +304,7 @@ function trendStrip(series, onRange) {
   const window = trendWindow(series);
   const grid = el('div', { class: 'v2-trend-grid' });
 
-  for (const metric of TREND_METRICS) {
+  for (const metric of V2_METRICS) {
     const points = seriesFor(metric.key, series);
     const cell = el('div', { class: 'v2-trend' }, [
       el('div', { class: 'label', text: metric.label }),
@@ -292,6 +327,9 @@ function trendStrip(series, onRange) {
       band: metric.band ? scoreBand(last) : null,
       format: metric.format,
       window,
+      // A dot per reading: gaps in scanning become visible, and a two-point series stops looking
+      // like a rendering failure.
+      dots: true,
     });
     if (plot) cell.append(plot);
     grid.append(cell);

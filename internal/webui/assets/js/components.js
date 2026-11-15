@@ -137,7 +137,9 @@ export function sparkLine(points, height = 40, window = null) {
  * `points` are `{ts, value}` in time order; `format(value)` renders the readout.
  */
 export function sparkline(points, opts = {}) {
-  const { height = 40, band = null, format = (v) => String(v), window = null } = opts;
+  // `dots` marks every reading. Off by default: on a dense series it is noise, and on a sparse one
+  // it is the difference between "two readings" and "a broken chart".
+  const { height = 40, band = null, format = (v) => String(v), window = null, dots = false } = opts;
   const usable = plottable(points);
   if (usable.length < 2) return null;
 
@@ -145,6 +147,16 @@ export function sparkline(points, opts = {}) {
   const x = xScale(bounds);
   const line = sparkLine(usable, height, bounds);
   const stroke = band ? `spark-${band}` : 'spark';
+
+  const values = usable.map((p) => p.value);
+  const minY = Math.min(...values);
+  const spanY = Math.max(...values) - minY || 1;
+  const yOf = (v) => height - ((v - minY) / spanY) * (height - 6) - 3;
+  const marks = dots
+    ? usable
+      .map((p) => `<circle class="spark-dot" cx="${x(p.at).toFixed(1)}" cy="${yOf(p.value).toFixed(1)}" r="1.7"/>`)
+      .join('')
+    : '';
 
   const marker = el('div', { class: 'spark-marker', hidden: true });
   // Three short lines rather than one long one: a single line wide enough to hold a
@@ -168,6 +180,7 @@ export function sparkline(points, opts = {}) {
         `<path class="spark-area" d="${line} L${x(usable[usable.length - 1].at).toFixed(1)} ${height}` +
           ` L${x(usable[0].at).toFixed(1)} ${height} Z"/>` +
         `<path class="${stroke}" d="${line}" vector-effect="non-scaling-stroke"/>` +
+        marks +
         `</svg>`,
     ),
     marker,

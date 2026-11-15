@@ -1562,7 +1562,7 @@ export function diskLayoutCard(layout, opts) {
  * `querySelectorAll` specifically: the test stub's own traversal helper does not exist in a browser, and
  * reaching for it made this a silent no-op. See `stub-dom.mjs`.
  */
-function highlightPartitionRow(table, name) {
+export function highlightPartitionRow(table, name) {
   if (!table || !table.querySelectorAll) return;
   for (const row of table.querySelectorAll('tr')) {
     const classes = String(row.className || '').split(/\s+/).filter((c) => c && c !== 'is-hover');
@@ -1580,7 +1580,7 @@ function highlightPartitionRow(table, name) {
  *
  * A no-op when there is no map, which is the case when the usage column is switched off.
  */
-function highlightSegment(map, name) {
+export function highlightSegment(map, name) {
   if (!map || !map.querySelectorAll) return;
   for (const seg of map.querySelectorAll('.disk-segment')) {
     const classes = String(seg.className || '').split(/\s+/).filter((c) => c && c !== 'is-hover');

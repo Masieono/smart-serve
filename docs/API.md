@@ -736,8 +736,10 @@ native (browser `EventSource` auto-retry with `Last-Event-ID` cursor for missed
 ## History (implemented)
 
 - `GET /api/devices/{serial}/history?from=…&to=…` — snapshots in range, with
-  computed series (`temperature_c`, `wear_pct`, attr-5/197/198 raw values,
-  `power_on_hours`).
+  computed series (`temperature_c`, `wear_pct`, `used_pct`, `sectors`, attr-5/197/198 raw
+  values, `power_on_hours`). `sectors` is the reallocated count at that snapshot: the one
+  series whose shape precedes a failure, which is why the v2 trend strip gives it a slot
+  (`ADR-032`).
 
 ## Knowledge base (implemented, `A21`)
 
