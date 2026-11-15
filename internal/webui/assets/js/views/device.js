@@ -55,6 +55,12 @@ function restoreScrollY(y) {
 }
 
 /** The absolute start of the selected window, or null for everything. */
+// Exported so the v2 device page asks for the same window through the same rule (`ADR-032`):
+// two implementations of "what does 30 days mean" is how the two views start disagreeing.
+export function trendFrom() {
+  return historyFrom();
+}
+
 function historyFrom() {
   if (trendRange === 'all') return null;
   const days = Number(trendRange);
@@ -795,7 +801,7 @@ export function parsePenalties(raw) {
 
 
 
-function trendCard(series, onRange) {
+export function trendCard(series, onRange) {
   const selector = el('div', { class: 'row', style: 'gap:var(--space-1)' },
     TREND_RANGES.map(([value, label]) =>
       el('button', {

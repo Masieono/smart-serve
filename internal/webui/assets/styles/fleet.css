@@ -758,3 +758,35 @@
     gap: var(--space-3);
   }
 }
+
+/* --- components reused from the incumbent page ------------------------------
+   The attribute table, the trend chart and the partition map are the same
+   components the card view uses, imported rather than reimplemented. They bring
+   their own frames, which belong to that layout — so in this one the frame comes
+   off and the content stays. */
+
+.v2-partitions,
+.v2-trends-plain {
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  padding: 0;
+  display: block;
+}
+
+/* The section heading above already says "Trends"; the card's own row keeps only its range picker. */
+.v2-trends-plain > .row,
+.v2-partitions > .row {
+  justify-content: flex-end;
+  margin-bottom: var(--space-3);
+}
+
+.v2-trends-plain > .row h2,
+.v2-partitions > .row h2 {
+  display: none;
+}
+
+.v2-trend-host > .v2-trends-plain .stack {
+  gap: var(--space-3);
+}

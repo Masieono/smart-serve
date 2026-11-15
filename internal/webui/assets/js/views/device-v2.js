@@ -1,12 +1,18 @@
 // The device page (v2) — the fleet view's other half (`ADR-032`).
 //
-// It reads `GET /api/devices/{serial}`, whose payload is `{device, snapshot, metrics, projection}`,
-// plus `/history` for the trends. The attributes live inside `snapshot.attributes` because they are
-// a reading rather than current state — the same reason the fleet list does not carry them.
+// This view owns *layout* and nothing else. The trend chart, the attribute table, the NVMe block and
+// the partition map are the components the incumbent page already uses, imported rather than
+// reimplemented: they carry behaviour that took work to get right — the hover readout, the range
+// semantics, the partition map's cross-highlighting against its table — and a second implementation
+// of any of them would drift from the first within one iteration.
 import {
-  el, clear, append, fmtBytes, fmtAgo, fmtInt, fmtTemp, fmtCell,
+  el, clear, append, mount, holdHeight, fmtBytes, fmtAgo, fmtInt, fmtTemp,
 } from '../dom.js';
 import { api, appPath } from '../api.js';
+import { attributeTable } from '../components.js';
+import {
+  trendCard, trendFrom, currentDisplayOptions, diskLayoutCard, nvmeTable, parsePenalties,
+} from './device.js';
 
 const STATE_WORD = {
   good: 'Healthy',
@@ -15,43 +21,54 @@ const STATE_WORD = {
   unknown: 'No reading',
 };
 
+// Module-level so the choice survives navigating between drives, exactly as the incumbent keeps it.
 let currentSerial = null;
-let currentRange = 30;
 
 export function reset() {
   currentSerial = null;
-  currentRange = 30;
 }
 
-export async function render(content, ctx, serial) {
+export async function render(content, ctx, serial, opts = {}) {
   currentSerial = serial;
-  clear(content);
+  const keep = opts.keepScroll === true;
+  const y = keep ? window.scrollY : 0;
+  // A re-render empties the container before it awaits, and a page that is briefly short makes the
+  // browser clamp the scroll position to the top. Holding the height across the swap is what keeps
+  // the reader where they were — the same trick the shell uses when a scan finishes.
+  const release = keep ? holdHeight(content) : null;
+
+  if (!keep) {
+    clear(content);
+    mount(content, el('div', { class: 'skeleton', style: 'width:40%;height:24px' }));
+  }
 
   let data;
   try {
     data = await api.device(serial);
   } catch (err) {
-    append(content, [
-      el('div', { class: 'fleet-empty', text: `Could not read this drive: ${err.message}` }),
-    ]);
+    clear(content);
+    append(content, [el('div', { class: 'fleet-empty', text: `Could not read this drive: ${err.message}` })]);
+    if (release) release();
     return;
   }
 
   const d = data.device || {};
   const snapshot = data.snapshot || null;
-  const attrs = attributesOf(snapshot);
-  const usage = storageSection(d);
+  const payload = snapshot && snapshot.attributes ? snapshot.attributes : null;
 
   clear(content);
   append(content, [
     backLink(ctx),
     head(ctx, content, d),
     facts(d, snapshot),
-    ...(usage ? [usage] : []),
-    ...(attrs.length ? [attributeSection(d, attrs)] : [noAttributeNotice(d)]),
-    trendSection(ctx, content, serial, d),
+    storageSection(d),
+    trendSection(serial),
+    attributeSection(d, payload),
     footer(d),
-  ]);
+  ].filter(Boolean));
+
+  if (release) release();
+  if (keep) window.scrollTo(0, y);
 }
 
 // --- head -------------------------------------------------------------------
@@ -100,7 +117,7 @@ function head(ctx, content, d) {
           } catch (err) {
             toast(`Scan failed: ${err.message}`);
           }
-          await render(content, ctx, d.serial);
+          await render(content, ctx, d.serial, { keepScroll: true });
         },
       }),
       el('a', {
@@ -133,206 +150,131 @@ function facts(d, snapshot) {
   ])));
 }
 
-// --- usage ------------------------------------------------------------------
+// --- storage: how full, then what is on the disk ----------------------------
 
 function storageSection(d) {
-  const s = d.storage;
-  if (!s || typeof s.used_pct !== 'number') return null;
-  const pct = Math.max(0, Math.min(100, s.used_pct));
-  const high = pct >= 85;
-  return section('Usage', [
-    el('div', { class: 'v2-usage' }, [
-      el('div', { class: 'v2-usage-line' }, [
-        el('b', { text: `${Math.round(pct)}% used` }),
-        el('span', {
-          text: s.total_bytes ? `of ${fmtBytes(s.total_bytes)}${s.mount ? ` on ${s.mount}` : ''}` : '',
-        }),
-      ]),
-      el('div', { class: 'v2-bar' }, [
-        el('i', { class: high ? 'high' : null, style: `width:${pct}%` }),
-      ]),
+  const usage = usageLine(d.storage);
+  // The incumbent's partition card, minus its own frame: the map and the table are the point, and
+  // they already cross-highlight each other. Reusing the component keeps the map's tooltips, the
+  // "outside the container" note and the sector-size details without a second implementation.
+  const layout = d.disk_layout ? diskLayoutCard(d.disk_layout, { showUsage: showUsage() }) : null;
+  if (layout) {
+    layout.className = 'v2-partitions';
+    for (const sel of ['h2', '.row']) {
+      const node = layout.querySelector(sel);
+      if (node && node.remove) node.remove();
+    }
+  }
+
+  if (!usage && !layout) return null;
+  return section('Storage', [usage, layout].filter(Boolean));
+}
+
+function usageLine(storage) {
+  if (!storage || typeof storage.used_pct !== 'number') return null;
+  const pct = Math.max(0, Math.min(100, storage.used_pct));
+  return el('div', { class: 'v2-usage' }, [
+    el('div', { class: 'v2-usage-line' }, [
+      el('b', { text: `${Math.round(pct)}% used` }),
+      el('span', {
+        text: storage.total_bytes
+          ? `of ${fmtBytes(storage.total_bytes)}${storage.mount ? ` on ${storage.mount}` : ''}`
+          : '',
+      }),
     ]),
   ]);
 }
 
-// --- attributes -------------------------------------------------------------
-
-function attributesOf(snapshot) {
-  const payload = snapshot && snapshot.attributes;
-  if (!payload || !Array.isArray(payload.attributes)) return [];
-  return payload.attributes;
-}
-
-function isFlagged(a) {
-  return a.threshold > 0 && a.value <= a.threshold;
-}
-
-function attributeSection(d, attrs) {
-  const flagged = attrs.filter(isFlagged).length;
-  const body = el('tbody', {});
-  for (const a of attrs) {
-    append(body, [el('tr', { class: isFlagged(a) ? 'flagged' : null }, [
-      el('td', { class: 'id', text: String(a.id) }),
-      el('td', { class: 'name', text: String(a.name).replace(/_/g, ' ') }),
-      el('td', { class: 'r', text: String(a.value) }),
-      el('td', { class: 'r', text: a.raw_string || String(a.raw_value ?? '') }),
-      el('td', { class: 'r', text: String(a.worst) }),
-      el('td', { class: 'r' }, [
-        el('span', { text: String(a.threshold) }),
-        isFlagged(a) ? el('span', { class: 'flagword', text: ' at limit' }) : null,
-      ].filter(Boolean)),
-    ])]);
-  }
-
-  return section(
-    'Attributes',
-    [el('table', { class: 'v2-table v2-attr' }, [
-      el('colgroup', {}, [
-        el('col', { class: 'id' }), el('col', { class: 'name' }), el('col', { class: 'v' }),
-        el('col', { class: 'raw' }), el('col', { class: 'worst' }), el('col', { class: 'th' }),
-      ]),
-      el('thead', {}, [el('tr', {}, [
-        el('th', { text: 'ID' }),
-        el('th', { text: 'Attribute' }),
-        el('th', { class: 'r', text: 'Value' }),
-        el('th', { class: 'r', text: 'Raw' }),
-        el('th', { class: 'r', text: 'Worst' }),
-        el('th', { class: 'r', text: 'Threshold' }),
-      ])]),
-      body,
-    ])],
-    `${attrs.length} reported · ${flagged ? `${flagged} at threshold` : 'none at threshold'}`,
-  );
-}
-
-function noAttributeNotice(d) {
-  return section('Attributes', [
-    el('div', { class: 'fleet-empty' }, [
-      el('div', {
-        text: d.smart_available
-          ? 'This drive reported no attributes at the last scan.'
-          : 'This drive does not report S.M.A.R.T. data, so there are no attributes to show.',
-      }),
-      d.smart_error ? el('div', { class: 'v2-mono-note', text: clean(d.smart_error) }) : null,
-    ].filter(Boolean)),
-  ]);
+function showUsage() {
+  const opts = currentDisplayOptions ? currentDisplayOptions() : {};
+  return opts.show_usage !== false;
 }
 
 // --- trends -----------------------------------------------------------------
 
-function trendSection(ctx, content, serial, d) {
-  const card = section('Trends', [
-    el('div', { class: 'v2-trends', id: 'v2-trends' }, [el('div', { class: 'fleet-note', text: 'Loading history…' })]),
-  ], null, rangeButtons(async (days) => {
-    currentRange = days;
-    await render(content, ctx, serial);
-  }));
+/**
+ * The trend card, redrawn in place when the window changes.
+ *
+ * Redrawing only this host is the whole point: re-rendering the page to change a window threw the
+ * reader back to the top of a long page, which is the opposite of what a range picker is for. The
+ * chart itself — hover readout, arrow keys, the window drawn against the selected span rather than
+ * the data's own extent — is the incumbent's `trendCard`, unchanged.
+ */
+function trendSection(serial) {
+  const host = el('div', { class: 'v2-trend-host' });
 
-  // Loaded after the shell is on screen: the page is useful without the chart, so nothing waits on it.
-  api.history(serial, fromParam(currentRange)).then((hist) => {
-    const host = document.getElementById('v2-trends');
-    if (!host) return;
-    clear(host);
-    const series = (hist && hist.series) || [];
-    if (series.length < 2) {
-      append(host, [el('div', { class: 'fleet-note', text: 'Not enough history yet — trends appear once this drive has been scanned a few times.' })]);
-      return;
-    }
-    append(host, [
-      spark('Health score', series, 'score', (v) => String(v), d),
-      spark('Temperature', series, 'temperature_c', (v) => fmtTemp(v), d),
-      spark('Powered on', series, 'power_on_hours', (v) => `${fmtInt(v)} h`, d),
-      spark('Wear', series, 'wear_pct', (v) => `${Math.round(v)}%`, d),
-    ]);
-  }).catch(() => {
-    const host = document.getElementById('v2-trends');
-    if (host) {
+  const draw = async () => {
+    let hist;
+    try {
+      hist = await api.history(serial, trendFrom());
+    } catch {
       clear(host);
       append(host, [el('div', { class: 'fleet-note', text: 'History could not be read.' })]);
+      return;
     }
-  });
+    const series = (hist && hist.series) || [];
+    clear(host);
+    const card = trendCard(series, draw);
+    if (card) {
+      card.className = 'v2-trends-plain';
+      append(host, [card]);
+    }
+  };
+  draw();
 
-  return card;
+  return section('Trends', [host]);
 }
 
-function fromParam(days) {
-  if (days === 'all') return null;
-  const d = new Date();
-  d.setDate(d.getDate() - days);
-  return d.toISOString();
-}
+// --- attributes -------------------------------------------------------------
 
-function rangeButtons(onPick) {
-  const ranges = [[7, '7d'], [30, '30d'], [90, '90d'], ['all', 'all']];
-  return el('div', { class: 'v2-ranges' }, ranges.map(([v, label]) => el('button', {
-    type: 'button',
-    'aria-pressed': String(currentRange === v),
-    text: label,
-    onclick: () => onPick(v),
-  })));
-}
-
-function spark(label, series, key, fmt, d) {
-  const points = series
-    .map((p) => ({ ts: p.ts, v: p[key] }))
-    .filter((p) => p.v !== null && p.v !== undefined);
-
-  if (points.length < 2) {
-    return el('div', { class: 'v2-trend' }, [
-      el('div', { class: 'label', text: label }),
-      el('div', { class: 'fleet-note', text: 'no readings in this window' }),
+function attributeSection(d, payload) {
+  if (!payload) {
+    return section('Attributes', [
+      el('div', { class: 'fleet-empty' }, [
+        el('div', {
+          text: d.smart_available
+            ? 'This drive reported no attributes at the last scan.'
+            : 'This drive does not report S.M.A.R.T. data, so there are no attributes to show.',
+        }),
+        d.smart_error ? el('div', { class: 'v2-mono-note', text: clean(d.smart_error) }) : null,
+      ].filter(Boolean)),
     ]);
   }
 
-  const values = points.map((p) => p.v);
-  const min = Math.min(...values);
-  const max = Math.max(...values);
-  const span = max - min || 1;
-  const w = 200;
-  const h = 40;
-  // A series that never moved is drawn through the middle. Pinned to an edge it reads as "zero" or
-  // "maxed out", which is the opposite of what a flat line means.
-  const flat = max === min;
-  const coords = points.map((p, i) => {
-    const x = (i / (points.length - 1)) * w;
-    const y = flat ? h / 2 : h - ((p.v - min) / span) * (h - 4) - 2;
-    return `${x.toFixed(1)},${y.toFixed(1)}`;
-  }).join(' ');
+  // An NVMe drive has no ATA attribute table; its health lives in a log with its own fields. The
+  // incumbent page has always known that; the first cut of this one did not, and told an NVMe owner
+  // their drive reported nothing.
+  const nvme = payload.nvme;
+  const attrs = Array.isArray(payload.attributes) ? payload.attributes : [];
+  const blamed = new Set(parsePenalties(d.penalties).map((p) => p.attribute_id).filter(Boolean));
 
-  const last = points[points.length - 1].v;
-  const first = points[0].v;
-  const delta = last - first;
+  if (nvme) {
+    return section('NVMe health log', [nvmeTable(nvme)], `${attrs.length} attributes reported`);
+  }
 
-  return el('div', { class: 'v2-trend' }, [
-    el('div', { class: 'label', text: label }),
-    el('div', { class: 'now' }, [
-      fmt(last),
-      el('small', { text: delta === 0 ? 'no change' : `${delta > 0 ? '+' : ''}${Math.round(delta * 10) / 10}` }),
-    ]),
-    el('div', { class: 'chart' }, [
-      el('span', { class: 'min', text: fmt(min) }),
-      el('span', { class: 'max', text: fmt(max) }),
-      html(`<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" aria-hidden="true"><polyline points="${coords}" fill="none" vector-effect="non-scaling-stroke" stroke-width="1.4"/></svg>`),
-    ]),
-  ]);
-}
+  if (!attrs.length) {
+    return section('Attributes', [
+      el('div', { class: 'fleet-empty', text: 'This drive reported no attributes at the last scan.' }),
+    ]);
+  }
 
-/** An inline SVG, which `el` cannot build — the chart is decoration around the numbers. */
-function html(markup) {
-  const wrap = document.createElement('span');
-  wrap.innerHTML = markup;
-  return wrap.firstElementChild;
+  const flagged = attrs.filter((a) => a.threshold > 0 && a.value <= a.threshold).length;
+  return section(
+    'Attributes',
+    [attributeTable(attrs, { blamed, inDatabase: payload.in_database })],
+    `${attrs.length} reported · ${flagged ? `${flagged} at threshold` : 'none at threshold'}`,
+  );
 }
 
 // --- shell bits -------------------------------------------------------------
 
-function section(title, children, aside = null, tools = null) {
+function section(title, children, aside = null) {
   return el('section', { class: 'v2-section' }, [
     el('div', { class: 'v2-shead' }, [
       el('h2', { text: title }),
-      el('div', { class: 'v2-aside' }, [tools, aside ? el('span', { text: aside }) : null].filter(Boolean)),
-    ]),
-    ...children,
+      aside ? el('div', { class: 'v2-aside' }, [el('span', { text: aside })]) : null,
+    ].filter(Boolean)),
+    ...children.filter(Boolean),
   ]);
 }
 
