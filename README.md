@@ -134,11 +134,13 @@ container — run them directly; they are identical:
 ```bash
 gofmt -l .                                 # prints anything unformatted; must be empty
 go vet ./...
-go test -count=1 ./...
+go test -race -count=1 ./...
 node --test internal/webui/jstest/*.test.mjs
 ```
 
-You need Go (the version in `go.mod`) and Node 24. Nothing else.
+You need Go (the version in `go.mod`) and Node 24. The `-race` check needs cgo and a C
+compiler as well (`CGO_ENABLED=1`, the default wherever one is installed) — the app itself
+still builds without cgo, and `make test` skips the race detector if you have neither.
 
 | Target | Does |
 |---|---|
