@@ -6,6 +6,7 @@ import { toast, confirmDialog } from './components.js';
 import * as dashboard from './views/dashboard.js';
 import * as device from './views/device.js';
 import * as fleet from './views/fleet.js';
+import * as deviceV2 from './views/device-v2.js';
 import * as schedules from './views/schedules.js';
 import * as notifications from './views/notifications.js';
 import * as settings from './views/settings.js';
@@ -143,7 +144,13 @@ async function route({ keepScroll = false } = {}) {
   const release = keepScroll ? holdHeight(content) : null;
   try {
     if (path.startsWith('/device/')) {
-      await device.render(content, ctx, decodeURIComponent(path.slice('/device/'.length)));
+      const serial = decodeURIComponent(path.slice('/device/'.length));
+      // The two views are a pair: the table and the page it opens (`ADR-032`).
+      if (document.documentElement.dataset.ui === 'v2') {
+        await deviceV2.render(content, ctx, serial);
+      } else {
+        await device.render(content, ctx, serial);
+      }
     } else if (path === '/schedules') {
       await schedules.render(content, ctx);
     } else if (path === '/notifications') {

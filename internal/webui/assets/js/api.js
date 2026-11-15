@@ -1,6 +1,13 @@
 // API client (docs/API.md). Every path is relative to the app base path, so
 // subpath hosting works (ADR-015).
-const basePath = new URL('.', document.baseURI).pathname.replace(/\/$/, '');
+// The server already rendered this into the shell (`data-base-path`), so it is the source of
+// truth rather than something derived from the document's base URI. Deriving it meant the client
+// depended on `<base>` having been honoured, and a document where that resolution goes wrong
+// (a proxied subpath, a harness that rewrites the document URL) sent every request one directory
+// too deep — `/device/api/devices` — where the SPA fallback answers with HTML and the app reads it
+// as a 404 it cannot explain.
+const appRoot = document.getElementById('app');
+const basePath = (appRoot && appRoot.dataset.basePath) || '';
 
 export function appPath(path) {
   return basePath + path;
