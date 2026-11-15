@@ -151,7 +151,8 @@ still builds without cgo, and `make test` skips the race detector if you have ne
 
 **These checks are not how you deploy.** Running the app is `docker compose up -d --build`
 or the `docker run` above (`docs/DEPLOYMENT.md`). The checks are for changing the code, and
-they run in CI on every push whether or not you run them yourself.
+they run in CI on every push to `main` and on every pull request, whether or not you run them
+yourself. A push to any other branch runs nothing until it is opened as a pull request.
 
 ## Project status
 
