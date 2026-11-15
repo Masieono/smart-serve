@@ -790,3 +790,9 @@
 .v2-trend-host > .v2-trends-plain .stack {
   gap: var(--space-3);
 }
+
+/* The chart was built for a card column about 500px wide. Given the whole page it stretches until a
+   two-point series is a speck at the right edge, so it stays in the width it was designed for. */
+.v2-trends-plain {
+  max-width: 760px;
+}
