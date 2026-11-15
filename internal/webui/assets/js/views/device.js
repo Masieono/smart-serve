@@ -720,7 +720,7 @@ function lifeText(lifeLeft, wearPct) {
 // Storage is a percentage rather than a count, so its delta is in *points* — "up 3 points" is a
 // meaningful change and "up 3%" of a percentage is not. Rising fullness is the one direction that
 // matters for a NAS drive, which is why the tone is inverted against the usual "up is good".
-const TREND_METRICS = [
+export const TREND_METRICS = [
   {
     key: 'score',
     label: 'Health score',
@@ -839,7 +839,16 @@ export function trendCard(series, onRange) {
  * that quietly ends at the right edge. "All" has no calendar to anchor to, so it spans exactly the
  * history that exists.
  */
-function trendWindow(series) {
+export function setTrendRange(value) {
+  trendRange = value;
+}
+
+/** The window the picker is on. The v2 page renders the same range through its own layout. */
+export function currentTrendRange() {
+  return trendRange;
+}
+
+export function trendWindow(series) {
   const stamps = series.map((s) => new Date(s.ts).getTime()).filter(Number.isFinite);
   const now = Date.now();
 
@@ -855,7 +864,7 @@ function trendWindow(series) {
 }
 
 /** One metric's points, dropping snapshots where the drive reported nothing. */
-function seriesFor(key, series) {
+export function seriesFor(key, series) {
   return series
     .map((snap) => ({ ts: snap.ts, value: snap[key] }))
     .filter((p) => typeof p.value === 'number' && Number.isFinite(p.value));
@@ -910,14 +919,18 @@ function exportDialog(device) {
 
 // Exported so the grouping can be pinned by a test: the structure is the fix for the
 // density, and a refactor back to a flat list would silently undo it.
-export function nvmeTable(n) {
+/** The NVMe log's fields, grouped, as data.
+ *
+ *  Extracted so the v2 page can lay the same sixteen facts out as a grid instead of a two-column
+ *  table — one list, two layouts, and no way for them to disagree about what the log contains. */
+export function nvmeSections(n) {
   // Grouped rather than one flat list of sixteen rows. The log mixes counters that
   // describe the drive's health, its lifetime, its workload and its errors, and in a flat
   // list all four read alike — which is what made this the densest panel on the page.
   // Each row carries the API field name alongside its label: the label is for reading,
   // the field name is the key into the help table (`attributes.js`), so rewording a label
   // cannot silently detach its explanation.
-  const sections = [
+  return [
     ['Health', [
       ['critical_warning', 'Critical warning', fmtInt(n.critical_warning)],
       ['available_spare', 'Available spare', percent(n.available_spare)],
@@ -943,7 +956,10 @@ export function nvmeTable(n) {
       ['num_err_log_entries', 'Error log entries', fmtInt(n.num_err_log_entries)],
     ]],
   ];
+}
 
+export function nvmeTable(n) {
+  const sections = nvmeSections(n);
   const body = [];
   for (const [title, rows] of sections) {
     body.push(el('tr', { class: 'section' }, [

@@ -1,17 +1,21 @@
 // The device page (v2) — the fleet view's other half (`ADR-032`).
 //
-// This view owns *layout* and nothing else. The trend chart, the attribute table, the NVMe block and
-// the partition map are the components the incumbent page already uses, imported rather than
-// reimplemented: they carry behaviour that took work to get right — the hover readout, the range
-// semantics, the partition map's cross-highlighting against its table — and a second implementation
-// of any of them would drift from the first within one iteration.
+// It owns layout. What it reuses is the *primitives* — `sparkline` (hover readout, arrow keys, a
+// window drawn against the selected span), `attributeTable`, `diskMap`, `partitionTable` — and the
+// data definitions the incumbent page keeps (`TREND_METRICS`, `nvmeSections`). What it does not do
+// is adopt the incumbent's *arrangements*: those were built for a two-column card page, and dropped
+// onto a full-width page they spread every label and value to opposite edges.
 import {
-  el, clear, append, mount, holdHeight, fmtBytes, fmtAgo, fmtInt, fmtTemp,
+  el, clear, append, mount, holdHeight, fmtBytes, fmtAgo, fmtInt, fmtTemp, scoreBand,
 } from '../dom.js';
 import { api, appPath } from '../api.js';
-import { attributeTable } from '../components.js';
 import {
-  trendCard, trendFrom, currentDisplayOptions, diskLayoutCard, nvmeTable, parsePenalties,
+  attributeTable, sparkline, dateAxis, helpButton, diskMap, partitionTable,
+} from '../components.js';
+import { nvmeHelp } from '../attributes.js';
+import {
+  TREND_METRICS, seriesFor, trendWindow, setTrendRange, currentTrendRange, trendFrom,
+  currentDisplayOptions, nvmeSections, parsePenalties,
 } from './device.js';
 
 const STATE_WORD = {
@@ -21,7 +25,8 @@ const STATE_WORD = {
   unknown: 'No reading',
 };
 
-// Module-level so the choice survives navigating between drives, exactly as the incumbent keeps it.
+const RANGES = [['7', '7d'], ['30', '30d'], ['90', '90d'], ['all', 'All']];
+
 let currentSerial = null;
 
 export function reset() {
@@ -61,7 +66,7 @@ export async function render(content, ctx, serial, opts = {}) {
     backLink(ctx),
     head(ctx, content, d),
     facts(d, snapshot),
-    storageSection(d),
+    diskSection(d),
     trendSection(serial),
     attributeSection(d, payload),
     footer(d),
@@ -150,27 +155,29 @@ function facts(d, snapshot) {
   ])));
 }
 
-// --- storage: how full, then what is on the disk ----------------------------
+// --- disk space: how full, and by what --------------------------------------
 
-function storageSection(d) {
-  const usage = usageLine(d.storage);
-  // The incumbent's partition card, minus its own frame: the map and the table are the point, and
-  // they already cross-highlight each other. Reusing the component keeps the map's tooltips, the
-  // "outside the container" note and the sector-size details without a second implementation.
-  const layout = d.disk_layout ? diskLayoutCard(d.disk_layout, { showUsage: showUsage() }) : null;
-  if (layout) {
-    layout.className = 'v2-partitions';
-    for (const sel of ['h2', '.row']) {
-      const node = layout.querySelector(sel);
-      if (node && node.remove) node.remove();
-    }
+function diskSection(d) {
+  const parts = (d.disk_layout && d.disk_layout.partitions) || [];
+  const children = [];
+
+  const usage = usageLine(d.storage, parts.length === 0);
+  if (usage) children.push(usage);
+
+  if (parts.length) {
+    const map = diskMap(d.disk_layout, {});
+    const table = partitionTable(d.disk_layout, { showUsage: showUsage() });
+    if (map) children.push(el('div', { class: 'v2-disk-map' }, [map]));
+    if (table) children.push(el('div', { class: 'v2-disk-table' }, [table]));
+  } else if (d.disk_layout && !parts.length) {
+    children.push(el('div', { class: 'fleet-note', text: 'This drive has no partition table — it holds no filesystems, or nothing readable from inside the container.' }));
   }
 
-  if (!usage && !layout) return null;
-  return section('Storage', [usage, layout].filter(Boolean));
+  if (!children.length) return null;
+  return section('Disk space', children);
 }
 
-function usageLine(storage) {
+function usageLine(storage, withBar) {
   if (!storage || typeof storage.used_pct !== 'number') return null;
   const pct = Math.max(0, Math.min(100, storage.used_pct));
   return el('div', { class: 'v2-usage' }, [
@@ -182,7 +189,10 @@ function usageLine(storage) {
           : '',
       }),
     ]),
-  ]);
+    // The partition map below *is* the bar when there is one; drawing both puts the same figure on
+    // screen twice, one line apart.
+    withBar ? el('div', { class: 'v2-bar' }, [el('i', { class: pct >= 85 ? 'high' : null, style: `width:${pct}%` })]) : null,
+  ].filter(Boolean));
 }
 
 function showUsage() {
@@ -193,17 +203,24 @@ function showUsage() {
 // --- trends -----------------------------------------------------------------
 
 /**
- * The trend card, redrawn in place when the window changes.
+ * Every metric in one row, each its own small plot.
  *
- * Redrawing only this host is the whole point: re-rendering the page to change a window threw the
- * reader back to the top of a long page, which is the opposite of what a range picker is for. The
- * chart itself — hover readout, arrow keys, the window drawn against the selected span rather than
- * the data's own extent — is the incumbent's `trendCard`, unchanged.
+ * Horizontal because these are read as a set — "is anything drifting?" is asked once, not five times
+ * — and because five stacked plots cost about 600px of page for 200px of information. The plot itself
+ * is the incumbent's `sparkline`, so the hover readout, the arrow-key stepping and the window drawn
+ * against the selected span all survive the rearrangement.
  */
 function trendSection(serial) {
   const host = el('div', { class: 'v2-trend-host' });
+  const tools = el('div', { class: 'v2-aside' });
 
   const draw = async () => {
+    // Rebuilt with the strip: the pressed state belongs to the current range, and leaving the
+    // buttons from the previous draw in place is how the picker ended up looking stuck while the
+    // data behind it had already changed.
+    clear(tools);
+    tools.append(trendRanges(draw));
+
     let hist;
     try {
       hist = await api.history(serial, trendFrom());
@@ -214,15 +231,71 @@ function trendSection(serial) {
     }
     const series = (hist && hist.series) || [];
     clear(host);
-    const card = trendCard(series, draw);
-    if (card) {
-      card.className = 'v2-trends-plain';
-      append(host, [card]);
-    }
+    append(host, [trendStrip(series, draw)]);
   };
   draw();
 
-  return section('Trends', [host]);
+  return el('section', { class: 'v2-section' }, [
+    el('div', { class: 'v2-shead' }, [el('h2', { text: 'Trends' }), tools]),
+    host,
+  ]);
+}
+
+function trendRanges(onPick) {
+  const active = currentTrendRange();
+  return el('div', { class: 'v2-ranges' }, RANGES.map(([value, label]) => el('button', {
+    type: 'button',
+    'aria-pressed': String(active === value),
+    text: label,
+    onclick: () => {
+      setTrendRange(value);
+      onPick();
+    },
+  })));
+}
+
+function trendStrip(series, onRange) {
+  const window = trendWindow(series);
+  const grid = el('div', { class: 'v2-trend-grid' });
+
+  for (const metric of TREND_METRICS) {
+    const points = seriesFor(metric.key, series);
+    const cell = el('div', { class: 'v2-trend' }, [
+      el('div', { class: 'label', text: metric.label }),
+    ]);
+
+    if (points.length < 2) {
+      cell.append(el('div', { class: 'v2-trend-none', text: 'not enough readings' }));
+      grid.append(cell);
+      continue;
+    }
+
+    const last = points[points.length - 1].value;
+    const change = metric.delta ? metric.delta(last - points[0].value, points) : null;
+    cell.append(el('div', { class: 'now' }, [
+      metric.format(last),
+      change ? el('small', { class: change.tone, text: change.text }) : null,
+    ].filter(Boolean)));
+
+    const plot = sparkline(points, {
+      band: metric.band ? scoreBand(last) : null,
+      format: metric.format,
+      window,
+    });
+    if (plot) cell.append(plot);
+    grid.append(cell);
+  }
+
+  // A window shorter than a day cannot be labelled with dates: every tick prints the same one, as
+  // the "All" range does on a drive scanned twice in an afternoon.
+  const spansADay = window && window.to - window.from >= 86400000;
+  const axis = spansADay ? dateAxis(window) : null;
+  if (axis) {
+    const axisRow = el('div', { class: 'v2-trend-axis' }, [axis]);
+    grid.append(axisRow);
+  }
+
+  return grid;
 }
 
 // --- attributes -------------------------------------------------------------
@@ -241,15 +314,13 @@ function attributeSection(d, payload) {
     ]);
   }
 
-  // An NVMe drive has no ATA attribute table; its health lives in a log with its own fields. The
-  // incumbent page has always known that; the first cut of this one did not, and told an NVMe owner
-  // their drive reported nothing.
+  // An NVMe drive has no ATA attribute table; its health lives in a log with its own fields.
   const nvme = payload.nvme;
   const attrs = Array.isArray(payload.attributes) ? payload.attributes : [];
   const blamed = new Set(parsePenalties(d.penalties).map((p) => p.attribute_id).filter(Boolean));
 
   if (nvme) {
-    return section('NVMe health log', [nvmeTable(nvme)], `${attrs.length} attributes reported`);
+    return section('NVMe health log', [nvmeGrid(nvme)]);
   }
 
   if (!attrs.length) {
@@ -266,13 +337,34 @@ function attributeSection(d, payload) {
   );
 }
 
+/**
+ * The NVMe log as a grid of groups rather than a two-column table.
+ *
+ * The table it replaces put each label at the left edge and its value at the right, which on a wide
+ * screen is a search problem rather than a reading one. Grouped columns keep a label beside its
+ * value and use the width for more facts per screen instead of more gap.
+ */
+function nvmeGrid(n) {
+  const groups = nvmeSections(n);
+  return el('div', { class: 'v2-nvme' }, groups.map(([title, rows]) => el('div', { class: 'v2-nvme-group' }, [
+    el('h3', { text: title }),
+    el('dl', {}, rows.map(([key, label, value]) => {
+      const help = nvmeHelp(key);
+      return el('div', { class: 'v2-nvme-row' }, [
+        el('dt', {}, [el('span', { text: label }), help ? helpButton(label, help) : null].filter(Boolean)),
+        el('dd', { text: value }),
+      ]);
+    })),
+  ])));
+}
+
 // --- shell bits -------------------------------------------------------------
 
-function section(title, children, aside = null) {
+function section(title, children, tools = null) {
   return el('section', { class: 'v2-section' }, [
     el('div', { class: 'v2-shead' }, [
       el('h2', { text: title }),
-      aside ? el('div', { class: 'v2-aside' }, [el('span', { text: aside })]) : null,
+      tools ? el('div', { class: 'v2-aside' }, [tools]) : null,
     ].filter(Boolean)),
     ...children.filter(Boolean),
   ]);
