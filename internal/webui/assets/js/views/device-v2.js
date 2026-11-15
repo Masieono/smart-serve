@@ -215,21 +215,26 @@ function trendSection(serial) {
   const tools = el('div', { class: 'v2-aside' });
 
   const draw = async () => {
+    let series = [];
+    try {
+      const hist = await api.history(serial, trendFrom());
+      series = (hist && hist.series) || [];
+    } catch {
+      clear(host);
+      clear(tools);
+      append(host, [el('div', { class: 'fleet-note', text: 'History could not be read.' })]);
+      return;
+    }
+
     // Rebuilt with the strip: the pressed state belongs to the current range, and leaving the
     // buttons from the previous draw in place is how the picker ended up looking stuck while the
     // data behind it had already changed.
     clear(tools);
+    // How many readings the window actually holds. A two-point series in a thirty-day window draws
+    // as a speck at the right edge, which looks like a broken chart until the count explains it.
+    tools.append(el('span', { class: 'v2-readings', text: readingsText(series) }));
     tools.append(trendRanges(draw));
 
-    let hist;
-    try {
-      hist = await api.history(serial, trendFrom());
-    } catch {
-      clear(host);
-      append(host, [el('div', { class: 'fleet-note', text: 'History could not be read.' })]);
-      return;
-    }
-    const series = (hist && hist.series) || [];
     clear(host);
     append(host, [trendStrip(series, draw)]);
   };
@@ -239,6 +244,12 @@ function trendSection(serial) {
     el('div', { class: 'v2-shead' }, [el('h2', { text: 'Trends' }), tools]),
     host,
   ]);
+}
+
+function readingsText(series) {
+  const n = Array.isArray(series) ? series.length : 0;
+  if (n === 0) return 'no readings in this window';
+  return `${n} reading${n === 1 ? '' : 's'}`;
 }
 
 function trendRanges(onPick) {

@@ -955,3 +955,7 @@
   .v2-trend-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .v2-nvme { grid-template-columns: 1fr; }
 }
+
+.v2-readings {
+  font-variant-numeric: tabular-nums;
+}
