@@ -995,3 +995,156 @@
 .v2-readings {
   font-variant-numeric: tabular-nums;
 }
+
+/* --- notifications (v2) ----------------------------------------------------- */
+
+/* The banner exists because a notification failure is invisible by nature: the message simply does
+   not arrive. It sits above the channels, not inside the log. */
+.v2-alert {
+  margin-top: var(--space-5);
+  padding: var(--space-3) var(--space-4);
+  border-left: 3px solid var(--bad);
+  background: color-mix(in srgb, var(--bad) 8%, transparent);
+}
+
+.v2-alert-title {
+  display: block;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--bad);
+}
+
+.v2-alert-body {
+  display: block;
+  margin-top: 3px;
+  font-size: var(--text-xs);
+  color: var(--muted);
+}
+
+.v2-table-wrap {
+  margin-top: var(--space-5);
+}
+
+.v2-channels col.drive { width: 30%; }
+.v2-channels col.events { width: 30%; }
+.v2-channels col.scope { width: 20%; }
+.v2-channels col.actions { width: 20%; }
+
+/* The status line's counts, separated the way the fleet view's are. */
+.fleet-glance .count + .count::before {
+  content: "";
+}
+
+.v2-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.v2-chip {
+  font-size: 11.5px;
+  color: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  padding: 1px 8px;
+  white-space: nowrap;
+}
+
+.v2-row-actions {
+  display: flex;
+  gap: var(--space-1);
+  justify-content: flex-end;
+}
+
+.v2-row-actions .v2-btn {
+  padding: 4px 9px;
+  font-size: 11.5px;
+}
+
+/* --- delivery feed ---------------------------------------------------------- */
+
+.v2-feed {
+  border-top: 1px solid var(--border);
+}
+
+.v2-feed-row {
+  display: grid;
+  grid-template-columns: 130px minmax(0, 1.1fr) minmax(0, 1.2fr) 90px minmax(0, 2fr);
+  gap: var(--space-3);
+  align-items: baseline;
+  padding: 8px 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
+  font-size: var(--text-xs);
+}
+
+.v2-feed-when {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--muted);
+}
+
+.v2-feed-channel { font-weight: 500; }
+
+.v2-feed-event {
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.v2-feed-status { white-space: nowrap; }
+.v2-feed-status.good { color: var(--good); }
+.v2-feed-status.bad { color: var(--bad); }
+.v2-feed-status.muted { color: var(--muted); }
+
+.v2-feed-detail {
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* --- maintenance windows ---------------------------------------------------- */
+
+.v2-windows {
+  border-top: 1px solid var(--border);
+}
+
+.v2-window {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 90px 80px;
+  gap: var(--space-3);
+  align-items: center;
+  padding: 10px 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
+}
+
+.v2-window-label { font-size: var(--text-sm); }
+
+.v2-window-when {
+  font-size: 11.5px;
+  color: var(--muted);
+  margin-top: 2px;
+}
+
+.v2-state {
+  font-size: var(--text-xs);
+  text-align: right;
+}
+
+.v2-state.caution { color: var(--caution); }
+.v2-state.muted { color: var(--muted); }
+
+.v2-window .v2-btn {
+  padding: 4px 9px;
+  font-size: 11.5px;
+  justify-self: end;
+}
+
+@media (max-width: 1100px) {
+  .v2-feed-row {
+    grid-template-columns: 96px minmax(0, 1fr) 80px;
+  }
+  .v2-feed-event,
+  .v2-feed-detail { display: none; }
+}

@@ -7,6 +7,7 @@ import * as dashboard from './views/dashboard.js';
 import * as device from './views/device.js';
 import * as fleet from './views/fleet.js';
 import * as deviceV2 from './views/device-v2.js';
+import * as notificationsV2 from './views/notifications-v2.js';
 import * as schedules from './views/schedules.js';
 import * as notifications from './views/notifications.js';
 import * as settings from './views/settings.js';
@@ -154,7 +155,11 @@ async function route({ keepScroll = false } = {}) {
     } else if (path === '/schedules') {
       await schedules.render(content, ctx);
     } else if (path === '/notifications') {
-      await notifications.render(content, ctx);
+      if (document.documentElement.dataset.ui === 'v2') {
+        await notificationsV2.render(content, ctx);
+      } else {
+        await notifications.render(content, ctx);
+      }
     } else if (path === '/settings' || path.startsWith('/settings/')) {
       // `/settings` is the section, not a page: it renders the first one. That keeps the plain
       // sidebar entry working and means a bookmarked `/settings` is never a dead end.

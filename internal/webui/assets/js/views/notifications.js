@@ -278,7 +278,7 @@ function toSerialList(raw) {
     .filter(Boolean);
 }
 
-async function saveWindows(ctx, windows) {
+export async function saveWindows(ctx, windows) {
   try {
     await api.putSettings({ maintenance_windows: JSON.stringify(windows) });
     toast('Maintenance windows saved', 'good');
@@ -336,13 +336,13 @@ function windowRow(ctx, windows, devices, w, now) {
 }
 
 /** A drive's friendly name where we have one, so the list is readable. */
-function labelForSerial(devices, serial) {
+export function labelForSerial(devices, serial) {
   const match = devices.find((d) => d.serial === serial);
   if (!match) return serial;
   return match.name || match.model || serial;
 }
 
-function editWindow(ctx, windows, devices) {
+export function editWindow(ctx, windows, devices) {
   openDialog('Add maintenance window', (body, close, foot) => {
     const now = Date.now();
     const label = el('input', { type: 'text', placeholder: 'e.g. array rebuild' });
@@ -682,7 +682,7 @@ export function channelTypes() {
 }
 
 
-function editChannel(ctx, existing, catalog = {}) {
+export function editChannel(ctx, existing, catalog = {}) {
   const {
     eventTypes = EVENT_TYPES,
     serverTypes = null,
