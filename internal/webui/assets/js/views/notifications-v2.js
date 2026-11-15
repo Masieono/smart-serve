@@ -7,7 +7,7 @@
 // The channel editor and the maintenance-window editor are the incumbent's dialogs, imported rather
 // than rebuilt (`ADR-032`): they carry per-provider field specs, secret masking, test-send against
 // unsaved config and the env-var hints, and not one of those is a layout decision.
-import { el, clear, append, mount, fmtAgo, fmtDateTime } from '../dom.js';
+import { el, clear, append, mount, holdHeight, fmtAgo, fmtDateTime } from '../dom.js';
 import { api } from '../api.js';
 import { emptyState, errorBox, toast, confirmDialog } from '../components.js';
 import { icon } from '../icons.js';
@@ -22,32 +22,60 @@ const FALLBACK_EVENTS = [
   'scan_failure', 'self_test_result', 'scan_success', 'group_heat',
 ];
 
+// The page's data, kept so a single delivery can be re-read without refetching the fleet.
+let state = null;
+let host = null;
+let hostCtx = null;
+
 export async function render(container, ctx) {
+  host = container;
+  hostCtx = ctx;
   clear(container);
   mount(container, el('div', { class: 'skeleton', style: 'width:30%;height:24px' }));
 
-  let channels;
-  let log;
-  let settings;
-  let devices;
   try {
-    [channels, log, settings, devices] = await Promise.all([
+    const [channels, log, settings, devices] = await Promise.all([
       api.channels(),
       api.notifications(25),
       api.settings(),
       api.devices(),
     ]);
+    state = { channels, log, settings, devices };
   } catch (err) {
     clear(container);
     mount(container, errorBox(`Could not load notifications: ${err.message}`));
     return;
   }
 
-  draw(container, ctx, channels, log, settings, devices);
+  draw(container, ctx);
 }
 
-function draw(container, ctx, data, log, settings, deviceData) {
-  const channels = data.channels || [];
+/**
+ * Re-read the delivery log and redraw in place.
+ *
+ * A test send is the one action whose *result* appears somewhere else on the page, and a person who
+ * clicks Test and sees nothing change reasonably concludes nothing happened. The redraw holds the
+ * page height across the swap so the reader does not jump to the top of a long page.
+ */
+async function refreshLog() {
+  if (!host || !state) return;
+  let log;
+  try {
+    log = await api.notifications(25);
+  } catch {
+    return;
+  }
+  state = { ...state, log };
+  const y = window.scrollY;
+  const release = holdHeight(host);
+  draw(host, hostCtx);
+  release();
+  window.scrollTo(0, y);
+}
+
+function draw(container, ctx) {
+  const { channels: channelData, log, settings, devices: deviceData } = state || {};
+  const channels = (channelData && channelData.channels) || [];
   const devices = ((deviceData && deviceData.devices) || []).filter((d) => d.serial);
   const eventTypes = (log && log.event_types) || FALLBACK_EVENTS;
   const windows = parseWindows(settings && settings.settings && settings.settings.maintenance_windows);
@@ -63,10 +91,7 @@ function draw(container, ctx, data, log, settings, deviceData) {
   clear(container);
   append(container, [
     el('div', { class: 'fleet-head' }, [
-      el('div', {}, [
-        el('h1', { text: 'Notifications' }),
-        el('div', { class: 'fleet-glance' }, statusLine(channels, entries)),
-      ]),
+      el('h1', { text: 'Notifications' }),
       el('button', {
         class: 'fleet-scan',
         type: 'button',
@@ -74,6 +99,7 @@ function draw(container, ctx, data, log, settings, deviceData) {
         onclick: () => editChannel(ctx, null, catalog),
       }),
     ]),
+    el('div', { class: 'fleet-glance' }, statusLine(channels, entries)),
 
     failureBanner(entries, channels),
 
@@ -185,6 +211,8 @@ function channelTable(channels, ctx, catalog) {
               } catch (err) {
                 toast(`Test failed: ${err.message}`, 'error');
               } finally {
+                // Either way the attempt is a delivery, and the log is where it shows up.
+                await refreshLog();
                 b.disabled = false;
                 b.textContent = 'Test';
               }
