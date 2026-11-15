@@ -45,6 +45,16 @@ discarding silently is not. See `ADR-028`.
 
 ### Fixed
 
+- **The three items the hardening pass left open are closed.** A self-test *read* that fails now
+  answers `502` with the drive's own words, like its start and abort siblings, instead of a `500` with
+  a reference — nothing in that path can fail at the store, so the reference pointed at a log with
+  nothing to say about the reader's drive. The command timeout can no longer wrap: `strconv.Atoi`
+  stopped a value that does not fit an `int`, but the multiplication into a `time.Duration` still
+  wrapped for values that *do*, so `SMARTSERVE_COMMAND_TIMEOUT=18446744074` produced a 0.3-second
+  timeout rather than the default. And `GET /api/devices/{serial}/history` and
+  `PUT /api/devices/{serial}/transport` are now covered — writing the transport test turned up a third
+  thing: the endpoint stored arbitrary text that reaches a `smartctl` argument and outlives the
+  request, so it now requires a value that looks like a device type (`400` otherwise).
 - **A command timeout too large to represent wrapped into a positive one.** `SMARTSERVE_COMMAND_TIMEOUT`
   was read by a hand-rolled digit loop that added digits without checking for overflow, so a 20-digit
   value arrived as `2190664h` instead of falling back to the default — and because every caller checks
@@ -239,23 +249,6 @@ discarding silently is not. See `ADR-028`.
   Notifications page reads it today). The `*_FILE` secret sources (`SCOPE.md` said they were never
   built; `ADR-022` built them, per-channel). And `REQUIREMENTS.md` D6 promising built-in single-user
   auth in Phase 2, which `ADR-016` considered and declined — the app ships no authentication by design.
-
-### Known limitations
-
-The three items the hardening pass left open are closed in this release, and the section is kept
-(rather than deleted) because it is the record that they were real:
-
-- **A self-test *read* that fails now answers `502` with the drive's own words**, like its start and
-  abort siblings, instead of a `500` with a reference. Nothing in that path can fail at the store —
-  the drive's existence and addressability are settled before it — so a reference there was sending
-  the reader to a log that had nothing to say about their drive.
-- **The command timeout cannot wrap any more.** `strconv.Atoi` stopped a value that does not fit an
-  `int`; the multiplication into a `time.Duration` still wrapped for values that *do*, so
-  `SMARTSERVE_COMMAND_TIMEOUT=18446744074` produced a 0.3-second timeout rather than the default —
-  and a timeout that short is indistinguishable from a drive that has stopped answering.
-- **`GET /api/devices/{serial}/history` and `PUT /api/devices/{serial}/transport` are covered**, both
-  with their query and validation paths, and the transport endpoint now validates its value rather
-  than storing arbitrary text that reaches a `smartctl` argument.
 
 ## [1.1.0] — 2026-11-02
 
