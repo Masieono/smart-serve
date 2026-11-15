@@ -243,8 +243,10 @@
 
 .fleet-usage .track {
   width: 52px;
-  height: 3px;
-  background: var(--border);
+  height: 4px;
+  /* Mixed from the muted text colour rather than the border: the border is a hairline and in a dark
+     palette it disappears, which turns the bar into a floating number. */
+  background: color-mix(in srgb, var(--muted) 30%, transparent);
   position: relative;
   flex: none;
 }

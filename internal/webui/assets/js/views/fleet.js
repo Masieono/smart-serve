@@ -265,9 +265,10 @@ function healthCell(d, state) {
     ]),
   ];
 
-  // One line of explanation, and only when the state is not self-explanatory: "No reading" over a
-  // USB bridge is the common case and the reason is the useful part.
-  if (state === 'unknown' && d.health_rationale) {
+  // One line of explanation when the state does not explain itself. "No reading" over a USB bridge is
+  // the common case, but a drive the interpreter has *called* failing is the one a reader will
+  // actually act on, and the reason is the actionable part.
+  if (state !== 'good' && d.health_rationale) {
     children.push(el('span', { class: 'fleet-why', text: shortReason(d.health_rationale) }));
   }
   return el('div', {}, children.filter(Boolean));
