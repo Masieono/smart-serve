@@ -1,0 +1,348 @@
+/* The v2 fleet view (ADR-032).
+ *
+ * Every value here comes from tokens.css, so this file inherits all nineteen palettes and the
+ * surface tints without knowing they exist. Nothing in it is a colour, a radius or a spacing
+ * value — the same rule the rest of the stylesheet follows, and the reason a redesign can be
+ * compared against the incumbent in the same build.
+ *
+ * Scoped to [data-ui="v2"] so the two views can coexist while the comparison is running.
+ */
+
+[data-ui='v2'] .content {
+  padding: var(--space-6) var(--space-6) var(--space-7);
+}
+
+/* --- header ---------------------------------------------------------------- */
+
+.fleet-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+.fleet-head h1 {
+  margin: 0;
+  font-size: var(--text-xl);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.fleet-scan {
+  font: inherit;
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 6px 13px;
+  cursor: pointer;
+}
+
+.fleet-scan:hover {
+  border-color: var(--muted);
+}
+
+.fleet-scan:disabled {
+  color: var(--muted);
+  cursor: default;
+}
+
+/* The whole at-a-glance is one line. Counts are filters, so they are buttons. */
+.fleet-glance {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-5);
+  margin-top: var(--space-2);
+  font-size: var(--text-xs);
+  color: var(--muted);
+}
+
+.fleet-glance .count {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.fleet-glance .count:hover {
+  color: var(--text);
+}
+
+.fleet-glance .count[aria-pressed='true'] {
+  color: var(--text);
+}
+
+.fleet-glance .count b {
+  font-weight: 600;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.fleet-glance .when {
+  margin-left: auto;
+  color: var(--muted);
+}
+
+/* --- the table ------------------------------------------------------------- */
+
+.fleet-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  margin-top: var(--space-5);
+}
+
+.fleet-table col.drive { width: 34%; }
+.fleet-table col.health { width: 22%; }
+.fleet-table col.usage { width: 16%; }
+.fleet-table col.temp { width: 10%; }
+.fleet-table col.age { width: 14%; }
+
+.fleet-table th {
+  text-align: left;
+  font-weight: 400;
+  font-size: var(--text-xs);
+  color: var(--muted);
+  padding: 0 var(--space-4) var(--space-2) 0;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+.fleet-table th.r,
+.fleet-table td.r {
+  text-align: right;
+  padding-right: 0;
+}
+
+.fleet-table th.r {
+  padding-left: var(--space-5);
+}
+
+.fleet-table td {
+  padding: var(--space-3) var(--space-4) var(--space-3) 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
+  vertical-align: baseline;
+  white-space: nowrap;
+}
+
+.fleet-table td.r {
+  padding-left: var(--space-5);
+}
+
+.fleet-table td.drive {
+  white-space: normal;
+}
+
+.fleet-table tbody tr {
+  cursor: pointer;
+}
+
+.fleet-table tbody tr:hover td {
+  background: color-mix(in srgb, var(--surface) 70%, transparent);
+}
+
+.fleet-table tbody tr:hover .name {
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
+
+/* A drive that needs attention marks its own row: a coloured word is a weak signal in a
+   column of words, and the eye finds an edge faster than it reads. */
+.fleet-table tbody tr.attention td:first-child {
+  box-shadow: inset 2px 0 0 var(--caution);
+  padding-left: var(--space-3);
+}
+
+.fleet-table tbody tr.missing .name,
+.fleet-table tbody tr.missing td {
+  color: var(--muted);
+}
+
+.fleet-table .name {
+  font-size: var(--text-sm);
+  font-weight: 500;
+  letter-spacing: -0.008em;
+}
+
+.fleet-table .sub {
+  font-size: var(--text-xs);
+  color: var(--muted);
+  margin-top: 1px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.fleet-table .sub .mono {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+}
+
+/* --- the health cell: state and score, together ---------------------------- */
+
+.fleet-health {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+}
+
+.fleet-health .dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  display: inline-block;
+  flex: none;
+  transform: translateY(-1px);
+}
+
+.fleet-health .word {
+  font-size: var(--text-sm);
+}
+
+.fleet-health .score {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
+
+.fleet-health.good .dot { background: var(--good); }
+.fleet-health.good .word { color: var(--good); }
+.fleet-health.caution .dot { background: var(--caution); }
+.fleet-health.caution .word { color: var(--caution); }
+.fleet-health.bad .dot { background: var(--bad); }
+.fleet-health.bad .word { color: var(--bad); }
+.fleet-health.unknown .dot { background: var(--unknown); }
+.fleet-health.unknown .word { color: var(--muted); }
+
+.fleet-why {
+  display: block;
+  margin-top: 2px;
+  font-size: 11.5px;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 26ch;
+  white-space: nowrap;
+}
+
+/* --- usage ----------------------------------------------------------------- */
+
+.fleet-usage {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.fleet-usage .track {
+  width: 52px;
+  height: 3px;
+  background: var(--border);
+  position: relative;
+  flex: none;
+}
+
+.fleet-usage .track i {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: var(--muted);
+}
+
+.fleet-usage .track i.high {
+  background: var(--caution);
+}
+
+.fleet-usage .pct {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.fleet-num {
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.fleet-num.dim {
+  color: var(--muted);
+}
+
+/* --- states ---------------------------------------------------------------- */
+
+.fleet-empty {
+  margin-top: var(--space-6);
+  font-size: var(--text-sm);
+  color: var(--muted);
+  max-width: 60ch;
+}
+
+.fleet-note {
+  margin-top: var(--space-4);
+  font-size: var(--text-xs);
+  color: var(--muted);
+}
+
+.fleet-below {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-top: var(--space-3);
+  font-size: var(--text-xs);
+  color: var(--muted);
+}
+
+.fleet-below .links a {
+  color: var(--muted);
+  text-decoration: none;
+  margin-left: var(--space-4);
+}
+
+.fleet-below .links a:hover {
+  color: var(--text);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* The other view, offered rather than hidden: the point of the variant is comparison. */
+.fleet-switch {
+  margin-top: var(--space-6);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--border);
+  font-size: var(--text-xs);
+  color: var(--muted);
+}
+
+.fleet-switch a {
+  color: var(--muted);
+  text-decoration: none;
+  border-bottom: 1px solid var(--border);
+}
+
+.fleet-switch a:hover {
+  color: var(--text);
+}
+
+@media (max-width: 900px) {
+  [data-ui='v2'] .content {
+    padding: var(--space-4) var(--space-4) var(--space-6);
+  }
+
+  .fleet-table col.usage,
+  .fleet-table col.age {
+    display: none;
+  }
+
+  .fleet-table .usage-cell,
+  .fleet-table .age-cell {
+    display: none;
+  }
+}

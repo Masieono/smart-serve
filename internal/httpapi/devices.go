@@ -47,6 +47,11 @@ type deviceJSON struct {
 	// each drive's age per row, without opening every drive to find it.
 	PowerOnHours *int64   `json:"power_on_hours,omitempty"`
 	WearPct      *float64 `json:"wear_pct,omitempty"`
+	// UsedPct is how full the drive's fullest filesystem was at that same snapshot
+	// (`FEATURES.md` A28). On the fleet payload because the fleet table shows it: a
+	// per-drive request for the one number that makes a row scannable would be an
+	// N+1 for a page that draws every drive at once.
+	UsedPct *int `json:"used_pct,omitempty"`
 	// Removable and FsVersion come from lsblk. For a drive that reports no S.M.A.R.T.
 	// they are often the only description there is.
 	Removable *bool  `json:"removable,omitempty"`
@@ -324,7 +329,7 @@ func (s *Server) deviceRows(ctx context.Context) ([]deviceJSON, []interp.Replace
 			dj.Worsening = &delta
 		}
 		if f, ok := facts[d.Serial]; ok {
-			dj.PowerOnHours, dj.WearPct = f.PowerOnHours, f.WearPct
+			dj.PowerOnHours, dj.WearPct, dj.UsedPct = f.PowerOnHours, f.WearPct, f.UsedPct
 		}
 		if lookup := base.Find(d.Model, d.ModelFamily, d.Firmware, d.CapacityBytes); lookup.Known() {
 			dj.Knowledge = &lookup

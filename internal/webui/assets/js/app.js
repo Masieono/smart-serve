@@ -5,6 +5,7 @@ import { api, appPath } from './api.js';
 import { toast, confirmDialog } from './components.js';
 import * as dashboard from './views/dashboard.js';
 import * as device from './views/device.js';
+import * as fleet from './views/fleet.js';
 import * as schedules from './views/schedules.js';
 import * as notifications from './views/notifications.js';
 import * as settings from './views/settings.js';
@@ -151,6 +152,10 @@ async function route({ keepScroll = false } = {}) {
       // `/settings` is the section, not a page: it renders the first one. That keeps the plain
       // sidebar entry working and means a bookmarked `/settings` is never a dead end.
       await settings.render(content, ctx, path.slice('/settings/'.length));
+    } else if (document.documentElement.dataset.ui === 'v2') {
+      // The fleet table (`ADR-032`). Chosen per browser by cookie, so the same deployment can
+      // show both views side by side while the comparison runs.
+      await fleet.render(content, ctx);
     } else {
       await dashboard.render(content, ctx);
     }

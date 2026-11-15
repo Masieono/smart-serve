@@ -27,6 +27,10 @@ manual one does not (the operator who pressed the button already knows).
 
 ### `GET /api/devices` — list devices (last known state; never triggers I/O)
 
+The fleet table (`ADR-032`) reads `used_pct` per drive: how full the drive's fullest filesystem was
+at the last scan, or absent when the container could not see one. It is on the list rather than the
+per-device payload because a table that draws every drive would otherwise need a request per row.
+
 ```json
 {
   "devices": [

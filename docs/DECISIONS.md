@@ -1317,3 +1317,49 @@ is a real cost for someone running this from a NAS GUI with no shell. That is th
 error that is hidden is exactly the class a user could not act on. (±) `logMiddleware` is outermost and
 `recoverMiddleware` inside it, so a panic is logged once as a 500 with the stack beside it; the request
 log is the thing that made that ordering matter, and it is now pinned by a test.
+
+## ADR-032: The fleet view is a table, and a variant is a cookie
+
+**Context.** The fleet has been a grid of cards since the first build, and the card carries everything
+about a drive at once: a 100px score ring, five label/value rows, the model, the mountpoints, the verdict
+badge. At three drives that is a wall of dials; at twelve it is a page you scroll to answer a question
+whose answer is one word. The card's density is fixed — it costs the same height whether a drive is
+boring or failing — so a fleet of healthy drives is the most expensive state to look at, and the one row
+that matters is found by reading rather than by looking.
+
+**Decision — one row per drive, and the verdict and the score are one cell.** The list is a table:
+drive (name, then model · transport · capacity · first mountpoint), health, usage, temperature,
+powered on. The health cell is the verdict dot and word with the 0–100 score beside it, because a
+verdict and the number behind it are the same fact told twice, and the ring was a second column's worth
+of width to say it again. The score itself stays: it is the number other disk tools put in front of
+people, and the point of this view is to be *more* readable than those tools, not differently informed.
+
+**Decision — the row that needs a second look marks itself.** A caution or failing drive gets a 2px
+inset rule in the state colour down its left edge, and "No reading" keeps one line of the drive's own
+reason underneath. A coloured word in a column of coloured words is a weak signal; an edge is found by
+the eye without reading anything.
+
+**Decision — a variant is a cookie, not a setting.** `?ui=v2` sets `ui=v2` for that browser and
+redirects to the plain URL; the shell renders `data-ui` from it. A *setting* would be one value for the
+whole instance, which makes comparison impossible — the thing being compared would be a rebuild and a
+toggle apart. A cookie lets both views run against the same database, in two tabs, on the same drives,
+and lets the server render the right stylesheet before first paint rather than restyling after it.
+
+**Alternatives.**
+- *Keep the cards and make them smaller* — rejected: the card's shape is the problem. Five label/value
+  rows at 11px is not a compact version of a row, it is a wide card poured into a narrow column.
+- *A dense cards mode* (a "table" toggle beside "cards", which the incumbent already has) — rejected as
+  the *replacement*: the table there is a fallback with different information. This view is a different
+  reading order, not a different density of the same drawing.
+- *A URL path (`/v2`) instead of a cookie* — would need the SPA router to know about a second root and
+  the base path to carve out a prefix. The cookie costs six lines and touches neither.
+- *One build per variant* — that is what a variant *branch* is for, and it makes A/B a redeploy. The
+  point of a cookie is that both exist in one binary.
+
+**Consequences.** (+) the fleet reads at a glance, a drive's second line says what it is and where it is
+mounted without opening it, and the quota of information per row is spent on the row that needs it;
+`used_pct` reaches the fleet payload, so the one visual the dashboard keeps costs nothing per row.
+(−) two fleet views to keep working until the comparison ends, and the device page is still the
+incumbent design in v2 — clicking a row crosses between them, which is honest while the comparison runs
+and unacceptable as a destination. (±) the cookie is a persisted per-browser choice with no UI to clear
+it except the link at the foot of the view; the switch has to be discoverable from the view it changes.

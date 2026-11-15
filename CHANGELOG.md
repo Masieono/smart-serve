@@ -106,6 +106,16 @@ discarding silently is not. See `ADR-028`.
 
 ### Added
 
+- **A table view of the fleet, as a variant.** `?ui=v2` sets a cookie and the same deployment serves a
+  second fleet view: one row per drive, with the verdict and the 0–100 score in a single Health column,
+  usage, temperature and age; the row that needs a second look marks itself with a rule down its left
+  edge and, when a drive cannot report, one line of the drive's own reason. It reads the same
+  `/api/devices` payload as the cards, so the two cannot disagree. The device page is unchanged, and
+  the card view is still the default — this exists to be compared against it. See `ADR-032`.
+- **`used_pct` on the fleet payload.** How full the drive's fullest filesystem was at the last scan,
+  absent when the container could not see one. It was already stored per snapshot; the fleet table is
+  the first thing that wanted it for every drive at once.
+
 - **The "Replace first" shortlist can be turned off** (`A24`) — `show_replace_first`, on the Appearance
   page. It sits above the fleet, so it is the first thing on the page whether or not you want it today,
   and somebody who has already acted on it should not have to scroll past it every visit. The ranking is

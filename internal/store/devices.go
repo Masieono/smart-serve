@@ -758,6 +758,11 @@ type Snapshot struct {
 type SnapshotFacts struct {
 	PowerOnHours *int64
 	WearPct      *float64
+	// UsedPct is how full the drive's fullest filesystem was at that snapshot, when the
+	// container could see it. Absent is a real answer: a drive with no mounted filesystem,
+	// or a container without the host's mount roots, has no figure — and a zero there would
+	// read as an empty drive rather than an unmeasured one.
+	UsedPct *int
 }
 
 // LatestSnapshotFacts returns the newest snapshot's figures for every drive that has one.
@@ -766,7 +771,7 @@ type SnapshotFacts struct {
 // millisecond when a partial rescan follows a full one, and "the latest" has to be one row.
 func (s *Store) LatestSnapshotFacts(ctx context.Context) (map[string]SnapshotFacts, error) {
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT s.serial, s.power_on_hours, s.wear_pct
+		SELECT s.serial, s.power_on_hours, s.wear_pct, s.used_pct
 		FROM snapshots s
 		JOIN (SELECT serial, MAX(id) AS id FROM snapshots GROUP BY serial) newest
 		  ON newest.id = s.id`)
@@ -781,8 +786,9 @@ func (s *Store) LatestSnapshotFacts(ctx context.Context) (map[string]SnapshotFac
 			serial string
 			hours  sql.NullInt64
 			wear   sql.NullFloat64
+			used   sql.NullInt64
 		)
-		if err := rows.Scan(&serial, &hours, &wear); err != nil {
+		if err := rows.Scan(&serial, &hours, &wear, &used); err != nil {
 			return nil, err
 		}
 		f := SnapshotFacts{}
@@ -793,6 +799,10 @@ func (s *Store) LatestSnapshotFacts(ctx context.Context) (map[string]SnapshotFac
 		if wear.Valid {
 			v := wear.Float64
 			f.WearPct = &v
+		}
+		if used.Valid {
+			v := int(used.Int64)
+			f.UsedPct = &v
 		}
 		out[serial] = f
 	}

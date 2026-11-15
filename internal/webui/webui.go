@@ -90,6 +90,30 @@ func New(themeFn ThemeFunc, opts Options) (http.Handler, error) {
 	}
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// `?ui=v2` sets the variant for this browser and redirects to the same page without
+		// the parameter, so the URL a reader bookmarks or shares is the plain one and the
+		// choice survives it. Unknown values are ignored rather than stored: a typo should
+		// not leave someone stuck on a variant they cannot name.
+		if v := r.URL.Query().Get("ui"); v == "v1" || v == "v2" {
+			http.SetCookie(w, &http.Cookie{
+				Name:     "ui",
+				Value:    v,
+				Path:     baseHref,
+				MaxAge:   365 * 24 * 3600,
+				SameSite: http.SameSiteLaxMode,
+				HttpOnly: true,
+			})
+			target := basePath + r.URL.Path
+			if q := r.URL.Query(); q.Get("ui") != "" {
+				q.Del("ui")
+				if enc := q.Encode(); enc != "" {
+					target += "?" + enc
+				}
+			}
+			http.Redirect(w, r, target, http.StatusFound)
+			return
+		}
+
 		// Serve real files (styles, scripts, icons) directly.
 		if name := strings.TrimPrefix(r.URL.Path, "/"); name != "" {
 			if info, statErr := fs.Stat(sub, name); statErr == nil && !info.IsDir() {
@@ -113,7 +137,14 @@ func New(themeFn ThemeFunc, opts Options) (http.Handler, error) {
 		if themeFn != nil {
 			theme = themeFn(r.Context())
 		}
-		renderIndex(w, tmpl, theme, baseHref, basePath, opts.Version, logger)
+		// The fleet-view variant this browser asked for (`ADR-032`). A cookie rather than a
+		// setting: the point of a variant is to compare two views of one deployment side by
+		// side, and a setting is one value for the whole instance.
+		ui := "v1"
+		if c, cerr := r.Cookie("ui"); cerr == nil && c.Value == "v2" {
+			ui = "v2"
+		}
+		renderIndex(w, tmpl, theme, baseHref, basePath, opts.Version, ui, logger)
 	}), nil
 }
 
@@ -185,6 +216,11 @@ var ThemeNames = []string{
 }
 
 type indexData struct {
+	// UI is the fleet-view variant this browser asked for (`ADR-032`): "v1" or "v2". It is
+	// a cookie rather than a setting because the point of a variant is to compare two
+	// builds of the same deployment side by side, and a setting is one value for the whole
+	// instance.
+	UI        string
 	Theme     string
 	ThemeBase string
 	Tint      string
@@ -194,9 +230,10 @@ type indexData struct {
 	Version   string
 }
 
-func renderIndex(w http.ResponseWriter, tmpl *template.Template, theme Theme, baseHref, basePath, version string, logger *slog.Logger) {
+func renderIndex(w http.ResponseWriter, tmpl *template.Template, theme Theme, baseHref, basePath, version, ui string, logger *slog.Logger) {
 	name := normalize(theme.Name, ThemeNames, "auto")
 	data := indexData{
+		UI:        ui,
 		Theme:     name,
 		ThemeBase: normalize(theme.Base, []string{"light", "dark"}, "dark"),
 		Tint:      normalize(theme.Tint, []string{"neutral", "slate", "warm", "cool"}, "neutral"),
