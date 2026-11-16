@@ -147,6 +147,19 @@ func (s *Scheduler) Run(ctx context.Context) {
 		if !s.sleepUntil(ctx, &next) {
 			return
 		}
+		// A wake-up means "something changed", not "it is time".
+		//
+		// sleepUntil returns on either, so a create, an edit or a delete nudged the loop and it
+		// arrived here without the deadline having passed. Firing anyway runs the schedule that
+		// happened to be selected at the moment of the nudge — which is how creating a weekly
+		// schedule could launch a scan immediately, and how a newly created schedule could sit
+		// unarmed: the loop fired the old one instead of re-reading the list.
+		//
+		// Re-evaluating is also what makes "run now" work: RunNow sets the boundary to the present
+		// and wakes the loop, so the next pass finds it due and fires without a timer.
+		if s.now().Before(next) {
+			continue
+		}
 		s.fire(ctx, id)
 	}
 }
