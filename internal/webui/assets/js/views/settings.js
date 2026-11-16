@@ -602,7 +602,9 @@ function draw(container, ctx, data, page, { carried = {}, unit: unitOverride } =
   /** Theme, units, and what the other pages show. */
   function appearanceSection() {
     return el('section', { class: 'settings-section' }, [
-      el('h2', { text: 'Appearance' }),
+      // Not "Appearance": the page is already called that, and a heading that repeats the title
+      // above it is a line that teaches the reader nothing.
+      el('h2', { text: 'Display and refresh' }),
       el('div', { class: 'settings-rows' }, [
         settingRow('Temperature unit',
           'How temperatures are displayed; the threshold on the Thresholds page follows it. The stored ' +

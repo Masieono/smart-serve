@@ -206,9 +206,12 @@ function editSchedule(ctx, existing) {
 
     const time = el('input', { type: 'time', value: '03:00', style: 'max-width:160px' });
     const weekdayRows = WEEKDAY_NAMES.map((name, index) => {
-      const box = el('input', { type: 'checkbox' });
+      // The checkbox keeps the full weekday as its accessible name; the visible label is three
+      // letters, because seven full names do not fit one row and a strip that wraps defeats the
+      // point of a strip.
+      const box = el('input', { type: 'checkbox', 'aria-label': name });
       box.dataset.day = String(index);
-      return el('label', { class: 'field-row' }, [box, el('span', { text: name })]);
+      return el('label', { class: 'field-row', title: name }, [box, el('span', { text: name.slice(0, 3) })]);
     });
 
     const cronInput = el('input', { type: 'text', value: '0 3 * * *', placeholder: '0 3 * * *' });
@@ -223,7 +226,7 @@ function editSchedule(ctx, existing) {
       el('div', { class: 'field' }, [el('label', { text: 'At' }), time]),
       el('div', { class: 'field' }, [
         el('label', { text: 'On these days (none selected = every day)' }),
-        el('div', { class: 'row wrap', style: 'gap:var(--space-3)' }, weekdayRows),
+        el('div', { class: 'row wrap day-strip', style: 'gap:var(--space-3)' }, weekdayRows),
       ]),
     ]);
 

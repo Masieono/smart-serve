@@ -1353,3 +1353,184 @@
   margin-top: 3px;
   font-size: 11.5px;
 }
+
+/* --- the weekday strip ------------------------------------------------------
+   Seven checkboxes in a wrapping row always orphan one day onto its own line. As a
+   seven-cell strip they read as what they are — a week — and the row is the same
+   width as the field above it. Guarded by @supports: without :has the checkbox
+   cannot look selected, so the plain row is the right fallback rather than a row
+   of empty boxes. */
+@supports selector(:has(*)) {
+  [data-ui='v2'] .day-strip {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 6px;
+    width: 100%;
+  }
+
+  [data-ui='v2'] .day-strip .field-row {
+    position: relative;
+    justify-content: center;
+    height: 34px;
+    padding: 0;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    font-size: var(--text-sm);
+    color: var(--muted);
+    cursor: pointer;
+    transition: border-color 120ms ease, background 120ms ease;
+  }
+
+  [data-ui='v2'] .day-strip .field-row:hover {
+    border-color: color-mix(in srgb, var(--muted) 60%, transparent);
+  }
+
+  /* Visually hidden, not display:none — it has to stay focusable and toggleable. */
+  [data-ui='v2'] .day-strip .field-row input[type='checkbox'] {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: 0;
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  [data-ui='v2'] .day-strip .field-row:has(input:checked) {
+    background: color-mix(in srgb, var(--accent) 18%, transparent);
+    border-color: color-mix(in srgb, var(--accent) 70%, transparent);
+    color: var(--text);
+    font-weight: 500;
+  }
+
+  [data-ui='v2'] .day-strip .field-row:has(input:focus-visible) {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+  }
+}
+
+/* --- settings in v2 ---------------------------------------------------------
+   The view itself is the incumbent's — four pages of rows, with per-model
+   overrides, JSON editors and unit conversion in them — so this is a restyle, not
+   a rewrite. What changes is the surface: the card around the sheet goes away, and
+   sections become a hairline-separated list like every other v2 page, which is
+   also what stops a section heading from colliding with the row above it. */
+
+[data-ui='v2'] .settings-sheet {
+  display: block;
+  margin-top: var(--space-5);
+  padding: 0;
+  border: 0;
+  background: none;
+}
+
+[data-ui='v2'] .settings-section + .settings-section {
+  margin-top: var(--space-6);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--border);
+}
+
+[data-ui='v2'] .settings-section > h2 {
+  margin: 0 0 var(--space-3);
+  font-size: var(--text-md);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+[data-ui='v2'] .settings-rows {
+  gap: 0;
+}
+
+/* The per-model editor is a section nested inside the thresholds section — same subject, one
+   heading. Nested, the `+` sibling rule above does not reach it, so it gets the same treatment
+   spelled out: without this its heading sat flush against the row above it. */
+[data-ui='v2'] .settings-section .settings-section {
+  margin-top: var(--space-5);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--border);
+}
+
+/* The note and the buttons are grid children like the rows are, so with the rows' gap removed they
+   need their own spacing back. */
+[data-ui='v2'] .settings-rows > .settings-note {
+  margin: var(--space-3) 0 0;
+}
+
+[data-ui='v2'] .settings-rows > .row {
+  margin: var(--space-3) 0 var(--space-2);
+}
+
+[data-ui='v2'] .setting-row {
+  gap: var(--space-5);
+  padding: var(--space-3) 0;
+  border-top: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+}
+
+[data-ui='v2'] .setting-label {
+  font-size: var(--text-sm);
+  font-weight: 500;
+}
+
+[data-ui='v2'] .setting-help {
+  margin-top: 2px;
+  font-size: 11.5px;
+  line-height: 1.45;
+  max-width: 62ch;
+}
+
+/* Every value lands in the same column, which is the point of the page. */
+[data-ui='v2'] .setting-control {
+  gap: var(--space-2);
+  min-width: 330px;
+  justify-content: flex-end;
+}
+
+[data-ui='v2'] .setting-control input[type='range'] {
+  width: 220px;
+}
+
+[data-ui='v2'] .setting-control input[type='number'] {
+  height: 32px;
+  width: 84px;
+}
+
+[data-ui='v2'] .setting-unit {
+  min-width: 2.5ch;
+  font-size: var(--text-xs);
+}
+
+[data-ui='v2'] .settings-note {
+  margin-top: var(--space-3);
+  font-size: 11.5px;
+  line-height: 1.5;
+}
+
+[data-ui='v2'] .settings-section .btn {
+  height: 30px;
+  padding: 0 var(--space-3);
+  font-size: var(--text-xs);
+}
+
+[data-ui='v2'] .settings-editor {
+  background: color-mix(in srgb, var(--bg) 70%, transparent);
+  min-height: 140px;
+  width: 100%;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+[data-ui='v2'] .settings-error {
+  padding: var(--space-2) var(--space-3);
+  font-size: 11.5px;
+  border-left: 3px solid var(--bad);
+  background: color-mix(in srgb, var(--bad) 8%, transparent);
+}
+
+@media (max-width: 900px) {
+  [data-ui='v2'] .setting-control {
+    min-width: 0;
+  }
+  [data-ui='v2'] .setting-control input[type='range'] {
+    width: 150px;
+  }
+}
