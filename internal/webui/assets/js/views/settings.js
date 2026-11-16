@@ -600,36 +600,56 @@ function draw(container, ctx, data, page, { carried = {}, unit: unitOverride } =
   }
 
   /** Theme, units, and what the other pages show. */
-  function appearanceSection() {
-    return el('section', { class: 'settings-section' }, [
-      // Not "Appearance": the page is already called that, and a heading that repeats the title
-      // above it is a line that teaches the reader nothing.
-      el('h2', { text: 'Display and refresh' }),
-      el('div', { class: 'settings-rows' }, [
-        settingRow('Temperature unit',
-          'How temperatures are displayed; the threshold on the Thresholds page follows it. The stored ' +
-          'value stays Celsius, which is what the drives report.',
-          unit),
-        themeRow,
-        ...customRows,
-        tintRow,
-        // What the drive pages draw (A28), and how often a running self-test is re-read. Display
-        // preferences all, which is why they live here rather than with the thresholds.
-        ...displayRows,
-        settingRow('Partitions on the drive page',
-          'Show each drive’s partition table — what is on it, and how big each part is. Turn it off ' +
-          'if you only care about the drive as a whole.',
-          showPartitions),
-        settingRow('Storage usage',
-          'Show how full each filesystem is. Needs the host’s mount roots bind-mounted read-only — ' +
-          'for example `- /mnt:/mnt:ro` — or there is nothing to measure.',
-          showUsage),
-        settingRow('Replace first on the dashboard',
-          'The shortlist above the fleet, ordered by how strongly each drive argues for replacement. ' +
-          'Turn it off to go straight to the drives.',
-          showReplaceFirst),
+  /**
+   * Three sections, not one.
+   *
+   * Ten rows sat under a single heading called "Display and refresh": a theme picker, a unit, a
+   * tint, two refresh intervals and three toggles. The rows were already grouped that way in the
+   * code — the page simply did not say so, so the heading described half of what was under it.
+   */
+  function appearanceSections() {
+    return [
+      el('section', { class: 'settings-section' }, [
+        // Not "Appearance": the page is already called that, and a heading that repeats the title
+        // above it is a line that teaches the reader nothing.
+        el('h2', { text: 'Theme and units' }),
+        el('div', { class: 'settings-rows' }, [
+          settingRow('Temperature unit',
+            'How temperatures are displayed; the threshold on the Thresholds page follows it. The stored ' +
+            'value stays Celsius, which is what the drives report.',
+            unit),
+          themeRow,
+          ...customRows,
+          tintRow,
+        ]),
       ]),
-    ]);
+      el('section', { class: 'settings-section' }, [
+        el('h2', { text: 'Refresh' }),
+        el('div', { class: 'settings-rows' }, [
+          ...displayRows,
+        ]),
+      ]),
+      // What the drive pages draw (A28). Display preferences all, which is why they live here
+      // rather than with the thresholds — but they are about the pages, not about the machine, so
+      // they are not filed under "Refresh".
+      el('section', { class: 'settings-section' }, [
+        el('h2', { text: 'What the pages show' }),
+        el('div', { class: 'settings-rows' }, [
+          settingRow('Partitions on the drive page',
+            'Show each drive’s partition table — what is on it, and how big each part is. Turn it off ' +
+            'if you only care about the drive as a whole.',
+            showPartitions),
+          settingRow('Storage usage',
+            'Show how full each filesystem is. Needs the host’s mount roots bind-mounted read-only — ' +
+            'for example `- /mnt:/mnt:ro` — or there is nothing to measure.',
+            showUsage),
+          settingRow('Replace first on the dashboard',
+            'The shortlist above the fleet, ordered by how strongly each drive argues for replacement. ' +
+            'Turn it off to go straight to the drives.',
+            showReplaceFirst),
+        ]),
+      ]),
+    ];
   }
 
   /**
@@ -703,7 +723,7 @@ function draw(container, ctx, data, page, { carried = {}, unit: unitOverride } =
     el('div', { class: 'card stack settings-sheet' }, {
       thresholds: [thresholdsSection()],
       notifications: [notificationsSection()],
-      appearance: [appearanceSection()],
+      appearance: appearanceSections(),
       data: dataSections(),
     }[page.id] || []),
   );
@@ -1032,10 +1052,47 @@ function settingRow(label, help, control) {
   return el('div', { class: 'setting-row' }, [
     el('div', { class: 'setting-text' }, [
       el('div', { class: 'setting-label', text: label }),
-      help ? el('div', { class: 'setting-help', text: help }) : null,
+      help ? helpBlock(help) : null,
     ]),
     el('div', { class: 'setting-control' }, [control]),
   ]);
+}
+
+/**
+ * Help text: one sentence, and the rest behind a disclosure.
+ *
+ * Every row carried two to five lines of explanation, so the page read as prose with controls
+ * embedded in it — and the longest were 250 characters, which is documentation, not a hint. The
+ * explanations are worth keeping (several say why something is off by default, or what it costs),
+ * so they are folded rather than deleted: a native `<details>`, with the text still in the DOM, one
+ * click away. One sentence is enough to know whether a row matters to you.
+ */
+function helpBlock(help) {
+  const cut = firstSentenceEnd(help);
+  if (cut <= 0) return el('div', { class: 'setting-help', text: help });
+  return el('div', { class: 'setting-help' }, [
+    el('span', { text: help.slice(0, cut) }),
+    el('details', { class: 'setting-more' }, [
+      el('summary', { text: 'Why?' }),
+      el('span', { text: help.slice(cut) }),
+    ]),
+  ]);
+}
+
+/**
+ * Where the first usable sentence ends, or -1 when the text is one sentence.
+ *
+ * "Off by default." is a full stop but not a summary, so a boundary only counts once the text
+ * before it is long enough to stand on its own.
+ */
+function firstSentenceEnd(text) {
+  const re = /[.!?]\s+/g;
+  let match;
+  while ((match = re.exec(text)) !== null) {
+    const end = match.index + 1;
+    if (end >= 40) return end;
+  }
+  return -1;
 }
 
 /**
@@ -1092,7 +1149,7 @@ function sliderRow(spec, settings, unit, carried, inputs) {
   return el('div', { class: 'setting-row' }, [
     el('div', { class: 'setting-text' }, [
       el('div', { class: 'setting-label', text: spec.label }),
-      el('div', { class: 'setting-help', text: spec.help }),
+      helpBlock(spec.help),
     ]),
     el('div', { class: 'setting-control' }, [
       range,

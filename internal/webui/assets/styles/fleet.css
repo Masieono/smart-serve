@@ -1569,3 +1569,26 @@
 [data-ui='v2'] .settings-sheet .settings-editor {
   margin-top: var(--space-2);
 }
+
+/* The folded half of a setting's explanation, inline with the sentence it continues. */
+[data-ui='v2'] .setting-help details.setting-more {
+  display: inline;
+}
+
+[data-ui='v2'] .setting-help details.setting-more > summary {
+  display: inline;
+  list-style: none;
+  margin-left: 3px;
+  cursor: pointer;
+  color: var(--accent);
+  border-bottom: 1px dotted color-mix(in srgb, var(--accent) 55%, transparent);
+}
+
+[data-ui='v2'] .setting-help details.setting-more > summary::-webkit-details-marker {
+  display: none;
+}
+
+[data-ui='v2'] .setting-help details.setting-more[open] > summary {
+  color: var(--muted);
+  border-bottom-style: none;
+}
