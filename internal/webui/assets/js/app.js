@@ -8,6 +8,7 @@ import * as device from './views/device.js';
 import * as fleet from './views/fleet.js';
 import * as deviceV2 from './views/device-v2.js';
 import * as notificationsV2 from './views/notifications-v2.js';
+import * as schedulesV2 from './views/schedules-v2.js';
 import * as schedules from './views/schedules.js';
 import * as notifications from './views/notifications.js';
 import * as settings from './views/settings.js';
@@ -153,7 +154,11 @@ async function route({ keepScroll = false } = {}) {
         await device.render(content, ctx, serial);
       }
     } else if (path === '/schedules') {
-      await schedules.render(content, ctx);
+      if (document.documentElement.dataset.ui === 'v2') {
+        await schedulesV2.render(content, ctx);
+      } else {
+        await schedules.render(content, ctx);
+      }
     } else if (path === '/notifications') {
       if (document.documentElement.dataset.ui === 'v2') {
         await notificationsV2.render(content, ctx);

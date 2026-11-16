@@ -1798,9 +1798,22 @@ table.data tbody tr.section th {
   color: var(--muted);
 }
 
+/* Every text-like input, listed rather than assumed. The list used to be text/number/search only,
+   so a secret field and a time picker rendered with square corners and a bare border while the field
+   above them had a radius and a tinted fill — visible in both the notification and schedule
+   editors. Anything text-like that gets added later belongs here too. */
 input[type="text"],
+input[type="password"],
 input[type="number"],
 input[type="search"],
+input[type="url"],
+input[type="email"],
+input[type="tel"],
+input[type="time"],
+input[type="date"],
+input[type="datetime-local"],
+input[type="month"],
+input[type="week"],
 select,
 textarea {
   width: 100%;

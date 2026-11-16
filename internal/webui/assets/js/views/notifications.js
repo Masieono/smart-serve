@@ -20,8 +20,8 @@ const EVENT_LABELS = {
   device_appeared: 'A drive appears',
   scan_failure: 'A scheduled scan fails',
   self_test_result: 'A self-test finishes',
-  scan_success: 'A scheduled scan completes successfully',
-  group_heat: 'Several drives in one group heat up together',
+  scan_success: 'A successful scan',
+  group_heat: 'A group heats up together',
 };
 
 export async function render(container, ctx) {

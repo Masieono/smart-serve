@@ -15,7 +15,11 @@ export async function render(container, ctx) {
 }
 
 function describe(s) {
-  if (s.kind === 'interval') return `every ${humanInterval(s.every_seconds || 0)}`;
+  if (s.kind === 'interval') {
+    // "every 1 day" is not English; "every day" is. The editor's preview composes its own strings,
+    // so dropping the numeral here does not disturb it.
+    return `every ${humanInterval(s.every_seconds || 0).replace(/^1 /, '')}`;
+  }
   return describeCron(s.cron) || `cron ${s.cron}`;
 }
 
@@ -352,3 +356,6 @@ function editSchedule(ctx, existing) {
   }, { dismissOnBackdrop: false });
 }
 
+// The v2 page composes these rather than re-deriving them: a second implementation of "every 24
+// hours" or "Self-test · long" is a second place for the two views to disagree.
+export { describe, describeAction, editSchedule, humanInterval };
