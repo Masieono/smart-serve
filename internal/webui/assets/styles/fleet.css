@@ -1534,3 +1534,38 @@
     width: 150px;
   }
 }
+
+/* Paragraphs inside a settings grid are grid children like the rows are, so they need the spacing
+   and the line length that a row gets for free. Full-bleed text was running the width of the page. */
+[data-ui='v2'] .settings-rows > p {
+  margin: var(--space-3) 0 0;
+  max-width: 72ch;
+  font-size: 11.5px;
+  line-height: 1.5;
+}
+
+[data-ui='v2'] .settings-rows > p + p {
+  margin-top: var(--space-2);
+}
+
+/* The knowledge section carries its own heading row so the summary can sit beside it. */
+[data-ui='v2'] .settings-section > .row {
+  margin-bottom: var(--space-3);
+  align-items: baseline;
+}
+
+[data-ui='v2'] .settings-section > .row > h2 {
+  margin: 0;
+  font-size: var(--text-md);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+/* Muted prose anywhere in the sheet keeps the same measure as the rest of the page. */
+[data-ui='v2'] .settings-sheet .muted {
+  max-width: 72ch;
+}
+
+[data-ui='v2'] .settings-sheet .settings-editor {
+  margin-top: var(--space-2);
+}
