@@ -13,7 +13,7 @@ import (
 // `FEATURES.md` A12: the score breakdown has to survive the scan that produced it.
 //
 // It never did. The interpreter computed a per-drive list of reasons and points on every read and
-// the app threw it away — so the one question a score invites ("why is it 72?") had an answer that
+// the app threw it away, so the one question a score invites ("why is it 72?") had an answer that
 // existed for a few milliseconds. This is the test that says it now reaches the page.
 func TestTheScoreBreakdownSurvivesAScanAndReachesTheDevicePayload(t *testing.T) {
 	srv, st, _, _ := newTestServer(t, Options{})
@@ -58,7 +58,7 @@ func TestTheScoreBreakdownSurvivesAScanAndReachesTheDevicePayload(t *testing.T) 
 }
 
 // The breakdown is detail-only. A fleet table shows a score, and six reasons per drive is not
-// something a list can carry — so the list must not grow a field it has no room for.
+// something a list can carry, so the list must not grow a field it has no room for.
 func TestTheDeviceListCarriesNoBreakdown(t *testing.T) {
 	srv, st, _, _ := newTestServer(t, Options{})
 	saveDeviceWithPenalties(t, st)
@@ -72,7 +72,7 @@ func TestTheDeviceListCarriesNoBreakdown(t *testing.T) {
 	}
 }
 
-// A drive that scored cleanly has no breakdown, and the field is absent rather than an empty list —
+// A drive that scored cleanly has no breakdown, and the field is absent rather than an empty list,
 // "nothing to explain" and "an explanation of nothing" are the same thing here, and absent is the
 // shorter way to say it.
 func TestACleanDriveHasNoBreakdown(t *testing.T) {

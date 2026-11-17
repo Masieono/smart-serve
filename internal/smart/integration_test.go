@@ -47,7 +47,7 @@ func TestFixtureVerdicts(t *testing.T) {
 }
 
 // TestSamsungWearFromAttribute177 is the fixture for a drive that reports wear as attribute
-// 177 and nothing else — no 231, which was the only id the app read.
+// 177 and nothing else, no 231, which was the only id the app read.
 //
 // It is kept because the rule that makes it work is a vendor gate, and a gate is exactly
 // the kind of thing that quietly stops matching. This drive's real attribute table is what

@@ -17,7 +17,7 @@ import { setDisplayOptions } from './views/device.js';
 
 // The sidebar. A fourth element on an entry means it is a *group*: the pages underneath it are
 // listed when you are in that part of the app, and only then. Settings is the first one, because its
-// sections are each a page rather than a stack of collapsible headings — a dozen controls on one
+// sections are each a page rather than a stack of collapsible headings, a dozen controls on one
 // screen is a wall, and a dozen controls split four ways is four short pages.
 const NAV = [
   ['/', 'Devices', 'dashboard'],
@@ -43,7 +43,7 @@ let navGuard = null;
 const ctx = {
   async navigate(path) {
     // Asked before the history entry is written, so a refused navigation leaves no trace to go back
-    // to — a "no" that still changed the URL would be worse than not asking.
+    // to, a "no" that still changed the URL would be worse than not asking.
     if (navGuard && !(await navGuard(path))) return;
     history.pushState({}, '', appPath(path));
     sidebar.dataset.open = 'false';
@@ -126,8 +126,8 @@ function currentPath() {
 /**
  * Render the view for the current path.
  *
- * `keepScroll` is for a re-render of the view that is *already on screen* — a refresh, a rescan, a
- * scan finishing — where the reader's place has to survive it. Navigation passes nothing, because a
+ * `keepScroll` is for a re-render of the view that is *already on screen*, a refresh, a rescan, a
+ * scan finishing, where the reader's place has to survive it. Navigation passes nothing, because a
  * page you have just asked for should start at the top.
  */
 async function route({ keepScroll = false } = {}) {
@@ -137,7 +137,7 @@ async function route({ keepScroll = false } = {}) {
   navGuard = null;
   renderSidebar(path);
   // A navigation starts at the top; a re-render keeps the reader where they were. Nothing else does
-  // this — see `scrollToTop`, and the shell comment in `UI.md` §2.
+  // this, see `scrollToTop`, and the shell comment in `UI.md` §2.
   if (!keepScroll) scrollToTop();
 
   // Every view mounts a skeleton and then awaits its data, so the container is empty for the length
@@ -187,7 +187,7 @@ function renderSidebar(path) {
     const link = el('a', {
       class: 'nav-item',
       href: appPath(href),
-      // Only the exact page is `page`. A section whose child is current is *marked*, not claimed —
+      // Only the exact page is `page`. A section whose child is current is *marked*, not claimed,
       // saying "you are here" about a link that goes somewhere else is worse than saying nothing.
       'aria-current': (href === '/' ? path === '/' : path === href) ? 'page' : null,
       onclick: (event) => {
@@ -201,8 +201,7 @@ function renderSidebar(path) {
     // The sub-pages of the section you are in, and only then. Ten permanent entries would make the
     // sidebar as long as the page the sections were split to shorten.
     return [
-      el('div', { class: here ? 'nav-group nav-group-active' : 'nav-group' }, [link]),
-      ...(here ? [el('div', { class: 'nav-children' }, children.map(([subHref, subLabel]) =>
+      el('div', { class: here ? 'nav-group nav-group-active' : 'nav-group' }, [link]), ...(here ? [el('div', { class: 'nav-children' }, children.map(([subHref, subLabel]) =>
         el('a', {
           class: 'nav-item nav-sub',
           href: appPath(subHref),
@@ -219,7 +218,7 @@ function renderSidebar(path) {
   sidebar.append(
     // The wordmark is the way home, which is what a wordmark in a corner is for. It is a
     // button rather than an <a> because every navigation in this shell goes through
-    // ctx.navigate, which owns the base path — a raw href would have to interpolate it and
+    // ctx.navigate, which owns the base path, a raw href would have to interpolate it and
     // get it wrong behind a proxy (ADR-015).
     el('button', {
       class: 'brand', type: 'button', title: 'Back to devices',
@@ -289,7 +288,7 @@ function connectEvents() {
     route({ keepScroll: true });
   });
   // A drive's self-test progress changed (`FEATURES.md` A20). The watcher re-reads only drives that
-  // are mid-test, and publishes this when something actually moved — so the badge tracks a running
+  // are mid-test, and publishes this when something actually moved, so the badge tracks a running
   // test instead of freezing at whatever the last scan caught.
   source.addEventListener('selftest_progress', () => {
     route({ keepScroll: true });
@@ -336,7 +335,7 @@ async function loadDisplayPreferences() {
     // and then change under them.
     setSelfTestRefresh(stored.selftest_poll_seconds);
     // A28: the partition table, its usage column and the dashboard's "Replace first" shortlist, read
-    // here for the same reason as the rest — a card that appeared and then vanished on first load is
+    // here for the same reason as the rest, a card that appeared and then vanished on first load is
     // worse than either state. Through `ctx` so the boot path and the save path run the same code.
     ctx.setDisplayOptions(stored);
   } catch {

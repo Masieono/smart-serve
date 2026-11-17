@@ -20,7 +20,7 @@ const (
 	// produces the same thing.
 	CauseDeviceBlocked FailureCause = "device_blocked"
 
-	// CauseQueryBlocked means the node opened but the S.M.A.R.T. query was refused — a
+	// CauseQueryBlocked means the node opened but the S.M.A.R.T. query was refused, a
 	// missing capability. Native NVMe needs CAP_SYS_ADMIN; a drive behind a USB bridge
 	// needs CAP_SYS_RAWIO for SG_IO passthrough.
 	CauseQueryBlocked FailureCause = "query_blocked"
@@ -29,7 +29,7 @@ const (
 	// flash drives and card readers do not.
 	CauseUnsupported FailureCause = "unsupported"
 
-	// CauseMissing means the device node was not there — unplugged between the lsblk
+	// CauseMissing means the device node was not there, unplugged between the lsblk
 	// listing and the read.
 	CauseMissing FailureCause = "missing"
 
@@ -55,7 +55,7 @@ func ClassifyFailure(text string) FailureCause {
 		}
 		return CauseMissing
 
-	// It opened, but a query was refused — always a capability.
+	// It opened, but a query was refused, always a capability.
 	case isPermission(t):
 		return CauseQueryBlocked
 

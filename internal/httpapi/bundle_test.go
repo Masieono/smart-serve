@@ -74,7 +74,7 @@ func TestTheBundleCarriesKnowledgeOverridesButNotTheCache(t *testing.T) {
 		t.Fatalf("after import: doc = %+v, %v", doc, err)
 	}
 
-	// A bundle whose knowledge entries are unusable is refused, and nothing is stored — a bad layer
+	// A bundle whose knowledge entries are unusable is refused, and nothing is stored, a bad layer
 	// would degrade every drive page rather than failing loudly here.
 	bad := configBundle{SmartServe: bundleVersion, Knowledge: `{"version":1,"drives":[{"family":"Bad"}]}`}
 	rec := importBundle(t, fresh, recode(t, bad))
@@ -108,7 +108,7 @@ func appliedCounts(t *testing.T, rec *httptest.ResponseRecorder) map[string]int 
 	return got.Applied
 }
 
-// The whole point of C7: labels survive a move to another host. This is that move in one test —
+// The whole point of C7: labels survive a move to another host. This is that move in one test,
 // one server exports, a second server on a fresh database imports, and the labels are there.
 func TestLabelsSurviveAHostMigration(t *testing.T) {
 	source, sourceStore, _, _ := newTestServer(t, Options{})
@@ -285,7 +285,7 @@ func TestImportWithSchedulesReplacesThem(t *testing.T) {
 }
 
 // A schedule's *action* has to survive an export and import, and it did not: the bundle carried the
-// timing axis and not the action, so a digest schedule came back as a scan schedule — silently, and
+// timing axis and not the action, so a digest schedule came back as a scan schedule, silently, and
 // in the direction of doing something to the drives rather than of doing nothing. A self-test
 // schedule is the same failure with a worse ending.
 func TestASchedulesActionSurvivesAMigration(t *testing.T) {
@@ -304,7 +304,7 @@ func TestASchedulesActionSurvivesAMigration(t *testing.T) {
 		t.Fatalf("CreateSchedule: %v", err)
 	}
 
-	// Out, and back into a *different* install — which is the only way a round trip means anything.
+	// Out, and back into a *different* install, which is the only way a round trip means anything.
 	body, err := json.Marshal(exportBundle(t, srv))
 	if err != nil {
 		t.Fatal(err)
@@ -333,7 +333,7 @@ func TestASchedulesActionSurvivesAMigration(t *testing.T) {
 	}
 }
 
-// An empty array is a file that carries schedules and has none — different from a file that does
+// An empty array is a file that carries schedules and has none, different from a file that does
 // not mention them at all.
 func TestAnEmptyScheduleListIsRespected(t *testing.T) {
 	srv, st, _, _ := newTestServer(t, Options{})
@@ -346,6 +346,6 @@ func TestAnEmptyScheduleListIsRespected(t *testing.T) {
 		t.Fatalf("ListSchedules: %v", err)
 	}
 	if len(schedules) != 0 {
-		t.Errorf("got %d schedules, want none — the file said so", len(schedules))
+		t.Errorf("got %d schedules, want none, the file said so", len(schedules))
 	}
 }

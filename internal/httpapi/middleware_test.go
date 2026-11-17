@@ -59,7 +59,7 @@ func TestBasePath(t *testing.T) {
 
 // TestSecurityHeaders covers the headers that constrain a response rather than describe
 // it. They are asserted on an allowed request, on one the CSRF guard rejects, and on a
-// 404 — a rejected request is still a document a browser renders, so it gets the same
+// 404, a rejected request is still a document a browser renders, so it gets the same
 // treatment as a successful one.
 func TestSecurityHeaders(t *testing.T) {
 	srv, _, _, _ := newTestServer(t, Options{})
@@ -179,7 +179,7 @@ func (f *flushRecorder) Flush() { f.flushes++ }
 
 // TestRecordingWriterKeepsStreaming is the regression guard for the SSE stream:
 // handleEvents finds its flusher with a type assertion, so a wrapper that hid
-// http.Flusher would not fail visibly — it would turn every live scan into
+// http.Flusher would not fail visibly, it would turn every live scan into
 // "streaming unsupported".
 func TestRecordingWriterKeepsStreaming(t *testing.T) {
 	var logw bytes.Buffer
@@ -195,7 +195,7 @@ func TestRecordingWriterKeepsStreaming(t *testing.T) {
 	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/events", nil))
 
 	if rec.flushes != 1 {
-		t.Errorf("flushes = %d, want 1 — the wrapper is swallowing Flush", rec.flushes)
+		t.Errorf("flushes = %d, want 1, the wrapper is swallowing Flush", rec.flushes)
 	}
 }
 

@@ -3,7 +3,7 @@
 // Two things are worth pinning. The first is that the curated table stays in step with the
 // interpreter: a description that disagreed with the verdict, or a missing one for a field
 // the verdict acts on, would be worse than no help at all. The second is that the help is
-// reachable without a mouse — the affordance is a button, not a `title`, and that is the
+// reachable without a mouse, the affordance is a button, not a `title`, and that is the
 // whole reason it works on the mobile layout.
 
 import test from 'node:test';
@@ -19,7 +19,7 @@ const { nvmeTable, logSummary } = await import('../assets/js/views/device.js');
 
 // The ids the interpreter acts on: SMART_INTERPRETATION.md §1.1 (wear) and §2 (the
 // CrystalDiskInfo set). If the interpreter grows a new interpreted attribute, this list
-// and the help table should grow together — which is the point of asserting on it.
+// and the help table should grow together, which is the point of asserting on it.
 const INTERPRETED_ATA = [5, 9, 10, 12, 187, 190, 194, 196, 197, 198, 199, 169, 177, 202, 231, 233];
 
 /** Every string in a subtree, in document order. */
@@ -132,7 +132,7 @@ test('every NVMe counter in the table carries a ?', () => {
   assert.equal(helpButtons(table).length, 16, 'all sixteen counters should be explained');
 });
 
-// A missing field must render as a gap, never as the literal word "undefined" — which is
+// A missing field must render as a gap, never as the literal word "undefined", which is
 // what a bare `String(value)` produces. The Raw column did exactly that for an attribute
 // whose raw value the drive never reported, which reads as data rather than as a gap.
 test('a sparse attribute row renders a gap, not "undefined"', () => {
@@ -141,14 +141,14 @@ test('a sparse attribute row renders a gap, not "undefined"', () => {
   assert.doesNotMatch(text, /undefined/);
   assert.doesNotMatch(text, /null/);
   assert.doesNotMatch(text, /NaN/);
-  assert.match(text, /—/, 'the gap should be visible');
+  assert.match(text, /n\/a/, 'the gap should be visible');
 });
 
-// "— min" reads as a measurement of zero minutes. A bare dash is the honest answer.
-test('an absent minute counter does not render as "— min"', () => {
+// ", min" reads as a measurement of zero minutes. A bare dash is the honest answer.
+test('an absent minute counter does not render as ", min"', () => {
   const text = textOf(nvmeTable({ critical_warning: 0, available_spare: 100 }));
   assert.doesNotMatch(text, /undefined|null|NaN/);
-  assert.doesNotMatch(text, /— min/);
+  assert.doesNotMatch(text, /, min/);
 });
 
 // The precondition that makes the two tests below meaningful: the stub must stringify what
@@ -218,7 +218,7 @@ test('the DOM stub stringifies non-node arguments, as the browser does', () => {
 // The bug this guards against was not a wrong value but a wrong *absence*: an entry with no
 // `watch` line passed a null to the native `Element.append`, which stringifies whatever it is
 // given, so the dialog read "…replace worn-out blocks. null" underneath the explanation. It
-// reached a real deployment because the DOM stub dropped null arguments silently — so this
+// reached a real deployment because the DOM stub dropped null arguments silently, so this
 // test only works because the stub was fixed to behave like the real thing first.
 test('no attribute help dialog renders null or undefined', () => {
   const ids = Object.keys(ATTRIBUTE_HELP);

@@ -32,7 +32,7 @@ func TestTrendPenaltiesLowerTheScoreOfAWorseningDrive(t *testing.T) {
 		t.Errorf("S1 score = %d, want 74 less the 5-point penalty", devices[0].Health.Score)
 	}
 	if devices[1].Health.Score != 100 {
-		t.Errorf("S2 score = %d, want it untouched — its count is not moving", devices[1].Health.Score)
+		t.Errorf("S2 score = %d, want it untouched, its count is not moving", devices[1].Health.Score)
 	}
 	// The rationale says why, as a rate and a window rather than a date.
 	for _, want := range []string{"5 points off the score", "7 new sector problems", "30 days"} {
@@ -57,7 +57,7 @@ func TestTheTrendAdjustmentAppearsInTheBreakdown(t *testing.T) {
 		t.Errorf("points = %v, want the 5 the score lost", pen[0].Points)
 	}
 	if pen[0].AttributeID != 0 {
-		t.Errorf("attribute id = %d, want none — the trend is the total of 5, 197 and 198 moving, "+
+		t.Errorf("attribute id = %d, want none, the trend is the total of 5, 197 and 198 moving, "+
 			"which is not a statement about one row", pen[0].AttributeID)
 	}
 	if !strings.Contains(pen[0].Reason, "7 new") {
@@ -118,7 +118,7 @@ func TestAnUnreadableDriveIsNotPenalised(t *testing.T) {
 	}
 }
 
-// A drive with no score at all — an unscored verdict — has nothing to take points off.
+// A drive with no score at all, an unscored verdict, has nothing to take points off.
 func TestADriveWithNoScoreIsNotPenalised(t *testing.T) {
 	devices := []Device{{Data: &model.SmartData{Serial: "S1"},
 		Health: interp.Result{Verdict: model.Unknown, Score: -1}}}
@@ -128,7 +128,7 @@ func TestADriveWithNoScoreIsNotPenalised(t *testing.T) {
 }
 
 // A drive absent from the trend map has no history to compare, which is not the same finding as a
-// flat one — and neither is a reason to touch its score.
+// flat one, and neither is a reason to touch its score.
 func TestADriveWithNoHistoryIsNotPenalised(t *testing.T) {
 	devices := []Device{healthy("S1", 100, "all checks passed")}
 	if adjusted := applyTrendPenalties(devices, map[string]int64{}); adjusted != 0 {

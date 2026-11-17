@@ -1,7 +1,7 @@
 // Per-channel environment overrides (`ADR-022`).
 //
 // Two things are worth pinning. The first is that the naming rule here matches the one the
-// server resolves against — the rule is duplicated because the variable name has to appear
+// server resolves against, the rule is duplicated because the variable name has to appear
 // while the label is being typed, before anything has been saved, and a mismatch would mean
 // the editor showed a name that does nothing. The second is that a supplied field stops being
 // demanded: a token that lives in a Docker secret is never typed into the form, so requiring
@@ -18,7 +18,7 @@ const {
 } = await import('../assets/js/views/notifications.js');
 
 // The same table as TestSlugMakesAStableVariableName in internal/notify/secrets_test.go. If
-// one side changes, the other fails — which is the only thing keeping two implementations of
+// one side changes, the other fails, which is the only thing keeping two implementations of
 // one rule honest.
 test('the slug rule matches the server', () => {
   const cases = {
@@ -42,7 +42,7 @@ test('the variable names one channel and one field', () => {
     'SMARTSERVE_CHANNEL_CRITICAL_ALERTS_TOKEN',
     'SMARTSERVE_CHANNEL_CRITICAL_ALERTS_TOKEN_FILE',
   ]);
-  // Two channels of one type must not collide — the whole reason the key is the label.
+  // Two channels of one type must not collide, the whole reason the key is the label.
   assert.notDeepEqual(channelEnvVars('Critical alerts', 'token'), channelEnvVars('Weekly digest', 'token'));
   // A label with nothing usable in it names no variables at all, rather than a bare prefix
   // that would match every channel.

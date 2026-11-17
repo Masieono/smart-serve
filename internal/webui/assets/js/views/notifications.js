@@ -4,7 +4,7 @@ import { api } from '../api.js';
 import { emptyState, errorBox, openDialog, confirmDialog, toast } from '../components.js';
 import { icon } from '../icons.js';
 // The groups a channel can be scoped to are the tags in use, which the dashboard asks for too
-// (`tags.js`) — one question, one implementation.
+// (`tags.js`), one question, one implementation.
 import { fleetTags } from '../tags.js';
 
 // Fallback for the event catalog; the API is the source of truth so a new event
@@ -55,7 +55,7 @@ function draw(container, ctx, data, log, settings, deviceData) {
   // The server owns the list of channel types it can actually deliver to, so a
   // build without a provider never offers it (docs/NOTIFICATIONS.md).
   const typeList = (log && log.channel_types) || null;
-  // Names only — the server never sends a resolved secret to the browser (ADR-022).
+  // Names only, the server never sends a resolved secret to the browser (ADR-022).
   const envVarList = (log && log.channel_env_vars) || null;
   const windows = parseWindows(settings && settings.settings && settings.settings.maintenance_windows);
   const devices = ((deviceData && deviceData.devices) || []).filter((d) => d.serial);
@@ -96,7 +96,7 @@ function draw(container, ctx, data, log, settings, deviceData) {
         el('span', { class: `badge badge-${c.enabled ? 'good' : 'unknown'}`,
           text: c.enabled ? 'Enabled' : 'Disabled' }),
       ]),
-      // An empty subscription is not "nothing subscribed" — it is every event, which is what it has
+      // An empty subscription is not "nothing subscribed", it is every event, which is what it has
       // always meant (`notify.subscribed`). The old text described the *setting* rather than its
       // effect, and read as a channel that would never speak: exactly the channel a digest gets set
       // up on, where the digest arrives *because* nothing has been narrowed away.
@@ -105,15 +105,14 @@ function draw(container, ctx, data, log, settings, deviceData) {
         : [
             el('span', { class: 'chip', text: 'Everything' }),
             el('span', { class: 'muted',
-              text: 'every alert and digest — the scheduled-scan heartbeat and group heat must be ticked' }),
+              text: 'every alert and digest, the scheduled-scan heartbeat and group heat must be ticked' }),
           ]),
       // The second axis, shown the same way as the first: what has been *narrowed away*. A scoped
       // channel says which drives it is about, and an unscoped one says so rather than saying
-      // nothing — silence here would read as "no drives", which is the opposite of the truth.
+      // nothing, silence here would read as "no drives", which is the opposite of the truth.
       el('div', { class: 'row wrap' }, scope.length
         ? [
-            el('span', { class: 'muted', text: 'Only drives tagged' }),
-            ...scope.map((g) => el('span', { class: 'chip', text: g })),
+            el('span', { class: 'muted', text: 'Only drives tagged' }), ...scope.map((g) => el('span', { class: 'chip', text: g })),
           ]
         : [el('span', { class: 'chip', text: 'Every group' })]),
       el('div', { class: 'row' }, [
@@ -491,7 +490,7 @@ function deliveryLog(log, channels) {
             class: `badge badge-${e.status === 'sent' ? 'good' : e.status === 'squelched' ? 'unknown' : 'bad'}`,
             text: e.status,
           })]),
-          el('td', { class: 'muted', text: e.detail || '—' }),
+          el('td', { class: 'muted', text: e.detail || 'n/a' }),
         ]))),
       ]),
     ]),
@@ -587,7 +586,7 @@ function specFor(type) {
 
 /**
  * Builds a channel config from a type spec and its raw field values. Pure, so the
- * mapping — trimming, dropping blanks, parsing header lines — can be tested without
+ * mapping, trimming, dropping blanks, parsing header lines, can be tested without
  * a DOM.
  *
  * Blank optional fields are omitted rather than sent as empty strings, so the
@@ -613,7 +612,7 @@ export function configFromValues(type, values) {
 export function missingRequired(type, values, supplied = {}) {
   for (const field of specFor(type).fields) {
     // A field the deployment supplies is never typed into the form, so demanding it here
-    // would make the override impossible to use — the editor would refuse to save the very
+    // would make the override impossible to use, the editor would refuse to save the very
     // configuration that makes it work.
     if (supplied[field.key]) continue;
     if (field.required && !String(values[field.key] ?? '').trim()) {
@@ -625,7 +624,7 @@ export function missingRequired(type, values, supplied = {}) {
 
 // --- per-channel environment overrides (ADR-022) -------------------------------------
 //
-// The server resolves `SMARTSERVE_CHANNEL_<LABEL>_<FIELD>` — and its `_FILE` form — over the
+// The server resolves `SMARTSERVE_CHANNEL_<LABEL>_<FIELD>`, and its `_FILE` form, over the
 // value stored in the database, so a token can live in a Docker secret rather than in the
 // `/data` volume. The editor has to know the same naming rule: it shows the operator which
 // variable to set, and it must stop demanding a value the deployment already provides.
@@ -660,7 +659,7 @@ export function channelEnvVars(label, key) {
  * The fields the deployment supplies, as a `key → "environment" | "file"` map.
  *
  * `set` is the list of variable names the server reports as present. A field counts as
- * supplied only when the exact variable is set, not when it merely *could* be — so a typo in
+ * supplied only when the exact variable is set, not when it merely *could* be, so a typo in
  * the label shows up as a field that still asks for a value, rather than as a save that
  * quietly does nothing.
  */
@@ -794,7 +793,7 @@ export function editChannel(ctx, existing, catalog = {}) {
     });
 
     // The second axis (`FEATURES.md` B12): which drives this channel is about. Same shape as the
-    // event list above and the same default — an empty list is every group — because it is the same
+    // event list above and the same default, an empty list is every group, because it is the same
     // kind of setting, and a reader who has understood one has understood the other.
     const scoped = new Set(parseList(existing && existing.scope_groups).map((g) => g.toLowerCase()));
     const groupRows = groupList.map((name) => {
@@ -822,23 +821,22 @@ export function editChannel(ctx, existing, catalog = {}) {
 
     body.append(
       el('div', { class: 'field' }, [el('label', { text: 'Type' }), type]),
-      el('div', { class: 'field' }, [el('label', { text: 'Label' }), label, envHint]),
-      ...groups.values(),
+      el('div', { class: 'field' }, [el('label', { text: 'Label' }), label, envHint]), ...groups.values(),
       el('div', { class: 'field' }, [
         el('label', { text: 'Send me an alert when…' }),
         el('div', { class: 'stack', style: 'gap:var(--space-1)' }, eventRows),
         // "Everything" is the default subscription, and it is about exceptions. The heartbeat is
-        // not one — it fires on every scheduled scan — so it has to be asked for, and the user needs
+        // not one, it fires on every scheduled scan, so it has to be asked for, and the user needs
         // to know that rather than wondering why it never arrives. `group_heat` is opt-in for the
         // same reason (`NOTIFICATIONS.md`), and the hint named only the heartbeat, so a channel with
         // nothing ticked looked like it would receive a finding it would not. The digest is named
         // too, because an empty subscription *does* receive it and the schedule that sends it gives
         // no sign of which channels it reaches.
-        hint('Leaving every box unchecked means every alert above, plus every digest — except the ' +
+        hint('Leaving every box unchecked means every alert above, plus every digest, except the ' +
           'two that have to be ticked: the scheduled-scan heartbeat and the group-heat finding.'),
       ]),
       // Offered only when the fleet actually has tags, so an install that has never grouped
-      // anything is not shown an empty list of groups to choose from — the same reasoning as the
+      // anything is not shown an empty list of groups to choose from, the same reasoning as the
       // dashboard's group toggle.
       groupList.length
         ? el('div', { class: 'field' }, [
@@ -849,7 +847,7 @@ export function editChannel(ctx, existing, catalog = {}) {
           ])
         : el('div', { class: 'field' }, [
             el('label', { text: 'Only drives in these groups' }),
-            hint('No groups yet. Tag drives on the dashboard — “tank”, “bench” — to be able to ' +
+            hint('No groups yet. Tag drives on the dashboard, “tank”, “bench”, to be able to ' +
               'send one channel only their alerts.'),
           ]),
       el('label', { class: 'field-row' }, [enabled, el('span', { text: 'Enabled' })]),

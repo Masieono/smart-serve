@@ -111,7 +111,7 @@ async function drawWith(channel) {
 
 // An empty subscription is every event, not none of them: the setting lists what has been *narrowed
 // away*, so nothing listed means nothing excluded. The card said "No events subscribed", which
-// described the setting rather than its effect and read as a channel that would never speak — on
+// described the setting rather than its effect and read as a channel that would never speak, on
 // exactly the channel a digest gets set up on, where the digest arrives *because* nothing was
 // narrowed away.
 test('a channel with no events ticked is described as receiving everything', async () => {
@@ -190,7 +190,7 @@ test('a scoped channel names the groups it is about', async () => {
 
 
 // The editor offers the fleet's groups and saves the ticked ones. The default is every group, so
-// nothing is ticked — the same shape as the event list above it, deliberately.
+// nothing is ticked, the same shape as the event list above it, deliberately.
 test('the editor offers the fleet groups and saves the ticked ones', async () => {
   const requests = [];
   installStubDom();
@@ -225,7 +225,7 @@ test('the editor offers the fleet groups and saves the ticked ones', async () =>
   const put = requests.find((r) => r.method === 'PUT');
   assert.ok(put, `the save should have been sent: ${JSON.stringify(requests)}`);
   assert.deepEqual(put.body.scope_groups, ['tank']);
-  // And the other axis is untouched by it — the two are independent settings.
+  // And the other axis is untouched by it, the two are independent settings.
   assert.deepEqual(put.body.events, []);
 });
 
@@ -250,7 +250,7 @@ test('an existing scope is shown as ticked', async () => {
 });
 
 // The scope is compared case-insensitively on the server, so a stored `Tank` has to tick the box
-// labelled `tank` — otherwise the setting would look like it had been lost.
+// labelled `tank`, otherwise the setting would look like it had been lost.
 test('a stored scope matches a group whatever the case', async () => {
   installStubDom();
   stubApi(

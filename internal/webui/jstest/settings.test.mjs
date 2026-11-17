@@ -16,7 +16,7 @@ const ctx = {
 
 // The knowledge base status (`FEATURES.md` A21), as GET /api/knowledge returns it. Both requests the
 // settings page makes are stubbed with the same payload, so this object carries the settings map *and*
-// the knowledge status — which is exactly what the page has to cope with anyway.
+// the knowledge status, which is exactly what the page has to cope with anyway.
 const KNOWLEDGE = {
   url: 'https://example.test/knowledge.json',
   bundled_entries: 12,
@@ -35,7 +35,7 @@ function textsFor(container, tag, className) {
 }
 
 // The knowledge card has to say where the table came from and how old it is, because the whole reason
-// the refresh is a button is that the user decides when it is worth pressing — and they cannot decide
+// the refresh is a button is that the user decides when it is worth pressing, and they cannot decide
 // that without seeing the age.
 test('the knowledge card reports every layer', async () => {
   installStubDom();
@@ -44,7 +44,7 @@ test('the knowledge card reports every layer', async () => {
   const container = document.createElement('div');
   await render(container, 'data');
 
-  // The status lives in the section's `<summary>` now, so it is visible while the section is closed —
+  // The status lives in the section's `<summary>` now, so it is visible while the section is closed,
   // which is the point: the age of the table is what decides whether opening it is worth it.
   const [status] = textsFor(container, 'span', 'muted knowledge-status');
   assert.ok(status, 'no status line');
@@ -117,7 +117,7 @@ function render(container, page = 'thresholds') {
 /**
  * Every settings page, rendered.
  *
- * Settings is four pages now, so a test asking "does every setting have a row?" has to ask all four —
+ * Settings is four pages now, so a test asking "does every setting have a row?" has to ask all four,
  * and the ones that ask about one subject render just that page.
  */
 async function renderEveryPage(payload) {
@@ -221,7 +221,11 @@ function unitPicker(container) {
 }
 
 function saveButton(container) {
-  return container.querySelectorAll('button').find((b) => /save/i.test(b.textContent));
+  // The page's Save lives in the sticky bar at the bottom; the knowledge section has its own
+  // "Save my entries", which comes first in document order and is a different button entirely.
+  const bar = container.querySelectorAll('div').filter((n) => (n.className || '').includes('save-bar'));
+  const scoped = bar.flatMap((n) => n.querySelectorAll('button')).find((b) => /save/i.test(b.textContent));
+  return scoped || container.querySelectorAll('button').find((b) => /save/i.test(b.textContent));
 }
 
 /** The first button whose label is exactly this text. */
@@ -254,7 +258,7 @@ test('switching to Fahrenheit survives the re-render', async () => {
 // The other half of the same bug: with the picker reset to Celsius, Save persisted Celsius, so the
 // choice could never be kept either.
 //
-// The unit is an Appearance setting now, so this is where it is saved — the temperature *threshold*
+// The unit is an Appearance setting now, so this is where it is saved, the temperature *threshold*
 // it affects lives on the Thresholds page and is sent by that page's own Save.
 test('saving after switching units stores Fahrenheit', async () => {
   installStubDom();
@@ -304,7 +308,7 @@ test('a threshold edited in Fahrenheit is stored in Celsius', async () => {
 });
 
 // Every control on every page must reach a save payload. A control that renders but is never sent is
-// a setting that silently does nothing — and with four pages and per-page saves, "is every control
+// a setting that silently does nothing, and with four pages and per-page saves, "is every control
 // covered by *some* page?" is the question worth asking rather than "is it on the one page?".
 test('the save payloads together carry every control the pages render', async () => {
   installStubDom();
@@ -378,7 +382,7 @@ test('Reset to recommended loads the shipped values without saving them', async 
  * Regression: Save worked exactly once.
  *
  * `event.currentTarget` is null once dispatch ends, so the `finally` that re-enabled the button
- * threw a TypeError into an unhandled promise — silently, because nobody awaits a click handler —
+ * threw a TypeError into an unhandled promise, silently, because nobody awaits a click handler,
  * and the button stayed disabled for the rest of the session. The second press is the assertion
  * that matters: the first one always "worked".
  *
@@ -457,7 +461,7 @@ test('the seed writes one entry per model at the values on screen', () => {
 });
 
 // The common edit is one number for one model, so the seed must not throw away what is already
-// there — a button labelled "load" that discarded hand-written overrides would be one press away
+// there, a button labelled "load" that discarded hand-written overrides would be one press away
 // from losing them.
 test('the seed keeps entries that are already there', () => {
   const existing = JSON.stringify({
@@ -484,7 +488,7 @@ test('the seed matches an existing entry case-insensitively', () => {
 });
 
 
-// The editor is part of the page's single Save, so its contents have to reach the payload — and the
+// The editor is part of the page's single Save, so its contents have to reach the payload, and the
 // temperature has to be sent in Celsius, because that is what the parser reads. Seeding a Fahrenheit
 // number would seed 130 °C.
 test('the per-model editor is saved with the rest of the settings', async () => {

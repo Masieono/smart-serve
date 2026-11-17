@@ -9,7 +9,7 @@ import (
 
 // `A3`: the one setting with structure is refused at the point it is typed.
 //
-// The failure it would otherwise hide is the quietest in the app — valid JSON, a successful save, a
+// The failure it would otherwise hide is the quietest in the app, valid JSON, a successful save, a
 // row in the editor, and a number that nothing ever reads. Every other setting is a single value the
 // scan parses and falls back from, which is the right shape for a scalar and the wrong one here.
 func TestPerModelThresholdsAreValidatedOnSave(t *testing.T) {

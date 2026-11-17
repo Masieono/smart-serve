@@ -53,8 +53,8 @@ func FromSettings(settings map[string]string) Thresholds {
 // applyThresholdSetting tunes one field from one setting, ignoring a name it does not recognise or a
 // value it cannot parse.
 //
-// One switch rather than a lookup table because the fields are two different types — five ints and a
-// bool — and because this is the **only** place a threshold setting name becomes a field. That is
+// One switch rather than a lookup table because the fields are two different types, five ints and a
+// bool, and because this is the **only** place a threshold setting name becomes a field. That is
 // what lets the per-model overrides (`modelthresholds.go`) use the same names with no second
 // vocabulary: an override map is simply a settings map for one model.
 func applyThresholdSetting(t *Thresholds, settings map[string]string, key string) {
@@ -146,7 +146,7 @@ const (
 //
 // The available data decides the path: an NVMe health log selects the NVMe
 // checks, while ATA attributes (or a self-assessment result) select the ATA
-// checks. A device that reported no health data at all is Unknown — never Good,
+// checks. A device that reported no health data at all is Unknown, never Good,
 // which would be a dangerous false positive for a health monitor.
 func Evaluate(sd *model.SmartData, t Thresholds) Result {
 	if sd == nil {
@@ -220,7 +220,7 @@ func evaluateATA(sd *model.SmartData, t Thresholds) Result {
 		}
 		if count(199) > 0 {
 			verdict = model.Caution
-			why = append(why, fmt.Sprintf("%d UDMA CRC errors — check cable", count(199)))
+			why = append(why, fmt.Sprintf("%d UDMA CRC errors, check cable", count(199)))
 		}
 		if count(10) > 0 {
 			verdict = model.Caution
@@ -358,7 +358,7 @@ var wearAttributeIDs = []int{231, 233, 202, 169}
 
 // samsungWearAttributeID is 177 Wear_Leveling_Count. On Samsung SSDs its normalised value
 // is the wear indicator (100 = new, counting down), which is how a drive such as the 850
-// EVO reports life at all — it has no 231.
+// EVO reports life at all, it has no 231.
 const samsungWearAttributeID = 177
 
 // ATALifeLeftPct reads the percentage of rated life remaining from an ATA drive's
@@ -366,8 +366,8 @@ const samsungWearAttributeID = 177
 //
 // The asymmetry is the whole design: a missing figure costs nothing, and a wrong one is
 // presented as a measurement. So 177 is read only when the drive identifies as Samsung,
-// because the same id means something else entirely on other vendors — a raw average erase
-// count, for instance — and there is no way to tell from the attribute alone.
+// because the same id means something else entirely on other vendors, a raw average erase
+// count, for instance, and there is no way to tell from the attribute alone.
 func ATALifeLeftPct(sd *model.SmartData) (int, bool) {
 	if sd == nil {
 		return 0, false
@@ -395,7 +395,7 @@ func plausibleLifeLeft(v int) bool {
 	return v > 0 && v <= 100
 }
 
-// isSamsung matches the model family smartctl reports — "Samsung based SSDs" on an 850 EVO.
+// isSamsung matches the model family smartctl reports, "Samsung based SSDs" on an 850 EVO.
 // It gates exactly one attribute and is deliberately not a general vendor classifier.
 func isSamsung(sd *model.SmartData) bool {
 	return strings.Contains(strings.ToLower(sd.ModelFamily), "samsung")

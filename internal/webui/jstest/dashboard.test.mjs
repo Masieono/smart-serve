@@ -40,8 +40,7 @@ function drive(overrides = {}) {
     capacity_bytes: 1000,
     temperature_c: 30,
     last_scan: '2026-01-01T00:00:00Z',
-    mountpoints: [],
-    ...overrides,
+    mountpoints: [], ...overrides,
   };
 }
 
@@ -112,7 +111,7 @@ test('a drive with no capacity sorts last too', () => {
 });
 
 // The disconnected toggle is what reveals them, and it must not be able to flatter the health
-// counts on the way — which is why the counts come from a separate list.
+// counts on the way, which is why the counts come from a separate list.
 test('a disconnected drive is hidden until asked for', () => {
   const fleet = [
     drive({ serial: 'here', name: 'bravo' }),
@@ -183,7 +182,7 @@ test('an empty fleet is not an error', () => {
 // Grouping by tag (FEATURES.md D9).
 //
 // The judgement worth pinning is that a drive with two tags appears under both. First-tag-wins
-// would be tidier — the group counts would add up — but it silently drops a drive from a group it
+// would be tidier, the group counts would add up, but it silently drops a drive from a group it
 // is tagged for, and the whole reason to group a fleet is not to miss one.
 const labels = (groups) => groups.map((g) => g.label);
 const inGroup = (groups, label) => groups.find((g) => g.label === label).devices.map((d) => d.serial);
@@ -218,7 +217,7 @@ test('untagged drives come last', () => {
 });
 
 test('tags are trimmed, and a blank tag is not a group', () => {
-  const groups = groupByTag([drive({ serial: 'a', tags: ' tank , , backup ' })]);
+  const groups = groupByTag([drive({ serial: 'a', tags: ' tank , backup ' })]);
   assert.deepEqual(labels(groups), ['backup', 'tank']);
 });
 
@@ -249,7 +248,7 @@ test('the fleet export is one button, not two links', () => {
   assert.match(textOf(button), /Export/);
 });
 
-// A lone drive gets the single-drive report instead — the same thing with fewer columns, and better
+// A lone drive gets the single-drive report instead, the same thing with fewer columns, and better
 // for the one thing a lone drive needs.
 test('a lone drive gets no fleet export', () => {
   assert.equal(exportButton([drive({ serial: 'a' })], []), null);
@@ -281,7 +280,7 @@ test('the bench filter uses the server flag, not the tag string', () => {
 
 // The testing session card (`FEATURES.md` D11).
 //
-// Absent when the bench is empty — a panel that is always present stops being read — and when present
+// Absent when the bench is empty, a panel that is always present stops being read, and when present
 // it names every drive in the batch rather than a shortlist: the session *is* the batch, so
 // truncating it would be answering a different question.
 test('the testing session names the whole batch and offers its verbs', () => {
@@ -299,7 +298,7 @@ test('the testing session names the whole batch and offers its verbs', () => {
   for (const name of ['spare-1', 'spare-2']) assert.ok(text.includes(name), `missing ${name}`);
 
   // Named as chips rather than as one row each: every drive is still there, in a fraction of the
-  // card. The tag name is deliberately not spelled out — it is the mechanism, and what a reader
+  // card. The tag name is deliberately not spelled out, it is the mechanism, and what a reader
   // needs is what the state *means*.
   const chips = card.querySelectorAll('button').filter((b) => b.className.includes('chip-link'));
   assert.equal(chips.length, 2, 'the batch is not listed as chips');
@@ -318,8 +317,8 @@ test('the testing session names the whole batch and offers its verbs', () => {
 
 // The enclosure heat card (`FEATURES.md` A25).
 //
-// It reports a correlation and never a cause — a RAID rebuild heats everything too, and so does a warm
-// afternoon — and it shows the ratio rather than a bare count, because six of six is a different
+// It reports a correlation and never a cause, a RAID rebuild heats everything too, and so does a warm
+// afternoon, and it shows the ratio rather than a bare count, because six of six is a different
 // finding from six of twenty-four.
 test('the heat card reports the group and its ratio, not a diagnosis', () => {
   assert.equal(heatCard([], {}), null);
@@ -373,7 +372,7 @@ const listCtx = { openDevice() {}, scanDevice() {}, refresh() {} };
 const flush = () => new Promise((resolve) => setTimeout(resolve, 1));
 
 // A24. The shortlist sits above the fleet, so it is the first thing on the page whether or not the
-// reader wants it — and somebody who has already acted on it should not have to scroll past it every
+// reader wants it, and somebody who has already acted on it should not have to scroll past it every
 // visit. Off means off; on is the default, and an unset or unparseable value must not hide it.
 test('the Replace first shortlist can be turned off', async () => {
   const payload = {

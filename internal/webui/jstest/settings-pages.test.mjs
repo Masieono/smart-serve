@@ -130,7 +130,7 @@ test('an untouched page is left without a question', async () => {
   assert.equal(await ctx.guard(), true, 'an untouched page refused to be left');
 });
 
-// An edit that has not been saved must be asked about — and answered, either way.
+// An edit that has not been saved must be asked about, and answered, either way.
 test('an edited page asks before it is left', async () => {
   const { container, ctx } = await renderPage('thresholds');
   const slider = container.querySelectorAll('input').find((n) => n.className === 'setting-range');
@@ -152,7 +152,7 @@ test('an edited page asks before it is left', async () => {
   assert.equal(await allowed, true, 'confirming the prompt blocked the navigation');
 });
 
-// And once saved there is nothing to ask about, so the guard goes quiet — otherwise every navigation
+// And once saved there is nothing to ask about, so the guard goes quiet, otherwise every navigation
 // after a save would prompt about changes that no longer exist.
 test('saving clears the question', async () => {
   const { container, ctx } = await renderPage('thresholds');

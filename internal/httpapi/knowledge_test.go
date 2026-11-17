@@ -64,7 +64,7 @@ func TestKnowledgeStartsFromTheBundledTable(t *testing.T) {
 }
 
 // A drive the table knows about carries the rating and its source. The sample device is a Samsung
-// 870 EVO, which the bundled table covers — so this also proves the shipped data actually matches what
+// 870 EVO, which the bundled table covers, so this also proves the shipped data actually matches what
 // smartctl reports, which is the one thing about a knowledge base that has to be right.
 func TestAKnownDriveCarriesItsRating(t *testing.T) {
 	srv, _, _, _ := newTestServer(t, Options{})
@@ -123,7 +123,7 @@ func TestADriveTheTableDoesNotKnowCarriesNothing(t *testing.T) {
 	}
 }
 
-// The user's overrides win over everything, and are validated before they are stored — because the
+// The user's overrides win over everything, and are validated before they are stored, because the
 // error goes back to the person who typed it, and that is the whole reason the editor exists rather
 // than a second file to edit by hand.
 func TestOverridesWinAndAreValidated(t *testing.T) {
@@ -178,7 +178,7 @@ func TestOverridesWinAndAreValidated(t *testing.T) {
 	}
 }
 
-// A refresh is a button, and it stores what it fetched — after parsing it, so a bad file cannot
+// A refresh is a button, and it stores what it fetched, after parsing it, so a bad file cannot
 // replace a working layer with something the app cannot read.
 func TestRefreshStoresWhatItFetched(t *testing.T) {
 	document := `{"version":1,"updated":"2026-11-01","drives":[
@@ -198,7 +198,7 @@ func TestRefreshStoresWhatItFetched(t *testing.T) {
 		t.Fatalf("SetSettings: %v", err)
 	}
 
-	// A bad file is refused, and nothing is stored — so the bundled layer is untouched.
+	// A bad file is refused, and nothing is stored, so the bundled layer is untouched.
 	served = `{"version":1,"drives":[{"family":"Bad","rated_tbw":1}]}` // family too short to match on
 	if rec := do(t, srv, http.MethodPost, "/api/knowledge/refresh", "", nil); rec.Code != http.StatusBadRequest {
 		t.Fatalf("status = %d, want 400: %s", rec.Code, rec.Body.String())

@@ -16,7 +16,7 @@ import (
 //
 // It points at the file inside the repository rather than at a release asset, because that file **is**
 // the bundled table: the app ships a copy of it and fetches the same bytes. Pointing somewhere else is
-// one setting, which is the whole reason the refresh exists — a repository that goes quiet must not
+// one setting, which is the whole reason the refresh exists, a repository that goes quiet must not
 // take the data with it.
 const DefaultKnowledgeURL = "https://raw.githubusercontent.com/Masieono/smart-serve/main/internal/knowledge/base.json"
 
@@ -29,7 +29,7 @@ const knowledgeMaxBytes = 4 << 20 // 4 MiB
 
 // knowledgeFetchTimeout bounds one refresh.
 //
-// Generous, because it runs on a button press rather than in a path anyone is waiting on — and short
+// Generous, because it runs on a button press rather than in a path anyone is waiting on, and short
 // enough that a black-holed address does not hold the handler open indefinitely.
 const knowledgeFetchTimeout = 20 * time.Second
 
@@ -38,14 +38,14 @@ const knowledgeFetchTimeout = 20 * time.Second
 // **A layer that fails to load is skipped, not fatal**, and that is deliberate: the bundled table is
 // the floor, so a corrupt cached copy or an override the user broke with a typo degrades to "we know
 // less" instead of "the drive page does not load". The *editor* is where a typo is refused, with the
-// parse error in front of the person who typed it — which is the only place a message about it is
+// parse error in front of the person who typed it, which is the only place a message about it is
 // worth anything.
 func (s *Server) resolveKnowledge(ctx context.Context) knowledge.Base {
 	layers := make([]knowledge.Base, 0, 3)
 	if bundled, err := knowledge.Embedded(); err == nil {
 		layers = append(layers, bundled)
 	}
-	// Bundled first, then fetched, then the user's own edits — the order is the precedence.
+	// Bundled first, then fetched, then the user's own edits, the order is the precedence.
 	for _, kind := range []string{store.KnowledgeCache, store.KnowledgeOverrides} {
 		doc, err := s.store.GetKnowledgeDoc(ctx, kind)
 		if err != nil || doc == nil {
@@ -90,13 +90,13 @@ type knowledgeStatusJSON struct {
 	Cache *knowledgeLayerJSON `json:"cache,omitempty"`
 	// Overrides describes the user's own edits, absent when there are none.
 	Overrides *knowledgeLayerJSON `json:"overrides,omitempty"`
-	// CacheStale is true when the cached copy came from a different URL than the one now configured —
+	// CacheStale is true when the cached copy came from a different URL than the one now configured,
 	// which is what a reader needs to know before trusting its age.
 	CacheStale bool `json:"cache_stale,omitempty"`
 	// Resolved is the merged table, so the settings page can show what the app knows without a second
 	// request and without re-implementing the merge.
 	Resolved []knowledge.Entry `json:"resolved"`
-	// Bundled is the shipped document as text, for the "download the base" affordance — which is how a
+	// Bundled is the shipped document as text, for the "download the base" affordance, which is how a
 	// user starts their own copy to point the URL at.
 	Bundled string `json:"bundled"`
 }
@@ -142,7 +142,7 @@ func (s *Server) handleGetKnowledge(w http.ResponseWriter, r *http.Request) {
 //
 // **A button, never a timer.** The whole project is built on costing nothing while idle
 // (`DESIGN.md` §2.1), and a knowledge base that quietly polled a URL would be the first thing to break
-// that — for data that changes a few times a year. So the refresh happens when somebody asks for it,
+// that, for data that changes a few times a year. So the refresh happens when somebody asks for it,
 // and the age of the copy is shown so they know whether to.
 //
 // A fetched document is **parsed before it is stored**, so a bad file leaves the previous layer in
@@ -179,7 +179,7 @@ func (s *Server) handleRefreshKnowledge(w http.ResponseWriter, r *http.Request) 
 	}
 
 	// A document larger than the bound is truncated rather than refused, and the truncation shows up
-	// as a parse error naming the byte it stopped at — which says more than "too big" would.
+	// as a parse error naming the byte it stopped at, which says more than "too big" would.
 	body, err := io.ReadAll(io.LimitReader(resp.Body, knowledgeMaxBytes))
 	if err != nil {
 		writeError(w, http.StatusBadGateway, "could not read the response: "+err.Error())
@@ -205,7 +205,7 @@ func (s *Server) handleRefreshKnowledge(w http.ResponseWriter, r *http.Request) 
 // person reading the message, so it can name the field *and* the entry, and that is the whole reason
 // the editor exists rather than a second file to edit by hand.
 //
-// An empty payload clears the layer rather than storing an empty document — the two mean the same
+// An empty payload clears the layer rather than storing an empty document, the two mean the same
 // thing, and one of them is a document that would fail its own validation.
 func (s *Server) handlePutKnowledgeOverrides(w http.ResponseWriter, r *http.Request) {
 	var body struct {

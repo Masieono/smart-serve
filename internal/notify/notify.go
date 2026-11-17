@@ -38,17 +38,17 @@ const (
 	// change, and "everything" was never meant to include a periodic all-clear.
 	EventScanSuccess = "scan_success"
 	// EventGroupHeat reports that several drives in one tag group heated up together
-	// (FEATURES.md A25), which points at what they share — a fan, an intake, an ambient —
+	// (FEATURES.md A25), which points at what they share, a fan, an intake, an ambient,
 	// rather than at the drives.
 	//
 	// It is **opt-in**, and that is the mitigation for the one thing that can go wrong here: a RAID
 	// rebuild, or a warm afternoon, also heats everything, and nothing observable from a temperature
 	// tells them apart (`ADR-023`). The body therefore states a correlation rather than a diagnosis,
-	// and a channel has to ask for it — so an install that would find it noisy never receives it.
+	// and a channel has to ask for it, so an install that would find it noisy never receives it.
 	EventGroupHeat = "group_heat"
 	// EventDigest is one period's summary instead of a message per event (`FEATURES.md` B13). It
 	// fires from a *schedule* rather than from a change, so it is the second event in the catalog that
-	// is not exception-shaped — and unlike the heartbeat it is not opt-in, because a digest only
+	// is not exception-shaped, and unlike the heartbeat it is not opt-in, because a digest only
 	// exists when somebody created a digest schedule. The schedule is the subscription.
 	EventDigest = "digest"
 )
@@ -68,8 +68,8 @@ var EventTypes = []string{
 
 // optInEvents are the events a channel has to ask for by name.
 //
-// An empty subscription list means "everything", which is right for exceptions — a
-// transition, a failure, a drive vanishing — and wrong for a heartbeat. Adding one to the
+// An empty subscription list means "everything", which is right for exceptions, a
+// transition, a failure, a drive vanishing, and wrong for a heartbeat. Adding one to the
 // catalog must not start sending it to every channel that never asked, least of all on
 // upgrade: on a 15-minute schedule that would turn a quiet install into 96 messages a day,
 // and the first thing a user would do is turn notifications off altogether.
@@ -78,7 +78,7 @@ var EventTypes = []string{
 var optInEvents = map[string]bool{EventScanSuccess: true, EventGroupHeat: true}
 
 // Priority influences formatting (the ntfy priority header, a payload field) and
-// squelch defaults — never whether a subscribed channel receives the event.
+// squelch defaults, never whether a subscribed channel receives the event.
 type Priority string
 
 // Priorities, lowest first.
@@ -130,7 +130,7 @@ type Event struct {
 	// tags is the drive's own tag string, used for group-scoped channels (`FEATURES.md` B12) and
 	// deliberately not on the wire. Which groups a drive belongs to is this app's bookkeeping, and
 	// a consumer that re-implemented the scope from a payload field would be a second copy of a
-	// routing rule — the failure `ADR-022` named for the environment-variable naming rule, with
+	// routing rule, the failure `ADR-022` named for the environment-variable naming rule, with
 	// the same symptom: two implementations of one rule, drifting.
 	tags string
 	// baseURL is where this deployment is reachable, used to build a link back into the app
@@ -273,7 +273,7 @@ func formatTemp(celsius int, unit string) string {
 // formatTempDelta renders a temperature *span*, which scales with the unit but takes no offset.
 //
 // The distinction is not pedantry: an 8 °C rise is a 14 °F rise, and running it through `formatTemp`
-// would report 46 °F — a number that reads as a temperature rather than as a change, in the one
+// would report 46 °F, a number that reads as a temperature rather than as a change, in the one
 // message whose whole job is to describe how much things moved.
 func formatTempDelta(celsius int, unit string) string {
 	if strings.EqualFold(strings.TrimSpace(unit), "f") {
@@ -553,7 +553,7 @@ func (d *Dispatcher) newPass(ctx context.Context) pass {
 //
 // A channel with no id is an unsaved draft straight from the editor. It is still sent,
 // but not recorded: there is no stored channel to attribute a delivery-log row to, and
-// testing a draft must not write anything — that is the point of testing it.
+// testing a draft must not write anything, that is the point of testing it.
 func (d *Dispatcher) SendTest(ctx context.Context, ch store.Channel, ev Event) (Outcome, error) {
 	sender, ok := d.reg.Get(ch.Type)
 	if !ok {
@@ -639,7 +639,7 @@ func squelchWindow(ev Event, squelch time.Duration) time.Duration {
 }
 
 // subscribed reports whether a channel wants an event type. An empty or absent
-// subscription list means "everything" — except for the opt-in events, which have to be
+// subscription list means "everything", except for the opt-in events, which have to be
 // named. An explicit "*" is still everything, including those.
 func subscribed(eventsJSON, typ string) bool {
 	var list []string
@@ -672,19 +672,19 @@ func subscribed(eventsJSON, typ string) bool {
 //     monitoring outage nobody notices.
 //
 //  2. **An event that names no drive passes.** A failed scan, a heartbeat and a digest are about
-//     the fleet, not about a drive in it, so there is no group to match them against — and
+//     the fleet, not about a drive in it, so there is no group to match them against, and
 //     excluding them would mean scoping a channel to `tank` quietly also stopped it reporting that
 //     scans were failing. The scope answers "which drives", and these are not about a drive. A
 //     synthetic test event is the same case even though it carries a serial: it is a made-up drive,
-//     and `SendTest` bypasses this filter anyway — naming it here is what stops the two paths from
+//     and `SendTest` bypasses this filter anyway, naming it here is what stops the two paths from
 //     being able to disagree about whether a channel can be tested.
 //
 //  3. **Otherwise the event's drive or group is matched, case-insensitively.** `group_heat` is
 //     matched on the group it names rather than on a drive, because the finding *is* about the
 //     group: a channel that watches `tank` has no business being told about `bench`'s enclosure.
 //
-// A skipped event is recorded nowhere, deliberately. It is a property of the channel — visible on
-// its card — rather than something that happened, and a row per event per channel would bury the
+// A skipped event is recorded nowhere, deliberately. It is a property of the channel, visible on
+// its card, rather than something that happened, and a row per event per channel would bury the
 // deliveries that did happen.
 func inScope(scopeJSON string, ev Event) bool {
 	var scope []string
@@ -707,7 +707,7 @@ func inScope(scopeJSON string, ev Event) bool {
 	return false
 }
 
-// matchesGroup reports whether any name in the scope is want, ignoring case — the same comparison
+// matchesGroup reports whether any name in the scope is want, ignoring case, the same comparison
 // `store.HasTag` makes, for the same reason: tags are typed by hand.
 func matchesGroup(scope []string, want string) bool {
 	for _, g := range scope {

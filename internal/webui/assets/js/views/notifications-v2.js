@@ -1,4 +1,4 @@
-// Notifications (v2) — channels, what they are told about, and whether the telling worked.
+// Notifications (v2), channels, what they are told about, and whether the telling worked.
 //
 // The page's job is not "manage channels"; it is "be sure I would hear about a failing drive". That
 // ordering decides the layout: the failure state comes first, the channels are rows you scan, and the
@@ -105,7 +105,7 @@ function draw(container, ctx) {
 
     channels.length
       ? channelTable(channels, ctx, catalog)
-      : el('div', { class: 'fleet-empty', text: 'No channels yet — add one and a failing drive will tell you about it.' }),
+      : el('div', { class: 'fleet-empty', text: 'No channels yet, add one and a failing drive will tell you about it.' }),
 
     deliveryFeed(entries, channels),
     windowList(ctx, windows, devices),
@@ -146,7 +146,7 @@ function eventTypesCount(channels) {
 /**
  * A delivery that failed is the one thing on this page that has to be impossible to miss.
  *
- * Notifications fail silently by nature — the message simply does not arrive — so a page that only
+ * Notifications fail silently by nature, the message simply does not arrive, so a page that only
  * records the failure in a log nobody opens is a page that reports success by omission.
  */
 function failureBanner(entries, channels) {
@@ -161,7 +161,7 @@ function failureBanner(entries, channels) {
       `${failed.length} recent deliver${failed.length === 1 ? 'y' : 'ies'} failed`,
     ]),
     el('div', { class: 'v2-alert-body' }, [
-      `${names.join(', ')} — last at ${fmtAgo(latest.sent_at)}. `,
+      `${names.join(', ')}, last at ${fmtAgo(latest.sent_at)}. `,
       latest.detail ? `${latest.detail}. ` : '',
       'A channel that cannot deliver is a drive nobody is watching.',
     ]),
@@ -182,12 +182,12 @@ function channelTable(channels, ctx, catalog) {
         el('div', { class: 'v2-chips' }, events.length
           ? events.map((e) => el('span', { class: 'v2-chip', text: e }))
           // The chip is short; the explanation the incumbent carried survives as a tooltip rather
-          // than disappearing. An empty subscription is not "nothing" — it is everything, including
+          // than disappearing. An empty subscription is not "nothing", it is everything, including
           // the scheduled-scan heartbeat and group heat, which are the events nobody remembers to tick.
           : [el('span', {
             class: 'v2-chip',
             text: 'Every event',
-            title: 'every alert and digest — the scheduled-scan heartbeat and group heat included',
+            title: 'every alert and digest, the scheduled-scan heartbeat and group heat included',
           })]),
       ]),
       el('td', {}, [
@@ -329,7 +329,7 @@ function windowList(ctx, windows, devices) {
       ]),
     ]),
     sorted.length ? el('div', { class: 'v2-windows' }, rows)
-      : el('div', { class: 'fleet-empty', text: 'No maintenance windows — every drive alerts all the time.' }),
+      : el('div', { class: 'fleet-empty', text: 'No maintenance windows, every drive alerts all the time.' }),
   ]);
 }
 

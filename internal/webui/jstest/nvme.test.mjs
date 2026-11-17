@@ -1,6 +1,6 @@
 // The NVMe health log.
 //
-// Sixteen counters in a flat list read as a wall — health, lifetime, workload and error
+// Sixteen counters in a flat list read as a wall, health, lifetime, workload and error
 // figures all look alike at a glance. The grouping is the fix, so the grouping is what
 // this pins.
 

@@ -51,7 +51,7 @@ type changesJSON struct {
 
 	// Attributes are the counters that moved *and* that the app considers a finding, worst first.
 	Attributes []attributeChangeJSON `json:"attributes,omitempty"`
-	// Routine counts the counters that moved and are not a finding — power-on hours, temperature,
+	// Routine counts the counters that moved and are not a finding, power-on hours, temperature,
 	// load cycles. Reported rather than dropped, and deliberately: a silent filter would be a lie
 	// by omission, while "4 other counters moved" is both honest and enough.
 	Routine int `json:"routine,omitempty"`
@@ -129,7 +129,7 @@ func diffFloatPtr(from, to *float64) *changeJSON {
 
 // The *Value helpers dereference a reading, or return nil when the drive reported none.
 //
-// Nil rather than zero, because absent and zero are different findings — and a typed nil pointer
+// Nil rather than zero, because absent and zero are different findings, and a typed nil pointer
 // inside an `any` is not "empty" to `omitempty`, so passing the pointer straight through would emit
 // a `null` that reads as a value the drive gave.
 func intValue(p *int) any {
@@ -154,7 +154,7 @@ func floatValue(p *float64) any {
 }
 
 // A nil pointer means "the drive did not report this", which is a different finding from any value
-// — so nil equals only nil, and never zero.
+// , so nil equals only nil, and never zero.
 func intPtrEqual(a, b *int) bool {
 	if a == nil || b == nil {
 		return a == nil && b == nil

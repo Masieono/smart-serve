@@ -1,7 +1,7 @@
 // Package sched runs scheduled scans inside the process (ADR-004).
 //
-// It is a single goroutine that sleeps until the next due schedule — never a
-// ticker — which is what keeps the idle-cost promise: with nothing due the
+// It is a single goroutine that sleeps until the next due schedule, never a
+// ticker, which is what keeps the idle-cost promise: with nothing due the
 // process does no work at all until either the next boundary or a UI change
 // nudges it (FEATURES.md §E).
 package sched
@@ -152,7 +152,7 @@ func (s *Scheduler) Run(ctx context.Context) {
 }
 
 // resolveLocation returns the zone cron is evaluated in: the `timezone` setting
-// when set, otherwise the container's own zone (DECISIONS.md — "load the container
+// when set, otherwise the container's own zone (DECISIONS.md, "load the container
 // TZ; evaluate cron in local time").
 func (s *Scheduler) resolveLocation(ctx context.Context) *time.Location {
 	settings, err := s.store.GetSettings(ctx)
@@ -187,7 +187,7 @@ func (s *Scheduler) resolveMissedRunPolicy(ctx context.Context) string {
 //
 // This is the only place the policy belongs. A boundary that passed while the
 // process was down is either rescheduled (the default) or left overdue so it
-// fires exactly once. Afterwards a past boundary simply means "due now" — which
+// fires exactly once. Afterwards a past boundary simply means "due now", which
 // is what makes "run now" and a boundary arriving on time both work.
 func (s *Scheduler) reconcileStartup(ctx context.Context) {
 	if s.resolveMissedRunPolicy(ctx) == "run_once" {
@@ -282,7 +282,7 @@ func (s *Scheduler) nextDue(ctx context.Context) (time.Time, int64, bool) {
 //
 // A schedule with no boundary yet gets one computed and stored. A boundary that
 // is already past is returned as-is: by this point the only reasons for that are
-// that it just came due, or that the operator pressed "run now" — both of which
+// that it just came due, or that the operator pressed "run now", both of which
 // mean "run it now". Missed runs were already reconciled at start-up.
 func (s *Scheduler) boundary(ctx context.Context, sched store.Schedule, loc *time.Location) (time.Time, error) {
 	if sched.NextRun != nil {
@@ -313,7 +313,7 @@ func (s *Scheduler) nextAfter(sched store.Schedule, from time.Time, loc *time.Lo
 // sendDigest sends one period's summary (`FEATURES.md` B13).
 //
 // A failure is logged rather than propagated: the schedule's boundary arrived, so the bookkeeping
-// that advances it has to happen either way. That is the same rule the scan path follows — a broken
+// that advances it has to happen either way. That is the same rule the scan path follows, a broken
 // scanner must not stop the schedule, and neither must a broken notification channel.
 func (s *Scheduler) sendDigest(ctx context.Context, sched store.Schedule) {
 	if s.digester == nil {
@@ -330,7 +330,7 @@ func (s *Scheduler) sendDigest(ctx context.Context, sched store.Schedule) {
 // Queued rather than run here, because a pass takes hours and the scheduler is one goroutine every
 // other schedule shares. A fire that arrives while a pass is still draining is logged and skipped:
 // two overlapping passes would test the same drives twice, and the second one would find each drive
-// already testing itself and skip it anyway — so the honest thing is to say so up front.
+// already testing itself and skip it anyway, so the honest thing is to say so up front.
 func (s *Scheduler) startSelfTest(ctx context.Context, sched store.Schedule) {
 	if s.selfTester == nil {
 		s.log.Warn("self-test schedule has nowhere to run", "schedule", sched.ID)
@@ -351,7 +351,7 @@ func (s *Scheduler) startSelfTest(ctx context.Context, sched store.Schedule) {
 }
 
 // fire runs one scheduled action and advances the schedule. The run is recorded
-// even when the scan fails, so a broken scanner keeps firing on its interval —
+// even when the scan fails, so a broken scanner keeps firing on its interval,
 // and, per the event catalog, keeps saying so.
 func (s *Scheduler) fire(ctx context.Context, id int64) {
 	// The action decides what a fire *means* (`FEATURES.md` B13), so it is read before anything

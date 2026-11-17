@@ -2,7 +2,7 @@
 //
 // A self-test is the only thing this app does that writes to a drive, and a *scheduled* one is the
 // only path by which that happens without somebody pressing a button. The button's own constraints
-// are unchanged — opt-in, never automatic, abortable — and a schedule adds two of its own:
+// are unchanged, opt-in, never automatic, abortable, and a schedule adds two of its own:
 //
 //   - **One drive at a time.** Twenty-four long tests starting together is an I/O meltdown, and the
 //     queue exists for that and nothing else.
@@ -36,7 +36,7 @@ var ErrAlreadyRunning = errors.New("a self-test pass is already running")
 // PollInterval is how often the runner asks the drive whether it is still testing.
 //
 // A minute, and that is not a compromise: the drive is mid-test, so one extra `smartctl` read a
-// minute is nothing beside the test's own I/O, and the read is exact rather than estimated — which
+// minute is nothing beside the test's own I/O, and the read is exact rather than estimated, which
 // is what lets the next drive start the moment the previous one finishes. This is inside the single
 // documented exception to "no periodic device reads" (`FEATURES.md` §E): a test this app started is
 // running, and its progress exists nowhere the app stores.
@@ -57,7 +57,7 @@ const minWaitCeiling = 8 * time.Hour
 // Driver is the two smartctl operations a pass needs.
 //
 // Function fields rather than an interface, because the production wiring is two lines and a test's
-// fake is a struct literal — and because these are package-level functions in `smart`, so there is
+// fake is a struct literal, and because these are package-level functions in `smart`, so there is
 // nothing to hang a method on.
 type Driver struct {
 	Start func(ctx context.Context, timeout time.Duration, path, transport string, kind smart.SelfTestKind) (smart.Result, error)
@@ -151,7 +151,7 @@ func (r *Runner) Progress() Progress {
 //
 // It returns immediately because a pass takes hours: a long test on a 14 TB drive runs for most of a
 // day. The pass outlives the context that started it in the sense that a fire has no deadline of its
-// own, but not in the sense of surviving shutdown — cancellation stops the pass, and the drive keeps
+// own, but not in the sense of surviving shutdown, cancellation stops the pass, and the drive keeps
 // testing. Aborting the drives would throw away hours of work that is still doing exactly what it
 // was asked to do.
 func (r *Runner) StartQueue(parent context.Context, kind string) (int, error) {
@@ -173,7 +173,7 @@ func (r *Runner) StartQueue(parent context.Context, kind string) (int, error) {
 	}
 
 	// Derived from the caller's context, *not* detached from it: the pass must stop when the process
-	// does. What it must not be is bounded by a scan's timeout — a pass runs for hours — and that is
+	// does. What it must not be is bounded by a scan's timeout, a pass runs for hours, and that is
 	// the scheduler's job, not this one's, because the scheduler is what knows the difference.
 	ctx, cancel := context.WithCancel(parent)
 
@@ -271,8 +271,8 @@ func (r *Runner) run(ctx context.Context, kind string, devices []store.DeviceRec
 func (r *Runner) testOne(ctx context.Context, rec store.DeviceRecord, kind string) (bool, error) {
 	timeout := r.timeout(ctx)
 
-	// Read before writing. A test already in progress — started by hand, or left over from a pass
-	// that was interrupted — is not restarted: the drive refuses a second one, and on NVMe that
+	// Read before writing. A test already in progress, started by hand, or left over from a pass
+	// that was interrupted, is not restarted: the drive refuses a second one, and on NVMe that
 	// refusal arrives as a bare exit status, which is exactly the "every test after the first fails"
 	// report from the field.
 	before, err := r.driver.Read(ctx, timeout, rec.DevicePath, rec.TransportOverride)
@@ -299,7 +299,7 @@ func (r *Runner) testOne(ctx context.Context, rec store.DeviceRecord, kind strin
 // wait blocks until the drive reports no test running, or the pass is cancelled.
 //
 // The drive's own estimate sets a floor before "no test running" can be believed, because some drives
-// write nothing to the log until a test *finishes* — the same blind spot the self-test card has. A
+// write nothing to the log until a test *finishes*, the same blind spot the self-test card has. A
 // poll that reports the test running is authoritative and extends the wait indefinitely: a running
 // test is evidence, and a clock is not.
 func (r *Runner) wait(ctx context.Context, rec store.DeviceRecord, kind string, before model.LogSummary) {

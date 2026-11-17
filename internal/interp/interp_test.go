@@ -181,7 +181,7 @@ func TestDeriveMetricsATA(t *testing.T) {
 	}
 }
 
-// There is no single wear attribute, so the reader has to try several ids — and be willing
+// There is no single wear attribute, so the reader has to try several ids, and be willing
 // to return nothing, which is the safe failure. A wrong figure here is presented as a
 // measurement.
 func TestATALifeLeftPct(t *testing.T) {
@@ -362,7 +362,7 @@ func TestEffectiveCount(t *testing.T) {
 		{0, 0},
 		{5, 5},
 		{65535, 65535},
-		{327680, 5},             // 0x0000000000050000 — packed, low word zero
+		{327680, 5},             // 0x0000000000050000, packed, low word zero
 		{100000, 100000},        // low word non-zero: genuine count, not packed
 		{0x0000000500000000, 5}, // counter in the third word
 	}

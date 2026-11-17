@@ -99,7 +99,7 @@ func (s *Store) DeleteChannel(ctx context.Context, id int64) error {
 // trimmed, non-empty, case-insensitively unique tag names.
 //
 // It exists so that the *empty* list is the only thing that means "every group". Without it a
-// caller could store `["", " tank "]` and get a scope that matches nothing — the one direction a
+// caller could store `["", " tank "]` and get a scope that matches nothing, the one direction a
 // filter must never fail in, because a channel that silently stops speaking is indistinguishable
 // from a quiet fleet. A malformed or unparseable value collapses to the empty list for the same
 // reason: garbage reads as "no narrowing", which is loud rather than silent.

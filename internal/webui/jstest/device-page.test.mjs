@@ -3,7 +3,7 @@
 // That sounds like a low bar and it is exactly the bar that was missed. `storageBar` was referenced
 // from the render path and never defined, so every drive page carrying a storage summary threw
 // `storageBar is not defined` and showed an error box instead of the drive. `node --check` passes on
-// an undefined reference — it is valid syntax — and every existing test either checked the helper in
+// an undefined reference, it is valid syntax, and every existing test either checked the helper in
 // isolation or never rendered this page at all. So it reached a person.
 //
 // The rule this test exists to enforce: **a view that can throw needs one test that renders it.**
@@ -68,8 +68,7 @@ function devicePayload(over = {}) {
             label: 'media', part_type: 'Linux filesystem', mountpoints: ['/mnt/media'],
             use_percent: '47%', used_bytes: 469060000000, fs_size_bytes: 999000000000 },
         ],
-      },
-      ...over,
+      }, ...over,
     },
   };
 }
@@ -94,7 +93,7 @@ const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
 // follow-up).
 //
 // Everything on a drive page comes from the last *scan*, and "4 hours ago" in a row of twelve facts is
-// not something a reader notices. So the age goes beside the drive's own name — and when it is past
+// not something a reader notices. So the age goes beside the drive's own name, and when it is past
 // the window the user chose, the page reads that one drive and redraws.
 //
 // The gate is the point: this is the only place the app touches a drive nobody asked it to touch, and
@@ -111,7 +110,7 @@ test('a fresh drive is not re-read', () => {
   assert.equal(ctx.requests.length, 0, 'a drive scanned a moment ago was read again');
 });
 
-// Past the window the page reads the drive — once — and redraws so the fresh verdict, score and
+// Past the window the page reads the drive, once, and redraws so the fresh verdict, score and
 // partition table all arrive together.
 test('a stale drive is re-read, and the page says so while it happens', async () => {
   setDisplayOptions({ device_refresh_minutes: '15' });
@@ -134,7 +133,7 @@ test('a stale drive is re-read, and the page says so while it happens', async ()
 });
 
 // Zero is "never", which is the setting for a machine that parks its disks. Nothing is read, and the
-// age is still shown — the reader can see it is old and press Scan themselves.
+// age is still shown, the reader can see it is old and press Scan themselves.
 test('a zero window never re-reads a drive', () => {
   setDisplayOptions({ device_refresh_minutes: '0' });
   resetFreshness();
@@ -186,7 +185,7 @@ test('a drive with no data at all is read whatever the window says', async () =>
 // `scan complete: 0/1 readable` toasts, five failed device reads inside the same displayed second.
 //
 // The read re-renders the page, the page re-reads the drive, and the only thing that ends that is data
-// arriving — which is exactly what an unreadable drive never produces. `last_scan` is advanced by a
+// arriving, which is exactly what an unreadable drive never produces. `last_scan` is advanced by a
 // read that *succeeded* and nothing else, so an unreadable drive is stale forever and the age can
 // never be the guard. The window is.
 test('a drive that cannot be read is not read over and over', async () => {
@@ -195,7 +194,7 @@ test('a drive that cannot be read is not read over and over', async () => {
   const ctx = freshCtx();
 
   // Three renders of the same unreadable drive, which is what three `ctx.refresh()` calls produce.
-  // The scan itself succeeds — a scan that finds nothing readable is still a scan that ran — and
+  // The scan itself succeeds, a scan that finds nothing readable is still a scan that ran, and
   // `last_scan` is still null afterwards, because a failed read never sets one.
   const unreadable = { serial: 'SD-CARD', last_scan: null };
   const lines = [el('div', {}), el('div', {}), el('div', {})];
@@ -262,12 +261,12 @@ test('the device page renders rather than throwing', async () => {
   assert.match(text, /Samsung SSD 870 EVO/, 'the drive did not render at all');
 });
 
-// And the storage summary actually reaching the screen — a page that renders without the feature it
+// And the storage summary actually reaching the screen, a page that renders without the feature it
 // was supposed to show would pass the test above.
 //
 // Matched as **one string**, which only the Storage row can produce. The partition table on this same
 // page reports the same 47% and the same /mnt/media in separate cells, so asserting either of them
-// on its own was satisfied by the table while the storage row printed `[object HTMLDivElement]` — a
+// on its own was satisfied by the table while the storage row printed `[object HTMLDivElement]`, a
 // node where a string was expected, which renders as its own type name and throws nothing.
 test('the storage figure and the partition table reach the page', async () => {
   const container = await renderDevice(devicePayload());

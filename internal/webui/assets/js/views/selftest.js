@@ -1,8 +1,8 @@
 // Self-test triggering (FEATURES.md A19, docs/UI.md §7.2).
 //
 // The only part of this app that changes a drive, and the only part that polls one. Both are
-// deliberate, and both are bounded. A test starts only from a button press — never on a schedule,
-// never during a scan, never on a threshold — and the poll runs only while a test is in progress
+// deliberate, and both are bounded. A test starts only from a button press, never on a schedule,
+// never during a scan, never on a threshold, and the poll runs only while a test is in progress
 // and the card is still on screen.
 //
 // Progress comes from the drive rather than from a clock. smartctl's self-test log carries a
@@ -18,7 +18,7 @@ import { icon } from '../icons.js';
  * How often to ask the drive how far along it is.
  *
  * Fifteen seconds is the default because a long test on a large drive moves in single digits of
- * percent per hour — polling faster spends device reads and buys nothing visible, and the drive is by
+ * percent per hour, polling faster spends device reads and buys nothing visible, and the drive is by
  * definition already busy. It is a *setting* rather than a constant because the trade belongs to the
  * owner: a short test on a fast drive shows real movement every couple of seconds, and a drive behind
  * a bridge that dislikes extra commands would rather be asked less often.
@@ -69,12 +69,12 @@ export function stopPolling() {
  * The self-test card.
  *
  * `logs` is the log summary from the last scan, which is enough to draw the card without touching
- * the drive: whether it supports self-tests at all, its own time estimates, and — if a test was
- * already running when the drive was last scanned — the fact that one is.
+ * the drive: whether it supports self-tests at all, its own time estimates, and, if a test was
+ * already running when the drive was last scanned, the fact that one is.
  *
  * `onLogs` is called with the drive's log *as read live* whenever it changes. The panel above this
  * card is drawn from the last scan, so a test that has just finished exists nowhere else until
- * something rescans — and making a reader press the big Scan button to see the result of a test they
+ * something rescans, and making a reader press the big Scan button to see the result of a test they
  * just ran is the wrong place to put it.
  */
 export function selfTestCard(ctx, device, logs, onLogs = null, renderHistory = null) {
@@ -85,8 +85,8 @@ export function selfTestCard(ctx, device, logs, onLogs = null, renderHistory = n
   // own heading, with the newest result as the table's first row.
   const history = el('div', { class: 'selftest-history' });
 
-  // A normal grid cell, not a full-width panel. It pairs with the detail table beside it — which
-  // otherwise sat alone with an empty half — and a card that spans the page only to sit at the very
+  // A normal grid cell, not a full-width panel. It pairs with the detail table beside it, which
+  // otherwise sat alone with an empty half, and a card that spans the page only to sit at the very
   // bottom is the one card a reader has to hunt for.
   const card = el('div', { class: 'card stack selftest' }, [
     el('h2', { text: 'Self-test' }),
@@ -117,7 +117,7 @@ export function selfTestCard(ctx, device, logs, onLogs = null, renderHistory = n
   let recorded = false;
   // Whether a test *this card* started is still waiting to be accounted for. It drives two things:
   // the note that explains a "nothing is running" reading, and the single rescan that puts the
-  // outcome into the log table above — which is drawn from the last scan, so a short test that
+  // outcome into the log table above, which is drawn from the last scan, so a short test that
   // finished between two readings would otherwise leave no trace anywhere.
   let awaitingResult = false;
   // When this card started a test, and which one. The drive's own estimate against this clock is the
@@ -130,7 +130,7 @@ export function selfTestCard(ctx, device, logs, onLogs = null, renderHistory = n
   // because this card's copy comes from the last scan and is stale the moment a test has run since.
   let baseline = finishedSignature(logs);
 
-  // The drive's history, drawn from whatever log the card was last handed — the stored one on mount,
+  // The drive's history, drawn from whatever log the card was last handed, the stored one on mount,
   // and the *live* one after every read. One function, so the table cannot be showing one reading
   // while the progress bar shows another.
   //
@@ -160,7 +160,7 @@ export function selfTestCard(ctx, device, logs, onLogs = null, renderHistory = n
 
   /** A test running: say how far along, and offer the way out. */
   function showRunning(entry) {
-    note.textContent = 'The drive is testing itself. You can keep using the app — progress is read '
+    note.textContent = 'The drive is testing itself. You can keep using the app, progress is read '
       + `from the drive every ${pollSeconds} seconds, and the test ends by itself.`;
     mount(actions, [
       el('button', {
@@ -192,12 +192,12 @@ export function selfTestCard(ctx, device, logs, onLogs = null, renderHistory = n
    * A test this card started that the drive is not reporting a percentage for.
    *
    * Some drives only write a self-test log entry when a test *finishes*, so there is no figure to
-   * read while one runs — and "nothing is running" is indistinguishable from "this drive does not
+   * read while one runs, and "nothing is running" is indistinguishable from "this drive does not
    * report progress".
    *
    * So it falls back to the only honest figure available: the drive's **own estimate** of how long
    * its tests take, against the clock this card started one at. That is a different kind of number
-   * from the drive's percentage and the card says so — it is the drive's estimate, not a reading.
+   * from the drive's percentage and the card says so, it is the drive's estimate, not a reading.
    */
   function showStarted() {
     const minutes = startedKind === 'long' ? extendedMinutes : shortMinutes;
@@ -272,12 +272,12 @@ export function selfTestCard(ctx, device, logs, onLogs = null, renderHistory = n
           startedAt = Date.now();
           startedKind = kind;
           awaitingResult = true;
-          // Record it, so the fleet can badge this drive (`FEATURES.md` A20) — otherwise the badge
+          // Record it, so the fleet can badge this drive (`FEATURES.md` A20), otherwise the badge
           // would not appear until the next full scan, which on a quiet homelab could be tomorrow.
           //
           // Not `ctx.scanDevice`, which toasts and re-renders: the card has already drawn the
           // progress from a live read, and re-routing would throw the reader out of the card they are
-          // watching. And a failure here is not worth an error — the test is running either way, and
+          // watching. And a failure here is not worth an error, the test is running either way, and
           // the only thing lost is a badge.
           api.scanDevice(device.serial).catch(() => {});
           await read();
@@ -287,12 +287,12 @@ export function selfTestCard(ctx, device, logs, onLogs = null, renderHistory = n
           // button inviting a second attempt is worse than no button: the answer will not change.
           //
           // Disabled here rather than remembered, and that is deliberate. "Refused once" is not the
-          // same fact as "cannot" — a drive can refuse a command it would take a minute later — and
+          // same fact as "cannot", a drive can refuse a command it would take a minute later, and
           // nothing smartctl reports in advance says which tests a drive supports. Greying the
           // button out on a guess would hide a capability that works.
           if (kind === 'long') {
             button.disabled = true;
-            note.textContent = `This drive refused a long test — ${err.message} The short test `
+            note.textContent = `This drive refused a long test, ${err.message} The short test `
               + 'checks the electronics and a sample of the media, and is the one to fall back on.';
           } else {
             button.disabled = false;
@@ -318,7 +318,7 @@ export function selfTestCard(ctx, device, logs, onLogs = null, renderHistory = n
       const res = await api.abortSelfTest(device.serial);
       // "The abort was sent" and "the test stopped" are different facts, and only the drive knows the
       // second one (`FEATURES.md` A20). A bridge that does not pass the abort through accepts the
-      // command and carries on — so saying "stopped" and then showing a running test again on the next
+      // command and carries on, so saying "stopped" and then showing a running test again on the next
       // read is what makes a reader think the app is broken rather than the bridge.
       if (res && res.stopped === false) {
         toast('The drive accepted the abort but is still reporting a test in progress. Some USB ' +
@@ -341,7 +341,7 @@ export function selfTestCard(ctx, device, logs, onLogs = null, renderHistory = n
    *
    * `quiet` is for the read this card does when it mounts. That one runs on every visit to the page,
    * so a drive whose self-test state cannot be read would raise a toast every time somebody looked at
-   * it — and the stored logs the card is already drawn from are a better answer than an error nobody
+   * it, and the stored logs the card is already drawn from are a better answer than an error nobody
    * can act on. A read the *user* asked for (a button, a poll they started) stays loud.
    */
   async function read({ quiet = false } = {}) {
@@ -357,11 +357,11 @@ export function selfTestCard(ctx, device, logs, onLogs = null, renderHistory = n
     }
 
     // The drive's own log, read live. The panel above is drawn from the *last scan*, so a result
-    // that has just been written exists only here — and tying it to the big Scan button would make
+    // that has just been written exists only here, and tying it to the big Scan button would make
     // the reader re-read the whole fleet to see the outcome of one test.
     const live = state && state.logs ? state.logs : null;
     if (live) {
-      // The history is redrawn from the live log, which is where a just-finished result exists — the
+      // The history is redrawn from the live log, which is where a just-finished result exists, the
       // stored copy the card was built from predates it.
       drawHistory(live);
       if (onLogs) {
@@ -385,12 +385,12 @@ export function selfTestCard(ctx, device, logs, onLogs = null, renderHistory = n
     }
 
     // A test this card started has finished: the drive wrote a new result. On a drive that does not
-    // report a running test that is the *only* evidence one ran — and it is good evidence, because
+    // report a running test that is the *only* evidence one ran, and it is good evidence, because
     // the drive wrote it.
     const liveEnded = live ? finishedSignature(live) !== baseline : false;
 
     // This card started a test and nothing has come of it yet. It may still be running, or the drive
-    // may not report progress at all — nothing here can tell those apart. So the card says what it
+    // may not report progress at all, nothing here can tell those apart. So the card says what it
     // can see and keeps asking, rather than guessing and rescanning the fleet on the strength of it.
     if (awaitingResult && !unreadLog && !liveEnded) {
       showStarted();
@@ -444,12 +444,12 @@ export function selfTestCard(ctx, device, logs, onLogs = null, renderHistory = n
 
   // Then read the drive, once, on mount.
   //
-  // The stored copy is from the *last scan*, and a test started since then is not in it — so a card
+  // The stored copy is from the *last scan*, and a test started since then is not in it, so a card
   // that only trusted it reported "no test running" for a drive that was mid-test, and could then ask
   // that drive to start a second test it would refuse.
   //
   // **Always, including when a log this app does not read is present.** `smartctl -x` reads every log,
-  // so only the *parser* is limited, and a read that comes back with nothing is not a wasted request —
+  // so only the *parser* is limited, and a read that comes back with nothing is not a wasted request,
   // it is the correction. The card paints a running entry from the last scan *before* this read starts,
   // so for a drive that finished its test since that scan the live read is the only thing that takes
   // the bar down. The read is not silent about the limit either: `showIdle` names the unread log.
@@ -466,7 +466,7 @@ export function selfTestCard(ctx, device, logs, onLogs = null, renderHistory = n
  * What a self-test costs, before anyone presses anything.
  *
  * The estimates are the drive's own, from its capability page, and they now ride on the buttons
- * rather than in this sentence — the figure answers "how long will this take?" and that question is
+ * rather than in this sentence, the figure answers "how long will this take?" and that question is
  * asked with the cursor over a button, not while reading a paragraph. What is left here is the part
  * that is not about either button: that nothing happens unless you ask, and what that means for the
  * drive while it happens.
@@ -531,7 +531,7 @@ function logSignature(summary) {
  * How far along a test looks, as a percentage of the drive's own estimate.
  *
  * Capped short of full: the estimate is the drive's guess, and a bar sitting at 100% while the test
- * is still running reads as a hang — the exact failure a progress figure exists to prevent.
+ * is still running reads as a hang, the exact failure a progress figure exists to prevent.
  */
 function estimatePercent(elapsedMs, minutes) {
   const total = Number(minutes) * 60000;

@@ -77,12 +77,12 @@ async function clickThrough(button) {
  * Serve the self-test API, recording what was asked.
  *
  * Routes by path rather than answering everything the same way, because one action here makes two
- * calls — the POST and the read that follows it — and they must not be confusable. A test that
+ * calls, the POST and the read that follows it, and they must not be confusable. A test that
  * asserted on a single shared payload could not tell the two apart.
  */
 function stubSelfTestApi({ running = null, refuseLong = null, logs = null } = {}) {
   const requests = [];
-  // `logs` may be a list, used in order and then held at the last — which is how a drive that gains a
+  // `logs` may be a list, used in order and then held at the last, which is how a drive that gains a
   // self-test row mid-test is modelled.
   const sequence = Array.isArray(logs) ? logs : null;
   // And `running` likewise, for the other half of the same story: a drive that is testing now and
@@ -194,7 +194,7 @@ test('a drive that gives no estimates still offers the tests', () => {
 });
 
 // A test that was already running when the drive was last scanned is shown straight away, with the
-// drive's own percentage — otherwise reloading the page mid-test would look like nothing happening.
+// drive's own percentage, otherwise reloading the page mid-test would look like nothing happening.
 test('a test already running is shown with its percentage', () => {
   const card = selfTestCard(stubCtx(), { serial: 'S' }, {
     self_test_entries: [
@@ -216,7 +216,7 @@ test('a test already running is shown with its percentage', () => {
   assert.match(String(fill.style), /width:53%/);
 });
 
-// The bug a person hit: start a long test, navigate to another drive, come back — and the card said
+// The bug a person hit: start a long test, navigate to another drive, come back, and the card said
 // nothing was running, because it was drawn from the *last scan's* logs, which predate the test. The
 // drive was mid-test the whole time and only the drive knew.
 //
@@ -228,7 +228,7 @@ test('a test started since the last scan is found when the page is opened', asyn
     running: { type: 'Extended offline', status: 'Self-test routine in progress', remaining: 62 },
   });
 
-  // The stored logs say nothing is running — this is what a page load mid-test looks like.
+  // The stored logs say nothing is running, this is what a page load mid-test looks like.
   const card = selfTestCard(stubCtx(), { serial: 'S' }, {
     self_test_supported: true,
     short_minutes: 2,
@@ -258,7 +258,7 @@ test('an idle drive is read once on mount and then left alone', async () => {
   stopPolling();
 });
 
-// A read the user did not ask for must not raise a toast on every page visit — a drive with a flaky
+// A read the user did not ask for must not raise a toast on every page visit, a drive with a flaky
 // self-test endpoint would otherwise complain every time somebody looked at it.
 test('a failed mount read is quiet and leaves the card usable', async () => {
   stopPolling();
@@ -278,7 +278,7 @@ test('a failed mount read is quiet and leaves the card usable', async () => {
 });
 
 // The stored log is read the way the server reads it: an entry counts as running only when the
-// drive reported a percentage remaining. An entry without one is a finished test — note that a
+// drive reported a percentage remaining. An entry without one is a finished test, note that a
 // running test still reports `passed: true`, so `passed` could not be the signal either way.
 test('a stored entry with no percentage is not treated as running', () => {
   stopPolling();
@@ -292,7 +292,7 @@ test('a stored entry with no percentage is not treated as running', () => {
 });
 
 // Starting a test changes a drive, so it goes through a confirmation that says what will happen and
-// how long it will take — and it kicks a rescan of that one drive, so the fleet can badge it
+// how long it will take, and it kicks a rescan of that one drive, so the fleet can badge it
 // (`FEATURES.md` A20). Two different posts, and the assertions have to tell them apart.
 test('starting a short test asks first, then posts the type', async () => {
   stopPolling();
@@ -329,7 +329,7 @@ test('starting a long test posts the long type', async () => {
 // change by accident.
 //
 // The card reads the drive once on mount (so a test started since the last scan is found), and that
-// read is a GET — so this asserts on the *mutations*, which is what the invariant is actually about.
+// read is a GET, so this asserts on the *mutations*, which is what the invariant is actually about.
 test('declining the confirmation sends nothing', async () => {
   stopPolling();
   const requests = stubSelfTestApi();
@@ -372,7 +372,7 @@ test('stopping a running test asks first, then posts the abort', async () => {
 // timer at a time, cleared whenever the card redraws.
 //
 // The card schedules from the *read*, not from the stored logs, so the assertion comes after that read
-// settles — and the drive has to actually report a running test, or there is nothing to poll for.
+// settles, and the drive has to actually report a running test, or there is nothing to poll for.
 test('the poll is cleared, never left running', async () => {
   await withFakeTimers(async (pending) => {
     stubSelfTestApi({ running: { type: 'Short offline', remaining: 50 } });
@@ -391,7 +391,7 @@ test('the poll is cleared, never left running', async () => {
 
 // A re-render must not postpone the poll.
 //
-// Every render builds a new card, and a new card watching a running test arms the timer — so arming a
+// Every render builds a new card, and a new card watching a running test arms the timer, so arming a
 // fresh full interval each time means a page that re-renders more often than the interval never
 // reaches a read at all. That is what happened to the drive whose bar stayed stale: a
 // `selftest_progress` event, a device re-read and the freshness re-read all re-render the page, and
@@ -410,7 +410,7 @@ test('a re-render does not postpone the poll', async () => {
       await flush();
       assert.equal([...pending][0].ms, POLL_MS, 'the first card arms a full interval');
 
-      // Ten seconds pass, and the page re-renders — a `selftest_progress` event, say.
+      // Ten seconds pass, and the page re-renders, a `selftest_progress` event, say.
       clock += 10_000;
       selfTestCard(stubCtx(), { serial: 'S' }, stored);
       await flush();
@@ -429,7 +429,7 @@ test('a re-render does not postpone the poll', async () => {
 test('a finished test is recorded once, not on every poll', async () => {
   await withFakeTimers(async (pending) => {
     const ctx = stubCtx();
-    // Testing on the mount read, finished by the next one — which is the transition being tested.
+    // Testing on the mount read, finished by the next one, which is the transition being tested.
     stubSelfTestApi({
       running: [
         { type: 'Short offline', remaining: 50 },
@@ -481,13 +481,13 @@ test('a card that has left the page stops polling', async () => {
 //
 // Two things were missing here, both reported from a real drive: the card never said what the last
 // test did, and a test that finished before the first reading left no trace anywhere. The result
-// does appear in the Drive logs card, but that is drawn from the *last scan* — and a fifteen-second
+// does appear in the Drive logs card, but that is drawn from the *last scan*, and a fifteen-second
 // poll only ever sees a short test after it has already finished.
 
 // The card owns the drive's self-test history (`FEATURES.md` A20): it asks the page to draw it and
 // mounts what comes back.
 //
-// It used to render a "Last test: …" line itself, directly under the progress bar — where a test that
+// It used to render a "Last test: …" line itself, directly under the progress bar, where a test that
 // finished last week read as part of the one running now, and the rest of the same log sat in a
 // different card. History belongs under its own heading, in the card that owns the subject.
 test('the card draws the history it is handed', () => {
@@ -515,7 +515,7 @@ test('the card draws the history it is handed', () => {
 });
 
 // With no log at all there is no history to draw, and asking for one would put an empty table under
-// the buttons — the panel stays out of the way instead.
+// the buttons, the panel stays out of the way instead.
 test('a card with no log asks for no history', () => {
   stopPolling();
   const drawn = [];
@@ -546,8 +546,8 @@ test('a self-test log the app cannot read is stated', () => {
 //
 // The card paints a running entry from the *last scan* before that read starts, so for a drive that
 // finished its test since the scan the live read is the only thing that takes the bar down. Skipping
-// it — which is what the card did whenever `self_test_log_unread` was set, on the reasoning that the
-// read "could only fail" — kept `90% left` on the page across reloads while the drive's own log said
+// it, which is what the card did whenever `self_test_log_unread` was set, on the reasoning that the
+// read "could only fail", kept `90% left` on the page across reloads while the drive's own log said
 // the test was over. That is the ARM test host's report, where the flag came from the selective
 // self-test log rather than from anything unreadable.
 test('an unread log does not stop the drive being read', async () => {
@@ -581,8 +581,8 @@ test('an unread log does not stop the drive being read', async () => {
 // A test started here that is not running when the card next looks has to be explained, and the
 // stored log has to be refreshed. Without the rescan a short test leaves no trace at all, because
 // the poll only ever sees the drive after it has finished.
-// A test this card started that the drive never reports running. The card has to say *something* —
-// "the button did nothing" is how it was reported — and it must not rescan: a rescan re-reads every
+// A test this card started that the drive never reports running. The card has to say *something*,
+// "the button did nothing" is how it was reported, and it must not rescan: a rescan re-reads every
 // drive and re-draws the page, and doing that on a guess is what made this look like a jump to the top.
 test('a test the drive never reports says so, and does not rescan', async () => {
   stopPolling();
@@ -606,7 +606,7 @@ test('a test the drive never reports says so, and does not rescan', async () => 
 });
 
 // The drive's logs are read *live* while a test runs, and handed to the page. The panel above the card
-// is drawn from the last scan, so a result that has just been written exists only in the live read —
+// is drawn from the last scan, so a result that has just been written exists only in the live read,
 // and re-reading the whole fleet to see one test's outcome is the wrong thing to ask of the reader.
 test('the live log is handed to the page', async () => {
   stopPolling();
@@ -632,12 +632,12 @@ test('the live log is handed to the page', async () => {
 });
 
 // A test that finished on a drive which never reported it running: a *new* row in the drive's own log
-// is the evidence, and it is good evidence — the drive wrote it. Without this the card would wait
+// is the evidence, and it is good evidence, the drive wrote it. Without this the card would wait
 // forever for a running test it will never see.
 //
 // The baseline is taken from the drive just before the test starts, not from the last scan, so the
 // reads here are: the mount read, the pre-start baseline read, and the read after the POST. The first
-// two both see the log *before* the row appears, and the third sees it *after* — which is the
+// two both see the log *before* the row appears, and the third sees it *after*, which is the
 // comparison the card is making.
 test('a new result in the live log ends the wait', async () => {
   stopPolling();
@@ -700,7 +700,7 @@ test('the poll interval follows the stored setting', async () => {
 });
 
 // A long test is refused by drives that do not implement an extended self-test. The button must stop
-// inviting a second attempt, and the card must say what happened — a raw "smartctl exit status 4" in
+// inviting a second attempt, and the card must say what happened, a raw "smartctl exit status 4" in
 // a toast leaves the reader to go and look up what bit 2 means.
 test('a refused long test disables the button and says why', async () => {
   stopPolling();

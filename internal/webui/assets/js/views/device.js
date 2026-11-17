@@ -21,7 +21,7 @@ const TREND_RANGES = [
 // Module-level so the choice survives navigating between drives.
 //
 // "All" rather than 30 days because a young install has a week of readings, and a 30-day window draws
-// those as a short line pinned to the right edge — which reads as a broken chart until you know why.
+// those as a short line pinned to the right edge, which reads as a broken chart until you know why.
 // Across the whole history, the line spans the plot and the shape is the shape.
 let trendRange = 'all';
 
@@ -76,7 +76,7 @@ function historyFrom() {
  * What the history says about where the drive is heading.
  *
  * Prose rather than a figure in the stat grid above it. A number in that column reads as
- * a measurement; this is an extrapolation from a handful of readings, and it says so —
+ * a measurement; this is an extrapolation from a handful of readings, and it says so,
  * the caveat is shown inline rather than hidden behind a tooltip, because a caveat nobody
  * reads is not a caveat.
  */
@@ -104,7 +104,7 @@ function projectionBlock(p) {
  *
  * Everything on this page comes from the last scan, so the age belongs beside the drive's name rather
  * than in a row of twelve facts. And when the age is past the window the user chose, this reads *that
- * drive* — one smartctl call, not a fleet scan — then re-renders so the page becomes current while
+ * drive*, one smartctl call, not a fleet scan, then re-renders so the page becomes current while
  * somebody is looking at it.
  *
  * The re-read is deliberately quiet: no toast, no navigation, and no error if it fails. The stored data
@@ -115,7 +115,7 @@ function projectionBlock(p) {
  * The last time this page asked for a drive to be read, and which drive it was.
  *
  * Without it, reading a stale drive re-renders the page, the page reads the stale drive again, and the
- * only thing that ends that is data arriving — which an unreadable drive never produces. `last_scan` is
+ * only thing that ends that is data arriving, which an unreadable drive never produces. `last_scan` is
  * advanced only by a read that *succeeded*, so an unreadable drive stays stale forever and the age can
  * never be the guard.
  *
@@ -136,8 +136,8 @@ export function startFreshness(ctx, d, line) {
   // What to say when the drive cannot be read. Two sentences for one situation, because "no data yet"
   // and "data from four hours ago" are different things to be looking at while it fails.
   const failed = never
-    ? 'no data yet — could not re-read the drive'
-    : `${fmtAgo(d.last_scan)} — could not re-read the drive`;
+    ? 'no data yet, could not re-read the drive'
+    : `${fmtAgo(d.last_scan)}, could not re-read the drive`;
 
   const read = () => {
     api.scanDevice(d.serial).then(() => {
@@ -160,7 +160,7 @@ export function startFreshness(ctx, d, line) {
   }
 
   // One attempt per window, per drive. `Math.max(minutes, 1)` because a window of 0 means "never
-  // re-read on age" — and that must not turn into "re-read as fast as the page can render" for a drive
+  // re-read on age", and that must not turn into "re-read as fast as the page can render" for a drive
   // that has no data at all.
   const wait = Math.max(minutes, 1) * 60000;
   if (d.serial === lastAttempt.serial && Date.now() - lastAttempt.at < wait) {
@@ -169,8 +169,8 @@ export function startFreshness(ctx, d, line) {
   }
   lastAttempt = { serial: d.serial, at: Date.now() };
   paint(never
-    ? 'no data yet — reading the drive now…'
-    : `${fmtAgo(d.last_scan)} — reading the drive now…`, 'device-refreshing');
+    ? 'no data yet, reading the drive now…'
+    : `${fmtAgo(d.last_scan)}, reading the drive now…`, 'device-refreshing');
   read();
 }
 
@@ -193,7 +193,7 @@ function draw(container, ctx, data, history) {
   const nvme = payload ? payload.nvme : null;
 
   // The score breakdown (`FEATURES.md` A12): why the score is what it is. Absent on a drive that
-  // scored cleanly, and absent for a drive whose last scan predates the column — both of which are
+  // scored cleanly, and absent for a drive whose last scan predates the column, both of which are
   // "nothing to explain" rather than "we lost it".
   const penalties = parsePenalties(d.penalties);
   // The attribute ids the verdict actually read, so the table can mark those rows. A Set rather than
@@ -208,11 +208,11 @@ function draw(container, ctx, data, history) {
 
   // What the knowledge base knows about this drive (FEATURES.md A21): the rated endurance, the
   // source it came from, and any firmware advisory that matches. Null when the table has nothing for
-  // this model, which is a real answer — the app says nothing rather than inventing a figure.
+  // this model, which is a real answer, the app says nothing rather than inventing a figure.
   const known = d.knowledge || null;
 
   const identity = statGrid([
-    // First, because it is the one line that answers "which drive do I pull?" — and the person
+    // First, because it is the one line that answers "which drive do I pull?", and the person
     // asking that question is standing in front of a machine, not reading a screen carefully.
     stat('Bay', d.bay),
     stat('Model', d.model),
@@ -232,7 +232,7 @@ function draw(container, ctx, data, history) {
     // The headline storage figure, as a bar rather than a row of numbers: "how full is this drive?"
     // is a proportion, and a proportion is read faster as a length than as two byte counts
     // (`FEATURES.md` A28). The fullest filesystem, named, because that is the one that will run out
-    // first — and a blended figure across a 20%-full boot partition and a 95%-full data volume would
+    // first, and a blended figure across a 20%-full boot partition and a 95%-full data volume would
     // hide exactly the volume somebody needs to be told about.
     d.storage ? stat('Storage used', storageText(d.storage)) : null,
     stat('Power-on hours', powerOnHours != null ? `${fmtHours(powerOnHours)} (${fmtInt(powerOnHours)} h)` : null),
@@ -245,7 +245,7 @@ function draw(container, ctx, data, history) {
     // own wear indicator is measured against, so it belongs beside the figures it explains: 220 TB
     // written means nothing until you know the drive is rated for 600.
     stat('Rated endurance', enduranceText(known, m)),
-    // Its own line rather than a tooltip, because this is the bit that makes the figure checkable —
+    // Its own line rather than a tooltip, because this is the bit that makes the figure checkable,
     // and a figure nobody can check is a figure nobody should believe.
     stat('Rated by', known ? known.source : null),
     stat('Mountpoints', d.mountpoints && d.mountpoints.length ? d.mountpoints.join(', ') : 'not mounted'),
@@ -257,7 +257,7 @@ function draw(container, ctx, data, history) {
   ], 'This drive reports no usage or media figures.');
 
   // The freshness line (`FEATURES.md` A28 follow-up). Everything on this page is from the last *scan*,
-  // and "4 hours ago" in a row of twelve is not something a reader notices — so the age goes next to
+  // and "4 hours ago" in a row of twelve is not something a reader notices, so the age goes next to
   // the drive's own name, where a stale figure cannot be mistaken for a live one. It is also where the
   // answer goes when the page is re-reading the drive itself.
   const freshness = el('div', { class: 'sub device-freshness' });
@@ -269,7 +269,7 @@ function draw(container, ctx, data, history) {
         onclick: () => ctx.navigate('/') }, [icon('back')]),
       el('div', { style: 'min-width:0' }, [
         el('h1', { text: d.name || d.model || d.device_path }),
-        el('div', { class: 'sub', text: `${d.model || '—'}${d.device_path ? ` · ${d.device_path}` : ''}` }),
+        el('div', { class: 'sub', text: `${d.model || 'n/a'}${d.device_path ? ` · ${d.device_path}` : ''}` }),
         freshness,
       ]),
       el('span', { class: 'spacer' }),
@@ -306,7 +306,7 @@ function draw(container, ctx, data, history) {
             verdictBadge(d.health),
             el('span', { class: 'muted', text: `${fmtScore(d.score)}/100 · ${scoreGrade(d.score)}` }),
           ]),
-          el('div', { text: d.health_rationale || '—' }),
+          el('div', { text: d.health_rationale || 'n/a' }),
           scoreBreakdown(penalties),
         ]),
       ]),
@@ -315,7 +315,7 @@ function draw(container, ctx, data, history) {
     ]),
 
     // Two independent columns, not a grid of rows. A grid row is as tall as its tallest card, so the
-    // shorter card beside it leaves a hole underneath — and this page pairs cards of very different
+    // shorter card beside it leaves a hole underneath, and this page pairs cards of very different
     // heights, so the holes were large. In a column, a card is followed immediately by the next one
     // *in that column*, and the only slack left is at the foot of the shorter column.
     //
@@ -375,7 +375,7 @@ function draw(container, ctx, data, history) {
           //
           // The fourth argument is how a fresh log reaches the *error* panel without a scan: the card
           // reads the drive live while a test runs, and hands over the log it read. The fifth is the
-          // reverse direction — the card owns the self-test log now (`FEATURES.md` A20), so it asks the
+          // reverse direction, the card owns the self-test log now (`FEATURES.md` A20), so it asks the
           // page to draw it, and redraws it from every live read.
           selfTestCard(ctx, d, d.logs, (fresh) => {
             mount(logHolder, logSummary(fresh, seriesFor('power_on_hours', series)));
@@ -400,8 +400,8 @@ function draw(container, ctx, data, history) {
  * identical is exactly the reassurance someone opened the page for, so the card says so in words
  * instead of rendering nothing.
  *
- * The *server* decides which attribute movements are findings — the drive's own threshold, or one
- * of the lost-storage counters — and reports the rest as a count. That is deliberate: a second
+ * The *server* decides which attribute movements are findings, the drive's own threshold, or one
+ * of the lost-storage counters, and reports the rest as a count. That is deliberate: a second
  * opinion here would let this card and the verdict disagree about the same drive.
  */
 export function changesCard(c) {
@@ -437,15 +437,14 @@ export function changesCard(c) {
       el('h2', { text: 'Since the last scan' }),
       el('span', { class: 'spacer' }),
       c.from ? el('span', { class: 'muted', text: `previous scan ${fmtAgo(c.from)}` }) : null,
-    ]),
-    ...body,
+    ]), ...body,
   ]);
 }
 
 /** One "was → now" line. An absent end is an em dash: not reported is not zero. */
 function changeLine(label, change, opts = {}) {
   const show = (value) => {
-    if (value === undefined || value === null) return '—';
+    if (value === undefined || value === null) return 'n/a';
     if (opts.badge) return verdictBadge(value);
     return opts.format ? opts.format(value) : String(value);
   };
@@ -519,7 +518,7 @@ const BLOCKED_FIXES = {
 };
 
 /**
- * Why this drive has no S.M.A.R.T. reading — and the two reasons are not the same thing.
+ * Why this drive has no S.M.A.R.T. reading, and the two reasons are not the same thing.
  *
  * A drive that cannot report S.M.A.R.T. is not broken, and a container that is not
  * allowed to read one is not broken either, but only one of them is the drive's problem.
@@ -544,8 +543,7 @@ function smartProblemNotice(ctx, d) {
   }
 
   const transport = el('select', {}, [
-    el('option', { value: '', text: 'Auto-detect' }),
-    ...TRANSPORT_OVERRIDES.map((v) => el('option', { value: v, text: `-d ${v}` })),
+    el('option', { value: '', text: 'Auto-detect' }), ...TRANSPORT_OVERRIDES.map((v) => el('option', { value: v, text: `-d ${v}` })),
   ]);
   transport.value = d.smart_d || '';
 
@@ -594,7 +592,7 @@ function smartProblemNotice(ctx, d) {
  * Nothing is invented. No rating means no line; no written figure means no percentage; a rating that
  * came from a capacity bucket that only nearly matches says "about". The drive's own wear indicator is
  * not used as the percentage here, because it is a fraction of *its* rating, which is not necessarily
- * the published one — vendors change cells within a family without renaming it.
+ * the published one, vendors change cells within a family without renaming it.
  */
 function enduranceText(known, metrics) {
   if (!known) return null;
@@ -618,7 +616,7 @@ function enduranceText(known, metrics) {
 
 // Advisory severities to the badge tones the rest of the app uses. Kept as a map rather than
 // interpolated, so a severity the server adds later shows as "unknown" instead of a class that does
-// not exist — a badge with no styling is a badge nobody notices.
+// not exist, a badge with no styling is a badge nobody notices.
 const SEVERITY_TONE = { critical: 'bad', warning: 'caution', info: 'unknown' };
 
 /**
@@ -633,8 +631,7 @@ function advisoryCard(known) {
   return el('div', { class: 'card stack advisory' }, [
     el('h2', { text: plural ? 'Known issues' : 'Known issue' }),
     el('p', { class: 'muted', text: `From the knowledge base, matched on the model and firmware this ` +
-      `drive reports (${known.family}).` }),
-    ...known.advisories.map((a) => el('div', { class: 'advisory-item' }, [
+      `drive reports (${known.family}).` }), ...known.advisories.map((a) => el('div', { class: 'advisory-item' }, [
       el('div', { class: 'row', style: 'gap:var(--space-2);align-items:center' }, [
         el('span', {
           class: `badge badge-${SEVERITY_TONE[a.severity] || 'unknown'}`,
@@ -662,7 +659,7 @@ function advisoryCard(known) {
 function stat(label, value) {
   if (value === null || value === undefined) return null;
   const text = String(value).trim();
-  if (text === '' || text === '—') return null;
+  if (text === '' || text === 'n/a') return null;
   return el('div', {}, [
     el('span', { class: 'stat-label', text: label }),
     el('span', { class: 'stat-value', text, title: text }),
@@ -671,7 +668,7 @@ function stat(label, value) {
 
 /**
  * A details grid. Rows the drive does not report are dropped rather than shown as a
- * bare em dash: a row whose only content is "—" tells you nothing except that the
+ * bare em dash: a row whose only content is "n/a" tells you nothing except that the
  * field exists, and a screenful of them reads as broken rather than sparse.
  */
 function statGrid(rows, emptyNote) {
@@ -685,7 +682,7 @@ function statGrid(rows, emptyNote) {
  *
  * A figure, like every other row on this card. It was a bar, and a bar is the wrong shape here: the
  * only graphic in a column of labels and values, and the Partitions card below already shows fullness
- * properly — per filesystem, with a table to explain it and room to say which is which. This row's job
+ * properly, per filesystem, with a table to explain it and room to say which is which. This row's job
  * is the headline.
  *
  * The filesystem is named because the figure is the *fullest* one, and "47%" is not actionable on its
@@ -697,7 +694,7 @@ function statGrid(rows, emptyNote) {
 function storageText(storage) {
   if (!storage) return null;
   const pct = storage.used_pct;
-  // Checked explicitly, because `Number(null)` and `Number('')` are both 0 — and "0% used" for a drive
+  // Checked explicitly, because `Number(null)` and `Number('')` are both 0, and "0% used" for a drive
   // nobody could measure is a confident wrong answer rather than a missing one.
   if (pct === null || pct === undefined || pct === '') return null;
   const value = Number(pct);
@@ -706,7 +703,7 @@ function storageText(storage) {
   return storage.mount ? `${clamped}% (${storage.mount})` : `${clamped}%`;
 }
 
-/** "96% remaining (4% used)" — prefers the drive's own life figure. */
+/** "96% remaining (4% used)", prefers the drive's own life figure. */
 function lifeText(lifeLeft, wearPct) {
   if (lifeLeft != null) return `${lifeLeft}% remaining`;
   if (wearPct != null) {
@@ -719,9 +716,9 @@ function lifeText(lifeLeft, wearPct) {
 // --- trends -------------------------------------------------------------------
 
 // Each metric knows how to render itself and whether a change means anything. A
-// rising power-on-hour count is not a health signal — it is just the drive being
-// used — so that row reports a rate rather than a coloured delta.
-// Storage is a percentage rather than a count, so its delta is in *points* — "up 3 points" is a
+// rising power-on-hour count is not a health signal, it is just the drive being
+// used, so that row reports a rate rather than a coloured delta.
+// Storage is a percentage rather than a count, so its delta is in *points*, "up 3 points" is a
 // meaningful change and "up 3%" of a percentage is not. Rising fullness is the one direction that
 // matters for a NAS drive, which is why the tone is inverted against the usual "up is good".
 export const TREND_METRICS = [
@@ -761,15 +758,15 @@ export const TREND_METRICS = [
     key: 'used_pct',
     label: 'Storage',
     format: (v) => `${Math.round(v)}% full`,
-    // Points, not per cent — the value is already a percentage, so "up 3%" would be nonsense.
+    // Points, not per cent, the value is already a percentage, so "up 3%" would be nonsense.
     delta: (d) => ({ text: signed(d, ' pts'), tone: d > 0 ? 'bad' : 'good' }),
   },
 ];
 /**
  * The score breakdown (`FEATURES.md` A12), or null when there is nothing to explain.
  *
- * The question a 0-100 score invites is "why?", and the interpreter has always had the answer — a
- * list of reasons and what each cost — which the app then threw away. A drive at 96/100 has an empty
+ * The question a 0-100 score invites is "why?", and the interpreter has always had the answer, a
+ * list of reasons and what each cost, which the app then threw away. A drive at 96/100 has an empty
  * breakdown and shows nothing here; a drive at 61/100 shows the two lines that account for the 39.
  *
  * Deliberately a plain list rather than a chart: the numbers are small and few, and the *reason* is
@@ -792,7 +789,7 @@ export function scoreBreakdown(penalties) {
  * Decodes the stored score breakdown, tolerating anything malformed.
  *
  * A breakdown is an explanation, and an explanation that cannot be read is worth less than no
- * explanation at all — but it is not worth failing the page over.
+ * explanation at all, but it is not worth failing the page over.
  */
 export function parsePenalties(raw) {
   try {
@@ -874,7 +871,7 @@ export function seriesFor(key, series) {
     .filter((p) => typeof p.value === 'number' && Number.isFinite(p.value));
 }
 
-/** "+3" / "-2 °C" — always signed, so the direction is never ambiguous. */
+/** "+3" / "-2 °C", always signed, so the direction is never ambiguous. */
 function signed(delta, unit = '') {
   const rounded = Math.round(delta * 10) / 10;
   return `${rounded > 0 ? '+' : ''}${rounded}${unit}`;
@@ -926,11 +923,11 @@ function exportDialog(device) {
 /** The NVMe log's fields, grouped, as data.
  *
  *  Extracted so the v2 page can lay the same sixteen facts out as a grid instead of a two-column
- *  table — one list, two layouts, and no way for them to disagree about what the log contains. */
+ *  table, one list, two layouts, and no way for them to disagree about what the log contains. */
 export function nvmeSections(n) {
   // Grouped rather than one flat list of sixteen rows. The log mixes counters that
   // describe the drive's health, its lifetime, its workload and its errors, and in a flat
-  // list all four read alike — which is what made this the densest panel on the page.
+  // list all four read alike, which is what made this the densest panel on the page.
   // Each row carries the API field name alongside its label: the label is for reading,
   // the field name is the key into the help table (`attributes.js`), so rewording a label
   // cannot silently detach its explanation.
@@ -992,7 +989,7 @@ export function nvmeTable(n) {
 /**
  * What the drive's own logs hold (`FEATURES.md` A20).
  *
- * The counts, not the entries — and that limit is deliberate. Neither drive available to
+ * The counts, not the entries, and that limit is deliberate. Neither drive available to
  * this project has ever logged an error, and smartctl emits no entry list at all when a log
  * is empty, so the shape of a populated one has never been observed. A panel that rendered
  * nothing when a drive *does* have something to say would be worse than one that admits the
@@ -1044,7 +1041,7 @@ export function logSummary(logs, hours = []) {
     // out where the summary ended and the log began.
     //
     // The *self-test* log is not here (`FEATURES.md` A20): it lives in the Self-test card with the
-    // buttons that start one and the progress of the one running — one subject, one place. This card
+    // buttons that start one and the progress of the one running, one subject, one place. This card
     // is about what the drive has complained about, and a self-test log is not that.
     detailed.length
       ? el('section', { class: 'log-section' }, [
@@ -1090,7 +1087,7 @@ function selfTestTable(entries, hours) {
         el('th', { class: 'num', text: 'When' }),
       ])]),
       el('tbody', {}, entries.map((e) => el('tr', {}, [
-        el('td', { text: e.type || '—' }),
+        el('td', { text: e.type || 'n/a' }),
         el('td', {}, [selfTestResult(e)]),
         el('td', { class: 'num' }, [whenCell(e, clock)]),
       ]))),
@@ -1101,7 +1098,7 @@ function selfTestTable(entries, hours) {
 /**
  * When each test ran, from the drive's own lifetime hours.
  *
- * The log records *lifetime hours*, not a date — that is all the drive keeps, and printing "29,730 h"
+ * The log records *lifetime hours*, not a date, that is all the drive keeps, and printing "29,730 h"
  * on its own answers a question nobody asked. Every stored snapshot pairs a lifetime-hours reading
  * with the time it was taken, so the hours can be placed on a real clock: the drive passed 29,651
  * hours somewhere between the two scans that bracket that reading, and that is as precise as the
@@ -1112,14 +1109,14 @@ function selfTestTable(entries, hours) {
  */
 function whenCell(entry, clock) {
   if (entry.hours === undefined || entry.hours === null) {
-    return el('span', { class: 'muted', text: '—' });
+    return el('span', { class: 'muted', text: 'n/a' });
   }
   const hours = el('span', { class: 'muted', text: `${fmtInt(entry.hours)} h` });
   const at = placeOnClock(entry.hours, clock);
   if (at === null) {
     return el('span', {
       title: 'The drive records lifetime hours, not a date, and this test predates the retained '
-        + 'history — so there is no scan to place it against.',
+        + 'history, so there is no scan to place it against.',
       text: `${fmtInt(entry.hours)} h`,
     });
   }
@@ -1157,7 +1154,7 @@ function placeOnClock(hours, clock) {
  * One self-test result.
  *
  * Three cases, not a boolean. A test in progress has a percentage and no verdict, and an absent
- * verdict is not a failure — rendering it as one would be the worst possible reading of the log.
+ * verdict is not a failure, rendering it as one would be the worst possible reading of the log.
  */
 function selfTestResult(e) {
   if (e.remaining !== undefined) {
@@ -1169,7 +1166,7 @@ function selfTestResult(e) {
   if (e.passed === false) {
     return el('span', { class: 'log-fail' }, [icon('x'), e.status || 'Failed']);
   }
-  return el('span', { class: 'muted', text: e.status || '—' });
+  return el('span', { class: 'muted', text: e.status || 'n/a' });
 }
 
 /** The error log, for the drives that report more than which entry it was. */
@@ -1183,14 +1180,14 @@ function errorTable(entries) {
       ])]),
       el('tbody', {}, entries.map((e) => el('tr', {}, [
         el('td', { class: 'num', text: fmtCell(e.number) }),
-        el('td', { text: e.status || (e.lba === undefined ? '—' : `LBA ${fmtInt(e.lba)}`) }),
-        el('td', { class: 'num', text: e.hours === undefined ? '—' : `${fmtInt(e.hours)} h` }),
+        el('td', { text: e.status || (e.lba === undefined ? 'n/a' : `LBA ${fmtInt(e.lba)}`) }),
+        el('td', { class: 'num', text: e.hours === undefined ? 'n/a' : `${fmtInt(e.hours)} h` }),
       ]))),
     ]),
   ]);
 }
 
-/** "none logged", or "3 entries logged" — a count of zero is a finding, not an absence. */
+/** "none logged", or "3 entries logged", a count of zero is a finding, not an absence. */
 function logged(n, singular, plural) {
   if (n === 0) return 'none logged';
   return `${fmtInt(n)} ${n === 1 ? singular : plural} logged`;
@@ -1199,14 +1196,14 @@ function logged(n, singular, plural) {
 // NVMe reports volume in "data units" of 1,000 × 512-byte sectors, so the raw
 // counter means nothing on its own. Show the count and the humanised size.
 function dataUnits(count) {
-  if (count === null || count === undefined) return '—';
+  if (count === null || count === undefined) return 'n/a';
   return `${fmtInt(count)} (${fmtBytes(Number(count) * 512000)})`;
 }
 
 // A percentage that may be absent. Interpolating straight into a template rendered a
 // missing field as "undefined%", which is worse than admitting the drive did not say.
 function percent(value) {
-  return value === null || value === undefined ? '—' : `${value}%`;
+  return value === null || value === undefined ? 'n/a' : `${value}%`;
 }
 
 async function toggleRaw(device, button) {
@@ -1249,7 +1246,7 @@ async function toggleRaw(device, button) {
  * Copy a string to the clipboard.
  *
  * `navigator.clipboard` is unavailable on an insecure origin, which a self-hosted app on a LAN
- * usually is — so the fallback is not optional. A Copy button that silently does nothing on plain
+ * usually is, so the fallback is not optional. A Copy button that silently does nothing on plain
  * http is worse than no button: it is the one feature this exists for, failing quietly.
  */
 function copyButton(text, node) {
@@ -1262,7 +1259,7 @@ function copyButton(text, node) {
       // Selected instead, so Ctrl-C finishes the job. The raw output is what people paste into a
       // bug report, and a drag-select across a scrolling box is the thing this button is for.
       selectText(node);
-      toast('Could not copy automatically — the text is selected, press Ctrl-C', 'error');
+      toast('Could not copy automatically, the text is selected, press Ctrl-C', 'error');
     }
   });
   return button;
@@ -1286,7 +1283,7 @@ function selectText(node) {
  *
  * Shown on the verdict card, and that is the point: the verdict still says the drive is failing,
  * because it is. What the acknowledgement removed is the repetition, and without this notice the
- * reader would conclude the app had lost the alert — or worse, that the drive had recovered.
+ * reader would conclude the app had lost the alert, or worse, that the drive had recovered.
  *
  * It says what the ack is *for* as well as that it exists, because "acknowledged" on its own does not
  * tell you whether the note still applies.
@@ -1321,8 +1318,8 @@ function acknowledge(ctx, device, button) {
     });
     body.append(
       el('p', { class: 'muted', text: `Alerts about ${device.name || device.serial} will be silenced ` +
-        `while its verdict stays "${device.health}". The verdict itself does not change — this hides ` +
-        'the repetition, not the finding — and a drive that gets worse still alerts.' }),
+        `while its verdict stays "${device.health}". The verdict itself does not change, this hides ` +
+        'the repetition, not the finding, and a drive that gets worse still alerts.' }),
       el('div', { class: 'field' }, [el('label', { text: 'Why' }), note]),
     );
     foot.append(
@@ -1389,7 +1386,7 @@ function editNotes(ctx, device, benchTag) {
 
     // "Being tested" as a checkbox rather than something the reader has to know to type. The tag is
     // the mechanism (`FEATURES.md` D11); this is the concept in the words a person would use, and it
-    // belongs in the dialog that already describes the drive — which is where somebody would look.
+    // belongs in the dialog that already describes the drive, which is where somebody would look.
     // It is here rather than on the dashboard because a card explaining a tag you have not used is a
     // card explaining nothing.
     const bench = el('input', { type: 'checkbox', checked: hasTag(device.tags, benchTag) });
@@ -1410,7 +1407,7 @@ function editNotes(ctx, device, benchTag) {
       el('div', { class: 'field' }, [el('label', { text: 'Tags' }), tags]),
       benchTag
         ? el('label', { class: 'field-row' }, [bench,
-            el('span', { text: 'Being tested — left out of the fleet counts' })])
+            el('span', { text: 'Being tested, left out of the fleet counts' })])
         : null,
       el('div', { class: 'field' }, [el('label', { text: 'Notes' }), notes]),
       el('label', { class: 'field-row' }, [hidden, el('span', { text: 'Hide from the dashboard' })]),
@@ -1452,7 +1449,7 @@ function editNotes(ctx, device, benchTag) {
 
 
 // Display preferences for this page (`FEATURES.md` A28), module-level and set from the settings
-// before the first render — the same shape as the self-test poll interval, and for the same reason:
+// before the first render, the same shape as the self-test poll interval, and for the same reason:
 // a partition table that appeared and then vanished would be worse than either state.
 let displayOptions = { showUsage: true, showPartitions: true };
 
@@ -1467,7 +1464,7 @@ export function setDisplayOptions(settings) {
     showUsage: !off('show_usage'),
   };
   // The level a usage bar turns amber at (`FEATURES.md` A28). Read here with the rest of the display
-  // preferences because that is what it is — the bar's colour is presentation, not a verdict.
+  // preferences because that is what it is, the bar's colour is presentation, not a verdict.
   setStorageWarnPct((settings || {}).storage_warn_pct);
   // How stale a drive's data may be before opening its page re-reads it (`FEATURES.md` A28 follow-up).
   // A negative or unparseable value means "never", which is the safe reading: re-reading a drive is the
@@ -1481,7 +1478,7 @@ export function setDisplayOptions(settings) {
  *
  * The one setting in this app that causes a drive to be read without anybody asking, which is why it
  * is a setting and why the page says when it is doing it. On a machine that parks its disks this is
- * the number to turn down — a scan cannot wear a drive, but it can wake one.
+ * the number to turn down, a scan cannot wear a drive, but it can wake one.
  */
 let deviceRefreshMinutes = 0;
 
@@ -1494,7 +1491,7 @@ export function deviceRefreshWindow() {
  * Forget the last freshness attempt.
  *
  * For the tests, and only for them: the guard above is module state, so one test's read would
- * suppress the next one's. Nothing in the app needs it — a page view ends with a navigation, and the
+ * suppress the next one's. Nothing in the app needs it, a page view ends with a navigation, and the
  * guard is keyed by serial, so opening a different drive is unaffected either way.
  */
 export function resetFreshness() {
@@ -1509,7 +1506,7 @@ export function currentDisplayOptions() {
 /**
  * The partition schema card (`FEATURES.md` A28).
  *
- * Two levels on purpose. The table is what a person came for — which partitions exist, what is on
+ * Two levels on purpose. The table is what a person came for, which partitions exist, what is on
  * them, and how full they are. The disclosure underneath holds everything *explanation*-shaped: the
  * sector size, whether the device passes TRIM through, the partition table type, and why a usage
  * figure is missing. Those are worth having and not worth putting in front of everybody.
@@ -1526,7 +1523,7 @@ export function diskLayoutCard(layout, opts) {
   const { showUsage = true } = opts || {};
   const partitions = layout.partitions || [];
 
-  // The map and the table mark each other, and only one of them can be built first — so the callbacks
+  // The map and the table mark each other, and only one of them can be built first, so the callbacks
   // close over a binding filled in below. They run on hover, long after both exist.
   let map = null;
   const table = partitionTable(layout, {
@@ -1560,7 +1557,7 @@ export function diskLayoutCard(layout, opts) {
  * Marks the table row for a partition, or clears every mark when `name` is null.
  *
  * The row and the segment carry the same `data-partition`, so they are matched by the drive's own name
- * for the partition rather than by position — which matters on a drive whose table also has a row per
+ * for the partition rather than by position, which matters on a drive whose table also has a row per
  * logical volume, where the positions deliberately do not line up.
  *
  * `querySelectorAll` specifically: the test stub's own traversal helper does not exist in a browser, and
@@ -1578,7 +1575,7 @@ export function highlightPartitionRow(table, name) {
 /**
  * Marks the map segment for a partition, or clears every mark when `name` is null.
  *
- * The other half of `highlightPartitionRow`, matched the same way — by the drive's own name for the
+ * The other half of `highlightPartitionRow`, matched the same way, by the drive's own name for the
  * partition, which the segment and the row both carry. The free-space segment carries no
  * `data-partition`, so it is never marked, which is right: it is not a partition.
  *
@@ -1606,16 +1603,16 @@ function layoutDetails(layout, partitions) {
   const sector = sectorLabel(layout.log_sector_size, layout.phy_sector_size);
   if (sector) {
     rows.push(['Reported as', sector === '512e'
-      ? '512e — 512-byte logical on 4 KiB physical, which is the common emulation'
-      : '4Kn — native 4 KiB sectors, which some pools require and some tools assume away']);
+      ? '512e, 512-byte logical on 4 KiB physical, which is the common emulation'
+      : '4Kn, native 4 KiB sectors, which some pools require and some tools assume away']);
   }
   rows.push(['TRIM / discard', layout.discard_support
     ? 'supported'
-    : 'not reported — an SSD behind a bridge that does not pass discard through slows as it fills']);
+    : 'not reported, an SSD behind a bridge that does not pass discard through slows as it fills']);
   if (layout.table) rows.push(['Partition table', layout.table.toUpperCase()]);
   // Relocated from the card's summary line, where it had no room to say it was approximate.
   if (layout.unallocated_bytes) {
-    rows.push(['Unallocated', `${fmtBytes(layout.unallocated_bytes)} — approximate: alignment gaps ` +
+    rows.push(['Unallocated', `${fmtBytes(layout.unallocated_bytes)}, approximate: alignment gaps ` +
       'and the backup GPT header are not counted']);
   }
 

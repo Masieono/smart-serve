@@ -241,7 +241,7 @@ func TestDispatchAppliesTheGroupScope(t *testing.T) {
 	}
 
 	// And nothing is logged for the skipped combination. A skip is a property of the channel, which
-	// its own card shows, rather than something that happened — a row per event per channel would
+	// its own card shows, rather than something that happened, a row per event per channel would
 	// bury the deliveries that did happen.
 	entries := st.entries()
 	if len(entries) != 3 {
@@ -322,7 +322,7 @@ func TestDispatchSkipsUnknownChannelTypes(t *testing.T) {
 		t.Errorf("deliveries = %d, want 0 for an unsupported channel type", sender.count())
 	}
 	if len(st.entries()) != 0 {
-		t.Errorf("log = %+v, want no entries — nothing was attempted", st.entries())
+		t.Errorf("log = %+v, want no entries, nothing was attempted", st.entries())
 	}
 }
 
@@ -416,7 +416,7 @@ func TestDispatchSquelchesUsingTheConfiguredWindow(t *testing.T) {
 	}).Dispatch(context.Background(), []Event{hot})
 
 	if sender.count() != 2 {
-		t.Errorf("deliveries = %d, want 2 — the configured 60s window had elapsed", sender.count())
+		t.Errorf("deliveries = %d, want 2, the configured 60s window had elapsed", sender.count())
 	}
 }
 
@@ -460,7 +460,7 @@ func TestDecodeConfigToleratesGarbage(t *testing.T) {
 }
 
 // A draft from the editor has no id, so there is no stored channel to attribute a
-// delivery-log row to. It is still delivered — that is what Test is for — but nothing
+// delivery-log row to. It is still delivered, that is what Test is for, but nothing
 // is written.
 func TestSendTestDoesNotLogAnUnsavedDraft(t *testing.T) {
 	st := newFakeStore()
@@ -476,7 +476,7 @@ func TestSendTestDoesNotLogAnUnsavedDraft(t *testing.T) {
 		t.Errorf("outcome = %q, want sent", outcome)
 	}
 	if sender.count() != 1 {
-		t.Errorf("deliveries = %d, want 1 — an unsaved draft is still sent", sender.count())
+		t.Errorf("deliveries = %d, want 1, an unsaved draft is still sent", sender.count())
 	}
 	if len(st.logged) != 0 {
 		t.Errorf("log rows = %+v, want none for an unsaved draft", st.logged)

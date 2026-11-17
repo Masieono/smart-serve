@@ -119,7 +119,7 @@ func TestAWorseningGreenDriveIsWatchAndSaysWhy(t *testing.T) {
 
 	r := rankOf(ranks, "S1")
 	if r.Band != ReplaceWatch {
-		t.Errorf("band = %q, want watch — a moving count is not nothing", r.Band)
+		t.Errorf("band = %q, want watch, a moving count is not nothing", r.Band)
 	}
 	joined := strings.Join(r.Reasons, " ")
 	for _, want := range []string{"7 new sector problems", "30 days"} {

@@ -45,7 +45,7 @@ func TestSettings(t *testing.T) {
 }
 
 // A26. The projection window follows the user's retention setting, so what they keep is what the
-// app reads — an owner who raised retention to five years to watch a slow trend was having that
+// app reads, an owner who raised retention to five years to watch a slow trend was having that
 // history discarded by the projection anyway.
 func TestRetentionWindowFollowsTheSetting(t *testing.T) {
 	ctx := context.Background()

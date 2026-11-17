@@ -17,14 +17,14 @@ const SelfTestProgress = "selftest_progress"
 // WatchSelfTests keeps the recorded self-test state current while any drive is testing itself.
 //
 // The fleet badge and the drive page's progress both come from the *stored* row, which a scan writes.
-// Start a long test, look at another drive, and nothing updated it until the next scheduled scan —
+// Start a long test, look at another drive, and nothing updated it until the next scheduled scan,
 // which on a quiet homelab could be tomorrow. That was the report: "the badge didn't update, it
 // essentially said testing 1% all the way until the test was complete and logged".
 //
 // Three things make this safe rather than a second scan:
 //
 //   - **Bounded by definition.** It only touches drives already mid-test, so it cannot wake a sleeping
-//     one — the concern that governs every other decision about reading drives here.
+//     one, the concern that governs every other decision about reading drives here.
 //   - **One question per drive.** It reads the self-test document and writes three columns rather than
 //     a whole row, so a scan happening at the same time is not fought.
 //   - **It stops by itself.** When the last test ends the query returns nothing and the loop idles

@@ -1,4 +1,4 @@
-// Schedules (v2) — what runs, when it next runs, and whether it is on.
+// Schedules (v2), what runs, when it next runs, and whether it is on.
 //
 // A schedule row answers three questions in the order a reader asks them: what is this, when does it
 // happen next, and did it happen last time. The incumbent table answered them in a column order that
@@ -48,7 +48,7 @@ function draw(container, ctx, data) {
       el('div', { text: 'No schedules yet.' }),
       el('div', {
         class: 'muted',
-        text: 'Create one to scan automatically — every night at 03:00 is the usual choice.',
+        text: 'Create one to scan automatically, every night at 03:00 is the usual choice.',
       }),
     ]),
   ].filter(Boolean));
@@ -77,7 +77,7 @@ function glance(schedules) {
  * A self-test pass takes hours and writes to every drive in the fleet.
  *
  * Without this, a pass that has been running for six hours looks exactly like one that finished six
- * hours ago — the row's "last run" cannot tell them apart.
+ * hours ago, the row's "last run" cannot tell them apart.
  */
 function passBanner(data) {
   const pass = data.selftest_pass;
@@ -86,7 +86,7 @@ function passBanner(data) {
 
   return el('div', { class: 'v2-pass' }, [
     el('div', { class: 'v2-pass-head' }, [
-      el('b', { text: `Self-test pass running — ${pass.done} of ${pass.total} drives done` }),
+      el('b', { text: `Self-test pass running, ${pass.done} of ${pass.total} drives done` }),
       el('span', { class: 'muted', text: pass.current ? `testing ${pass.current} now` : 'between drives' }),
     ]),
     el('div', { class: 'v2-pass-bar' }, [el('div', { class: 'v2-pass-fill', style: `width:${pct}%` })]),
@@ -104,7 +104,7 @@ function scheduleTable(schedules, ctx) {
       el('td', {}, [el('div', { text: describe(s) })]),
       el('td', {}, s.enabled
         ? [
-          el('div', { text: s.next_run ? fmtIn(s.next_run) : '—' }),
+          el('div', { text: s.next_run ? fmtIn(s.next_run) : 'n/a' }),
           el('div', {
             class: 'sub',
             text: s.next_run ? fmtDateTime(s.next_run) : '',
@@ -192,10 +192,10 @@ function scheduleTable(schedules, ctx) {
   ]);
 }
 
-/** "in 6h", "in 3 days", "in 40s" — the future counterpart of `fmtAgo`. */
+/** "in 6h", "in 3 days", "in 40s", the future counterpart of `fmtAgo`. */
 function fmtIn(iso) {
   const ms = Date.parse(iso) - Date.now();
-  if (!Number.isFinite(ms)) return '—';
+  if (!Number.isFinite(ms)) return 'n/a';
   if (ms <= 0) return 'due now';
 
   const mins = Math.round(ms / 60000);

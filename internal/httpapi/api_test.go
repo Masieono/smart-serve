@@ -29,7 +29,7 @@ func TestHealthz(t *testing.T) {
 // Whether an ATA drive's attribute 177 means "life remaining" depends on who made the drive
 // (SMART_INTERPRETATION.md §1.1), and the model family is stored on the device rather than
 // per snapshot. Rebuilding the payload without it silently loses the figure for exactly the
-// drives the rule was added for — which is what happened, and only an end-to-end run against
+// drives the rule was added for, which is what happened, and only an end-to-end run against
 // a real drive's attributes caught it.
 func TestSnapshotMetricsCarriesTheModelFamily(t *testing.T) {
 	snap := &store.Snapshot{
@@ -213,7 +213,7 @@ func TestReportExportFormats(t *testing.T) {
 	do(t, srv, http.MethodPost, "/api/scan?wait=1", "", nil)
 
 	// Every format the API advertises must actually render, and must be offered as a
-	// download rather than displayed — an export you have to copy out of a browser
+	// download rather than displayed, an export you have to copy out of a browser
 	// tab is not an export.
 	cases := []struct {
 		format      string
@@ -370,7 +370,7 @@ func TestForgetDeviceRemovesEverythingDerivedFromIt(t *testing.T) {
 		t.Fatalf("rescan status = %d", rec.Code)
 	}
 	if got := countMissing(t, do(t, srv, http.MethodGet, "/api/devices", "", nil)); got != 0 {
-		t.Errorf("missing = %d, want 0 — a forgotten device should not come back as missing", got)
+		t.Errorf("missing = %d, want 0, a forgotten device should not come back as missing", got)
 	}
 }
 
@@ -418,7 +418,7 @@ func TestRawOutput(t *testing.T) {
 }
 
 // Raw output used to live only in the scanner's in-memory result. After a restart that
-// result is empty while the database is full, so every drive 404'd — which is exactly
+// result is empty while the database is full, so every drive 404'd, which is exactly
 // the state a container is in when it comes back up against a persisted volume.
 func TestRawOutputSurvivesARestart(t *testing.T) {
 	ctx := context.Background()
@@ -441,7 +441,7 @@ func TestRawOutputSurvivesARestart(t *testing.T) {
 	after := New(st, scan.NewManager(runner, st, hub), hub, Options{})
 	rec := do(t, after, http.MethodGet, "/api/devices/S1/raw", "", nil)
 	if rec.Code != http.StatusOK {
-		t.Fatalf("raw after restart = %d, want 200 — it has to come from the store", rec.Code)
+		t.Fatalf("raw after restart = %d, want 200, it has to come from the store", rec.Code)
 	}
 	if !strings.Contains(rec.Body.String(), "/dev/sda") {
 		t.Errorf("raw body = %s", rec.Body.String())
@@ -507,14 +507,14 @@ func TestLogsFromRawOutput(t *testing.T) {
 	if got := logsFrom(""); got != nil {
 		t.Errorf("logsFrom(empty) = %+v, want nil", got)
 	}
-	// A document that parsed but carries no logs — the shape most drives produce.
+	// A document that parsed but carries no logs, the shape most drives produce.
 	if got := logsFrom(`{"model_name":"Samsung SSD 850 EVO 250GB"}`); got != nil {
 		t.Errorf("logsFrom(no log sections) = %+v, want nil", got)
 	}
 	// A count of zero is a finding ("this drive has never complained"), not an absence.
 	got := logsFrom(`{"ata_smart_error_log":{"extended":{"count":0}}}`)
 	if got == nil {
-		t.Fatal("logsFrom(count 0) = nil, want a summary — zero is an answer")
+		t.Fatal("logsFrom(count 0) = nil, want a summary, zero is an answer")
 	}
 	if got.ErrorCount == nil || *got.ErrorCount != 0 {
 		t.Errorf("ErrorCount = %v, want 0", got.ErrorCount)

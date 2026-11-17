@@ -28,8 +28,8 @@ let benchOnly = false;
 /**
  * The stored view preference (`cards` or `table`), applied before the first render.
  *
- * Unlike the filter and the sort beside it — which are deliberately module-only, so they survive a
- * trip into a drive and back but not a reload — this one is a *preference*, and the app already keeps
+ * Unlike the filter and the sort beside it, which are deliberately module-only, so they survive a
+ * trip into a drive and back but not a reload, this one is a *preference*, and the app already keeps
  * its display preferences (the theme, the temperature unit) in the database, so they survive a reload
  * and travel in the config export. An earlier version kept this in the module too, which meant a
  * reader who wanted the table got cards again on every refresh.
@@ -41,7 +41,7 @@ export function setView(stored) {
 /**
  * Whether the "Replace first" shortlist is drawn at all (`FEATURES.md` A24).
  *
- * A preference rather than view state, so it is stored and survives a reload — but a reader who has
+ * A preference rather than view state, so it is stored and survives a reload, but a reader who has
  * heard what the shortlist has to say should be able to get it out of the way without scrolling past
  * it every time. Set before the first render for the same reason as everything else here: a card that
  * appeared and then vanished would be worse than either state.
@@ -52,7 +52,7 @@ let showReplaceFirst = true;
  * Apply the "Replace first" preference.
  *
  * Anything other than an explicit `"false"` leaves the card on, so a missing setting, a typo or an
- * older server all read as the default rather than as "hide" — the same rule the A28 display settings
+ * older server all read as the default rather than as "hide", the same rule the A28 display settings
  * use, and the reason is the same: a setting nobody has ever written must not silently hide a card.
  */
 export function setReplaceFirst(stored) {
@@ -130,11 +130,11 @@ function sortBy(list, key, ascending) {
 /**
  * The replacement ranking (`FEATURES.md` A24).
  *
- * The dashboard already sorts by today's severity. This answers a different question — "which one
- * do I buy this month?" — which is about direction and remaining life as much as about the verdict.
+ * The dashboard already sorts by today's severity. This answers a different question, "which one
+ * do I buy this month?", which is about direction and remaining life as much as about the verdict.
  *
  * Only rendered when something is actually worth replacing. A ranking of healthy drives is a
- * ranking of nothing, and a section that is always present stops being read — the same reasoning as
+ * ranking of nothing, and a section that is always present stops being read, the same reasoning as
  * the disconnected toggle and the sort row.
  *
  * The reasons are the point. A reader can disagree with a band and act on it; they cannot do either
@@ -190,7 +190,7 @@ export function replaceFirstCard(ranking, ctx) {
  * One control rather than two anchors. The format and the scope are a single decision made once, and
  * two links at the end of a controls row read as two more ways to look at the page rather than as a
  * file to keep. Putting them behind a dialog is also what gives each format room to say what it is
- * *for* — "the inventory you sort when planning a purchase" belongs beside the choice, not in a
+ * *for*, "the inventory you sort when planning a purchase" belongs beside the choice, not in a
  * tooltip nobody hovers.
  *
  * None for a lone drive. With one drive the export is the single-drive report with fewer columns, and
@@ -209,7 +209,7 @@ export function exportButton(devices, tags) {
 
 /** The two formats, each with the question it answers rather than the extension it produces. */
 const EXPORT_FORMATS = [
-  { value: 'csv', label: 'CSV — a spreadsheet',
+  { value: 'csv', label: 'CSV, a spreadsheet',
     help: 'One row per drive with every column. The one to sort when planning a purchase.' },
   { value: 'html', label: 'Printable page',
     help: 'Every drive on one page. The sheet to print or attach when several go back at once.' },
@@ -231,8 +231,7 @@ function exportDialog(devices, tags) {
     // something: the dashboard's own filter is about what you are looking at, and an export that
     // silently honoured it would hand you a file missing rows you never chose to exclude.
     const scope = el('select', {}, [
-      el('option', { value: '', text: `The whole fleet (${devices.length})` }),
-      ...tags.map((tag) => el('option', { value: tag, text: `Only ${tag} (${countTag(devices, tag)})` })),
+      el('option', { value: '', text: `The whole fleet (${devices.length})` }), ...tags.map((tag) => el('option', { value: tag, text: `Only ${tag} (${countTag(devices, tag)})` })),
     ]);
 
     body.append(
@@ -272,7 +271,7 @@ function exportName(format, tag) {
 /**
  * Save a URL as a file.
  *
- * An anchor with `download`, clicked and removed — the same mechanism the config export uses. These
+ * An anchor with `download`, clicked and removed, the same mechanism the config export uses. These
  * are files to keep, so the browser's own save dialog is the right one rather than this code holding
  * the bytes.
  */
@@ -290,7 +289,7 @@ export { fleetTags };
  * The enclosure heat card (`FEATURES.md` A25), or null when nothing is moving together.
  *
  * The insight is that an enclosure is shared: eight drives in one chassis have one fan, one intake
- * and one ambient, so a failing fan presents as *all eight* running hotter at once — which per-drive
+ * and one ambient, so a failing fan presents as *all eight* running hotter at once, which per-drive
  * monitoring reports as eight unrelated alerts, precisely the noise that teaches people to ignore
  * alerts. This says it once, naming the group.
  *
@@ -300,8 +299,8 @@ export { fleetTags };
  * a rebuild is running. A false "your enclosure is overheating" would be worse than the eight true
  * per-drive alerts it is meant to replace.
  *
- * The ratio is shown rather than a bare count — six of six is a different finding from six of
- * twenty-four — because that judgement belongs to the reader.
+ * The ratio is shown rather than a bare count, six of six is a different finding from six of
+ * twenty-four, because that judgement belongs to the reader.
  */
 export function heatCard(groups, ctx) {
   if (!groups || !groups.length) return null;
@@ -311,8 +310,7 @@ export function heatCard(groups, ctx) {
       el('h2', { text: 'Heating together' }),
       el('span', { class: 'spacer' }),
       el('span', { class: 'muted', text: 'a correlation, not a diagnosis' }),
-    ]),
-    ...groups.map((g) => el('div', { class: 'heat-group' }, [
+    ]), ...groups.map((g) => el('div', { class: 'heat-group' }, [
       el('div', { class: 'row' }, [
         el('span', { class: 'badge badge-caution', text: `+${deltaText(g.delta_c)}` }),
         el('strong', { text: g.group }),
@@ -323,7 +321,7 @@ export function heatCard(groups, ctx) {
       ]),
       el('div', { class: 'muted heat-reasons', text: `${g.drives.length} drives in this group are ` +
         `at least ${deltaText(g.delta_c)} hotter than at the previous reading. If they share an ` +
-        'enclosure, look there first — a fan, a filter, or ambient — rather than at the drives.' }),
+        'enclosure, look there first, a fan, a filter, or ambient, rather than at the drives.' }),
       el('div', { class: 'heat-drives' }, g.drives.map((serial) => el('button', {
         class: 'link', type: 'button', onclick: () => ctx.openDevice(serial),
       }, [serial]))),
@@ -334,20 +332,20 @@ export function heatCard(groups, ctx) {
 /** A rise, in the display unit. A span, so it scales without the 32° offset. */
 function deltaText(celsius) {
   const value = convertTempDelta(celsius);
-  return value === null ? '—' : `${value} °${temperatureUnitName()}`;
+  return value === null ? 'n/a' : `${value} °${temperatureUnitName()}`;
 }
 
 /** A reading, in the display unit. */
 function maxText(celsius) {
   const value = convertTemp(celsius);
-  return value === null ? '—' : `${value} °${temperatureUnitName()}`;
+  return value === null ? 'n/a' : `${value} °${temperatureUnitName()}`;
 }
 
 /**
  * The testing session (`FEATURES.md` D11), or null when nothing is on the bench.
  *
  * A drive tagged `bench` is being evaluated rather than used, so the app leaves it out of the health
- * counts and out of the replace-first ranking — a batch of failing bench drives would otherwise
+ * counts and out of the replace-first ranking, a batch of failing bench drives would otherwise
  * dominate both with drives you already know about, and a bench drive failing is a **result** rather
  * than an alarm. The card exists so that exclusion is not silent: it says what is on the bench and
  * what is being left out, and it is where the batch's verbs live.
@@ -356,7 +354,7 @@ function maxText(celsius) {
  * that is always present stops being read.
  *
  * The batch verbs are here rather than on a tag-group heading because grouping is drawn two
- * different ways — card headings and a table separator row — and putting three buttons in a table
+ * different ways, card headings and a table separator row, and putting three buttons in a table
  * cell to keep the two views level is worse than having one place for them.
  *
  * `benchTag` is passed in rather than hard-coded: the server owns which tag means "on the bench", and
@@ -371,12 +369,12 @@ export function benchSession(bench, ctx, benchTag) {
     // earned. The count sits at the far end, where a count belongs.
     el('div', { class: 'row wrap' }, [
       el('h2', { text: 'Drives in testing' }),
-      el('span', { class: 'muted', text: 'left out of the health counts — a drive that fails while ' +
+      el('span', { class: 'muted', text: 'left out of the health counts, a drive that fails while ' +
         'you are testing it is a result, not an alarm' }),
       el('span', { class: 'spacer' }),
       el('span', { class: 'muted', text: countText(bench.length) }),
     ]),
-    // Inline rather than one row each. The session *is* the batch, so every drive is still named —
+    // Inline rather than one row each. The session *is* the batch, so every drive is still named,
     // but eight rows of list for eight drives is a lot of card for a set of names, and the model is
     // the thing worth keeping to hand.
     el('div', { class: 'bench-chips' }, bench.map((d) => el('button', {
@@ -414,7 +412,7 @@ export function benchSession(bench, ctx, benchTag) {
  *
  * Sequential, and a failure is counted rather than thrown. One drive that cannot be tested must not
  * abandon the rest of the batch, and eight concurrent `smartctl` calls against one host is a
- * stampede for no gain — the drives take hours either way.
+ * stampede for no gain, the drives take hours either way.
  *
  * Confirmed first, because a self-test is the only thing this app does that writes to a drive
  * (`A19`), and doing it to a whole batch at once is exactly the kind of action that should be
@@ -451,7 +449,7 @@ async function testAll(bench, ctx, button) {
 /**
  * Forget every drive in the batch (`FEATURES.md` D4, batch form).
  *
- * One confirmation for the batch rather than one per drive, and the serials are listed in it — this
+ * One confirmation for the batch rather than one per drive, and the serials are listed in it, this
  * is the only irreversible action in the app, so the dialog has to be specific about what goes.
  *
  * Driven from the client rather than a bulk endpoint on purpose: a request that deletes every drive
@@ -461,7 +459,7 @@ async function testAll(bench, ctx, button) {
 async function forgetAll(bench, ctx, button) {
   const names = bench.map((d) => d.name || d.serial).join(', ');
   const ok = await confirmDialog('Forget the whole batch',
-    `This removes ${countText(bench.length)} — ${names} — with their history and notes. A scan will ` +
+    `This removes ${countText(bench.length)}, ${names}, with their history and notes. A scan will ` +
     'not bring them back unless they are connected again. This cannot be undone.', 'Forget all');
   if (!ok) return;
 
@@ -489,7 +487,7 @@ async function forgetAll(bench, ctx, button) {
 /**
  * Split the visible drives into tag groups (`FEATURES.md` D9).
  *
- * A drive appears under **each** of its tags. The alternative — first tag wins — silently drops a
+ * A drive appears under **each** of its tags. The alternative, first tag wins, silently drops a
  * drive from a group it is tagged for, and a grouping that hides a drive is worse than one that
  * shows it twice: the whole reason to group a fleet is not to miss one. The cost is that the group
  * counts do not sum to the fleet size, which the header says outright rather than leaving to be
@@ -553,7 +551,7 @@ export function visibleDevices(all, opts = {}) {
     if (transport && (d.transport || '') !== transport) return false;
     if (health && d.health !== health) return false;
     // `on_bench` is the server's reading of the bench tag (`FEATURES.md` D11), so this filter never
-    // has to know the tag's name — or split a tag string the way the grouping does.
+    // has to know the tag's name, or split a tag string the way the grouping does.
     if (benchOnly && !d.on_bench) return false;
     if (!needle) return true;
     // Bay is searchable, because hunting a drive by where it physically is is the whole point of
@@ -622,7 +620,7 @@ function draw(container, ctx, data) {
     title: 'Order the list',
     onchange: () => {
       sortKey = sortSelect.value;
-      // Each field carries its own idea of "first" — see SORTS.
+      // Each field carries its own idea of "first", see SORTS.
       ascending = (SORTS.find((s) => s.key === sortKey) || SORTS[0]).ascending;
       draw(container, ctx, data);
     },
@@ -630,11 +628,11 @@ function draw(container, ctx, data) {
 
   // The direction says what it is doing in words, and carries a real arrow. A bare ↑ in a ghost
   // button beside a dropdown was the weakest possible way to say "this is the other half of the
-  // sort" — it read as decoration rather than as a control, which is exactly how it was reported.
+  // sort", it read as decoration rather than as a control, which is exactly how it was reported.
   const direction = el('button', {
     class: 'btn btn-sm',
     type: 'button',
-    title: ascending ? 'Ascending — click for descending' : 'Descending — click for ascending',
+    title: ascending ? 'Ascending, click for descending' : 'Descending, click for ascending',
     onclick: () => {
       ascending = !ascending;
       draw(container, ctx, data);
@@ -652,7 +650,7 @@ function draw(container, ctx, data) {
         draw(container, ctx, data);
         // Stored server-side, like the theme and the temperature unit, so the choice survives a
         // reload. Sent after the re-render rather than before it: the switch has to be instant, and a
-        // save that fails is reported rather than rolling the view back — the reader asked for the
+        // save that fails is reported rather than rolling the view back, the reader asked for the
         // table, and showing it to them is the more useful half of the answer.
         api.putSettings({ dashboard_view: key })
           .catch((err) => toast(`Could not remember the view: ${err.message}`, 'error'));
@@ -668,8 +666,7 @@ function draw(container, ctx, data) {
           paint();
         },
       }, [
-        el('option', { value: '', text: 'All' }),
-        ...transportOptions.map((t) => el('option', {
+        el('option', { value: '', text: 'All' }), ...transportOptions.map((t) => el('option', {
           value: t.value, text: t.label, selected: t.value === transportFilter,
         })),
       ])
@@ -776,7 +773,7 @@ function draw(container, ctx, data) {
         ])
       : null,
     // One line rather than four. The two notes below are the answer to a question the counts above
-    // raise — a reader who adds them up and gets the wrong number is owed the reason — so they
+    // raise, a reader who adds them up and gets the wrong number is owed the reason, so they
     // belong beside those counts rather than in rows of their own. The standing instructions about
     // rescanning and forgetting are gone: a line of help on every page load is read once and then
     // only takes up room, and both actions are labelled on the things they act on.
@@ -788,7 +785,7 @@ function draw(container, ctx, data) {
         : null,
       bench.length
         ? el('span', { text: ` · ${countText(bench.length)} are tagged ${benchTag} and left out of ` +
-            'those counts — a drive being tested failing is a result rather than an alarm. They are ' +
+            'those counts, a drive being tested failing is a result rather than an alarm. They are ' +
             'still listed below and still in every export.' })
         : null,
     ]),
@@ -812,7 +809,7 @@ function draw(container, ctx, data) {
     });
     const groups = grouped && shown.length ? groupByTag(shown) : null;
 
-    // The holder is a card grid, a grouped stack or a table holder — never a mix. A table inside a
+    // The holder is a card grid, a grouped stack or a table holder, never a mix. A table inside a
     // grid cell is laid out as a single column and loses the columns it exists for, and a card
     // grid inside a card grid inherits the wrong column sizing.
     grid.className = view === 'table' ? 'fleet-holder' : (groups ? 'grouped-holder' : 'card-grid');

@@ -1,8 +1,8 @@
-// The fleet view (v2) — a table rather than a wall of cards (`ADR-032`).
+// The fleet view (v2), a table rather than a wall of cards (`ADR-032`).
 //
 // It reads the same `/api/devices` payload the card view does, so the two cannot disagree about a
 // drive. What differs is the shape: one row per drive, with the state and the score in one column,
-// because a verdict and a number about the same drive are one fact — a separate "healthy" column and
+// because a verdict and a number about the same drive are one fact, a separate "healthy" column and
 // a separate ring said it twice and cost a column to do it.
 import { el, clear, append, fmtBytes, fmtAgo, fmtInt, fmtTemp } from '../dom.js';
 import { api, appPath } from '../api.js';
@@ -167,7 +167,7 @@ function emptyState(total) {
   return el('div', { class: 'fleet-empty' }, [
     el('div', {
       text: total === 0
-        ? 'No drives yet — press Scan to look for them.'
+        ? 'No drives yet, press Scan to look for them.'
         : 'No drives match that filter.',
     }),
   ]);
@@ -234,14 +234,14 @@ function row(d, ctx) {
     el('td', { class: 'r temp-cell' }, [
       el('span', {
         class: d.temperature_c === null || d.temperature_c === undefined ? 'fleet-num dim' : 'fleet-num',
-        text: d.temperature_c === null || d.temperature_c === undefined ? '—' : fmtTemp(d.temperature_c),
+        text: d.temperature_c === null || d.temperature_c === undefined ? 'n/a' : fmtTemp(d.temperature_c),
       }),
     ]),
     el('td', { class: 'r age-cell' }, [
       el('span', {
         class: d.power_on_hours === null || d.power_on_hours === undefined ? 'fleet-num dim' : 'fleet-num',
         text: d.power_on_hours === null || d.power_on_hours === undefined
-          ? '—'
+          ? 'n/a'
           : `${fmtInt(d.power_on_hours)} h`,
       }),
     ]),
@@ -251,7 +251,7 @@ function row(d, ctx) {
 /**
  * State and score in one cell. The score is the interpreter's 0–100, and it sits beside the word
  * rather than in a column of its own because a verdict and the number behind it are the same fact
- * told twice — `docs/UI.md` §7.1 keeps both, and this is the compact form of that.
+ * told twice, `docs/UI.md` §7.1 keeps both, and this is the compact form of that.
  */
 function healthCell(d, state) {
   const score = typeof d.score === 'number' && d.score >= 0 ? d.score : null;
@@ -283,7 +283,7 @@ function shortReason(rationale) {
 function usageCell(d) {
   const pct = typeof d.used_pct === 'number' ? d.used_pct : null;
   if (pct === null) {
-    return el('span', { class: 'fleet-num dim', text: '—' });
+    return el('span', { class: 'fleet-num dim', text: 'n/a' });
   }
   const capped = Math.max(0, Math.min(100, pct));
   return el('div', { class: 'fleet-usage' }, [

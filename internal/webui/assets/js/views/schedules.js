@@ -48,7 +48,7 @@ function passNotice(data) {
   if (!pass || !pass.running) return null;
   const on = pass.current ? ` Testing ${pass.current} now.` : '';
   return el('div', { class: 'notice' }, [
-    el('div', { class: 'notice-title', text: `Self-tests running — ${pass.done} of ${pass.total} drives done` }),
+    el('div', { class: 'notice-title', text: `Self-tests running, ${pass.done} of ${pass.total} drives done` }),
     el('div', { text: `One drive at a time, so a fleet does not start every test at once.${on}` }),
   ]);
 }
@@ -91,7 +91,7 @@ function draw(container, ctx, data) {
           // identical otherwise, and confusing the two is confusing "it scanned" with "it wrote to me".
           el('td', { text: describeAction(s) }),
           el('td', { text: describe(s) }),
-          el('td', { text: s.next_run ? fmtDateTime(s.next_run) : '—' }),
+          el('td', { text: s.next_run ? fmtDateTime(s.next_run) : 'n/a' }),
           el('td', { text: s.last_run ? fmtAgo(s.last_run) : 'never' }),
           el('td', {}, [el('input', {
             type: 'checkbox',
@@ -157,13 +157,13 @@ function editSchedule(ctx, existing) {
     // The test's length, which is the whole difference between a pass that costs minutes and one that
     // costs most of a day. Offered only for a self-test, for the same reason as the digest's hint.
     const selfTestKind = el('select', {}, [
-      el('option', { value: 'short', text: 'Short — a few minutes per drive' }),
-      el('option', { value: 'long', text: 'Long — hours per drive' }),
+      el('option', { value: 'short', text: 'Short, a few minutes per drive' }),
+      el('option', { value: 'long', text: 'Long, hours per drive' }),
     ]);
     selfTestKind.value = (existing && existing.selftest_kind) || 'short';
     const kindRow = el('div', { class: 'field' }, [el('label', { text: 'Test' }), selfTestKind]);
 
-    // A digest has no destination of its own, so the modal has to say where it goes — that was the
+    // A digest has no destination of its own, so the modal has to say where it goes, that was the
     // question the old one-line hint left open. It appears only for the action it explains: an
     // explanation of a choice the reader has not made is noise on a form they are trying to fill in.
     const actionHint = el('p', { class: 'muted field-hint' });
@@ -174,14 +174,14 @@ function editSchedule(ctx, existing) {
       actionHint.hidden = !(digest || selfTest);
       if (digest) {
         actionHint.textContent =
-          'One summary of everything since this last ran, sent through your notification channels — '
+          'One summary of everything since this last ran, sent through your notification channels, '
           + 'it has no destination of its own. A channel with no events ticked receives it; a '
           + 'channel limited to particular events needs “digest” ticked.';
       } else if (selfTest) {
         actionHint.textContent =
           'Every drive that can take one, one at a time in serial order, so a fleet does not start '
           + 'every test at once. A drive already testing itself is skipped, and each drive is re-read '
-          + 'as its test finishes — so the result is stored and notified like a manual one. This is '
+          + 'as its test finishes, so the result is stored and notified like a manual one. This is '
           + 'the one schedule that writes to the drives.';
       } else {
         actionHint.textContent = '';
@@ -354,7 +354,7 @@ function editSchedule(ctx, existing) {
       } }),
     );
     // The form this option exists for. Setting up a digest means typing a label, picking an action
-    // and reading the preview, and the modal used to vanish if the pointer left the box mid-drag —
+    // and reading the preview, and the modal used to vanish if the pointer left the box mid-drag,
     // see `openDialog`. Cancel and Escape still close it.
   }, { dismissOnBackdrop: false });
 }

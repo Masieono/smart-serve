@@ -9,8 +9,8 @@ import (
 // minutesPerDay bounds a time-of-day window.
 const minutesPerDay = 24 * 60
 
-// MaintenanceWindow silences alerts for a period — a disk-array rebuild, a
-// migration, a chassis being moved — without disabling a channel and having to
+// MaintenanceWindow silences alerts for a period, a disk-array rebuild, a
+// migration, a chassis being moved, without disabling a channel and having to
 // remember to re-enable it (docs/NOTIFICATIONS.md, FEATURES.md B8).
 //
 // A window is either **one-off** (absolute `starts_at`/`ends_at`) or **recurring**
@@ -29,7 +29,7 @@ type MaintenanceWindow struct {
 	StartsAt int64 `json:"starts_at,omitempty"`
 	EndsAt   int64 `json:"ends_at,omitempty"`
 
-	// Recurring: minutes past midnight in the dispatcher's location — the same clock
+	// Recurring: minutes past midnight in the dispatcher's location, the same clock
 	// the scheduler evaluates cron against, so "02:00" means 02:00 where the app runs.
 	StartMinute int `json:"start_minute,omitempty"`
 	EndMinute   int `json:"end_minute,omitempty"`
@@ -107,7 +107,7 @@ func (w MaintenanceWindow) covers(at time.Time, loc *time.Location) bool {
 		}
 	} else {
 		// Crosses midnight. The evening part belongs to today; the morning part
-		// belongs to the day the window actually started on, which is yesterday —
+		// belongs to the day the window actually started on, which is yesterday,
 		// otherwise a weekly Friday 23:00–02:00 window would never cover Saturday.
 		switch {
 		case minutes >= w.StartMinute:

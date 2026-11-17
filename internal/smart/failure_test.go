@@ -13,13 +13,13 @@ func TestClassifyFailureNamesTheGate(t *testing.T) {
 	}{
 		{"read worked", "", CauseNone},
 
-		// The container could not open the node at all — Docker's device cgroup, or
+		// The container could not open the node at all, Docker's device cgroup, or
 		// AppArmor, which returns the same errno.
 		{"open refused", "Smartctl open device: /dev/nvme0n1 failed: Operation not permitted", CauseDeviceBlocked},
 		{"open refused, other wording", "Smartctl open device: /dev/sda failed: Permission denied", CauseDeviceBlocked},
 		{"node gone", "Smartctl open device: /dev/sdb failed: No such file or directory", CauseMissing},
 
-		// The node opened and a query was refused — a missing capability.
+		// The node opened and a query was refused, a missing capability.
 		{"native nvme without SYS_ADMIN", "Read NVMe Identify Controller failed: Operation not permitted", CauseQueryBlocked},
 
 		// The drive genuinely has nothing to say.

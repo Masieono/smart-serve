@@ -2,7 +2,7 @@
  *
  * Every value here comes from tokens.css, so this file inherits all nineteen palettes and the
  * surface tints without knowing they exist. Nothing in it is a colour, a radius or a spacing
- * value — the same rule the rest of the stylesheet follows, and the reason a redesign can be
+ * value, the same rule the rest of the stylesheet follows, and the reason a redesign can be
  * compared against the incumbent in the same build.
  *
  * Scoped to [data-ui="v2"] so the two views can coexist while the comparison is running.
@@ -115,8 +115,7 @@
   white-space: nowrap;
 }
 
-.fleet-table th.r,
-.fleet-table td.r {
+.fleet-table th.r.fleet-table td.r {
   text-align: right;
   padding-right: 0;
 }
@@ -161,8 +160,7 @@
   padding-left: var(--space-3);
 }
 
-.fleet-table tbody tr.missing .name,
-.fleet-table tbody tr.missing td {
+.fleet-table tbody tr.missing .name.fleet-table tbody tr.missing td {
   color: var(--muted);
 }
 
@@ -338,13 +336,11 @@
     padding: var(--space-4) var(--space-4) var(--space-6);
   }
 
-  .fleet-table col.usage,
-  .fleet-table col.age {
+  .fleet-table col.usage.fleet-table col.age {
     display: none;
   }
 
-  .fleet-table .usage-cell,
-  .fleet-table .age-cell {
+  .fleet-table .usage-cell.fleet-table .age-cell {
     display: none;
   }
 }
@@ -633,8 +629,7 @@
 
 /* The scale belongs under the plot, not floating beside it: these four charts each have their own
    units, and an unlabelled line is a shape rather than a reading. */
-.v2-trend .chart .min,
-.v2-trend .chart .max {
+.v2-trend .chart .min.v2-trend .chart .max {
   position: absolute;
   bottom: 0;
   font-size: 11px;
@@ -686,8 +681,7 @@
   white-space: nowrap;
 }
 
-.v2-table th.r,
-.v2-table td.r {
+.v2-table th.r.v2-table td.r {
   text-align: right;
 }
 
@@ -768,11 +762,10 @@
 /* --- components reused from the incumbent page ------------------------------
    The attribute table, the trend chart and the partition map are the same
    components the card view uses, imported rather than reimplemented. They bring
-   their own frames, which belong to that layout — so in this one the frame comes
+   their own frames, which belong to that layout, so in this one the frame comes
    off and the content stays. */
 
-.v2-partitions,
-.v2-trends-plain {
+.v2-partitions.v2-trends-plain {
   background: transparent;
   border: 0;
   border-radius: 0;
@@ -782,14 +775,12 @@
 }
 
 /* The section heading above already says "Trends"; the card's own row keeps only its range picker. */
-.v2-trends-plain > .row,
-.v2-partitions > .row {
+.v2-trends-plain > .row.v2-partitions > .row {
   justify-content: flex-end;
   margin-bottom: var(--space-3);
 }
 
-.v2-trends-plain > .row h2,
-.v2-partitions > .row h2 {
+.v2-trends-plain > .row h2.v2-partitions > .row h2 {
   display: none;
 }
 
@@ -806,7 +797,7 @@
 /* --- v2 device page: spacing, the trend strip, the NVMe grid ---------------- */
 
 /* Sections are a stack: every child after the first is separated from it. This is the fix for the
-   "usage, map and table crammed together" complaint — an explicit rhythm rather than whatever the
+   "usage, map and table crammed together" complaint, an explicit rhythm rather than whatever the
    component's own margins happened to be. */
 .v2-section {
   display: flex;
@@ -818,8 +809,7 @@
   margin-bottom: 0;
 }
 
-.v2-disk-map,
-.v2-disk-table {
+.v2-disk-map.v2-disk-table {
   min-width: 0;
 }
 
@@ -831,8 +821,7 @@
 
 /* The map and the table carry their own card frame in the incumbent layout; here the frame is gone
    and the pieces stack with the section's rhythm. */
-.v2-disk-map .card,
-.v2-disk-table .card {
+.v2-disk-map .card.v2-disk-table .card {
   border: 0;
   box-shadow: none;
   border-radius: 0;
@@ -900,8 +889,8 @@
 }
 
 /* The plot keeps the incumbent's hover readout, laid out for a narrow cell: three stacked lines
-   reserve 57px under every plot, which over six plots is a row's worth of empty page. One line —
-   value, date, time — reserves a third of that and still reads left to right. */
+   reserve 57px under every plot, which over six plots is a row's worth of empty page. One line,
+   value, date, time, reserves a third of that and still reads left to right. */
 .v2-trend .spark-plot {
   margin-top: var(--space-1);
   padding-bottom: 20px;
@@ -1145,12 +1134,11 @@
   .v2-feed-row {
     grid-template-columns: 96px minmax(0, 1fr) 80px;
   }
-  .v2-feed-event,
-  .v2-feed-detail { display: none; }
+  .v2-feed-event.v2-feed-detail { display: none; }
 }
 
 /* --- dialogs in v2 ----------------------------------------------------------
-   The editor dialogs are the incumbent's — per-provider field specs, secret
+   The editor dialogs are the incumbent's, per-provider field specs, secret
    handling, test-send against unsaved config. What was out of place was their
    proportions: a narrow box with 12px of padding, where the page around it now
    has rhythm. Scoped to [data-ui="v2"] so the card view keeps its own. */
@@ -1273,7 +1261,7 @@
 }
 
 [data-ui='v2'] dialog .btn-primary {
-  /* The app's primary is the accent — an inverted white button here read as a different system. */
+  /* The app's primary is the accent, an inverted white button here read as a different system. */
   background: var(--accent);
   border-color: var(--accent);
   color: #fff;
@@ -1295,9 +1283,8 @@
 .v2-schedules col.on { width: 8%; }
 .v2-schedules col.actions { width: 11%; }
 
-/* A paused schedule is not broken, it is off — muted, not red. */
-.v2-schedules tbody tr.missing .name,
-.v2-schedules tbody tr.missing .sub {
+/* A paused schedule is not broken, it is off, muted, not red. */
+.v2-schedules tbody tr.missing .name.v2-schedules tbody tr.missing .sub {
   color: var(--muted);
 }
 
@@ -1356,7 +1343,7 @@
 
 /* --- the weekday strip ------------------------------------------------------
    Seven checkboxes in a wrapping row always orphan one day onto its own line. As a
-   seven-cell strip they read as what they are — a week — and the row is the same
+   seven-cell strip they read as what they are, a week, and the row is the same
    width as the field above it. Guarded by @supports: without :has the checkbox
    cannot look selected, so the plain row is the right fallback rather than a row
    of empty boxes. */
@@ -1385,7 +1372,7 @@
     border-color: color-mix(in srgb, var(--muted) 60%, transparent);
   }
 
-  /* Visually hidden, not display:none — it has to stay focusable and toggleable. */
+  /* Visually hidden, not display:none, it has to stay focusable and toggleable. */
   [data-ui='v2'] .day-strip .field-row input[type='checkbox'] {
     position: absolute;
     width: 1px;
@@ -1409,8 +1396,8 @@
 }
 
 /* --- settings in v2 ---------------------------------------------------------
-   The view itself is the incumbent's — four pages of rows, with per-model
-   overrides, JSON editors and unit conversion in them — so this is a restyle, not
+   The view itself is the incumbent's, four pages of rows, with per-model
+   overrides, JSON editors and unit conversion in them, so this is a restyle, not
    a rewrite. What changes is the surface: the card around the sheet goes away, and
    sections become a hairline-separated list like every other v2 page, which is
    also what stops a section heading from colliding with the row above it. */
@@ -1440,7 +1427,7 @@
   gap: 0;
 }
 
-/* The per-model editor is a section nested inside the thresholds section — same subject, one
+/* The per-model editor is a section nested inside the thresholds section, same subject, one
    heading. Nested, the `+` sibling rule above does not reach it, so it gets the same treatment
    spelled out: without this its heading sat flush against the row above it. */
 [data-ui='v2'] .settings-section .settings-section {
@@ -1591,4 +1578,177 @@
 [data-ui='v2'] .setting-help details.setting-more[open] > summary {
   color: var(--muted);
   border-bottom-style: none;
+}
+
+/* --- settings: fewer rules ---------------------------------------------------
+   A hairline above every row turns a page of ten settings into a ledger. Spacing
+   separates rows; the line is kept only between sections, where it means "new
+   subject". */
+
+[data-ui='v2'] .setting-row {
+  border-top: 0;
+  padding: var(--space-4) 0;
+}
+
+[data-ui='v2'] .setting-row:first-child {
+  padding-top: 0;
+}
+
+[data-ui='v2'] .setting-row:last-child {
+  padding-bottom: 0;
+}
+
+/* A setting whose control cannot fit a right-hand column: the control goes under the text. */
+[data-ui='v2'] .setting-block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4) 0;
+}
+
+/* `.setting-text` grows inside a row's flex to push the control right; in a stacked block that
+   growth becomes a gap of empty air between the label and the control. */
+[data-ui='v2'] .setting-block .setting-text {
+  flex: 0 0 auto;
+}
+
+[data-ui='v2'] .setting-block:first-child {
+  padding-top: 0;
+}
+
+[data-ui='v2'] .setting-block:last-child {
+  padding-bottom: 0;
+}
+
+/* --- theme swatches ---------------------------------------------------------
+   Each chip carries its own data-theme, so the palette's own tokens resolve inside
+   it. Nothing here knows any colours, which is the point: a new theme in
+   tokens.css appears in the picker without this file changing. */
+
+[data-ui='v2'] .theme-swatches {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+  gap: var(--space-2);
+  width: 100%;
+}
+
+[data-ui='v2'] .theme-swatch {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 5px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: none;
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 120ms ease;
+}
+
+[data-ui='v2'] .theme-swatch:hover {
+  border-color: color-mix(in srgb, var(--muted) 60%, transparent);
+}
+
+[data-ui='v2'] .theme-swatch.is-on {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+[data-ui='v2'] .theme-swatch-chip {
+  position: relative;
+  display: block;
+  height: 30px;
+  border-radius: 3px;
+  overflow: hidden;
+  /* The raw palette, not the semantic tokens: `--bg` is computed once at :root and inherited as a
+     colour, so setting `data-theme` on a descendant cannot re-resolve it. `--palette-*` is declared
+     per element and does. */
+  background: var(--palette-bg, var(--bg));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--text) 12%, transparent);
+}
+
+/* The surface sits behind, the accent on top: three of a palette's jobs in one chip. */
+[data-ui='v2'] .theme-swatch-chip::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 40%;
+  background: var(--palette-surface, var(--surface));
+}
+
+[data-ui='v2'] .theme-swatch-chip::after {
+  content: "";
+  position: absolute;
+  left: 6px;
+  bottom: 6px;
+  width: 16px;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--palette-focus, var(--accent));
+}
+
+[data-ui='v2'] .theme-swatch-chip.is-auto {
+  background: linear-gradient(135deg, #e9edf2 0 50%, #12161c 50% 100%);
+}
+
+[data-ui='v2'] .theme-swatch-chip.is-custom {
+  background: linear-gradient(135deg, #12161c 0 50%, #e9edf2 50% 100%);
+}
+
+[data-ui='v2'] .theme-swatch-name {
+  font-size: 11px;
+  line-height: 1.3;
+  color: var(--muted);
+}
+
+[data-ui='v2'] .theme-swatch.is-on .theme-swatch-name {
+  color: var(--text);
+}
+
+/* --- the save bar ----------------------------------------------------------
+   The page is ~1000px tall and the only way to commit a change was at the top of
+   it. Pinned to the bottom of the window and shown only when something is dirty,
+   so it never covers content nobody is about to save. */
+
+[data-ui='v2'] .save-bar {
+  position: sticky;
+  bottom: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  margin-top: var(--space-5);
+  padding: var(--space-3) 0;
+  border-top: 1px solid var(--border);
+  background: color-mix(in srgb, var(--bg) 94%, transparent);
+  backdrop-filter: blur(6px);
+  transition: opacity 140ms ease, transform 140ms ease;
+}
+
+[data-ui='v2'] .save-bar:not(.is-dirty) {
+  opacity: 0;
+  transform: translateY(6px);
+  pointer-events: none;
+}
+
+[data-ui='v2'] .save-bar .save-status {
+  font-size: var(--text-xs);
+  color: var(--muted);
+}
+
+[data-ui='v2'] .save-bar.is-dirty .save-status {
+  color: var(--caution);
+}
+
+[data-ui='v2'] .save-bar .save-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+[data-ui='v2'] .save-bar .btn-primary {
+  height: 32px;
+  padding: 0 var(--space-4);
+  font-size: var(--text-xs);
 }

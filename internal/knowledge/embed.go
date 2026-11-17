@@ -7,8 +7,8 @@ import (
 
 // baseJSON is the table shipped with the binary.
 //
-// It is **the same file the refresh URL points at** — a contributor edits the shape the app fetches,
-// rather than a copy of it — and the format is documented in `docs/KNOWLEDGE.md` so the two cannot
+// It is **the same file the refresh URL points at**, a contributor edits the shape the app fetches,
+// rather than a copy of it, and the format is documented in `docs/KNOWLEDGE.md` so the two cannot
 // drift apart in a reader's head.
 //
 //go:embed base.json
@@ -18,8 +18,8 @@ var baseJSON []byte
 //
 // It is parsed on every call rather than cached in a package variable, because this runs a handful of
 // times per request at most and a `sync.Once` around a value that is already in memory buys nothing
-// but a mutex. A parse failure is impossible in a shipped binary — there is a test that reads this
-// exact file — and is returned rather than panicked so a build that somehow lost it degrades to "no
+// but a mutex. A parse failure is impossible in a shipped binary, there is a test that reads this
+// exact file, and is returned rather than panicked so a build that somehow lost it degrades to "no
 // knowledge" instead of a crash loop.
 func Embedded() (Base, error) {
 	b, err := Parse(baseJSON)

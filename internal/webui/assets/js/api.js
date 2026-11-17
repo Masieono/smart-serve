@@ -4,7 +4,7 @@
 // truth rather than something derived from the document's base URI. Deriving it meant the client
 // depended on `<base>` having been honoured, and a document where that resolution goes wrong
 // (a proxied subpath, a harness that rewrites the document URL) sent every request one directory
-// too deep — `/device/api/devices` — where the SPA fallback answers with HTML and the app reads it
+// too deep, `/device/api/devices`, where the SPA fallback answers with HTML and the app reads it
 // as a 404 it cannot explain.
 const appRoot = document.getElementById('app');
 const basePath = (appRoot && appRoot.dataset.basePath) || '';
@@ -50,7 +50,7 @@ export const api = {
   unackDevice: (serial) => request('DELETE', `/api/devices/${encodeURIComponent(serial)}/ack`),
 
   // The drive knowledge base (FEATURES.md A21). The refresh is a POST because it changes stored state
-  // — and it is a button, never a timer: nothing here polls while the app is idle.
+  //, and it is a button, never a timer: nothing here polls while the app is idle.
   knowledge: () => request('GET', '/api/knowledge'),
   refreshKnowledge: () => request('POST', '/api/knowledge/refresh'),
   putKnowledgeOverrides: (payload) => request('PUT', '/api/knowledge/overrides', { payload }),
@@ -91,7 +91,7 @@ export const api = {
   notifications: (limit = 25) => request('GET', `/api/notifications?limit=${limit}`),
 
   // Comparing drives (FEATURES.md D6). The serials are the columns, in the order given, and the
-  // alignment comes back done — the server owns that rule, because it is the feature.
+  // alignment comes back done, the server owns that rule, because it is the feature.
   compare: (serials) => request('GET', `/api/compare?serials=${serials.map(encodeURIComponent).join(',')}`),
 
   eventsUrl: () => appPath('/api/events'),

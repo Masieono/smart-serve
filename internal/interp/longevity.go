@@ -10,7 +10,7 @@ import (
 // sectorAttributeIDs are the attributes whose raw value counts storage the drive has lost and
 // cannot get back: reallocated (5), pending (197) and uncorrectable (198).
 //
-// Named once so a caller can ask about a single attribute — "did one of *these* move?" — without
+// Named once so a caller can ask about a single attribute, "did one of *these* move?", without
 // keeping its own copy of the list. A second copy is a second thing to forget to update.
 var sectorAttributeIDs = []int{5, 197, 198}
 
@@ -82,7 +82,7 @@ const (
 	wearMinSpan   = 24 * time.Hour
 	wearGoodSpan  = 30 * 24 * time.Hour
 	sectorMinSpan = 24 * time.Hour
-	wearMinDelta  = 0.5 // % — below this, the change is inside the drive's own rounding
+	wearMinDelta  = 0.5 // %, below this, the change is inside the drive's own rounding
 )
 
 // Project reduces a drive's history to a longevity estimate and a worsening flag.
@@ -154,7 +154,7 @@ func wearProjection(obs []Observation) (Projection, bool) {
 	confidence := "low"
 	// Kept to one line where it is shown: a caveat long enough to wrap is a paragraph above a
 	// figure, and a paragraph above a figure stops being read. The rating's provenance is not lost
-	// with it — the knowledge base names the source of the rating beside the number it divides by.
+	// with it, the knowledge base names the source of the rating beside the number it divides by.
 	caveat := "Extrapolated from two readings; wear is rarely linear."
 	if span >= wearGoodSpan {
 		confidence = "medium"
@@ -213,7 +213,7 @@ func sectorProjection(obs []Observation) (Projection, bool) {
 // drive stops getting worse, the badge clears itself. A drive can be worse than it was six
 // months ago and still not be getting worse today, and only the second one is an alarm.
 //
-// The summary keeps describing the whole window — "7 new sector problems in 180 days" is a
+// The summary keeps describing the whole window, "7 new sector problems in 180 days" is a
 // true statement about the history. The badge answers the narrower question "is this
 // getting worse now", which is why the two can disagree, and should.
 const WorsenWindow = 30 * 24 * time.Hour
@@ -223,7 +223,7 @@ const WorsenWindow = 30 * 24 * time.Hour
 // Bounded deliberately. A trend is an extrapolation from a handful of readings, and a score is the
 // number people quote and compare; letting an extrapolation move it by more than a few points would
 // make the score say more than the data supports. It is also small enough that the trend alone can
-// never carry a drive out of its verdict — the trend adjusts the summary, it does not overrule the
+// never carry a drive out of its verdict, the trend adjusts the summary, it does not overrule the
 // drive's own data.
 const TrendPenaltyCap = 10
 
@@ -235,7 +235,7 @@ const TrendPenaltyCap = 10
 //
 // Past that it scales by doubling rather than linearly, and stops at a cap. Sector counts arrive in
 // bursts, so the difference between 200 and 400 new sectors is not the difference between two
-// scores — and a rule that kept growing would let a single bad afternoon dominate the number.
+// scores, and a rule that kept growing would let a single bad afternoon dominate the number.
 func TrendPenalty(sectorsAdded int64) int {
 	if sectorsAdded <= 0 {
 		return 0
@@ -250,7 +250,7 @@ func TrendPenalty(sectorsAdded int64) int {
 // worsening is the early-warning flag: something is measurably getting worse *now*.
 //
 // It compares the latest reading against the newest one at least WorsenWindow older,
-// falling back to the oldest reading when the whole history is younger than that — a fresh
+// falling back to the oldest reading when the whole history is younger than that, a fresh
 // install whose drive is already shedding sectors has to be told, even though there is not
 // yet a month of history to compare against.
 func worsening(obs []Observation) string {

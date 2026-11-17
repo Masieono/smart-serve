@@ -9,7 +9,7 @@ import (
 )
 
 // A Scanner must resolve its timeout and thresholds per scan, or a value changed in
-// the UI would not take effect until the process restarted — which is exactly the
+// the UI would not take effect until the process restarted, which is exactly the
 // bug that made the Settings page decorative.
 func TestResolveUsesThePerScanFuncs(t *testing.T) {
 	s := &Scanner{

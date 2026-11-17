@@ -13,8 +13,8 @@ import (
 // DigestStore is what a digest needs beyond the alert tunables: the fleet, its history and the
 // period's scans.
 //
-// Separate from `Settings` rather than folded into it, so a caller that only *delivers* events — the
-// dispatcher's tests, for instance — does not have to supply a database.
+// Separate from `Settings` rather than folded into it, so a caller that only *delivers* events, the
+// dispatcher's tests, for instance, does not have to supply a database.
 type DigestStore interface {
 	Settings
 	ListDevices(ctx context.Context) ([]store.DeviceRecord, error)
@@ -49,7 +49,7 @@ func NewDigestSender(st DigestStore, disp *Dispatcher, version string, log *slog
 // SendDigest assembles one period's summary and dispatches it.
 //
 // The period is **since the schedule last ran**, which is what makes the message mean "since we last
-// wrote to you" rather than "the last seven days" — a digest on a monthly schedule would otherwise
+// wrote to you" rather than "the last seven days", a digest on a monthly schedule would otherwise
 // repeat itself. A schedule that has never run falls back to seven days, so the first digest is not
 // a summary of all history.
 //
@@ -109,8 +109,8 @@ func (s *DigestSender) SendPeriod(ctx context.Context, from, to time.Time) error
 
 // digestRanking builds the replace-first shortlist from stored records (`FEATURES.md` A24).
 //
-// The same mapping the dashboard makes, from the same two sources — the device row and the newest
-// snapshot — so the two cannot rank a drive differently. The dashboard maps from its JSON payload
+// The same mapping the dashboard makes, from the same two sources, the device row and the newest
+// snapshot, so the two cannot rank a drive differently. The dashboard maps from its JSON payload
 // rather than from the record, because that is what it has; the fields are the same either way.
 func digestRanking(
 	devices []store.DeviceRecord,

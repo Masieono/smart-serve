@@ -2,7 +2,7 @@
 //
 // The card grid is the other view of the same list, so what is worth pinning is that this one is
 // genuinely usable at fleet scale: a row per drive, the columns a fleet owner would otherwise open
-// four screens to collect, and headers that actually sort — a header that looks clickable and is
+// four screens to collect, and headers that actually sort, a header that looks clickable and is
 // not is worse than a plain label.
 
 import test from 'node:test';
@@ -27,8 +27,7 @@ function drive(overrides = {}) {
     power_on_hours: 31603,
     last_scan: '2026-01-01T00:00:00Z',
     mountpoints: [],
-    smart_available: true,
-    ...overrides,
+    smart_available: true, ...overrides,
   };
 }
 
@@ -107,7 +106,7 @@ test('clicking a sortable header reports its key', () => {
   assert.deepEqual(clicked, ['bay', 'health']);
 });
 
-// A row opens the drive. The scan button must not also open it — the click that started a scan
+// A row opens the drive. The scan button must not also open it, the click that started a scan
 // would otherwise navigate away from the page showing the result.
 test('a row opens the drive, and its scan button does not', () => {
   const opened = [];
@@ -139,7 +138,7 @@ test('an empty table is not an error', () => {
 });
 
 // Grouping (`FEATURES.md` D9). The separator spans every column so the header above stays the only
-// one — a second table per group would repeat an eleven-column header once per pool.
+// one, a second table per group would repeat an eleven-column header once per pool.
 const separators = (node) => node.querySelectorAll('tr').filter((r) => r.className === 'fleet-group');
 
 test('groups add a separator row with the label and a count', () => {

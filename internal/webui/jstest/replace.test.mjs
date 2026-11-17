@@ -34,7 +34,7 @@ function stubCtx() {
 const rank = (serial, band, reasons = []) => ({ serial, name: serial, band, reasons });
 
 // A ranking of healthy drives is a ranking of nothing, and a section that is always present stops
-// being read — the same reasoning as the disconnected toggle and the sort row.
+// being read, the same reasoning as the disconnected toggle and the sort row.
 test('nothing worth replacing means no card', () => {
   assert.equal(replaceFirstCard(null, stubCtx()), null);
   assert.equal(replaceFirstCard([], stubCtx()), null);

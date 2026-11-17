@@ -24,7 +24,7 @@ const approxBelow = 0.02
 // An entry **replaces** the one for the same family rather than merging field by field. Field-level
 // merging would be cleverer and worse: it makes it impossible to *remove* an advisory, and "I deleted
 // it and it is still there" is a bug report nobody can act on. The overrides editor seeds itself with
-// the resolved entry, so the common edit — change one number — keeps everything else without anyone
+// the resolved entry, so the common edit, change one number, keeps everything else without anyone
 // having to think about precedence.
 //
 // Layers are assumed to have been through `Parse`; this does not validate.
@@ -50,7 +50,7 @@ func Merge(layers ...Base) Base {
 		}
 	}
 
-	// Sorted, so the same set of layers always produces the same document — which matters because the
+	// Sorted, so the same set of layers always produces the same document, which matters because the
 	// overrides editor hands the user a copy of it to edit.
 	sort.SliceStable(out.Drives, func(i, j int) bool { return out.Drives[i].Family < out.Drives[j].Family })
 	return out
@@ -61,7 +61,7 @@ func Merge(layers ...Base) Base {
 // The match is on the model **and** the model family, because either can be the informative one:
 // smartctl reports "Samsung SSD 870 EVO" as a family and "WDC WD40EFRX-68N32N0" as a model with no
 // family at all. The **longest** matching family wins, so a specific entry beats a general one
-// whatever order they appear in the file — and so a user's more precise override wins for the same
+// whatever order they appear in the file, and so a user's more precise override wins for the same
 // reason rather than by accident of position.
 func (b Base) Find(model, family, firmware string, capacityBytes *uint64) Lookup {
 	haystack := strings.ToLower(strings.TrimSpace(model + " " + family))
@@ -73,7 +73,7 @@ func (b Base) Find(model, family, firmware string, capacityBytes *uint64) Lookup
 			continue
 		}
 		// The longest pattern wins, so a specific entry beats a general one whatever order they
-		// appear in the file — and so a user's more precise override wins for the same reason rather
+		// appear in the file, and so a user's more precise override wins for the same reason rather
 		// than by accident of position.
 		if best == nil || e.specificity() > best.specificity() {
 			best = e
@@ -158,7 +158,7 @@ func (e *Entry) tbwFor(capacityBytes *uint64) (*float64, bool) {
 
 // advisoriesFor picks the advisories that apply to one drive's firmware.
 //
-// `Firmware` may name several versions, comma-separated — "SVT01B6Q, SVT02B6Q" — because a fix
+// `Firmware` may name several versions, comma-separated, "SVT01B6Q, SVT02B6Q", because a fix
 // usually covers everything before it, and listing them is clearer than inventing a range syntax.
 func (e *Entry) advisoriesFor(firmware string) []Advisory {
 	have := strings.TrimSpace(firmware)
@@ -203,7 +203,7 @@ func severityRank(severity string) int {
 
 // WorstSeverity is the worst severity in a set of advisories, or "" when there are none.
 //
-// Exported so a caller can decide how loudly to say something without re-implementing the ranking —
+// Exported so a caller can decide how loudly to say something without re-implementing the ranking,
 // and so "is this critical?" has one answer rather than one per surface.
 func WorstSeverity(advisories []Advisory) string {
 	worst := ""

@@ -113,7 +113,7 @@ func TestMigrationsApplyToAnExistingDatabase(t *testing.T) {
 		t.Errorf("existing row lost: %+v", rec)
 	}
 	// A row written before the columns existed reads as "not reported", never as a
-	// definite "no" — that is the whole reason removable is nullable.
+	// definite "no", that is the whole reason removable is nullable.
 	if rec.Removable != nil || rec.FsVersion != "" {
 		t.Errorf("pre-0004 row should read as not reported: removable=%v fsver=%q",
 			rec.Removable, rec.FsVersion)

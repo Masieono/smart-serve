@@ -10,8 +10,8 @@ import (
 //
 // The signal correlated detection looks for is a change *between readings*: a fan stops and the next
 // scan finds every drive in the chassis hotter. A rise measured across a long gap is a different
-// thing entirely — a season turning, or a drive that spent three months in a drawer and is now in a
-// warmer slot — so a reading older than this is not evidence of a change, it is evidence of a gap.
+// thing entirely, a season turning, or a drive that spent three months in a drawer and is now in a
+// warmer slot, so a reading older than this is not evidence of a change, it is evidence of a gap.
 // Twenty-four hours covers every documented scan schedule with room to spare, and a gap is a better
 // proxy for "nothing happened in between" than a scan boundary, which a single-drive rescan moves.
 const CorrelationMaxGap = 24 * time.Hour
@@ -29,7 +29,7 @@ type TemperaturePair struct {
 // The pairing is per drive rather than per scan: a single-drive rescan writes one snapshot, so "the
 // previous scan" would otherwise mean a different thing for every drive.
 //
-// A drive whose latest reading has no temperature is left out entirely — it cannot have moved, and
+// A drive whose latest reading has no temperature is left out entirely, it cannot have moved, and
 // including it would only shrink a group's ratio for a drive that reports nothing. A drive with a
 // single reading is included with `Prev` nil: it belongs to its group, but it cannot be one of the
 // drives that moved.

@@ -22,7 +22,7 @@ type selfTestJSON struct {
 //
 // Deliberately separate from the device detail, which is served from the document the last scan
 // stored. Progress needs a fresh reading, and this is the only place the app reads a device
-// outside a scan — it happens while someone has the self-test panel open, and the UI stops
+// outside a scan, it happens while someone has the self-test panel open, and the UI stops
 // asking once the test ends (`FEATURES.md` §E).
 func (s *Server) handleGetSelfTest(w http.ResponseWriter, r *http.Request) {
 	rec, ok := s.selfTestTarget(w, r)
@@ -97,7 +97,7 @@ func (s *Server) handleAbortSelfTest(w http.ResponseWriter, r *http.Request) {
 	//
 	// A drive behind a bridge that does not pass the abort through accepts the command and carries on
 	// testing. Reporting the send as success left a page that said "stopped" over a drive that was
-	// still working — and a reader who refreshes and sees it running again reasonably concludes the
+	// still working, and a reader who refreshes and sees it running again reasonably concludes the
 	// app is broken rather than the bridge.
 	out := map[string]any{
 		"status": "aborted",

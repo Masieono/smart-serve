@@ -25,7 +25,7 @@ type channelJSON struct {
 	// guessed, and so renaming a channel is visible rather than silently breaking the
 	// override.
 	EnvPrefix string `json:"env_prefix"`
-	// Sources names where each overridden field's effective value comes from — "environment"
+	// Sources names where each overridden field's effective value comes from, "environment"
 	// or "file". Fields with no override are absent.
 	//
 	// Provenance only, never the resolved values: handing a secret to a browser would leak an
@@ -179,7 +179,7 @@ func (s *Server) handleDeleteChannel(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleTestChannel sends a synthetic event through the real delivery path, so
-// an operator can confirm a channel works — and see the reason when it does not
+// an operator can confirm a channel works, and see the reason when it does not
 // (docs/NOTIFICATIONS.md: test events bypass subscription filters and squelching).
 func (s *Server) handleTestChannel(w http.ResponseWriter, r *http.Request) {
 	id, ok := pathID(w, r)
@@ -240,8 +240,8 @@ func (s *Server) validateChannelConfig(typ, label string, raw json.RawMessage) s
 // handleTestChannelConfig sends a test through a channel described in the request body
 // rather than a stored one.
 //
-// The editor uses this so that Test proves what is on screen — including edits that have
-// not been saved — and so that a failed test can be corrected and retried without the
+// The editor uses this so that Test proves what is on screen, including edits that have
+// not been saved, and so that a failed test can be corrected and retried without the
 // dialog closing and having to be reopened.
 func (s *Server) handleTestChannelConfig(w http.ResponseWriter, r *http.Request) {
 	var body channelBody
@@ -304,7 +304,7 @@ func (s *Server) handleNotifications(w http.ResponseWriter, r *http.Request) {
 		"event_types":   notify.EventTypes,
 		"channel_types": channelTypes,
 		// The names of the channel override variables this deployment has set, so the editor
-		// can mark a field as supplied rather than showing it empty — and can stop demanding
+		// can mark a field as supplied rather than showing it empty, and can stop demanding
 		// a value that is never going to be typed into the form. Names only: `secrets.go`.
 		"channel_env_vars": notify.ChannelEnvVars(),
 	})

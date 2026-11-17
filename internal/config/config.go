@@ -47,7 +47,7 @@ func envInt(key string, def int) int {
 	}
 	// strconv rather than a hand-rolled digit loop: the loop this replaced added digits
 	// without checking, so a value too large to represent wrapped into some other number.
-	// It wrapped into a *positive* one, which is the worst version — every caller checks
+	// It wrapped into a *positive* one, which is the worst version, every caller checks
 	// `> 0` before using the value, so a 20-digit timeout arrived as 2190664h and was
 	// accepted. strconv reports the overflow, and a setting that cannot be represented
 	// falls back to the default like any other unusable value.

@@ -41,6 +41,28 @@ export class StubNode {
 
     this.textContent = '';
     this.className = '';
+    // `classList` is standard and the views use it; without it here, a view that only fails on the
+    // class API looked like a view that rendered nothing.
+    this.classList = {
+      add: (...names) => {
+        const set = new Set(this.className.split(' ').filter(Boolean));
+        names.forEach((n) => set.add(n));
+        this.className = [...set].join(' ');
+      },
+      remove: (...names) => {
+        const set = new Set(this.className.split(' ').filter(Boolean));
+        names.forEach((n) => set.delete(n));
+        this.className = [...set].join(' ');
+      },
+      toggle: (name, force) => {
+        const has = this.className.split(' ').filter(Boolean).includes(name);
+        const on = force === undefined ? !has : Boolean(force);
+        if (on) this.classList.add(name);
+        else this.classList.remove(name);
+        return on;
+      },
+      contains: (name) => this.className.split(' ').filter(Boolean).includes(name),
+    };
     this.value = '';
     this.hidden = false;
     this.disabled = false;
@@ -54,7 +76,7 @@ export class StubNode {
   // text node, *including* `null` and `undefined`.
   //
   // The project's own `append` helper filters those out before they reach here, so a null
-  // arriving at this method means a call site bypassed the helper — which is exactly how the
+  // arriving at this method means a call site bypassed the helper, which is exactly how the
   // attribute `?` dialog came to render the literal word "null". An earlier version of this
   // stub dropped such arguments silently, so the entire test suite was blind to it.
   append(...children) {
@@ -84,8 +106,8 @@ export class StubNode {
   /**
    * Fire an event, then let it bubble.
    *
-   * Bubbling is not a detail: a view that delegates — one listener on a container instead of one per
-   * control, which is how the settings pages ask "is anything dirty?" — registers on an *ancestor*,
+   * Bubbling is not a detail: a view that delegates, one listener on a container instead of one per
+   * control, which is how the settings pages ask "is anything dirty?", registers on an *ancestor*,
    * and a stub that stopped at the target would make every such listener untestable while looking
    * like the view was broken.
    *
@@ -114,7 +136,7 @@ export class StubNode {
    * `currentTarget` is the trap this stub exists to reproduce: the spec sets it to null as soon as
    * dispatch finishes, so a handler that reads it *after* an `await` gets null. The stub used to
    * hand out a plain property that stayed valid forever, which made the whole suite blind to every
-   * `finally { event.currentTarget.disabled = false }` — each one threw a TypeError into an
+   * `finally { event.currentTarget.disabled = false }`, each one threw a TypeError into an
    * unhandled promise and left its button disabled for the rest of the session.
    */
   dispatchEvent(type, event = {}) {
@@ -123,8 +145,7 @@ export class StubNode {
       type,
       target: this,
       preventDefault() {},
-      stopPropagation() {},
-      ...event,
+      stopPropagation() {}, ...event,
       get currentTarget() {
         return current;
       },
@@ -140,7 +161,7 @@ export class StubNode {
   /**
    * Fire the click handler, as a real click would.
    *
-   * Returns whatever the handler returned, so a test can await an async handler — and goes through
+   * Returns whatever the handler returned, so a test can await an async handler, and goes through
    * `dispatchEvent`, so the handler sees the same `currentTarget` behaviour the browser gives it.
    */
   click() {
@@ -214,7 +235,7 @@ export class StubNode {
   /**
    * The slice of `Element.querySelector` the views use: a tag name, optionally with one class.
    *
-   * Not a selector engine — just the forms that appear in the views. It is here because the
+   * Not a selector engine, just the forms that appear in the views. It is here because the
    * channel editor reads its own checkbox state back out of the DOM (`row.querySelector('input')`)
    * when it builds a save payload, and without this the whole save path was untestable: every save
    * threw a `TypeError` that the editor's own `catch` turned into a "Save failed" toast, so a test
@@ -238,7 +259,7 @@ export class StubNode {
    * production code started calling it too: the device page's map-to-table hover used `table.all('tr')`,
    * which is `undefined` in a browser, so a row was never marked while every test stayed green. A
    * double must not offer a method the DOM does not have, or it hides exactly the bugs it exists to
-   * catch — if production reaches for `all` again, this stub has no such method and the test fails.
+   * catch, if production reaches for `all` again, this stub has no such method and the test fails.
    */
   querySelectorAll(selector) {
     const [tag, className] = String(selector).split('.');
@@ -281,7 +302,7 @@ export function installStubDom() {
 
 /** Serve a JSON payload to any fetch() the module under test makes.
  *
- *  Pass an array as `requests` to collect what was sent — needed to assert on a save
+ *  Pass an array as `requests` to collect what was sent, needed to assert on a save
  *  payload rather than only on the resulting DOM. */
 export function stubFetch(payload, requests = null) {
   globalThis.fetch = async (url, init = {}) => {

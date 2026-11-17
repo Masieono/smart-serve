@@ -53,7 +53,7 @@ test('an unsupported self-test log is stated, with smartctl quoted', () => {
   assert.match(text, /smartctl: Read Self-test Log failed/);
 });
 
-// The drive's own estimate of how long its tests run — the progress basis A19 needs.
+// The drive's own estimate of how long its tests run, the progress basis A19 needs.
 test('self-test timings are shown when the drive offers them', () => {
   const text = textOf(logSummary({ short_minutes: 2, extended_minutes: 133 }));
   assert.match(text, /short ≈ 2 min/);
@@ -108,7 +108,7 @@ test('a finished self-test shows the drive\'s own verdict', () => {
 });
 
 // An absent verdict is not a failure. A test still running reports no `passed` at all, and a finished
-// entry the drive said nothing about is the same case — defaulting either to false would put a red
+// entry the drive said nothing about is the same case, defaulting either to false would put a red
 // cross beside a drive that never said anything was wrong.
 //
 // The table shows the drive's own status text unmarked in that case, so the assertion is about the
@@ -124,7 +124,7 @@ test('an absent verdict is not rendered as a failure', () => {
   const blank = textOf(selfTestLogSection({ self_test_entries: [{ type: 'Short offline' }] }));
   assert.doesNotMatch(blank, /failed/i, 'a verdict was invented for an entry that carried none');
 
-  // And the marking *is* there when the drive gives one — otherwise "absent is not a failure" would be
+  // And the marking *is* there when the drive gives one, otherwise "absent is not a failure" would be
   // true for the wrong reason.
   const failed = selfTestLogSection({
     self_test_entries: [{ type: 'Short offline', status: 'Completed: read failure', passed: false }],
@@ -151,7 +151,7 @@ test('an error log with detail gets a table', () => {
   assert.match(text, /1,200 h/);
 });
 
-// The self-test log records *lifetime hours*, not a date — that is all the drive keeps — and "2,116 h"
+// The self-test log records *lifetime hours*, not a date, that is all the drive keeps, and "2,116 h"
 // on its own answers a question nobody asked. The history pairs each lifetime-hours reading with the
 // time it was taken, so a test can be placed on a real clock; the raw figure stays beside it, because
 // that is what the drive actually said.
@@ -175,7 +175,7 @@ test('a self-test is placed on a clock using the history', () => {
 });
 
 // A test older than the retained history has no bracketing reading, so it says its hours rather than
-// inventing a date from a rate — a figure nobody could check.
+// inventing a date from a rate, a figure nobody could check.
 test('a test the history cannot place shows its hours', () => {
   const text = textOf(selfTestLogSection(
     { self_test_entries: [{ type: 'Short', status: 'Completed without error', hours: 100 }] },

@@ -1,7 +1,7 @@
-// The device page (v2) — the fleet view's other half (`ADR-032`).
+// The device page (v2), the fleet view's other half (`ADR-032`).
 //
-// It owns layout. What it reuses is the *primitives* — `sparkline` (hover readout, arrow keys, a
-// window drawn against the selected span), `attributeTable`, `diskMap`, `partitionTable` — and the
+// It owns layout. What it reuses is the *primitives*, `sparkline` (hover readout, arrow keys, a
+// window drawn against the selected span), `attributeTable`, `diskMap`, `partitionTable`, and the
 // data definitions the incumbent page keeps (`TREND_METRICS`, `nvmeSections`). What it does not do
 // is adopt the incumbent's *arrangements*: those were built for a two-column card page, and dropped
 // onto a full-width page they spread every label and value to opposite edges.
@@ -56,7 +56,7 @@ export async function render(content, ctx, serial, opts = {}) {
   const y = keep ? window.scrollY : 0;
   // A re-render empties the container before it awaits, and a page that is briefly short makes the
   // browser clamp the scroll position to the top. Holding the height across the swap is what keeps
-  // the reader where they were — the same trick the shell uses when a scan finishes.
+  // the reader where they were, the same trick the shell uses when a scan finishes.
   const release = keep ? holdHeight(content) : null;
 
   if (!keep) {
@@ -96,7 +96,7 @@ export async function render(content, ctx, serial, opts = {}) {
 
   // Opening a drive reads it when the stored data is older than the refresh window, and says so
   // while it does. Dropped from the first v2 cut, which quietly made every page show scan-era data
-  // — the app's honest-freshness promise (`docs/UI.md` §1) depends on this.
+  //, the app's honest-freshness promise (`docs/UI.md` §1) depends on this.
   startFreshness(ctx, d, freshness);
 }
 
@@ -164,13 +164,13 @@ function head(ctx, content, d) {
 
 function facts(d, snapshot) {
   const rows = [
-    ['Capacity', d.capacity_bytes ? fmtBytes(d.capacity_bytes) : '—'],
-    ['Powered on', snapshot && snapshot.power_on_hours != null ? `${fmtInt(snapshot.power_on_hours)} h` : '—'],
-    ['Wear', snapshot && snapshot.wear_pct != null ? `${Math.round(snapshot.wear_pct)}%` : '—'],
-    ['Temperature', snapshot && snapshot.temperature_c != null ? fmtTemp(snapshot.temperature_c) : '—'],
-    ['Mounted at', (d.mountpoints || []).length ? d.mountpoints.join(', ') : '—'],
-    ['Device node', d.device_path || '—'],
-    ['Bay', d.bay || '—'],
+    ['Capacity', d.capacity_bytes ? fmtBytes(d.capacity_bytes) : 'n/a'],
+    ['Powered on', snapshot && snapshot.power_on_hours != null ? `${fmtInt(snapshot.power_on_hours)} h` : 'n/a'],
+    ['Wear', snapshot && snapshot.wear_pct != null ? `${Math.round(snapshot.wear_pct)}%` : 'n/a'],
+    ['Temperature', snapshot && snapshot.temperature_c != null ? fmtTemp(snapshot.temperature_c) : 'n/a'],
+    ['Mounted at', (d.mountpoints || []).length ? d.mountpoints.join(', ') : 'n/a'],
+    ['Device node', d.device_path || 'n/a'],
+    ['Bay', d.bay || 'n/a'],
     ['Last scanned', d.last_scan ? fmtAgo(d.last_scan) : 'never'],
   ];
   return el('dl', { class: 'v2-facts' }, rows.map(([k, v]) => el('div', { class: 'v2-fact' }, [
@@ -205,7 +205,7 @@ function diskSection(d) {
     if (map) children.push(el('div', { class: 'v2-disk-map' }, [map]));
     if (table) children.push(el('div', { class: 'v2-disk-table' }, [table]));
   } else if (d.disk_layout && !parts.length) {
-    children.push(el('div', { class: 'fleet-note', text: 'This drive has no partition table — it holds no filesystems, or nothing readable from inside the container.' }));
+    children.push(el('div', { class: 'fleet-note', text: 'This drive has no partition table, it holds no filesystems, or nothing readable from inside the container.' }));
   }
 
   if (!children.length) return null;
@@ -240,8 +240,8 @@ function showUsage() {
 /**
  * Every metric in one row, each its own small plot.
  *
- * Horizontal because these are read as a set — "is anything drifting?" is asked once, not five times
- * — and because five stacked plots cost about 600px of page for 200px of information. The plot itself
+ * Horizontal because these are read as a set, "is anything drifting?" is asked once, not five times
+ *, and because five stacked plots cost about 600px of page for 200px of information. The plot itself
  * is the incumbent's `sparkline`, so the hover readout, the arrow-key stepping and the window drawn
  * against the selected span all survive the rearrangement.
  */
@@ -414,8 +414,7 @@ function section(title, children, tools = null) {
     el('div', { class: 'v2-shead' }, [
       el('h2', { text: title }),
       tools ? el('div', { class: 'v2-aside' }, [tools]) : null,
-    ].filter(Boolean)),
-    ...children.filter(Boolean),
+    ].filter(Boolean)), ...children.filter(Boolean),
   ]);
 }
 
