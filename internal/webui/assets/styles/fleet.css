@@ -1721,8 +1721,9 @@ dialog .btn-primary {
   margin-top: var(--space-5);
   padding: var(--space-3) 0;
   border-top: 1px solid var(--border);
-  background: color-mix(in srgb, var(--bg) 94%, transparent);
-  backdrop-filter: blur(6px);
+  /* Opaque: a translucent bar over a grid of swatches let the content read through the buttons. */
+  background: var(--bg);
+  box-shadow: 0 -10px 18px -12px rgba(0, 0, 0, 0.55);
   transition: opacity 140ms ease, transform 140ms ease;
 }
 
