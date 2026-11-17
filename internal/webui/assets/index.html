@@ -1,6 +1,5 @@
 <!doctype html>
 <html lang="en"
-      data-ui="{{.UI}}"
       data-theme="{{.Theme}}"
       data-theme-base="{{.ThemeBase}}"
       data-theme-tint="{{.Tint}}"
@@ -14,7 +13,7 @@
   <link rel="icon" type="image/svg+xml" href="{{.BaseHref}}icon.svg">
   <link rel="stylesheet" href="{{.BaseHref}}styles/tokens.css">
   <link rel="stylesheet" href="{{.BaseHref}}styles/components.css">
-  {{if eq .UI "v2"}}<link rel="stylesheet" href="{{.BaseHref}}styles/fleet.css">{{end}}
+  <link rel="stylesheet" href="{{.BaseHref}}styles/fleet.css">
 </head>
 <body>
   <div id="app" data-base-path="{{.BasePath}}" data-version="{{.Version}}"></div>

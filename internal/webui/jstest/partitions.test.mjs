@@ -12,7 +12,7 @@ installStubDom();
 const { partitionTable, partitionUUID, sectorLabel, usageBar, outsideContainerNote, setStorageWarnPct, storageWarnLevel, diskMap } =
   await import('../assets/js/components.js');
 const { setDisplayOptions, currentDisplayOptions, diskLayoutCard } =
-  await import('../assets/js/views/device.js');
+  await import('../assets/js/views/device-parts.js');
 
 /** Every string in a subtree, in document order. */
 function textOf(node) {

@@ -15,7 +15,7 @@ installStubDom();
 
 const {
   channelSlug, channelEnvPrefix, channelEnvVars, suppliedFields, missingRequired,
-} = await import('../assets/js/views/notifications.js');
+} = await import('../assets/js/views/notification-editors.js');
 
 // The same table as TestSlugMakesAStableVariableName in internal/notify/secrets_test.go. If
 // one side changes, the other fails, which is the only thing keeping two implementations of

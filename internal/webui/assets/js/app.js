@@ -3,17 +3,14 @@ import { el, mount, clear, holdHeight, scrollToTop, setTemperatureUnit as applyT
 import { icon } from './icons.js';
 import { api, appPath } from './api.js';
 import { toast, confirmDialog } from './components.js';
-import * as dashboard from './views/dashboard.js';
+import * as replaceShortlist from './views/replace-shortlist.js';
 import * as device from './views/device.js';
 import * as fleet from './views/fleet.js';
-import * as deviceV2 from './views/device-v2.js';
-import * as notificationsV2 from './views/notifications-v2.js';
-import * as schedulesV2 from './views/schedules-v2.js';
 import * as schedules from './views/schedules.js';
 import * as notifications from './views/notifications.js';
 import * as settings from './views/settings.js';
 import { setPollSeconds as setSelfTestRefresh } from './views/selftest.js';
-import { setDisplayOptions } from './views/device.js';
+import { setDisplayOptions } from './views/device-parts.js';
 
 // The sidebar. A fourth element on an entry means it is a *group*: the pages underneath it are
 // listed when you are in that part of the app, and only then. Settings is the first one, because its
@@ -72,7 +69,7 @@ const ctx = {
     setDisplayOptions(options);
     // The dashboard's own display preference, pushed from here rather than by each caller, so the boot
     // path and the settings-save path cannot disagree about it.
-    dashboard.setReplaceFirst(options && options.show_replace_first);
+    replaceShortlist.setReplaceFirst(options && options.show_replace_first);
   },
   async scan() {
     if (scanning) return;
@@ -147,34 +144,18 @@ async function route({ keepScroll = false } = {}) {
   try {
     if (path.startsWith('/device/')) {
       const serial = decodeURIComponent(path.slice('/device/'.length));
-      // The two views are a pair: the table and the page it opens (`ADR-032`).
-      if (document.documentElement.dataset.ui === 'v2') {
-        await deviceV2.render(content, ctx, serial);
-      } else {
-        await device.render(content, ctx, serial);
-      }
+      await device.render(content, ctx, serial);
     } else if (path === '/schedules') {
-      if (document.documentElement.dataset.ui === 'v2') {
-        await schedulesV2.render(content, ctx);
-      } else {
-        await schedules.render(content, ctx);
-      }
+      await schedules.render(content, ctx);
     } else if (path === '/notifications') {
-      if (document.documentElement.dataset.ui === 'v2') {
-        await notificationsV2.render(content, ctx);
-      } else {
-        await notifications.render(content, ctx);
-      }
+      await notifications.render(content, ctx);
     } else if (path === '/settings' || path.startsWith('/settings/')) {
       // `/settings` is the section, not a page: it renders the first one. That keeps the plain
       // sidebar entry working and means a bookmarked `/settings` is never a dead end.
       await settings.render(content, ctx, path.slice('/settings/'.length));
-    } else if (document.documentElement.dataset.ui === 'v2') {
-      // The fleet table (`ADR-032`). Chosen per browser by cookie, so the same deployment can
-      // show both views side by side while the comparison runs.
-      await fleet.render(content, ctx);
     } else {
-      await dashboard.render(content, ctx);
+      // The fleet table (`ADR-032`). One view per page now: the card dashboard it replaced is gone.
+      await fleet.render(content, ctx);
     }
   } finally {
     if (release) release();
@@ -330,7 +311,7 @@ async function loadDisplayPreferences() {
     applyTemperatureUnit(stored.temperature_unit);
     // Same reason as the temperature unit, and the same place: a list that flashed cards and then
     // became a table would be worse than either one on its own.
-    dashboard.setView(stored.dashboard_view);
+    replaceShortlist.setView(stored.dashboard_view);
     // And again: a card that polls should start at the interval the user chose, not at the default
     // and then change under them.
     setSelfTestRefresh(stored.selftest_poll_seconds);

@@ -15,7 +15,7 @@ installStubDom();
 const { ATTRIBUTE_HELP, NVME_HELP, attributeHelp, nvmeHelp, attributeFlagged } =
   await import('../assets/js/attributes.js');
 const { attributeTable } = await import('../assets/js/components.js');
-const { nvmeTable, logSummary } = await import('../assets/js/views/device.js');
+const { nvmeTable, logSummary } = await import('../assets/js/views/device-parts.js');
 
 // The ids the interpreter acts on: SMART_INTERPRETATION.md §1.1 (wear) and §2 (the
 // CrystalDiskInfo set). If the interpreter grows a new interpreted attribute, this list

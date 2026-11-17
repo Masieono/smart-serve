@@ -11,7 +11,7 @@ import { installStubDom, StubNode } from './stub-dom.mjs';
 
 installStubDom();
 
-const { logSummary, selfTestLogSection } = await import('../assets/js/views/device.js');
+const { logSummary, selfTestLogSection } = await import('../assets/js/views/device-parts.js');
 const { fmtStamp } = await import('../assets/js/dom.js');
 
 /** Every string in a subtree, in document order. */

@@ -10,7 +10,7 @@ import { installStubDom, StubNode } from './stub-dom.mjs';
 
 installStubDom();
 
-const { replaceFirstCard } = await import('../assets/js/views/dashboard.js');
+const { replaceFirstCard } = await import('../assets/js/views/replace-shortlist.js');
 
 /** Every string in a subtree, in document order. */
 function textOf(node) {

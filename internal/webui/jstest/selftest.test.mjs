@@ -14,7 +14,7 @@ import { el } from '../assets/js/dom.js';
 installStubDom();
 
 const { selfTestCard, stopPolling, setPollSeconds, POLL_MS } = await import('../assets/js/views/selftest.js');
-const { selfTestLogSection } = await import('../assets/js/views/device.js');
+const { selfTestLogSection } = await import('../assets/js/views/device-parts.js');
 
 /** A stand-in for the view context, recording what the card asked of it. */
 function stubCtx() {

@@ -15,7 +15,7 @@ import assert from 'node:assert/strict';
 import { installStubDom, StubNode } from './stub-dom.mjs';
 
 installStubDom();
-const { render, setDisplayOptions, startFreshness, resetFreshness } = await import('../assets/js/views/device.js');
+const { render, setDisplayOptions, startFreshness, resetFreshness } = await import('../assets/js/views/device-parts.js');
 const { el } = await import('../assets/js/dom.js');
 
 /** Every string in a subtree, in document order. */

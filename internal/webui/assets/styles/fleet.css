@@ -8,7 +8,7 @@
  * Scoped to [data-ui="v2"] so the two views can coexist while the comparison is running.
  */
 
-[data-ui='v2'] .content {
+.content {
   padding: var(--space-6) var(--space-6) var(--space-7);
 }
 
@@ -332,7 +332,7 @@
 }
 
 @media (max-width: 900px) {
-  [data-ui='v2'] .content {
+  .content {
     padding: var(--space-4) var(--space-4) var(--space-6);
   }
 
@@ -1143,7 +1143,7 @@
    proportions: a narrow box with 12px of padding, where the page around it now
    has rhythm. Scoped to [data-ui="v2"] so the card view keeps its own. */
 
-[data-ui='v2'] dialog {
+dialog {
   /* Wide enough that a two-column checkbox set stays on one line per item; the incumbent's dialog
      was sized for a single column and wrapped every label at this density. `max-width` too: the
      shared rule clamps the width, so setting only `width` changed nothing. */
@@ -1158,19 +1158,19 @@
   box-shadow: var(--shadow-2);
 }
 
-[data-ui='v2'] .dialog-head {
+.dialog-head {
   padding: var(--space-4) var(--space-5);
   border-bottom: 1px solid var(--border);
 }
 
-[data-ui='v2'] .dialog-head h2 {
+.dialog-head h2 {
   margin: 0;
   font-size: var(--text-md);
   font-weight: 600;
   letter-spacing: -0.01em;
 }
 
-[data-ui='v2'] .dialog-body {
+.dialog-body {
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
@@ -1179,7 +1179,7 @@
   max-height: calc(86vh - 132px);
 }
 
-[data-ui='v2'] .dialog-foot {
+.dialog-foot {
   display: flex;
   align-items: center;
   gap: var(--space-2);
@@ -1189,21 +1189,21 @@
 }
 
 /* Labels sit above their control and stay quiet; the control is what the eye should land on. */
-[data-ui='v2'] dialog .field {
+dialog .field {
   gap: 5px;
 }
 
-[data-ui='v2'] dialog .field > label {
+dialog .field > label {
   font-size: var(--text-xs);
   font-weight: 500;
   color: var(--muted);
 }
 
-[data-ui='v2'] dialog input[type='text'],
-[data-ui='v2'] dialog input[type='password'],
-[data-ui='v2'] dialog input[type='number'],
-[data-ui='v2'] dialog select,
-[data-ui='v2'] dialog textarea {
+dialog input[type='text'],
+dialog input[type='password'],
+dialog input[type='number'],
+dialog select,
+dialog textarea {
   height: 34px;
   padding: 0 var(--space-3);
   font-size: var(--text-sm);
@@ -1211,35 +1211,35 @@
   border-color: var(--border);
 }
 
-[data-ui='v2'] dialog input[type='time'],
-[data-ui='v2'] dialog input[type='date'],
-[data-ui='v2'] dialog input[type='datetime-local'] {
+dialog input[type='time'],
+dialog input[type='date'],
+dialog input[type='datetime-local'] {
   width: auto;
   min-width: 130px;
 }
 
-[data-ui='v2'] dialog textarea {
+dialog textarea {
   height: auto;
   min-height: 84px;
   padding: var(--space-2) var(--space-3);
 }
 
-[data-ui='v2'] dialog input:focus-visible,
-[data-ui='v2'] dialog select:focus-visible,
-[data-ui='v2'] dialog textarea:focus-visible {
+dialog input:focus-visible,
+dialog select:focus-visible,
+dialog textarea:focus-visible {
   outline: 2px solid var(--focus, var(--accent));
   outline-offset: 1px;
   border-color: transparent;
 }
 
 /* The event and group checkboxes are a set; two columns halves the scroll for eight of them. */
-[data-ui='v2'] dialog .field > .stack {
+dialog .field > .stack {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 4px 18px;
 }
 
-[data-ui='v2'] dialog .field-row {
+dialog .field-row {
   display: flex;
   align-items: center;
   gap: var(--space-2);
@@ -1247,20 +1247,20 @@
   padding: 2px 0;
 }
 
-[data-ui='v2'] dialog .muted {
+dialog .muted {
   font-size: 11.5px;
   line-height: 1.5;
   color: var(--muted);
 }
 
-[data-ui='v2'] dialog .btn {
+dialog .btn {
   height: 32px;
   padding: 0 var(--space-3);
   font-size: var(--text-xs);
   border-radius: var(--radius-sm);
 }
 
-[data-ui='v2'] dialog .btn-primary {
+dialog .btn-primary {
   /* The app's primary is the accent, an inverted white button here read as a different system. */
   background: var(--accent);
   border-color: var(--accent);
@@ -1269,7 +1269,7 @@
 }
 
 @media (max-width: 760px) {
-  [data-ui='v2'] dialog .field > .stack {
+  dialog .field > .stack {
     grid-template-columns: 1fr;
   }
 }
@@ -1348,14 +1348,14 @@
    cannot look selected, so the plain row is the right fallback rather than a row
    of empty boxes. */
 @supports selector(:has(*)) {
-  [data-ui='v2'] .day-strip {
+  .day-strip {
     display: grid;
     grid-template-columns: repeat(7, minmax(0, 1fr));
     gap: 6px;
     width: 100%;
   }
 
-  [data-ui='v2'] .day-strip .field-row {
+  .day-strip .field-row {
     position: relative;
     justify-content: center;
     height: 34px;
@@ -1368,12 +1368,12 @@
     transition: border-color 120ms ease, background 120ms ease;
   }
 
-  [data-ui='v2'] .day-strip .field-row:hover {
+  .day-strip .field-row:hover {
     border-color: color-mix(in srgb, var(--muted) 60%, transparent);
   }
 
   /* Visually hidden, not display:none, it has to stay focusable and toggleable. */
-  [data-ui='v2'] .day-strip .field-row input[type='checkbox'] {
+  .day-strip .field-row input[type='checkbox'] {
     position: absolute;
     width: 1px;
     height: 1px;
@@ -1382,14 +1382,14 @@
     pointer-events: none;
   }
 
-  [data-ui='v2'] .day-strip .field-row:has(input:checked) {
+  .day-strip .field-row:has(input:checked) {
     background: color-mix(in srgb, var(--accent) 18%, transparent);
     border-color: color-mix(in srgb, var(--accent) 70%, transparent);
     color: var(--text);
     font-weight: 500;
   }
 
-  [data-ui='v2'] .day-strip .field-row:has(input:focus-visible) {
+  .day-strip .field-row:has(input:focus-visible) {
     outline: 2px solid var(--accent);
     outline-offset: 1px;
   }
@@ -1402,7 +1402,7 @@
    sections become a hairline-separated list like every other v2 page, which is
    also what stops a section heading from colliding with the row above it. */
 
-[data-ui='v2'] .settings-sheet {
+.settings-sheet {
   display: block;
   margin-top: var(--space-5);
   padding: 0;
@@ -1410,27 +1410,27 @@
   background: none;
 }
 
-[data-ui='v2'] .settings-section + .settings-section {
+.settings-section + .settings-section {
   margin-top: var(--space-6);
   padding-top: var(--space-4);
   border-top: 1px solid var(--border);
 }
 
-[data-ui='v2'] .settings-section > h2 {
+.settings-section > h2 {
   margin: 0 0 var(--space-3);
   font-size: var(--text-md);
   font-weight: 600;
   letter-spacing: -0.01em;
 }
 
-[data-ui='v2'] .settings-rows {
+.settings-rows {
   gap: 0;
 }
 
 /* The per-model editor is a section nested inside the thresholds section, same subject, one
    heading. Nested, the `+` sibling rule above does not reach it, so it gets the same treatment
    spelled out: without this its heading sat flush against the row above it. */
-[data-ui='v2'] .settings-section .settings-section {
+.settings-section .settings-section {
   margin-top: var(--space-5);
   padding-top: var(--space-4);
   border-top: 1px solid var(--border);
@@ -1438,26 +1438,26 @@
 
 /* The note and the buttons are grid children like the rows are, so with the rows' gap removed they
    need their own spacing back. */
-[data-ui='v2'] .settings-rows > .settings-note {
+.settings-rows > .settings-note {
   margin: var(--space-3) 0 0;
 }
 
-[data-ui='v2'] .settings-rows > .row {
+.settings-rows > .row {
   margin: var(--space-3) 0 var(--space-2);
 }
 
-[data-ui='v2'] .setting-row {
+.setting-row {
   gap: var(--space-5);
   padding: var(--space-3) 0;
   border-top: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
 }
 
-[data-ui='v2'] .setting-label {
+.setting-label {
   font-size: var(--text-sm);
   font-weight: 500;
 }
 
-[data-ui='v2'] .setting-help {
+.setting-help {
   margin-top: 2px;
   font-size: 11.5px;
   line-height: 1.45;
@@ -1465,39 +1465,39 @@
 }
 
 /* Every value lands in the same column, which is the point of the page. */
-[data-ui='v2'] .setting-control {
+.setting-control {
   gap: var(--space-2);
   min-width: 330px;
   justify-content: flex-end;
 }
 
-[data-ui='v2'] .setting-control input[type='range'] {
+.setting-control input[type='range'] {
   width: 220px;
 }
 
-[data-ui='v2'] .setting-control input[type='number'] {
+.setting-control input[type='number'] {
   height: 32px;
   width: 84px;
 }
 
-[data-ui='v2'] .setting-unit {
+.setting-unit {
   min-width: 2.5ch;
   font-size: var(--text-xs);
 }
 
-[data-ui='v2'] .settings-note {
+.settings-note {
   margin-top: var(--space-3);
   font-size: 11.5px;
   line-height: 1.5;
 }
 
-[data-ui='v2'] .settings-section .btn {
+.settings-section .btn {
   height: 30px;
   padding: 0 var(--space-3);
   font-size: var(--text-xs);
 }
 
-[data-ui='v2'] .settings-editor {
+.settings-editor {
   background: color-mix(in srgb, var(--bg) 70%, transparent);
   min-height: 140px;
   width: 100%;
@@ -1506,7 +1506,7 @@
   line-height: 1.6;
 }
 
-[data-ui='v2'] .settings-error {
+.settings-error {
   padding: var(--space-2) var(--space-3);
   font-size: 11.5px;
   border-left: 3px solid var(--bad);
@@ -1514,34 +1514,34 @@
 }
 
 @media (max-width: 900px) {
-  [data-ui='v2'] .setting-control {
+  .setting-control {
     min-width: 0;
   }
-  [data-ui='v2'] .setting-control input[type='range'] {
+  .setting-control input[type='range'] {
     width: 150px;
   }
 }
 
 /* Paragraphs inside a settings grid are grid children like the rows are, so they need the spacing
    and the line length that a row gets for free. Full-bleed text was running the width of the page. */
-[data-ui='v2'] .settings-rows > p {
+.settings-rows > p {
   margin: var(--space-3) 0 0;
   max-width: 72ch;
   font-size: 11.5px;
   line-height: 1.5;
 }
 
-[data-ui='v2'] .settings-rows > p + p {
+.settings-rows > p + p {
   margin-top: var(--space-2);
 }
 
 /* The knowledge section carries its own heading row so the summary can sit beside it. */
-[data-ui='v2'] .settings-section > .row {
+.settings-section > .row {
   margin-bottom: var(--space-3);
   align-items: baseline;
 }
 
-[data-ui='v2'] .settings-section > .row > h2 {
+.settings-section > .row > h2 {
   margin: 0;
   font-size: var(--text-md);
   font-weight: 600;
@@ -1549,20 +1549,20 @@
 }
 
 /* Muted prose anywhere in the sheet keeps the same measure as the rest of the page. */
-[data-ui='v2'] .settings-sheet .muted {
+.settings-sheet .muted {
   max-width: 72ch;
 }
 
-[data-ui='v2'] .settings-sheet .settings-editor {
+.settings-sheet .settings-editor {
   margin-top: var(--space-2);
 }
 
 /* The folded half of a setting's explanation, inline with the sentence it continues. */
-[data-ui='v2'] .setting-help details.setting-more {
+.setting-help details.setting-more {
   display: inline;
 }
 
-[data-ui='v2'] .setting-help details.setting-more > summary {
+.setting-help details.setting-more > summary {
   display: inline;
   list-style: none;
   margin-left: 3px;
@@ -1571,11 +1571,11 @@
   border-bottom: 1px dotted color-mix(in srgb, var(--accent) 55%, transparent);
 }
 
-[data-ui='v2'] .setting-help details.setting-more > summary::-webkit-details-marker {
+.setting-help details.setting-more > summary::-webkit-details-marker {
   display: none;
 }
 
-[data-ui='v2'] .setting-help details.setting-more[open] > summary {
+.setting-help details.setting-more[open] > summary {
   color: var(--muted);
   border-bottom-style: none;
 }
@@ -1585,21 +1585,21 @@
    separates rows; the line is kept only between sections, where it means "new
    subject". */
 
-[data-ui='v2'] .setting-row {
+.setting-row {
   border-top: 0;
   padding: var(--space-4) 0;
 }
 
-[data-ui='v2'] .setting-row:first-child {
+.setting-row:first-child {
   padding-top: 0;
 }
 
-[data-ui='v2'] .setting-row:last-child {
+.setting-row:last-child {
   padding-bottom: 0;
 }
 
 /* A setting whose control cannot fit a right-hand column: the control goes under the text. */
-[data-ui='v2'] .setting-block {
+.setting-block {
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
@@ -1608,15 +1608,15 @@
 
 /* `.setting-text` grows inside a row's flex to push the control right; in a stacked block that
    growth becomes a gap of empty air between the label and the control. */
-[data-ui='v2'] .setting-block .setting-text {
+.setting-block .setting-text {
   flex: 0 0 auto;
 }
 
-[data-ui='v2'] .setting-block:first-child {
+.setting-block:first-child {
   padding-top: 0;
 }
 
-[data-ui='v2'] .setting-block:last-child {
+.setting-block:last-child {
   padding-bottom: 0;
 }
 
@@ -1625,14 +1625,14 @@
    it. Nothing here knows any colours, which is the point: a new theme in
    tokens.css appears in the picker without this file changing. */
 
-[data-ui='v2'] .theme-swatches {
+.theme-swatches {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
   gap: var(--space-2);
   width: 100%;
 }
 
-[data-ui='v2'] .theme-swatch {
+.theme-swatch {
   display: flex;
   flex-direction: column;
   gap: 5px;
@@ -1645,16 +1645,16 @@
   transition: border-color 120ms ease;
 }
 
-[data-ui='v2'] .theme-swatch:hover {
+.theme-swatch:hover {
   border-color: color-mix(in srgb, var(--muted) 60%, transparent);
 }
 
-[data-ui='v2'] .theme-swatch.is-on {
+.theme-swatch.is-on {
   border-color: var(--accent);
   box-shadow: inset 0 0 0 1px var(--accent);
 }
 
-[data-ui='v2'] .theme-swatch-chip {
+.theme-swatch-chip {
   position: relative;
   display: block;
   height: 30px;
@@ -1668,7 +1668,7 @@
 }
 
 /* The surface sits behind, the accent on top: three of a palette's jobs in one chip. */
-[data-ui='v2'] .theme-swatch-chip::before {
+.theme-swatch-chip::before {
   content: "";
   position: absolute;
   inset: 0 0 auto 0;
@@ -1676,7 +1676,7 @@
   background: var(--palette-surface, var(--surface));
 }
 
-[data-ui='v2'] .theme-swatch-chip::after {
+.theme-swatch-chip::after {
   content: "";
   position: absolute;
   left: 6px;
@@ -1687,21 +1687,21 @@
   background: var(--palette-focus, var(--accent));
 }
 
-[data-ui='v2'] .theme-swatch-chip.is-auto {
+.theme-swatch-chip.is-auto {
   background: linear-gradient(135deg, #e9edf2 0 50%, #12161c 50% 100%);
 }
 
-[data-ui='v2'] .theme-swatch-chip.is-custom {
+.theme-swatch-chip.is-custom {
   background: linear-gradient(135deg, #12161c 0 50%, #e9edf2 50% 100%);
 }
 
-[data-ui='v2'] .theme-swatch-name {
+.theme-swatch-name {
   font-size: 11px;
   line-height: 1.3;
   color: var(--muted);
 }
 
-[data-ui='v2'] .theme-swatch.is-on .theme-swatch-name {
+.theme-swatch.is-on .theme-swatch-name {
   color: var(--text);
 }
 
@@ -1710,7 +1710,7 @@
    it. Pinned to the bottom of the window and shown only when something is dirty,
    so it never covers content nobody is about to save. */
 
-[data-ui='v2'] .save-bar {
+.save-bar {
   position: sticky;
   bottom: 0;
   z-index: 5;
@@ -1726,28 +1726,28 @@
   transition: opacity 140ms ease, transform 140ms ease;
 }
 
-[data-ui='v2'] .save-bar:not(.is-dirty) {
+.save-bar:not(.is-dirty) {
   opacity: 0;
   transform: translateY(6px);
   pointer-events: none;
 }
 
-[data-ui='v2'] .save-bar .save-status {
+.save-bar .save-status {
   font-size: var(--text-xs);
   color: var(--muted);
 }
 
-[data-ui='v2'] .save-bar.is-dirty .save-status {
+.save-bar.is-dirty .save-status {
   color: var(--caution);
 }
 
-[data-ui='v2'] .save-bar .save-actions {
+.save-bar .save-actions {
   display: flex;
   align-items: center;
   gap: var(--space-2);
 }
 
-[data-ui='v2'] .save-bar .btn-primary {
+.save-bar .btn-primary {
   height: 32px;
   padding: 0 var(--space-4);
   font-size: var(--text-xs);

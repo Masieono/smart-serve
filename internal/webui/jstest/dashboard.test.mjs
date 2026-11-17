@@ -12,7 +12,7 @@ import { installStubDom, StubNode, stubFetch } from './stub-dom.mjs';
 installStubDom();
 
 const { visibleDevices, groupByTag, exportButton, fleetTags, benchSession, heatCard, render, setView,
-  setReplaceFirst } = await import('../assets/js/views/dashboard.js');
+  setReplaceFirst } = await import('../assets/js/views/replace-shortlist.js');
 
 /** Every string in a subtree, in document order. */
 function textOf(node) {

@@ -4,7 +4,7 @@ import { installStubDom, StubNode } from './stub-dom.mjs';
 
 installStubDom();
 const { channelTypes, availableTypes, configFromValues, missingRequired, render } =
-  await import('../assets/js/views/notifications.js');
+  await import('../assets/js/views/notification-editors.js');
 
 // The Go registry must ship the same set; internal/notify/adapters_test.go pins the
 // other end. Drift here means the UI offers a channel the server cannot deliver.

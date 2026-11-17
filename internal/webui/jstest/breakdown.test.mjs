@@ -10,7 +10,7 @@ import assert from 'node:assert/strict';
 import { installStubDom, StubNode } from './stub-dom.mjs';
 
 installStubDom();
-const { scoreBreakdown, parsePenalties } = await import('../assets/js/views/device.js');
+const { scoreBreakdown, parsePenalties } = await import('../assets/js/views/device-parts.js');
 const { attributeTable } = await import('../assets/js/components.js');
 
 /** Every string in a subtree, in document order. */

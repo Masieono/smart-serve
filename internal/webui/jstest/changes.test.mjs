@@ -11,7 +11,7 @@ import { installStubDom, StubNode } from './stub-dom.mjs';
 
 installStubDom();
 
-const { changesCard } = await import('../assets/js/views/device.js');
+const { changesCard } = await import('../assets/js/views/device-parts.js');
 
 /** Every string in a subtree, in document order. */
 function textOf(node) {

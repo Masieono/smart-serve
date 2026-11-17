@@ -10,7 +10,7 @@ import { installStubDom, StubNode } from './stub-dom.mjs';
 
 installStubDom();
 
-const { nvmeTable } = await import('../assets/js/views/device.js');
+const { nvmeTable } = await import('../assets/js/views/device-parts.js');
 
 /** Every string in a subtree, in document order. */
 function textOf(node) {
