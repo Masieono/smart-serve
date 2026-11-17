@@ -24,22 +24,6 @@ const EVENT_LABELS = {
   group_heat: 'A group heats up together',
 };
 
-export async function render(container, ctx) {
-  mount(container, el('div', { class: 'skeleton', style: 'width:30%;height:24px' }));
-  try {
-    const [channels, log, settings, devices] = await Promise.all([
-      api.channels(),
-      api.notifications(25),
-      api.settings(),
-      // The maintenance-window editor picks drives by name, so it needs the list.
-      api.devices(),
-    ]);
-    draw(container, ctx, channels, log, settings, devices);
-  } catch (err) {
-    mount(container, errorBox(`Could not load channels: ${err.message}`));
-  }
-}
-
 function parseList(raw) {
   try {
     const list = JSON.parse(raw);

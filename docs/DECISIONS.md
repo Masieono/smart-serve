@@ -1363,3 +1363,10 @@ mounted without opening it, and the quota of information per row is spent on the
 incumbent design in v2 — clicking a row crosses between them, which is honest while the comparison runs
 and unacceptable as a destination. (±) the cookie is a persisted per-browser choice with no UI to clear
 it except the link at the foot of the view; the switch has to be discoverable from the view it changes.
+
+**Superseded — the comparison ended, and the variant went with it.** The second paragraph above
+described a cookie because two views had to run side by side against one database. They no longer
+do: every page is the new design, so `?ui=`, the `ui` cookie, the `data-ui` attribute on the shell
+and the conditional `fleet.css` link are all gone. The consequences listed above are discharged with
+them. What stays true is the part that was never about the mechanism: the fleet is a table, the
+verdict and the score share a cell, and a row that needs a second look marks its own edge.

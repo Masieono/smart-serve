@@ -5,15 +5,6 @@ import { emptyState, errorBox, openDialog, confirmDialog, toast } from '../compo
 import { icon } from '../icons.js';
 import { describeCron, cronFieldError, buildDailyCron, parseDailyCron, WEEKDAY_NAMES } from '../cron.js';
 
-export async function render(container, ctx) {
-  mount(container, el('div', { class: 'skeleton', style: 'width:30%;height:24px' }));
-  try {
-    draw(container, ctx, await api.schedules());
-  } catch (err) {
-    mount(container, errorBox(`Could not load schedules: ${err.message}`));
-  }
-}
-
 function describe(s) {
   if (s.kind === 'interval') {
     // "every 1 day" is not English; "every day" is. The editor's preview composes its own strings,

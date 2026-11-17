@@ -25,28 +25,6 @@ const TREND_RANGES = [
 // Across the whole history, the line spans the plot and the shape is the shape.
 let trendRange = 'all';
 
-export async function render(container, ctx, serial, opts = {}) {
-  // A range change re-renders the same page, and mounting the one-line skeleton collapses the
-  // page height: the browser clamps the scroll position to the top, so changing the window
-  // throws you out of the section you were reading. Keep what is on screen until the new data
-  // arrives, and put the scroll back afterwards.
-  const keepScroll = opts.keepScroll === true;
-  const y = keepScroll ? currentScrollY() : 0;
-  if (!keepScroll) {
-    mount(container, el('div', { class: 'skeleton', style: 'width:40%;height:24px' }));
-  }
-  try {
-    const [device, history] = await Promise.all([
-      api.device(serial),
-      api.history(serial, historyFrom()),
-    ]);
-    draw(container, ctx, device, history);
-    if (keepScroll) restoreScrollY(y);
-  } catch (err) {
-    mount(container, errorBox(`Could not load device: ${err.message}`));
-  }
-}
-
 /** The current scroll offset, or 0 where there is no window (the unit tests). */
 function currentScrollY() {
   return typeof window === 'undefined' ? 0 : window.scrollY || 0;

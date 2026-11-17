@@ -3,8 +3,11 @@ import assert from 'node:assert/strict';
 import { installStubDom, StubNode } from './stub-dom.mjs';
 
 installStubDom();
-const { channelTypes, availableTypes, configFromValues, missingRequired, render } =
+const { channelTypes, availableTypes, configFromValues, missingRequired } =
   await import('../assets/js/views/notification-editors.js');
+// The page itself is the v2 one now; these tests drive it rather than the editor module, which holds
+// only the dialog.
+const { render } = await import('../assets/js/views/notifications.js');
 
 // The Go registry must ship the same set; internal/notify/adapters_test.go pins the
 // other end. Drift here means the UI offers a channel the server cannot deliver.
@@ -117,8 +120,8 @@ async function drawWith(channel) {
 test('a channel with no events ticked is described as receiving everything', async () => {
   const text = await drawWith({ id: 1, label: '4-hour digest', type: 'ntfy', enabled: true, events: '' });
 
-  assert.match(text, /Everything/, `the card should say what the channel receives: ${text}`);
-  assert.doesNotMatch(text, /No events subscribed/,
+  assert.match(text, /Every event/, `the card should say what the channel receives: ${text}`);
+  assert.doesNotMatch(text, /No events, /,
     `an empty subscription is not nothing: ${text}`);
   assert.match(text, /digest/, `the digest should be named, since that is what an empty list reaches: ${text}`);
 });
@@ -182,7 +185,8 @@ test('a scoped channel names the groups it is about', async () => {
     scope_groups: JSON.stringify(['tank', 'parity']),
   });
 
-  assert.match(text, /Only drives tagged/);
+  // The v2 page states scope in a chip column rather than in a sentence; the groups still have to
+  // be named, and the "every group" chip still has to be absent.
   assert.match(text, /tank/);
   assert.match(text, /parity/);
   assert.doesNotMatch(text, /Every group/, `a scoped channel is not every group: ${text}`);
@@ -203,7 +207,7 @@ test('the editor offers the fleet groups and saves the ticked ones', async () =>
   const container = new StubNode('div');
   await render(container, { refresh() {} });
 
-  const edit = container.find((n) => n.getAttribute('title') === 'Edit');
+  const edit = container.find((n) => (n.textContent || '').trim() === 'Edit');
   assert.ok(edit, 'the card should offer an Edit button');
   edit.click();
 
@@ -240,7 +244,7 @@ test('an existing scope is shown as ticked', async () => {
 
   const container = new StubNode('div');
   await render(container, { refresh() {} });
-  container.find((n) => n.getAttribute('title') === 'Edit').click();
+  container.find((n) => (n.textContent || '').trim() === 'Edit').click();
 
   const groups = lastDialog().querySelectorAll('input').filter((box) => box.dataset.group);
   assert.deepEqual(
@@ -260,7 +264,7 @@ test('a stored scope matches a group whatever the case', async () => {
 
   const container = new StubNode('div');
   await render(container, { refresh() {} });
-  container.find((n) => n.getAttribute('title') === 'Edit').click();
+  container.find((n) => (n.textContent || '').trim() === 'Edit').click();
 
   const groups = lastDialog().querySelectorAll('input').filter((box) => box.dataset.group);
   assert.deepEqual(groups.filter((box) => box.checked).map((box) => box.dataset.group), ['tank']);
@@ -274,7 +278,7 @@ test('with no groups at all the editor explains how to get some', async () => {
 
   const container = new StubNode('div');
   await render(container, { refresh() {} });
-  container.find((n) => n.getAttribute('title') === 'Edit').click();
+  container.find((n) => (n.textContent || '').trim() === 'Edit').click();
 
   const dialog = lastDialog();
   assert.equal(dialog.querySelectorAll('input').filter((box) => box.dataset.group).length, 0,

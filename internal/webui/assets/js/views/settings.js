@@ -607,12 +607,12 @@ function draw(container, ctx, data, page, { carried = {}, unit: unitOverride } =
       el('h2', { text: 'Health thresholds' }),
       el('div', { class: 'settings-rows' }, [
         ...thresholdRows,
+        // Read by the browser rather than by the scan, so it is not covered by the note below, but
+        // it is a slider, and this is the list of sliders.
+        ...storageRows,
         settingRow('Caution on any sector problem',
           'Flag a drive as soon as a single reallocated, pending or uncorrectable sector appears.',
           warn),
-        // Read by the browser rather than by the scan, so it is not covered by the note below, but
-        // it is a threshold, and this is the list of thresholds.
-        ...storageRows,
         // The one place on this page where "applied immediately" is not true, and the reason a lowered
         // threshold looks like it did nothing: a verdict is worked out when a drive is *read*, and that
         // reading is what the page shows. Changing a threshold changes nothing until the next one, so

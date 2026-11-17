@@ -564,15 +564,6 @@ export function visibleDevices(all, opts = {}) {
   return sortBy(shown, sortKey, ascending);
 }
 
-export async function render(container, ctx) {
-  mount(container, skeletonCards(3));
-  try {
-    draw(container, ctx, await api.devices());
-  } catch (err) {
-    mount(container, errorBox(`Could not load devices: ${err.message}`));
-  }
-}
-
 function draw(container, ctx, data) {
   const all = (data.devices || []).filter((d) => !d.hidden);
   // A drive that has been unplugged is kept (its notes and history matter) but

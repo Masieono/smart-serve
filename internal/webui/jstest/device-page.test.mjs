@@ -15,7 +15,8 @@ import assert from 'node:assert/strict';
 import { installStubDom, StubNode } from './stub-dom.mjs';
 
 installStubDom();
-const { render, setDisplayOptions, startFreshness, resetFreshness } = await import('../assets/js/views/device-parts.js');
+const { render } = await import('../assets/js/views/device.js');
+const { setDisplayOptions, startFreshness, resetFreshness } = await import('../assets/js/views/device-parts.js');
 const { el } = await import('../assets/js/dom.js');
 
 /** Every string in a subtree, in document order. */
@@ -273,10 +274,12 @@ test('the storage figure and the partition table reach the page', async () => {
   const text = textOf(container);
 
   assert.doesNotMatch(text, /\[object /, 'a DOM node was stringified into the page');
-  assert.match(text, /Storage used/, 'the Storage row is missing');
-  assert.match(text, /47% \(\/mnt\/media\)/, 'the Storage row does not name its figure and its filesystem');
+  // The v2 page states the figure as "47% used" above the partition map rather than in a labelled
+  // stat row, and "used" is what separates it from the partition table's bare percentages.
+  assert.match(text, /\d+% used/, 'the storage figure is missing');
+  assert.match(text, /on \/mnt\/media/, 'the storage figure does not name its filesystem');
 
-  assert.match(text, /Partitions/, 'the partition card is missing');
+  assert.match(text, /Disk space/, 'the disk section is missing');
   assert.match(text, /EFI System/, 'the partition type is missing');
 });
 
