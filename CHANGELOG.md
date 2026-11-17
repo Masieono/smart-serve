@@ -13,17 +13,6 @@ walked on every scan for two strings; the score breakdown was computed on every 
 the list of what is deliberately *not* captured, each with its reason — discarding is allowed,
 discarding silently is not. See `ADR-028`.
 
-### Fixed
-
-- **A scheduler wake-up no longer fires a schedule early.** `sleepUntil` returns for either the
-  deadline or a wake, and the loop treated both as "it is time": creating, editing or deleting a
-  schedule nudged the loop, which then ran whichever schedule happened to be selected at that moment.
-  Creating a weekly self-test schedule could start a multi-hour pass on the spot, and creating a
-  second schedule could leave the first firing repeatedly while the new one sat unarmed until a
-  restart. The loop now re-reads the schedule list after a wake and only fires a boundary that has
-  actually arrived; "run now" still fires immediately, because it moves the boundary to the present
-  rather than relying on the nudge.
-
 ### Security
 
 - **A 500 no longer quotes the database.** Every failed request used to answer `err.Error()` verbatim,
@@ -56,6 +45,14 @@ discarding silently is not. See `ADR-028`.
 
 ### Fixed
 
+- **A scheduler wake-up no longer fires a schedule early.** `sleepUntil` returns for either the
+  deadline or a wake, and the loop treated both as "it is time": creating, editing or deleting a
+  schedule nudged the loop, which then ran whichever schedule happened to be selected at that moment.
+  Creating a weekly self-test schedule could start a multi-hour pass on the spot, and creating a
+  second schedule could leave the first firing repeatedly while the new one sat unarmed until a
+  restart. The loop now re-reads the schedule list after a wake and only fires a boundary that has
+  actually arrived; "run now" still fires immediately, because it moves the boundary to the present
+  rather than relying on the nudge.
 - **The device page's freshness re-read was off on every install older than the setting.** A database
   created before `device_refresh_minutes` existed has no row for it, and the client read an absent value
   as "never re-read" — while the settings editor displayed its own default of 15 beside a switch that did
