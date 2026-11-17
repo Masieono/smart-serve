@@ -52,7 +52,7 @@ authentication (`SCOPE.md` §Explicit non-goals). Those are decisions, not backl
 | A21 | Drive knowledge base (rated TBW, known firmware advisories) | P3 | 💤 | **done** — a bundled table, an opt-in refresh from a URL, and your own entries. Rated endurance on the device page, advisories only when the firmware matches, and every figure carries its source. Never fetched on a schedule. See below |
 | A22 | Usable support for drives with no S.M.A.R.T. (USB flash drives, card readers) | P2 | 💤 | **done** — see below |
 | A23 | Fleet-wide export (every drive in one CSV or page) | P2 | 💤 | **done** — one row per drive, as a CSV or a printable page. A missing reading is an empty cell, never a zero. See below |
-| A24 | "Replace first" ranking (verdict + direction + remaining life, ordered, with reasons) | P2 | 💤 | **done** — a "Replace first" card, using bands rather than a weighted score so the reasons can be shown. See below |
+| A24 | "Replace first" ranking (verdict + direction + remaining life, ordered, with reasons) | P2 | 💤 | **done, partly retired** — the ranking is built and orders the digest; the card above the fleet is retired, because the fleet table already sorts worst-first with the score on every row. See below |
 | A25 | Correlated-change detection (N drives in a group moving together → one alert about the enclosure) | P3 | 💤 | **done** — temperature only, because that is what an enclosure shares. Two settings, an opt-in notification, and wording that claims a correlation rather than a cause. See below |
 | A26 | Projection window follows retention (or becomes a setting) | P2 | 💤 | **done** — the projection, the worsening flag and the trend adjustment all use the `retention_days` setting. See below |
 | A27 | Warranty / RMA evidence pack (the exported report says what it is for) | P2 | 💤 | **done** — every format says what it is for, and names the evidence: the attributes failing the drive's *own* threshold, and the counters the app reads. The saying is at the **foot** of the file, so the drive's own data leads |
@@ -569,10 +569,11 @@ of the problem; each item below carries the reason it exists.
   problems in 30 days", "94% of its rated write endurance used". A reader can disagree with
   a band and act on it; they cannot do either with an unexplained 63.4. A disconnected drive
   is deliberately left out: it is a finding of its own, and ranking it would put a backup
-  drive someone unplugged on purpose above a drive that is actually failing. The card can be **turned
-  off** (`show_replace_first`, on the Appearance page): it sits above the fleet, so it is the first
-  thing on the page whether or not the reader wants it today. The ranking is computed and sent either
-  way — this hides a card, not a feature.
+  drive someone unplugged on purpose above a drive that is actually failing. The card that showed this ranking above the fleet is
+  retired: it cost the top third of the page to repeat the three rows the reader was about to look at,
+  and the fleet table now sorts worst-first with the score in every health cell, so "which one first"
+  is answered by the first row. The ranking itself is not retired: the digest orders its drives by it
+  and the API still serves it. See `ADR-032`.
 - **Bench work is the second use case** (`D11`). Testing a batch of drives you do not want
   in your permanent fleet: label them, test them, export the reports, forget them. **Built**,
   and the design is that **the tag *is* the session** — no mode, no new column, no new

@@ -1370,3 +1370,10 @@ do: every page is the new design, so `?ui=`, the `ui` cookie, the `data-ui` attr
 and the conditional `fleet.css` link are all gone. The consequences listed above are discharged with
 them. What stays true is the part that was never about the mechanism: the fleet is a table, the
 verdict and the score share a cell, and a row that needs a second look marks its own edge.
+
+**The "Replace first" card went with the dashboard.** It was the top third of the old page: a banded
+shortlist repeating the three drives the reader was about to look at. Against a table that sorts
+worst-first and puts the score in the health cell, it answered a question the first row already
+answers, so the card, the `show_replace_first` setting and the component are gone. The ranking itself
+stays, because the digest uses it to order its drives and that is a place where ordering is the whole
+point of the document.

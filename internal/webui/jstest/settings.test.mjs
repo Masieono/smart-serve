@@ -343,7 +343,6 @@ test('the save payloads together carry every control the pages render', async ()
     'theme_surface_tint',
     'show_partitions',
     'show_usage',
-    'show_replace_first',
     'public_url',
     'prometheus_enabled',
     'knowledge_url',

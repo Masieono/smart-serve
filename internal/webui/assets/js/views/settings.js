@@ -200,7 +200,6 @@ const DEFAULTS = {
   theme_base: 'dark',
   theme_accent: '#3b82f6',
   theme_surface_tint: 'neutral',
-  show_replace_first: 'true',
 };
 
 /**
@@ -296,11 +295,6 @@ function draw(container, ctx, data, page, { carried = {}, unit: unitOverride } =
   });
   const showUsage = el('input', {
     type: 'checkbox', checked: settings.show_usage !== 'false',
-  });
-  // A24. On by default, and the only one of these three that gates the *dashboard*: the shortlist sits
-  // above the grid, so it is the first thing on the page whether or not the reader wants it today.
-  const showReplaceFirst = el('input', {
-    type: 'checkbox', checked: settings.show_replace_first !== 'false',
   });
 
   // Where the knowledge base refreshes from (`FEATURES.md` A21). Empty means the documented default,
@@ -484,7 +478,7 @@ function draw(container, ctx, data, page, { carried = {}, unit: unitOverride } =
           temperature_unit: unit.value,
           show_partitions: showPartitions.checked ? 'true' : 'false',
           show_usage: showUsage.checked ? 'true' : 'false',
-          show_replace_first: showReplaceFirst.checked ? 'true' : 'false', ...currentTheme(), ...numbers(DISPLAY_SPECS),
+          ...currentTheme(), ...numbers(DISPLAY_SPECS),
         };
       default:
         // The Data page renders two controls: the knowledge URL and the metrics toggle. Both are
@@ -698,10 +692,6 @@ function draw(container, ctx, data, page, { carried = {}, unit: unitOverride } =
             'Show how full each filesystem is. Needs the host’s mount roots bind-mounted read-only, ' +
             'for example `- /mnt:/mnt:ro`, or there is nothing to measure.',
             showUsage),
-          settingRow('Replace first on the dashboard',
-            'The shortlist above the fleet, ordered by how strongly each drive argues for replacement. ' +
-            'Turn it off to go straight to the drives.',
-            showReplaceFirst),
         ]),
       ]),
     ];

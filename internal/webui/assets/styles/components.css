@@ -513,16 +513,6 @@ a:hover {
   box-shadow: var(--shadow-1);
 }
 
-.card-grid {
-  display: grid;
-  /* auto-fit rather than auto-fill: auto-fill reserves the empty tracks, so four
-     drives on a wide screen would occupy the first four of seven columns and leave
-     a third of the row blank. auto-fit collapses the unused tracks, so cards fill
-     the row and only wrap when they genuinely run out of room. */
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
-  gap: var(--space-4);
-}
-
 /* The device page's card layout: full-width cards, then two independent columns of cards.
 
    Columns rather than a grid of rows, and that is the whole point. A grid row is as tall as
@@ -1095,93 +1085,6 @@ tr.is-hover > td:first-child {
   opacity: 0.12;
 }
 
-/* One date axis for the whole trend card (`ADR-023`). Shared rather than repeated under each
-   sparkline: four charts in one window need one axis, and four would be noise. `space-between`
-   puts the marks at the two ends and the middle, which is what makes the span readable without
-   hovering anything. */
-/* The two ends of the controls row: how the list is shown, then what can be done with it. The rule
-   is what separates them, an export is a file to keep, and sitting beside the view switch it read
-   as one more way to look at the page. */
-.view-switch {
-  display: flex;
-}
-
-/* Joined rather than spaced, because the pair means "one of these two" and the shared edge is what
-   says so. The pressed half is already styled globally from `aria-pressed`. */
-.view-switch .btn + .btn {
-  margin-left: -1px;
-  border-top-left-radius: 0;
-  border-bottom-left-radius: 0;
-}
-
-.view-switch .btn:first-child {
-  border-top-right-radius: 0;
-  border-bottom-right-radius: 0;
-}
-
-/* A pressed segment has to win the shared edge, or the neighbour's border paints over it. */
-.view-switch .btn[aria-pressed="true"] {
-  position: relative;
-  z-index: 1;
-}
-
-.controls-divider {
-  align-self: stretch;
-  width: 1px;
-  min-height: 1.6em;
-  margin: 0 var(--space-2);
-  background: var(--border);
-}
-
-/* A labelled control: the word that names the decision, then the controls that make it. The label
-   is what ties a dropdown to the button beside it, without one, a direction arrow reads as
-   decoration rather than as the other half of the sort. */
-.control-group {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-}
-
-.control-label {
-  font-size: var(--text-xs);
-  font-weight: 600;
-  color: var(--muted);
-  white-space: nowrap;
-}
-
-/* The bench card's explainer shares the title's baseline rather than being centred against it. At
-   two different text sizes, centring leaves the smaller text floating above the line the eye is
-   following, which reads as a mistake. */
-.bench-session .row {
-  align-items: baseline;
-}
-
-/* The drives in a testing session, inline. Every drive is still named, the session *is* the batch
-  , but as chips rather than as one row each. */
-.bench-chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-}
-
-/* A chip that does something. The `.chip` shape is shared with the read-only ones, so the font is
-   set explicitly rather than inherited: `font: inherit` on a button would take the card's size and
-   the chip beside it would be a different size. A clickable one gets a border and a little more
-   room, because a 2px-tall tap target is not a tap target. */
-.chip-link {
-  cursor: pointer;
-  font-family: inherit;
-  font-size: var(--text-xs);
-  padding: var(--space-1) var(--space-2);
-  border: 1px solid var(--border);
-  color: var(--text);
-}
-
-.chip-link:hover {
-  border-color: var(--accent);
-  color: var(--accent);
-}
-
 /* The raw smartctl document (`FEATURES.md` A10). A head row because the output is what people paste
    into a bug report or a forum thread, and a Copy button is the difference between that being easy
    and being a drag-select across a scrolling box. */
@@ -1416,72 +1319,7 @@ tr.is-hover > td:first-child {
 /* --- devices header --------------------------------------------------------- */
 
 /* The page identity, the health filter and the search box share one card. The
-   counts used to occupy an entire row of four bordered boxes; as an inline list
-   they sit beside the title they describe, using space that was already empty. */
-.devices-head {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-}
-
-.devices-head-row {
-  display: flex;
-  align-items: center;
-  gap: var(--space-4);
-  flex-wrap: wrap;
-}
-
-.devices-head-row h1 {
-  margin: 0;
-  font-size: var(--text-xl);
-}
-
-.devices-head-sub {
-  font-size: var(--text-xs);
-}
-
-.devices-search {
-  max-width: 280px;
-  flex: 1 1 200px;
-}
-
-/* The replacement ranking (`FEATURES.md` A24). A numbered list because it is a ranking, and the
-   order is the answer to the question it exists for. */
-.replace-list {
-  margin: 0;
-  padding-left: var(--space-5);
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-}
-
-.replace-reasons {
-  font-size: var(--text-xs);
-  max-width: 80ch;
-}
-
-/* The testing session (`FEATURES.md` D11). A plain list rather than a grid: the batch is a checklist
-   of drives to get through, and each drive's verdict is already on its card below. */
-.bench-list {
-  margin: 0;
-  padding-left: var(--space-5);
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-  font-size: var(--text-sm);
-}
-
-.bench-list li {
-  display: flex;
-  align-items: baseline;
-  gap: var(--space-2);
-  flex-wrap: wrap;
-}
-
-.bench-actions {
-  gap: var(--space-2);
-  flex-wrap: wrap;
-}
+   counts used to occupy an entire row of four bordered boxes;
 
 /* An acknowledged condition (`FEATURES.md` B7). Deliberately quiet rather than alarming: it records a
    decision the user already made, and a notice that shouted would be the noise the feature removes. */
@@ -1510,33 +1348,6 @@ tr.is-hover > td:first-child {
   max-width: 320px;
 }
 
-/* The enclosure heat card (`FEATURES.md` A25). One block per group, because the finding is about the
-   group and two enclosures heating at once are two findings. */
-.heat-group {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-}
-
-.heat-group + .heat-group {
-  border-top: 1px solid var(--border);
-  padding-top: var(--space-3);
-}
-
-.heat-reasons {
-  font-size: var(--text-xs);
-  max-width: 80ch;
-}
-
-/* The serials, as links. Wrapped rather than one per line: a 24-drive chassis is one finding, and a
-   list of 24 rows would read as 24 findings again. */
-.heat-drives {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-1) var(--space-3);
-  font-size: var(--text-xs);
-}
-
 /* A button that reads as a link: it navigates rather than acting, but it has to be a button so
    the keyboard can reach it. */
 .link {
@@ -1551,29 +1362,6 @@ tr.is-hover > td:first-child {
 
 .link:hover {
   text-decoration: underline;
-}
-
-/* The dashboard's sort and filter row. It sits below the identity row because it is about the
-   list rather than about the page, and it is only drawn when there is more than one drive to
-   order. */
-.devices-controls {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  flex-wrap: wrap;
-}
-
-/* A select in a control row sizes to its content. The global rule is `width: 100%`, which is
-   right for a form field in a column and wrong for a toolbar, it would push every control onto
-   a line of its own.
-   `min-height` matches `.btn-sm` deliberately: without it the dropdowns sat a few pixels shorter
-   than the buttons beside them, which is small enough to read as a mistake rather than as a
-   difference. */
-.devices-controls select {
-  width: auto;
-  min-height: 30px;
-  padding: var(--space-1) var(--space-2);
-  font-size: var(--text-xs);
 }
 
 .health-list {
@@ -1897,13 +1685,6 @@ input[type="checkbox"] {
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--muted);
-}
-
-/* The last self-test result, under the buttons rather than in the log table above: "did the test I
-   ran pass?" is asked here, and the answer should be where the question was asked. */
-.selftest-last {
-  gap: var(--space-2);
-  font-size: var(--text-sm);
 }
 
 .projection-confidence {
@@ -2249,12 +2030,6 @@ tr.attr-flagged > td {
   max-width: 70ch;
 }
 
-/* The fleet table (`FEATURES.md` D8). It *replaces* the card grid rather than sitting inside it:
-   a table in a grid cell is laid out as a single column and loses the columns it exists for. */
-.fleet-holder {
-  min-width: 0;
-}
-
 .fleet-wrap {
   overflow-x: auto;
 }
@@ -2282,26 +2057,6 @@ tr.attr-flagged > td {
    visibly set aside, the same way its card is. */
 .fleet-row-missing {
   opacity: 0.6;
-}
-
-/* Grouped cards (`FEATURES.md` D9). Each group gets its own grid rather than one grid with
-   spanning headings: a spanning heading inside an auto-fit grid occupies a track and influences
-   the column sizing, which is not what a heading is for. */
-.grouped-holder {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-5);
-}
-
-.group-head {
-  display: flex;
-  align-items: baseline;
-  gap: var(--space-2);
-}
-
-.group-head h2 {
-  margin: 0;
-  font-size: var(--text-lg);
 }
 
 /* A group separator inside the fleet table. It spans every column, so the header above stays the

@@ -3,7 +3,6 @@ import { el, mount, clear, holdHeight, scrollToTop, setTemperatureUnit as applyT
 import { icon } from './icons.js';
 import { api, appPath } from './api.js';
 import { toast, confirmDialog } from './components.js';
-import * as replaceShortlist from './views/replace-shortlist.js';
 import * as device from './views/device.js';
 import * as fleet from './views/fleet.js';
 import * as schedules from './views/schedules.js';
@@ -67,9 +66,6 @@ const ctx = {
   setTemperatureUnit: applyTemperatureUnit,
   setDisplayOptions(options) {
     setDisplayOptions(options);
-    // The dashboard's own display preference, pushed from here rather than by each caller, so the boot
-    // path and the settings-save path cannot disagree about it.
-    replaceShortlist.setReplaceFirst(options && options.show_replace_first);
   },
   async scan() {
     if (scanning) return;
@@ -309,9 +305,6 @@ async function loadDisplayPreferences() {
     const data = await api.settings();
     const stored = (data && data.settings) || {};
     applyTemperatureUnit(stored.temperature_unit);
-    // Same reason as the temperature unit, and the same place: a list that flashed cards and then
-    // became a table would be worse than either one on its own.
-    replaceShortlist.setView(stored.dashboard_view);
     // And again: a card that polls should start at the interval the user chose, not at the default
     // and then change under them.
     setSelfTestRefresh(stored.selftest_poll_seconds);
