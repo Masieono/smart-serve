@@ -1754,3 +1754,26 @@ dialog .btn-primary {
   font-weight: 600;
   letter-spacing: -0.01em;
 }
+
+/* Search sits between the title and the scan button: title left, the two narrow controls right. */
+.fleet-head .fleet-search {
+  margin-left: auto;
+  /* The shared `input[type="search"]` rule sets width:100%; an attribute selector outranks a single
+     class, so this has to be scoped to win. */
+  width: 240px;
+  height: 32px;
+  padding: 0 var(--space-3);
+  font-size: var(--text-sm);
+  background: color-mix(in srgb, var(--bg) 70%, transparent);
+}
+
+@media (max-width: 760px) {
+  .fleet-head .fleet-search {
+    width: 100%;
+    order: 3;
+    margin-left: 0;
+  }
+  .fleet-head {
+    flex-wrap: wrap;
+  }
+}

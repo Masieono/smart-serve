@@ -21,12 +21,14 @@ const STATE_WORD = {
 let lastPayload = null;
 let lastCtx = null;
 let filter = null;
+let query = '';
 
 /** Reset the view's memory. Called when the app mounts, so a reload starts clean. */
 export function reset() {
   lastPayload = null;
   lastCtx = null;
   filter = null;
+  query = '';
 }
 
 export async function render(content, ctx) {
@@ -56,6 +58,7 @@ function draw(content, ctx, payload) {
   append(content, [
     el('div', { class: 'fleet-head' }, [
       el('h1', { text: 'Fleet' }),
+      searchBox(),
       el('button', {
         class: 'fleet-scan',
         type: 'button',
@@ -135,7 +138,44 @@ function stateOf(d) {
 }
 
 function matchesFilter(d) {
-  return filter === null || stateOf(d) === filter;
+  if (filter !== null && stateOf(d) !== filter) return false;
+  if (!query) return true;
+  const haystack = [d.name, d.bay, d.serial, d.model, d.tags, d.fs_type, d.mountpoints]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase();
+  return haystack.includes(query.toLowerCase());
+}
+
+/**
+ * Search across name, bay, serial, model, tags and mountpoint.
+ *
+ * The bay matters more than it looks: hunting a drive by where it physically is is the whole reason
+ * the app records one. The `/` shortcut in `app.js` focuses this box by id, so the id is part of the
+ * contract between the two.
+ */
+function searchBox() {
+  const box = el('input', {
+    id: 'device-search',
+    type: 'search',
+    class: 'fleet-search',
+    placeholder: 'Search name, bay, serial, tag',
+    'aria-label': 'Search drives',
+    value: query,
+  });
+  box.addEventListener('input', (event) => {
+    query = event.target.value;
+    const caret = event.target.selectionStart;
+    // Redraw the page and put the caret back: a filter change must not cost the reader their place
+    // in the box they are typing into.
+    draw(document.getElementById('content'), lastCtx, lastPayload);
+    const again = document.getElementById('device-search');
+    if (again) {
+      again.focus();
+      if (caret !== null) again.setSelectionRange(caret, caret);
+    }
+  });
+  return box;
 }
 
 function sortForReading(devices) {
@@ -164,7 +204,7 @@ function emptyState(total) {
     el('div', {
       text: total === 0
         ? 'No drives yet, press Scan to look for them.'
-        : 'No drives match that filter.',
+        : 'No drives match.',
     }),
   ]);
 }

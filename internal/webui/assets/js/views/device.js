@@ -10,7 +10,7 @@ import {
 } from '../dom.js';
 import { api, appPath } from '../api.js';
 import {
-  attributeTable, sparkline, dateAxis, helpButton, diskMap, partitionTable,
+  attributeTable, sparkline, dateAxis, helpButton, diskMap, partitionTable, noPartitionsNote,
 } from '../components.js';
 import { nvmeHelp } from '../attributes.js';
 import {
@@ -186,11 +186,14 @@ function facts(d, snapshot) {
 function diskSection(d) {
   const parts = (d.disk_layout && d.disk_layout.partitions) || [];
   const children = [];
+  // The settings toggle has to gate the thing it names, or it is a switch that writes a value and
+  // changes nothing (`FEATURES.md` A28).
+  const wantPartitions = currentDisplayOptions().showPartitions !== false;
 
-  const usage = usageLine(d.storage, parts.length === 0);
+  const usage = usageLine(d.storage, parts.length === 0 || !wantPartitions);
   if (usage) children.push(usage);
 
-  if (parts.length) {
+  if (parts.length && wantPartitions) {
     // The table and the map mark each other. `diskLayoutCard` wires this; here the two are laid out
     // by hand so the layout can differ, and the behaviour has to come with them (`docs/UI.md` §6).
     let map = null;
@@ -207,7 +210,9 @@ function diskSection(d) {
     if (map) children.push(el('div', { class: 'v2-disk-map' }, [map]));
     if (table) children.push(el('div', { class: 'v2-disk-table' }, [table]));
   } else if (d.disk_layout && !parts.length) {
-    children.push(el('div', { class: 'fleet-note', text: 'This drive has no partition table, it holds no filesystems, or nothing readable from inside the container.' }));
+    // The component knows the difference between an unpartitioned drive, a RAID/LVM member and a
+    // filesystem mounted straight onto a disk, which is the whole reason it exists.
+    children.push(el('div', { class: 'fleet-note', text: noPartitionsNote(d.disk_layout) }));
   }
 
   if (!children.length) return null;

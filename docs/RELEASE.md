@@ -94,13 +94,13 @@ migrations (`0015`–`0017`); no schema rewrite, so the v1.1.0 rollback note sti
 - **RAID / LVM / ZFS member naming is built and unit-tested but never exercised on real hardware.** The
   no-partition-table path names a disk by its `blkid` signature — `linux_raid_member`, and so on — and
   the fixtures prove the naming, but nothing has pulled a disk from an array and opened its page
-  (`TESTING.md` 4.73, `FEATURES.md` A28). This is the weakest claim in the release.
-- **arm64 idle-memory acceptance is not measurable on that host as configured**, and that is a host
-  limitation rather than an app one: the container's cgroup exposes no `memory.*` files, and
-  `docker stats` reports `0B / 0B` for the same reason. CPU is confirmed near zero (about 0.02% over an
-  idle minute, with the scan count unchanged). On the amd64 host, where the controller *is* exposed, the
-  same build measures **18.9 MiB** idle — inside the 20 MB budget. The Pi's process `VmRSS` (21.25 MiB)
-  is *not* that metric and should not be read as a failure; `TESTING.md` Pass 8 has the host fix.
+  (listed under "Not covered here" in `TESTING.md`, `FEATURES.md` A28). This is the weakest claim in the release.
+- **arm64 idle budget: measured, 2026-11-18.** Ten minutes of samples with nothing else running give
+  **19.5 MiB** both as RSS and as PSS, 11 file descriptors and 11 threads flat, and 0.023% CPU. The
+  cgroup cannot account memory on that host (no memory controller; `docker stats` reads `0B / 0B`),
+  so the criterion is stated against **PSS**, which is the better figure anyway: it does not
+  double-count shared pages. The amd64 host reads 18.9 MiB by the cgroup and agrees. `TESTING.md`
+  8.5 carries the samples.
   The two defects this host found are fixed and **retested on 2026-11-11**, on both architectures.
 - **The image size was last measured at v1.0.0** (14.8 MB content / 53.5 MB on disk, 2026-10-17). This
   release changes no base image and adds no runtime dependency, so those figures should still hold —
