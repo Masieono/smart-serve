@@ -385,6 +385,11 @@ func TestRunNowFiresImmediately(t *testing.T) {
 	defer cancel()
 	go s.Run(ctx)
 
+	// Let the loop get past start-up reconciliation first. With a fixed clock that sits *at* the
+	// boundary, reconciliation sees a "missed" run and reschedules it; nudging before then would be
+	// testing that race rather than "run now".
+	time.Sleep(50 * time.Millisecond)
+
 	if err := s.RunNow(context.Background(), id); err != nil {
 		t.Fatalf("RunNow: %v", err)
 	}
@@ -458,3 +463,55 @@ func TestRunSleepsWithoutSchedulesAndStopsOnCancel(t *testing.T) {
 		t.Fatal("Run did not stop on cancellation")
 	}
 }
+
+// A wake-up is not a trigger.
+//
+// sleepUntil returns for either a wake-up or the deadline, and the loop used to fire whichever
+// schedule was selected at the moment it woke — so creating a second schedule ran the first one
+// immediately, no matter when it was actually due. For a monitoring tool that means a scan nobody
+// asked for, waking parked disks; for a self-test schedule it means a multi-hour pass starting on
+// its own.
+func TestAWakeUpDoesNotFireAScheduleEarly(t *testing.T) {
+	st := newTestStore(t)
+	id := mustCreateInterval(t, st, 3600, true)
+	if err := st.SetScheduleNextRun(context.Background(), id, time.Now().Add(time.Hour)); err != nil {
+		t.Fatalf("SetScheduleNextRun: %v", err)
+	}
+
+	runner := newFakeRunner()
+	s := New(st, runner, events.NewHub(), Options{Logger: discardLogger()})
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go s.Run(ctx)
+
+	// Let the loop reach its sleep, then nudge it the way a create or an edit does.
+	time.Sleep(50 * time.Millisecond)
+	second, err := st.CreateSchedule(context.Background(), store.Schedule{
+		Enabled: true, Kind: "interval", EverySeconds: ptrInt64(86400), Label: "second",
+	})
+	if err != nil {
+		t.Fatalf("CreateSchedule: %v", err)
+	}
+	s.Wake()
+
+	select {
+	case <-runner.started:
+		t.Fatal("a wake-up fired a schedule that was still an hour away")
+	case <-time.After(250 * time.Millisecond):
+	}
+
+	// The same nudge must leave the new schedule armed, not merely unpaused.
+	for deadline := time.Now().Add(2 * time.Second); time.Now().Before(deadline); {
+		got, gerr := st.GetSchedule(context.Background(), second)
+		if gerr != nil {
+			t.Fatalf("GetSchedule: %v", gerr)
+		}
+		if got != nil && got.NextRun != nil {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatal("the newly created schedule was never given a next run")
+}
+
+func ptrInt64(v int64) *int64 { return &v }

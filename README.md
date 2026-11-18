@@ -46,10 +46,6 @@ database daemon.
 
 ## Screenshots
 
-**A device page** — verdict, score, identity, usage, and the trend sparklines.
-
-![The device page for a drive](docs/images/device-page.png)
-
 **Partitions** — a map of the disk above the table of what is on it. The two are linked **both ways**:
 point at a segment and the row it stands for is marked; point at a row and the segment is.
 
@@ -87,9 +83,9 @@ docker run -d \
 > fail identically, which is why they are listed together — see
 > [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) for least-privilege options and USB specifics.
 
-> **Smart-Serve ships no authentication, by design** (`ADR-016`). It expects a reverse
-> proxy to provide it. Publishing port 8080 as above is appropriate on a trusted LAN and
-> nowhere else.
+> **Smart-Serve ships no authentication by default** (`ADR-016`). It expects a reverse proxy to
+> provide it, and publishing port 8080 as above is appropriate on a trusted LAN and nowhere else. An
+> optional built-in single-user login is **specified and not yet built** (`ADR-032`).
 
 Then open `http://<host>:8080` and press **Scan**.
 
@@ -134,11 +130,13 @@ container — run them directly; they are identical:
 ```bash
 gofmt -l .                                 # prints anything unformatted; must be empty
 go vet ./...
-go test -count=1 ./...
+go test -race -count=1 ./...
 node --test internal/webui/jstest/*.test.mjs
 ```
 
-You need Go (the version in `go.mod`) and Node 24. Nothing else.
+You need Go (the version in `go.mod`) and Node 24. The `-race` check needs cgo and a C
+compiler as well (`CGO_ENABLED=1`, the default wherever one is installed) — the app itself
+still builds without cgo, and `make test` skips the race detector if you have neither.
 
 | Target | Does |
 |---|---|
@@ -149,7 +147,8 @@ You need Go (the version in `go.mod`) and Node 24. Nothing else.
 
 **These checks are not how you deploy.** Running the app is `docker compose up -d --build`
 or the `docker run` above (`docs/DEPLOYMENT.md`). The checks are for changing the code, and
-they run in CI on every push whether or not you run them yourself.
+they run in CI on every push to `main` and on every pull request, whether or not you run them
+yourself. A push to any other branch runs nothing until it is opened as a pull request.
 
 ## Project status
 

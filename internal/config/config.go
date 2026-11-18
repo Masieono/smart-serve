@@ -4,6 +4,7 @@
 package config
 
 import (
+	"math"
 	"os"
 	"strconv"
 	"strings"
@@ -27,7 +28,7 @@ func Load() Config {
 		Addr:            env("SMARTSERVE_ADDR", ":8080"),
 		DBPath:          env("SMARTSERVE_DB", "/data/smartserve.db"),
 		BasePath:        normalizeBasePath(env("SMARTSERVE_BASE_PATH", "/")),
-		CommandTimeout:  time.Duration(envInt("SMARTSERVE_COMMAND_TIMEOUT", 15)) * time.Second,
+		CommandTimeout:  timeoutFromSeconds(envInt("SMARTSERVE_COMMAND_TIMEOUT", 15)),
 		MissedRunPolicy: env("SMARTSERVE_MISSED_RUN_POLICY", "skip"),
 		LogLevel:        env("SMARTSERVE_LOG_LEVEL", "info"),
 	}
@@ -69,4 +70,19 @@ func normalizeBasePath(p string) string {
 		p = "/" + p
 	}
 	return strings.TrimRight(p, "/")
+}
+
+// timeoutFromSeconds multiplies without wrapping.
+//
+// `time.Duration` is int64 nanoseconds, so a number of seconds above about 9.2e9 overflows the
+// multiplication — and it overflows into a *small* duration, which every caller accepts because it
+// is still positive. `SMARTSERVE_COMMAND_TIMEOUT=18446744074` therefore produced a 0.3-second
+// timeout rather than the default, which is the same class of bug `strconv.Atoi` closed one step
+// earlier and is worse, because a too-short timeout looks like a failing drive.
+func timeoutFromSeconds(n int) time.Duration {
+	const def = 15 * time.Second
+	if n <= 0 || int64(n) > int64(math.MaxInt64)/int64(time.Second) {
+		return def
+	}
+	return time.Duration(n) * time.Second
 }

@@ -253,26 +253,25 @@ func TestSelfTestUsesTheResolvedTimeout(t *testing.T) {
 	}
 }
 
-// TestSelfTestFailureCarriesAReference checks the failure path uses the same 500 shape as the
-// rest of the API rather than handing the store's words to a browser (ADR-031).
-func TestSelfTestFailureCarriesAReference(t *testing.T) {
+// TestSelfTestReadFailureCarriesTheDrivesWords pins the status a failed *read* gets. The read
+// cannot fail at the store — `selfTestTarget` has already answered for a drive that is unknown or
+// unaddressable — so what is left is the drive, and a drive that will not answer is reported the
+// same way its start and abort siblings report it: 502, in smartctl's own words (ADR-031).
+func TestSelfTestReadFailureCarriesTheDrivesWords(t *testing.T) {
 	cmds := &fakeCommands{readFn: func() (smart.Result, error) {
-		return smart.Result{}, errors.New("open /data/smartserve.db: permission denied")
+		return smart.Result{}, errors.New("smartctl timed out after 15s reading /dev/sda")
 	}}
 	srv := selfTestServer(t, cmds, Options{})
 
 	rec := do(t, srv, http.MethodGet, "/api/devices/S1/selftest", "", nil)
-	if rec.Code != http.StatusInternalServerError {
-		t.Fatalf("status = %d, want 500", rec.Code)
+	if rec.Code != http.StatusBadGateway {
+		t.Fatalf("status = %d, want 502 — the read failed at the drive, not in the store", rec.Code)
 	}
 	var body map[string]string
 	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
-	if strings.Contains(body["error"], "smartserve.db") {
-		t.Errorf("body leaks the path: %s", body["error"])
-	}
-	if !strings.Contains(body["error"], "ref") {
-		t.Errorf("body has no reference: %s", body["error"])
+	if !strings.Contains(body["error"], "timed out") {
+		t.Errorf("body = %q, want the drive's own reason", body["error"])
 	}
 }

@@ -58,6 +58,30 @@ discarding silently is not. See `ADR-028`.
 
 ### Fixed
 
+- **A scheduler wake-up no longer fires a schedule early.** `sleepUntil` returns for either the
+  deadline or a wake, and the loop treated both as "it is time": creating, editing or deleting a
+  schedule nudged the loop, which then ran whichever schedule happened to be selected at that moment.
+  Creating a weekly self-test schedule could start a multi-hour pass on the spot, and creating a
+  second schedule could leave the first firing repeatedly while the new one sat unarmed until a
+  restart. The loop now re-reads the schedule list after a wake and only fires a boundary that has
+  actually arrived; "run now" still fires immediately, because it moves the boundary to the present
+  rather than relying on the nudge.
+- **The device page's freshness re-read was off on every install older than the setting.** A database
+  created before `device_refresh_minutes` existed has no row for it, and the client read an absent value
+  as "never re-read" — while the settings editor displayed its own default of 15 beside a switch that did
+  nothing. Absent now means "not written yet" and takes the documented default; an explicit zero, a
+  negative or nonsense still means "never", because re-reading a drive is the one thing here that can
+  wake a parked disk.
+- **The three items the hardening pass left open are closed.** A self-test *read* that fails now
+  answers `502` with the drive's own words, like its start and abort siblings, instead of a `500` with
+  a reference — nothing in that path can fail at the store, so the reference pointed at a log with
+  nothing to say about the reader's drive. The command timeout can no longer wrap: `strconv.Atoi`
+  stopped a value that does not fit an `int`, but the multiplication into a `time.Duration` still
+  wrapped for values that *do*, so `SMARTSERVE_COMMAND_TIMEOUT=18446744074` produced a 0.3-second
+  timeout rather than the default. And `GET /api/devices/{serial}/history` and
+  `PUT /api/devices/{serial}/transport` are now covered — writing the transport test turned up a third
+  thing: the endpoint stored arbitrary text that reaches a `smartctl` argument and outlives the
+  request, so it now requires a value that looks like a device type (`400` otherwise).
 - **A command timeout too large to represent wrapped into a positive one.** `SMARTSERVE_COMMAND_TIMEOUT`
   was read by a hand-rolled digit loop that added digits without checking for overflow, so a 20-digit
   value arrived as `2190664h` instead of falling back to the default — and because every caller checks
@@ -262,25 +286,6 @@ discarding silently is not. See `ADR-028`.
   Notifications page reads it today). The `*_FILE` secret sources (`SCOPE.md` said they were never
   built; `ADR-022` built them, per-channel). And `REQUIREMENTS.md` D6 promising built-in single-user
   auth in Phase 2, which `ADR-016` considered and declined — the app ships no authentication by design.
-
-### Known limitations
-
-Three things the hardening pass — `harden/middleware-shell`, `harden/request-log-and-error-refs`,
-`harden/config-tests`, `harden/selftest-endpoint-tests` — left open, recorded so they are not lost:
-
-- **`GET /api/devices/{serial}/selftest` answers a reference when a *drive* will not answer.** A store
-  error there is deliberately the same 500 shape as the rest of the API, and a test now pins that. But
-  the read's *device* errors — a `smartctl` timeout, a missing tool — take that path too, so a drive
-  that does not answer shows a reference where its start and abort siblings return `smartctl`'s own
-  words with a `502` (`ADR-031`).
-- **A command timeout can still overflow the duration multiplication.** `envInt` rejects a value that
-  does not fit an `int`, but `time.Duration(seconds) * time.Second` still wraps for a value that
-  *does* fit — about 9.2e9 seconds and up — so `SMARTSERVE_COMMAND_TIMEOUT=18446744074` produces a
-  0.3-second timeout rather than the default. The same class of bug the `strconv.Atoi` change closed,
-  one step further along.
-- **`GET /api/devices/{serial}/history` and `PUT /api/devices/{serial}/transport` are still at zero
-  coverage.** The self-test handlers are the ones this release made testable; these two endpoints stay
-  unexercised, and the seam that fixed the self-test ones is the shape to copy.
 
 ## [1.1.0] — 2026-11-02
 

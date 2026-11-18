@@ -84,6 +84,10 @@ migrations (`0015`–`0017`); no schema rewrite, so the v1.1.0 rollback note sti
 
 - **`D7` localization.** Unchanged from v1.1.0: deferred, not dropped, and still waiting on a
   translator who will maintain the result (`ADR-023`, `SCOPE.md`).
+- **Optional single-user auth is specified and not built.** `ADR-033` carries the design, the
+  alternatives, where the middleware sits and eleven acceptance criteria; `FEATURES.md` C5,
+  `SCOPE.md` and `REQUIREMENTS.md` D28 carry the status. Nothing of it ships here, so the app still
+  has no login of its own and the reverse-proxy pattern in `DEPLOYMENT.md` is the whole answer.
 - **Error-log entry *lists* are still not rendered.** Unchanged, and still blocked on the same thing —
   smartctl emits no entry list for an empty log, and no drive available to this project has ever logged
   an error, so the populated shape has never been observed (`FEATURES.md` A20).
@@ -118,7 +122,7 @@ The README's set, cropped to the app viewport and committed to `docs/images/`:
 | File | Shows |
 |---|---|
 | `dashboard.png` | The fleet: verdict badges, scores, the storage bar on each card, the last-scan line, the health summary |
-| `device-page.png` | A drive's top half: verdict, score and grade, identity, temperature, the scan age beside the name |
+| ~~`device-page.png`~~ | **Removed pending a re-shoot.** The only capture that still showed the pre-1.2.0 card grid — it predates the partitions card, the storage figure and the two-column layout, so it documented a page that no longer exists. The replacement is part of the post-1.2.0 screenshot pass. |
 | `partitions.png` | The partition card: the disk map above the table, linked both ways |
 | `attribute-explanation.png` | A `?` explanation open over the attribute table |
 | `selftest-card.png` | The self-test card: the buttons and the drive's own self-test log |

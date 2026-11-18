@@ -19,11 +19,12 @@ so. A blank Notes cell means the entry predates the column, not that the feature
 | `D7` localization | `SCOPE.md`, `ADR-023` | Deferred, not dropped: extracting every string and keeping every locale in step is only worth doing for a translator who will maintain the result |
 | Error-log **entry lists** (`A20`) | §A20 above | The counts and the self-test entries are shown; smartctl emits no list at all for an empty log, and neither drive available here has ever logged an error, so the populated shape has never been captured |
 | arm64 on real hardware | [TESTING.md Pass 8](TESTING.md#pass-8--arm64-raspberry-pi), `SCOPE.md`, `RELEASE.md` | **Partial verification on Pi 5 / DietPi (2026-11-08):** native arm64 execution, startup health, a full container SMART read through USB SAT, and identity/attribute checks confirmed for the tested disk. That session surfaced two defects — the self-test progress bar sticking at a percentage the drive's own log had already moved past, and an SD-card page that re-read itself in a loop — **both fixed and retested on 2026-11-11, on the Pi and on amd64**. The self-test symptom was never ARM-specific. Idle **memory** cannot be read on that host at all — it exposes no memory controller, so `docker stats` reports `0B / 0B` — though CPU is confirmed near zero and the amd64 host measures **18.9 MiB** idle. Overnight stability and broader parity remain open. |
-| Multi-user accounts / roles | `SCOPE.md` Phase 3 | **Conflicts with `D23`** — authentication is delegated to a reverse proxy, so this needs that decision revisited rather than built |
+| Multi-user accounts / roles | `SCOPE.md` Phase 3 | **Conflicts with `D23`** — a reverse proxy is the answer for more than one user, so this needs that decision revisited rather than built |
+| Optional single-user auth (`C5`) | `ADR-033`, `SCOPE.md` | **Specified, not built.** Two environment variables and one constant-time comparison; no accounts, no sessions, no migration. The design, the alternatives, the middleware position and eleven acceptance criteria are in the ADR |
 
 Everything else recorded in these documents is either shipped or an **explicit non-goal** — writing
-to drives, RAID-controller passthrough, udev hot-plug detection, host CPU/RAM metrics, and built-in
-authentication (`SCOPE.md` §Explicit non-goals). Those are decisions, not backlog.
+to drives, RAID-controller passthrough, udev hot-plug detection, host CPU/RAM metrics, and multi-user
+accounts with roles (`SCOPE.md` §Explicit non-goals). Those are decisions, not backlog.
 
 ## A. Core reporting (the S.M.A.R.T. mission)
 
@@ -743,7 +744,7 @@ and all of them still hold.
 | C2 | `/healthz` endpoint for Docker `HEALTHCHECK` | MVP | 💤 | trivial, aids orchestrators |
 | C3 | SQLite single-file storage + retention pruning | MVP | 💤 | |
 | C4 | Reverse-proxy auth documented (nginx/Caddy) | MVP | 💤 | |
-| C5 | ~~Built-in single-user basic auth~~ **Not planned** — auth delegated to a reverse proxy (D23) | — | 💤 | |
+| C5 | Optional single-user basic auth (no user management) | P3 | 💤 | **specified, not built** — `ADR-033`. Two environment variables, one user, off unless both are set. Multi-user accounts and roles stay out of scope (`D23`) |
 | C6 | Prometheus `/metrics` exporter | P3 | ⚠ | **done** — `GET /metrics` in the exposition format, **off by default** (`prometheus_enabled`). Hand-written rather than with the client library: four rules and six metrics do not justify multiplying a one-module dependency tree. See `API.md` |
 | C7 | Import/export config, notes & labels (JSON) | P2 | 💤 | **done** — one JSON bundle of labels, settings and schedules. Channels are deliberately excluded, because their config holds tokens. See below |
 | C8 | Multi-arch image (amd64 / arm64) | MVP | 💤 | home NAS / Raspberry Pi |

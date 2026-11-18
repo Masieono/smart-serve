@@ -202,10 +202,18 @@ part is not the translations but extracting every string and keeping every local
 work is only worth doing for a translator who will maintain the result (`ADR-023`).
 
 
+## Specified, not built
+
+Written down so it can be implemented without re-deciding anything, and deliberately not started:
+
+- **Optional single-user basic auth** (`FEATURES.md` C5, `ADR-033`) — two environment variables, one
+  user, off unless both are set. No accounts, no sessions, no migration. The ADR carries the design,
+  the alternatives, where the middleware sits and eleven acceptance criteria.
+
 ## Phase 3 — backlog (nice-to-have, no commitments)
 
-- Multi-user accounts / roles. **Conflicts with `D23`** (authentication is delegated to a reverse
-  proxy), so this needs that decision revisited rather than simply built.
+- Multi-user accounts / roles. **Conflicts with `D23`** (a reverse proxy is the answer for more than
+  one user), so this needs that decision revisited rather than simply built.
 - Anything not covered by Phase 4, added as it comes up.
 
 ## UI consolidation passes
@@ -226,4 +234,5 @@ character. See `FEATURES.md` §I and `ADR-019`.
   mechanism.
 - Host metrics beyond storage (CPU/RAM monitoring) — scope creep away from the
   S.M.A.R.T. mission.
-- Built-in authentication / user management — delegate to a reverse proxy (D23).
+- **Multi-user accounts, roles and user management** — a reverse proxy is the answer (D23). The
+  single-user case is the exception: optional basic auth is specified in `ADR-033`.
