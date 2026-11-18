@@ -313,24 +313,6 @@
 }
 
 /* The other view, offered rather than hidden: the point of the variant is comparison. */
-.fleet-switch {
-  margin-top: var(--space-6);
-  padding-top: var(--space-3);
-  border-top: 1px solid var(--border);
-  font-size: var(--text-xs);
-  color: var(--muted);
-}
-
-.fleet-switch a {
-  color: var(--muted);
-  text-decoration: none;
-  border-bottom: 1px solid var(--border);
-}
-
-.fleet-switch a:hover {
-  color: var(--text);
-}
-
 @media (max-width: 900px) {
   .content {
     padding: var(--space-4) var(--space-4) var(--space-6);
@@ -1752,4 +1734,23 @@ dialog .btn-primary {
   height: 32px;
   padding: 0 var(--space-4);
   font-size: var(--text-xs);
+}
+
+/* The self-test card is the incumbent's (`FEATURES.md` A19/A20) and keeps its own heading, so only
+   the frame comes off: same rule as the partition map. Its live read, progress and abort stay as
+   they were. */
+.v2-selftest .card.selftest {
+  margin-top: var(--space-6);
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+}
+
+.v2-selftest .card.selftest > h2 {
+  margin: 0 0 var(--space-3);
+  font-size: var(--text-md);
+  font-weight: 600;
+  letter-spacing: -0.01em;
 }

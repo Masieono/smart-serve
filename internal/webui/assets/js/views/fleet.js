@@ -1,6 +1,6 @@
 // The fleet view (v2), a table rather than a wall of cards (`ADR-032`).
 //
-// It reads the same `/api/devices` payload the card view does, so the two cannot disagree about a
+// It reads the same `/api/devices` payload the device page does, so the two cannot disagree about a
 // drive. What differs is the shape: one row per drive, with the state and the score in one column,
 // because a verdict and a number about the same drive are one fact, a separate "healthy" column and
 // a separate ring said it twice and cost a column to do it.
@@ -91,10 +91,6 @@ function draw(content, ctx, payload) {
       ]),
     ]),
 
-    el('div', { class: 'fleet-switch' }, [
-      el('span', { text: 'Comparing views? ' }),
-      el('a', { href: appPath('/?ui=v1'), text: 'Show the card view instead' }),
-    ]),
   ]);
 }
 

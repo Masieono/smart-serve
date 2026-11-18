@@ -16,8 +16,9 @@ import { nvmeHelp } from '../attributes.js';
 import {
   TREND_METRICS, seriesFor, trendWindow, setTrendRange, currentTrendRange, trendFrom,
   currentDisplayOptions, nvmeSections, parsePenalties, startFreshness,
-  highlightPartitionRow, highlightSegment,
+  highlightPartitionRow, highlightSegment, selfTestLogSection,
 } from './device-parts.js';
+import { selfTestCard } from './selftest.js';
 
 const STATE_WORD = {
   good: 'Healthy',
@@ -88,6 +89,7 @@ export async function render(content, ctx, serial, opts = {}) {
     diskSection(d),
     trendSection(serial),
     attributeSection(d, payload),
+    selfTestSection(ctx, d, serial),
     footer(d),
   ].filter(Boolean));
 
@@ -426,6 +428,34 @@ function footer(d) {
         : 'Never scanned',
     }),
   ]);
+}
+
+/**
+ * The only control in the app that writes to a drive (`FEATURES.md` A19), so it sits last, after
+ * everything that only reads.
+ *
+ * It is the incumbent card, not a reimplementation: the card owns the live read while a test runs,
+ * the progress, the abort, and the drive's own log (`A20`). The page passes it the power-on-hours
+ * series so a finished test can be placed on the same clock the trends use; the fetch is kicked off
+ * here rather than threaded through `trendSection` because the card renders its history before the
+ * trends have finished loading.
+ */
+function selfTestSection(ctx, d, serial) {
+  let hours = [];
+  const host = el('div', { class: 'v2-selftest' }, [
+    selfTestCard(ctx, d, d.logs, null, (summary) => selfTestLogSection(summary, hours)),
+  ]);
+
+  api.history(serial, 'all')
+    .then((hist) => {
+      hours = seriesFor('power_on_hours', (hist && hist.series) || []);
+      // Redraw the log once, now that the clock is known: the card's own live reads will use it too.
+      const log = host.querySelector('.selftest-history');
+      if (log && d.logs) mount(log, selfTestLogSection(d.logs, hours));
+    })
+    .catch(() => {});
+
+  return host;
 }
 
 function stateOf(d) {
