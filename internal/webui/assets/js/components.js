@@ -51,7 +51,7 @@ export function healthGauge(score, size = 76) {
 
 /**
  * The SVG path for a series, as an "M…L…" string. Pure, so the geometry can be
- * tested without a DOM — and the geometry is the part with edge cases.
+ * tested without a DOM, and the geometry is the part with edge cases.
  *
  * Returns null for fewer than two readings: a single point is not a trend.
  */
@@ -87,7 +87,7 @@ function extentOf(points) {
  * The x scale for a window, in viewBox units, clamped to the box.
  *
  * One function, used for both the path and the hover marker, so the line and the readout can never
- * disagree about where a reading sits — which they could when the marker was positioned by
+ * disagree about where a reading sits, which they could when the marker was positioned by
  * percentage and the path by index.
  */
 function xScale(bounds) {
@@ -104,7 +104,7 @@ function xScale(bounds) {
  * *is* the window: gaps are gaps, and a short series sits in the corner it belongs in.
  *
  * `window` is the shared span every sparkline in the card is drawn against. Omitted, a series is
- * drawn across its own extent — which is what a standalone caller wants, and what makes this
+ * drawn across its own extent, which is what a standalone caller wants, and what makes this
  * testable without a card around it.
  */
 export function sparkLine(points, height = 40, window = null) {
@@ -130,14 +130,16 @@ export function sparkLine(points, height = 40, window = null) {
 /**
  * Inline SVG sparkline with a hover readout.
  *
- * Deliberately minimal — no axes, no labels — because the point is the shape. Hovering
+ * Deliberately minimal, no axes, no labels, because the point is the shape. Hovering
  * (or arrowing with the keyboard) gives the exact figure for one reading without
  * putting numbers on the line.
  *
  * `points` are `{ts, value}` in time order; `format(value)` renders the readout.
  */
 export function sparkline(points, opts = {}) {
-  const { height = 40, band = null, format = (v) => String(v), window = null } = opts;
+  // `dots` marks every reading. Off by default: on a dense series it is noise, and on a sparse one
+  // it is the difference between "two readings" and "a broken chart".
+  const { height = 40, band = null, format = (v) => String(v), window = null, dots = false } = opts;
   const usable = plottable(points);
   if (usable.length < 2) return null;
 
@@ -145,6 +147,16 @@ export function sparkline(points, opts = {}) {
   const x = xScale(bounds);
   const line = sparkLine(usable, height, bounds);
   const stroke = band ? `spark-${band}` : 'spark';
+
+  const values = usable.map((p) => p.value);
+  const minY = Math.min(...values);
+  const spanY = Math.max(...values) - minY || 1;
+  const yOf = (v) => height - ((v - minY) / spanY) * (height - 6) - 3;
+  const marks = dots
+    ? usable
+      .map((p) => `<circle class="spark-dot" cx="${x(p.at).toFixed(1)}" cy="${yOf(p.value).toFixed(1)}" r="1.7"/>`)
+      .join('')
+    : '';
 
   const marker = el('div', { class: 'spark-marker', hidden: true });
   // Three short lines rather than one long one: a single line wide enough to hold a
@@ -168,6 +180,7 @@ export function sparkline(points, opts = {}) {
         `<path class="spark-area" d="${line} L${x(usable[usable.length - 1].at).toFixed(1)} ${height}` +
           ` L${x(usable[0].at).toFixed(1)} ${height} Z"/>` +
         `<path class="${stroke}" d="${line}" vector-effect="non-scaling-stroke"/>` +
+        marks +
         `</svg>`,
     ),
     marker,
@@ -195,7 +208,7 @@ export function sparkline(points, opts = {}) {
     readout.hidden = true;
   };
 
-  // The pointer maps to a *time*, and the readout is the reading nearest to it — not to an index.
+  // The pointer maps to a *time*, and the readout is the reading nearest to it, not to an index.
   // That is what makes a sparse series hover honestly: the gaps are real, and pointing into one
   // should give the reading you are closest to rather than one a fraction of the way through the
   // array.
@@ -233,7 +246,7 @@ export function sparkline(points, opts = {}) {
 
 // The viewBox width is fixed and the element is stretched to its container, so a
 // sparkline fills whatever column it lands in. Exported because anything positioning
-// against a sparkline — a test, or a future overlay — needs the same coordinate space.
+// against a sparkline, a test, or a future overlay, needs the same coordinate space.
 export const SPARK_WIDTH = 240;
 
 /**
@@ -261,7 +274,7 @@ function axisGuides(height) {
 /**
  * A labelled trend: current value, the change across the series, and the shape.
  *
- * Rows with fewer than two readings are dropped — a single point is not a trend.
+ * Rows with fewer than two readings are dropped, a single point is not a trend.
  *
  * `window` is the shared span from the card. It is passed to the sparkline rather than derived
  * here, so every row in the card is drawn against the same axis.
@@ -326,8 +339,8 @@ export function healthFilter(counts, active, onFilter) {
         class: 'health-item',
         type: 'button',
         'aria-pressed': active === key ? 'true' : 'false',
-        // A count of zero is still worth showing — "0 failing" is the reassurance
-        // you opened the app for — but it should not look like a live filter.
+        // A count of zero is still worth showing, "0 failing" is the reassurance
+        // you opened the app for, but it should not look like a live filter.
         'aria-label': `${count} ${label}`,
         onclick: () => onFilter(active === key ? null : key),
       }, [
@@ -365,7 +378,7 @@ export const BLOCKED_CAUSES = new Set(['device_blocked', 'query_blocked']);
 /**
  * A badge for a drive testing itself (`FEATURES.md` A20), or null when none is.
  *
- * The percentage is the drive's own, and it is absent on many drives — they write a self-test log
+ * The percentage is the drive's own, and it is absent on many drives, they write a self-test log
  * entry only when a test *finishes*, so there is nothing to read while one runs. "Testing" without a
  * figure is the honest answer there, and it is still the answer to the question the badge exists for:
  * which drive is busy.
@@ -441,7 +454,7 @@ export function deviceCard(device, onOpen, onScan) {
   // ambiguous, and icon sizes vary enough to look inconsistent (docs/UI.md §6).
   //
   // The bay leads when it is set, because it is the one field that answers "which drive do I
-  // pull?" — a card that makes you match serials against a spreadsheet has failed at the only
+  // pull?", a card that makes you match serials against a spreadsheet has failed at the only
   // question someone standing in front of the machine has. Omitted entirely when unset: a missing
   // bay is a gap in the bookkeeping rather than a finding about the drive, and a row of dashes
   // would read as the latter.
@@ -472,12 +485,12 @@ export function deviceCard(device, onOpen, onScan) {
         el('div', { class: 'device-card-title', text: title, title }),
         el('div', {
           class: 'device-card-model',
-          text: `${device.model || '—'}${device.device_path ? ` · ${device.device_path}` : ''}`,
+          text: `${device.model || 'n/a'}${device.device_path ? ` · ${device.device_path}` : ''}`,
         }),
       ]),
       // A test running right now (`FEATURES.md` A20). On the card because the reported problem was
       // exactly this: start a long test, look at another drive, come back, and the fleet gave no sign
-      // of which one was busy — so the app got asked to start a second test it would refuse.
+      // of which one was busy, so the app got asked to start a second test it would refuse.
       selfTestBadge(device),
       worseningBadge(device),
       statusBadge(device),
@@ -538,119 +551,11 @@ export function deviceCard(device, onOpen, onScan) {
  * is worse than a plain label, so a column with no `key` renders as plain text and carries no
  * cursor.
  */
-export function fleetTable(devices, opts = {}) {
-  const {
-    sortKey = 'health', ascending = true, onOpen = () => {}, onScan = () => {}, onSort = null,
-    groups = null,
-    // Selection, for comparing drives (`FEATURES.md` D6). Off unless a caller passes `onSelect`, so
-    // every other table keeps the shape it had — a checkbox column on a table nobody compares from
-    // is a column of noise.
-    selected = new Set(), onSelect = null,
-  } = opts;
-
-  // A flat list is one unlabelled group. Normalising here means the body below has a single shape
-  // to render, and grouping is a separator row rather than a second table with a second header.
-  const sections = groups || [{ label: null, devices }];
-
-  // In the order someone reads a fleet: where it is, what it is, how it is, how old it is.
-  const columns = [
-    // The select box first, where a checkbox column always goes. It carries no `key`, so it is not
-    // sortable and the header logic below skips it.
-    onSelect
-      ? {
-        key: null,
-        label: '',
-        cell: (d) => el('input', {
-          type: 'checkbox',
-          checked: selected.has(d.serial),
-          'aria-label': `Select ${d.name || d.serial}`,
-          // The row opens the drive; the checkbox must not also do that. The press is stopped here
-          // rather than in the row, because the row's own handler cannot tell which child was hit.
-          onclick: (e) => e.stopPropagation(),
-          onchange: (e) => onSelect(d.serial, e.currentTarget.checked),
-        }),
-      }
-      : null,
-    { key: 'bay', label: 'Bay', cell: (d) => d.bay || '' },
-    { key: 'name', label: 'Drive', cell: deviceTitle },
-    { key: 'health', label: 'Verdict', cell: (d) => [statusBadge(d), worseningBadge(d)] },
-    { key: 'score', label: 'Score', numeric: true, cell: (d) => fmtScore(d.score) },
-    { key: 'transport', label: 'Transport', cell: transportLabel },
-    { key: 'model', label: 'Model', cell: (d) => d.model || '' },
-    { key: 'capacity', label: 'Capacity', numeric: true, cell: (d) => fmtBytes(d.capacity_bytes) },
-    { key: 'temperature', label: 'Temp', numeric: true, cell: (d) => fmtTemp(d.temperature_c) },
-    { key: 'power_on_hours', label: 'Age', numeric: true, cell: (d) => fmtHours(d.power_on_hours) },
-    { key: 'last_scan', label: 'Last scan', numeric: true, cell: (d) => fmtAgo(d.last_scan) },
-    { key: null, label: '', cell: (d) => el('button', {
-      class: 'btn btn-sm btn-ghost',
-      type: 'button',
-      title: 'Scan this device',
-      onclick: (e) => {
-        e.stopPropagation();
-        onScan(d.serial);
-      },
-    }, [icon('scan')]) },
-    // The optional select column is dropped here rather than filtered at each use, so everything
-    // below sees a list of real columns and the group separator's colspan is right by construction.
-  ].filter(Boolean);
-
-  const header = el('tr', {}, columns.map((c) => {
-    const sortable = c.key !== null && onSort !== null;
-    const active = sortable && c.key === sortKey;
-    const props = { class: c.numeric ? 'num' : '' };
-    if (sortable) {
-      // The affordance is attached only when the column can actually be sorted. An empty `title`
-      // is still a `title` attribute, and `th[title]` is what the stylesheet hangs the pointer
-      // cursor on — so passing one unconditionally would make every header look clickable.
-      props.title = `Sort by ${c.label.toLowerCase()}`;
-      props['aria-sort'] = active ? (ascending ? 'ascending' : 'descending') : 'none';
-      props.onclick = () => onSort(c.key);
-    }
-    return el('th', props, [c.label, active ? (ascending ? ' ↑' : ' ↓') : '']);
-  }));
-
-  const rowFor = (d) => el('tr', {
-    class: d.is_missing ? 'fleet-row-missing' : '',
-    tabindex: '0',
-    title: d.is_missing ? 'This device was not present in the last scan' : '',
-    onclick: () => onOpen(d.serial),
-    onkeydown: (e) => {
-      if (e.key === 'Enter' || e.key === ' ') {
-        e.preventDefault();
-        onOpen(d.serial);
-      }
-    },
-  }, columns.map((c) => el('td', { class: c.numeric ? 'num' : '' }, [c.cell(d)])));
-
-  const body = [];
-  for (const section of sections) {
-    // The separator spans every column, so the header above stays the only one. A second table
-    // per group would repeat an eleven-column header once per pool, which is heavier than the
-    // grouping is worth.
-    if (section.label) {
-      body.push(el('tr', { class: 'fleet-group' }, [
-        el('td', { colspan: String(columns.length) }, [
-          el('strong', { text: section.label }),
-          el('span', { class: 'muted', text: ` · ${countText(section.devices.length)}` }),
-        ]),
-      ]));
-    }
-    for (const d of section.devices) body.push(rowFor(d));
-  }
-
-  return el('div', { class: 'table-wrap fleet-wrap' }, [
-    el('table', { class: 'data fleet-table' }, [
-      el('thead', {}, [header]),
-      el('tbody', {}, body),
-    ]),
-  ]);
-}
-
 /**
  * Which identifier to offer for a partition: the filesystem's UUID, else the partition table's.
  *
  * A filesystem UUID is what `/etc/fstab` usually wants (`UUID=`), and a partition UUID is the
- * fallback for a partition with no filesystem — a member of a volume group, which is exactly the
+ * fallback for a partition with no filesystem, a member of a volume group, which is exactly the
  * row somebody is most likely to be copying one for.
  *
  * Returns "" when there is neither, and the caller renders no button rather than a button that
@@ -678,7 +583,7 @@ export function sectorLabel(logical, physical) {
 /**
  * The level at which a usage bar turns amber (`FEATURES.md` A28).
  *
- * A stored setting rather than a constant, because where "nearly full" starts is the user's call —
+ * A stored setting rather than a constant, because where "nearly full" starts is the user's call,
  * and a *display* threshold, not a verdict: it does not touch the score. The two answer different
  * questions (how much room is left vs how healthy the drive is), so the bar's colour and the health
  * badge never contradict each other; they are not saying the same kind of thing.
@@ -708,7 +613,7 @@ export function storageWarnLevel() {
  */
 export function usageBar(pct, opts = {}) {
   const { label = '', title = '' } = opts;
-  // Checked explicitly, because `Number(null)` and `Number('')` are both 0 — and a bar drawn at 0%
+  // Checked explicitly, because `Number(null)` and `Number('')` are both 0, and a bar drawn at 0%
   // for a drive whose usage is *unknown* is a confident wrong answer, not a missing one.
   if (pct === null || pct === undefined || pct === '') return null;
   const value = Number(pct);
@@ -756,7 +661,7 @@ export function partitionsOutsideContainer(partitions) {
  *   opposite of what is known.
  * - **Free space is approximate, and says so.** It is the disk size less the parts that claim it,
  *   which ignores alignment gaps. The segment is hatched rather than solid, because on a visual a
- *   wrong sliver is *visible* — and the tooltip says which kind of number it is.
+ *   wrong sliver is *visible*, and the tooltip says which kind of number it is.
  *
  * `onHover` is called with a partition name on mouse-over and with null on mouse-out, which is how the
  * table underneath highlights the row the segment stands for. The map is geometry and the table is
@@ -776,7 +681,7 @@ export function diskMap(layout, opts = {}) {
   const free = Math.max(0, total - claimed);
 
   // A tooltip of our own rather than the `title` attribute: the browser's own takes about a second to
-  // appear, and a map is something you sweep across — a label that arrives after you have moved on is
+  // appear, and a map is something you sweep across, a label that arrives after you have moved on is
   // worse than none. It lives inside the map so its position is the map's geometry, not the page's.
   const tip = el('div', { class: 'disk-tooltip', hidden: true });
 
@@ -815,7 +720,7 @@ export function diskMap(layout, opts = {}) {
   }
 
   if (free > total / 100) {
-    // Only when it is a *share* of the disk. Below a percent it is an alignment remainder — the
+    // Only when it is a *share* of the disk. Below a percent it is an alignment remainder, the
     // 1.4 MB left over after a partition table, which is real but is not "free space" in any sense a
     // reader would use. The map's own background shows through there, which reads correctly as "the
     // parts do not quite add up", and the figure is still in Details with its caveat.
@@ -825,7 +730,7 @@ export function diskMap(layout, opts = {}) {
       role: 'img',
       'aria-label': `${fmtBytes(free)} free, approximate`,
     });
-    hoverable(node, tip, `${fmtBytes(free)} free — approximate: alignment gaps and the backup GPT ` +
+    hoverable(node, tip, `${fmtBytes(free)} free, approximate: alignment gaps and the backup GPT ` +
       'header are not counted', (free / total) * 100 + at, null, null);
     parts.push(node);
   }
@@ -837,7 +742,7 @@ export function diskMap(layout, opts = {}) {
  * Makes a segment answer a mouse immediately, and mark itself as the one being pointed at.
  *
  * `mouseenter`/`mouseleave` rather than `mouseover`/`mouseout`: the segment has a child (the fill),
- * and the bubbling pair fires again every time the pointer crosses into it — which flickers both the
+ * and the bubbling pair fires again every time the pointer crosses into it, which flickers both the
  * label and the highlighted row.
  */
 function hoverable(node, tip, label, share, onEnter, onLeave) {
@@ -859,7 +764,7 @@ function hoverable(node, tip, label, share, onEnter, onLeave) {
  * Puts the tooltip under the segment centred at `centre` percent, keeping it inside the map.
  *
  * A label centred on a segment near either edge would hang off the card, so the outer ones are pinned
- * to the edge instead — the pointer is already saying which segment it means, and the label only has
+ * to the edge instead, the pointer is already saying which segment it means, and the label only has
  * to stay readable.
  */
 function placeTooltip(tip, centre) {
@@ -889,7 +794,7 @@ function segmentTitle(p) {
       : 'not mounted'
     : `${pct}% full`;
   const mount = (p.mountpoints || []).length ? ` at ${p.mountpoints[0]}` : '';
-  return `${label} — ${size}, ${usage}${mount}`;
+  return `${label}, ${size}, ${usage}${mount}`;
 }
 
 /** lsblk formats this ("47%"), so the number has to be parsed back out of the string. */
@@ -904,12 +809,12 @@ function usePercentNumber(p) {
  * What to say about a drive with no partition table (`FEATURES.md` A28).
  *
  * "Unpartitioned, or its table could not be read" is true and useless. A disk pulled from a RAID
- * array has no table *because* it is an array member — and `lsblk` already reported what it is as the
+ * array has no table *because* it is an array member, and `lsblk` already reported what it is as the
  * disk node's own filesystem type. Saying so turns a message that reads like a fault into a
  * description of a drive doing its job.
  *
  * The signature is shown in parentheses beside the plain-language name, because the exact blkid token
- * is what somebody will search for — and it is the thing to quote when asking whether a drive is
+ * is what somebody will search for, and it is the thing to quote when asking whether a drive is
  * safe to reuse.
  */
 export function noPartitionsNote(layout) {
@@ -922,7 +827,7 @@ export function noPartitionsNote(layout) {
   const member = String((layout && layout.whole_disk_name) || '').trim();
   if (member) {
     return `This drive is a member of ${member} (\`${signature}\`), so it has no partition table of ` +
-      'its own — the layout lives in the array, not on the disk. Nothing here is a fault.';
+      'its own, the layout lives in the array, not on the disk. Nothing here is a fault.';
   }
 
   // A filesystem written straight to the device: no table, but plenty to say.
@@ -934,11 +839,11 @@ export function noPartitionsNote(layout) {
  * The partition schema (`FEATURES.md` A28), as a table.
  *
  * The label leads and the node name follows it, because a person recognises "media" long before they
- * recognise "/dev/mapper/tank-media" — and the node name is still there for the one who needs it.
+ * recognise "/dev/mapper/tank-media", and the node name is still there for the one who needs it.
  *
  * The partition type sits under the filesystem rather than in a column of its own: the two are
  * answering one question ("what is this partition for?") and side by side they read as a pair. A
- * partition with no filesystem is the case that shows it — "Linux LVM" under a dash is the *reason*
+ * partition with no filesystem is the case that shows it, "Linux LVM" under a dash is the *reason*
  * there is nothing to mount, where a separate column left the reader to join them up themselves.
  *
  * `showUsage` is the setting that turns the usage column off. The column is dropped rather than
@@ -963,7 +868,7 @@ export function partitionTable(layout, opts = {}) {
         label ? el('span', { class: 'part-node muted', text: p.name }) : null,
         p.read_only
           ? el('span', { class: 'badge badge-caution part-flag', title:
-              'The device reports this as read-only — a write-protect switch, or a device that has ' +
+              'The device reports this as read-only, a write-protect switch, or a device that has ' +
               'failed into read-only' }, [icon('alert'), 'Read-only'])
           : null,
       ]),
@@ -992,7 +897,7 @@ export function partitionTable(layout, opts = {}) {
     // `data-partition` is the map's half of the link (`FEATURES.md` A28): the segment carries the same
     // value, so pointing at one marks the other. Keyed by the drive's own name for the partition
     // rather than by row order, because a table with logical volumes in it has more rows than the map
-    // has segments — deliberately so.
+    // has segments, deliberately so.
     const row = el('tr', {
       class: p.read_only ? 'part-readonly' : null,
       'data-partition': p.name,
@@ -1002,8 +907,8 @@ export function partitionTable(layout, opts = {}) {
     // it came from. `mouseenter`/`mouseleave` rather than the bubbling pair, because a row is mostly
     // cells and the bubbling pair fires again on every cell the pointer crosses.
     //
-    // A row with no segment — a logical volume inside a partition, which the map deliberately does
-    // not draw — simply marks nothing, which is the honest answer.
+    // A row with no segment, a logical volume inside a partition, which the map deliberately does
+    // not draw, simply marks nothing, which is the honest answer.
     if (onHover) {
       row.addEventListener('mouseenter', () => onHover(p.name));
       row.addEventListener('mouseleave', () => onHover(null));
@@ -1021,9 +926,9 @@ export function partitionTable(layout, opts = {}) {
   ]);
 }
 
-/** Filesystem and version, or a dash — a partition can hold a volume group and have neither. */
+/** Filesystem and version, or a dash, a partition can hold a volume group and have neither. */
 function filesystemText(p) {
-  if (!p.fstype) return '—';
+  if (!p.fstype) return 'n/a';
   return p.fs_version ? `${p.fstype} ${p.fs_version}` : p.fstype;
 }
 
@@ -1033,7 +938,7 @@ function filesystemText(p) {
  * Three cases, and they are genuinely different answers:
  *
  * - **Nothing mounted**: nothing to measure. A dash, because "not visible" would send somebody to
- *   their compose file for no reason — and the mount column already says it is not mounted.
+ *   their compose file for no reason, and the mount column already says it is not mounted.
  * - **Mounted, but the container cannot see it**: `lsblk` reads usage with `statvfs` on the
  *   *mountpoint*, so a host filesystem that is not bind-mounted into the container has no figure to
  *   give. "Not visible" is the true answer, and a dash would be mistaken for a bug.
@@ -1041,7 +946,7 @@ function filesystemText(p) {
  */
 function usageCell(p) {
   if (!(p.mountpoints || []).length) {
-    return el('td', { class: 'num muted', text: '—' });
+    return el('td', { class: 'num muted', text: 'n/a' });
   }
   const bar = usageBar(usePercentNumber(p));
   if (!bar) {
@@ -1074,7 +979,7 @@ export function outsideContainerNote(partitions) {
   if (!hidden) return '';
   const count = hidden === 1 ? '1 of these filesystems is' : `${hidden} of these filesystems are`;
   return `${count} mounted on the host but not inside this container, so the usage cannot be ` +
-    'read. Add the mount roots read-only to the compose file — for example `- /mnt:/mnt:ro` — and ' +
+    'read. Add the mount roots read-only to the compose file, for example `- /mnt:/mnt:ro`, and ' +
     'the figures appear.';
 }
 
@@ -1089,7 +994,7 @@ function copyToClipboard(value) {
     .catch(() => toast('Could not copy to the clipboard', 'error'));
 }
 
-/** "1 drive" / "3 drives" — a count that reads as a sentence rather than as a number. */
+/** "1 drive" / "3 drives", a count that reads as a sentence rather than as a number. */
 export function countText(n) {
   return n === 1 ? '1 drive' : `${n} drives`;
 }
@@ -1123,7 +1028,7 @@ export function attributeTable(attributes, opts = {}) {
  * The note under the attribute table, when some rows have no name.
  *
  * A dozen rows reading "Vendor specific" looks like the app failed to read them. It is the drive
- * reporting counters nobody has published a meaning for, and smartctl declining to invent one — but
+ * reporting counters nobody has published a meaning for, and smartctl declining to invent one, but
  * *why* smartctl has no name differs, and `in_smartctl_database` (`FEATURES.md` A28) is what tells the
  * three cases apart:
  *
@@ -1142,7 +1047,7 @@ function vendorNote(unnamed, inDatabase) {
       'are shown exactly as the drive reports them.';
   } else if (inDatabase === true) {
     text = `${count} are vendor specific. smartctl recognises this drive, but these particular ` +
-      'counters have no published meaning — the vendor keeps them private. Their values are shown ' +
+      'counters have no published meaning, the vendor keeps them private. Their values are shown ' +
       'exactly as the drive reports them.';
   } else {
     text = `${count} are vendor specific. smartctl has no name for them, so the app cannot say what ` +
@@ -1196,7 +1101,7 @@ function attributeRow(a, blamed = null) {
       counted
         ? el('span', {
             class: 'badge badge-unknown attr-counted',
-            title: 'This attribute is part of the score — see the breakdown above the table',
+            title: 'This attribute is part of the score, see the breakdown above the table',
           }, ['Counted'])
         : null,
     ]),
@@ -1228,7 +1133,7 @@ export function helpButton(name, help) {
 export function showHelp(name, help) {
   openDialog(name, (body, close, foot) => {
     // `append` from dom.js, *not* the native method. The native `Element.append` stringifies
-    // anything that is not a Node — including `null` — into a text node, so an attribute with
+    // anything that is not a Node, including `null`, into a text node, so an attribute with
     // no `watch` line rendered the literal word "null" under its explanation. The helper
     // drops nulls instead, which is the whole reason it exists.
     append(body, [
@@ -1285,7 +1190,7 @@ export function toast(message, kind = 'info') {
  *
  * `dismissOnBackdrop` is off for a dialog holding unsaved input. A stray click beside a
  * half-filled form then costs nothing but the click, and Cancel and Escape are both still
- * there — which is the better half of that trade, because a closed form costs the form.
+ * there, which is the better half of that trade, because a closed form costs the form.
  */
 export function openDialog(title, render, { dismissOnBackdrop = true } = {}) {
   const body = el('div', { class: 'dialog-body' });
@@ -1301,7 +1206,7 @@ export function openDialog(title, render, { dismissOnBackdrop = true } = {}) {
   // not, however far it travels before it is released.
   //
   // The click lands on the dialog element itself, because its children cover the rest of the
-  // box, so the coordinates are checked too — but coordinates alone cannot tell the two apart.
+  // box, so the coordinates are checked too, but coordinates alone cannot tell the two apart.
   // Selecting text in a field, or dragging a number spinner, ends with a click whose target is
   // the dialog (the nearest common ancestor of press and release) and whose coordinates are
   // outside it, which is exactly what a backdrop click looks like. That is what closed the
@@ -1327,7 +1232,7 @@ export function openDialog(title, render, { dismissOnBackdrop = true } = {}) {
  * Whether a press should be read as a press on the modal backdrop.
  *
  * A press *inside* the dialog's box is never one, even when it lands on the dialog element
- * itself — the padding between the head, body and foot is dialog, not backdrop, and closing
+ * itself, the padding between the head, body and foot is dialog, not backdrop, and closing
  * on a click there is the same lost form by a shorter route.
  */
 export function isBackdropClick(dialog, event) {

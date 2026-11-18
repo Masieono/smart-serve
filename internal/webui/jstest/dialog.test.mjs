@@ -43,7 +43,7 @@ test('confirmDialog resolves false when dismissed without a button press', async
 });
 
 // Regression: the promise used to settle on a zero-delay timer, so it resolved
-// "cancelled" on the next macrotask — before the user could possibly click. Every
+// "cancelled" on the next macrotask, before the user could possibly click. Every
 // caller's `if (!(await confirmDialog(...))) return` bailed out, and deleting a
 // schedule (or a channel) silently did nothing while looking like it worked.
 test('confirmDialog waits for a decision instead of settling on its own', async () => {
@@ -94,7 +94,7 @@ test('a drag that starts inside the dialog does not dismiss it', () => {
   const dialog = openInBox();
   const field = dialog.querySelectorAll('div')[0]; // anything inside the box
 
-  // The press lands on a field...
+  // The press lands on a field, ...
   dialog.dispatch('pointerdown', { ...BACKDROP, target: field });
   // ...and the release lands outside, which is what selecting text looks like.
   dialog.dispatch('click', BACKDROP);
@@ -121,7 +121,7 @@ test('dismissOnBackdrop: false keeps a form open through a backdrop click', () =
   dialog.dispatch('click', BACKDROP);
   assert.equal(dialog.open, true, 'a form holding unsaved input must survive a stray click');
 
-  // Cancel and Escape are still there — the dialog is not stuck.
+  // Cancel and Escape are still there, the dialog is not stuck.
   dialog.close();
   assert.equal(dialog.open, false);
 });

@@ -191,7 +191,7 @@ func TestTheFleetExportSaysWhatItIs(t *testing.T) {
 		t.Errorf("no purpose in:\n%s", body)
 	}
 
-	// An empty table reads as a page that failed to render, not as a host with no drives on it —
+	// An empty table reads as a page that failed to render, not as a host with no drives on it,
 	// and the second is a real answer.
 	page := renderFleetHTML(nil, "2025-10-12")
 	if !strings.Contains(page, "No drives have been recorded yet") {
@@ -264,7 +264,7 @@ func TestTheExportCanBeScopedToATag(t *testing.T) {
 }
 
 // A drive on the bench is being evaluated, not used (`FEATURES.md` D11). Ranking it would put a drive
-// that is *expected* to fail above one in service that is actually failing — the same mistake the
+// that is *expected* to fail above one in service that is actually failing, the same mistake the
 // disconnected rule avoids, in the other direction.
 func TestABenchDriveIsListedButNotRanked(t *testing.T) {
 	srv, st, _, _ := newTestServer(t, Options{})
@@ -283,7 +283,7 @@ func TestABenchDriveIsListedButNotRanked(t *testing.T) {
 	if len(body.Devices) != 1 {
 		t.Fatalf("got %d devices, want the bench drive still listed", len(body.Devices))
 	}
-	// The server decides which drives are on the bench, so the UI never has to know the tag's name —
+	// The server decides which drives are on the bench, so the UI never has to know the tag's name,
 	// or split a tag string the way the grouping does.
 	if !body.Devices[0].OnBench {
 		t.Error("on_bench is not set for a drive tagged Bench")

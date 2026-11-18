@@ -17,8 +17,8 @@ func scanAt(t *testing.T, s *Store, at time.Time, serial, health string) {
 	}
 }
 
-// failScanAt records a failed scan. `SaveScan` only writes successful ones — a failure is recorded by
-// the scanner itself, which has the error text — so the test writes the row it is testing against.
+// failScanAt records a failed scan. `SaveScan` only writes successful ones, a failure is recorded by
+// the scanner itself, which has the error text, so the test writes the row it is testing against.
 func failScanAt(t *testing.T, s *Store, at time.Time) {
 	t.Helper()
 	if _, err := s.db.ExecContext(context.Background(), `
@@ -30,7 +30,7 @@ func failScanAt(t *testing.T, s *Store, at time.Time) {
 }
 
 // B13's baseline: each drive's verdict as of a moment in the past, so a digest can say what *changed*
-// without a second history — the snapshots are already the history, and the verdict is on every one.
+// without a second history, the snapshots are already the history, and the verdict is on every one.
 func TestHealthAtReadsTheVerdictAsOfAMoment(t *testing.T) {
 	s := newTestStore(t)
 	base := time.Date(2026, 10, 1, 12, 0, 0, 0, time.UTC)
@@ -53,7 +53,7 @@ func TestHealthAtReadsTheVerdictAsOfAMoment(t *testing.T) {
 		t.Errorf("b = %q, want unknown", got["b"])
 	}
 	if _, ok := got["c"]; ok {
-		t.Errorf("c = %q, want it absent — it did not exist at the cut", got["c"])
+		t.Errorf("c = %q, want it absent, it did not exist at the cut", got["c"])
 	}
 }
 
@@ -68,7 +68,7 @@ func TestScanCountsBoundsThePeriod(t *testing.T) {
 	scanAt(t, s, from, "a", "good")
 	scanAt(t, s, from.Add(24*time.Hour), "a", "good")
 	failScanAt(t, s, from.Add(48*time.Hour))
-	// Ends exactly at `to`, so it is inside the period — the bound is inclusive on both sides.
+	// Ends exactly at `to`, so it is inside the period, the bound is inclusive on both sides.
 	scanAt(t, s, to.Add(-time.Second), "a", "good")
 	scanAt(t, s, to.Add(time.Hour), "a", "good") // after the period
 

@@ -77,7 +77,7 @@ func Collect(rep scan.PostScan, opts CollectOptions) []Event {
 		prev, known := rep.Previous[serial]
 
 		// An acknowledged condition is one the user has said they know about (`FEATURES.md` B7). It
-		// silences the two alerts that describe the *condition* — a verdict change and a hot drive —
+		// silences the two alerts that describe the *condition*, a verdict change and a hot drive,
 		// and nothing else: a drive that vanishes is still news, and a self-test result is something
 		// the user asked for.
 		//
@@ -124,7 +124,7 @@ func Collect(rep scan.PostScan, opts CollectOptions) []Event {
 		//
 		// Identity is type and hours, because a self-test log entry carries no id of its own.
 		// Two identical tests in the same power-on hour are therefore indistinguishable and the
-		// second will not notify — a rare miss, and the alternative is announcing a result that
+		// second will not notify, a rare miss, and the alternative is announcing a result that
 		// has already been announced.
 		//
 		// Gated on SelfTestRecorded so that upgrading does not announce every drive's existing
@@ -147,20 +147,20 @@ func Collect(rep scan.PostScan, opts CollectOptions) []Event {
 	}
 
 	// A25: the groups whose drives moved together. Built from this scan and the one before it, which
-	// is a sharper baseline than any time window — the question is "what changed since we last
+	// is a sharper baseline than any time window, the question is "what changed since we last
 	// looked", and a scan boundary is exactly that.
 	//
 	// Before the heartbeat, deliberately: a scan that found a chassis heating up has something to
 	// say, and the heartbeat exists for the scans that do not.
 	events = append(events, groupHeatEvents(rep, opts)...)
 
-	// The heartbeat fires only when the scan found nothing to say — no verdict changed, no
+	// The heartbeat fires only when the scan found nothing to say, no verdict changed, no
 	// drive vanished or appeared, nothing ran hot. It is the *complement* of the alert
 	// stream rather than an addition to it: you hear from a scheduled scan either way, and
 	// "3 drives scanned in 4.2s" means all quiet.
 	//
 	// Gating on an empty event list rather than on a health check is what makes that exact.
-	// The alternative — "every drive is good" — would never fire for a drive with no
+	// The alternative, "every drive is good", would never fire for a drive with no
 	// S.M.A.R.T. (verdict unknown) or one that has been failing for a week (no transition,
 	// so no alert), and both of those are precisely when a reassuring heartbeat is wanted.
 	//
@@ -238,8 +238,8 @@ func selfTestRationale(e *model.SelfTestEntry) string {
 // It says what moved and where to look, and never what is wrong. A RAID rebuild heats everything,
 // and so does a warm afternoon; the reader knows which is running and this does not.
 //
-// Bench drives are left out — a drive being tested is *expected* to heat up, and a batch of them on
-// one bench would fire this on every scan — and so is a drive with no temperature at either reading,
+// Bench drives are left out, a drive being tested is *expected* to heat up, and a batch of them on
+// one bench would fire this on every scan, and so is a drive with no temperature at either reading,
 // because it cannot have moved.
 func groupHeatEvents(rep scan.PostScan, opts CollectOptions) []Event {
 	if opts.Correlation.MinDrives < 2 {
@@ -351,8 +351,8 @@ func (n *Notifier) alertSettings(ctx context.Context) CollectOptions {
 }
 
 // TestEvent is the synthetic event behind "send test". Its Title and Body say plainly
-// that it is a test — an operator pressing Test is asking "does this channel work?",
-// not "what does an alert look like" — while the payload keeps a realistic shape so a
+// that it is a test, an operator pressing Test is asking "does this channel work?",
+// not "what does an alert look like", while the payload keeps a realistic shape so a
 // consumer's parser is exercised by it.
 func TestEvent(version string) Event {
 	return Event{

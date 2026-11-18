@@ -62,7 +62,7 @@ func main() {
 }
 
 func usage() {
-	fmt.Fprint(os.Stderr, `smart-serve — S.M.A.R.T. reporting for every device in lsblk
+	fmt.Fprint(os.Stderr, `smart-serve, S.M.A.R.T. reporting for every device in lsblk
 
 Usage:
   smart-serve serve    run the HTTP API (and, soon, the web UI)
@@ -134,19 +134,19 @@ func runServe() error {
 
 	// The self-test watcher: while any drive is testing itself, re-read *those* drives so the fleet
 	// badge and the drive page stay current between scans. It idles without touching a drive when
-	// nothing is testing, so there is nothing to start or stop — it is a loop, not a job.
+	// nothing is testing, so there is nothing to start or stop, it is a loop, not a job.
 	go manager.WatchSelfTests(ctx)
 
 	// One device-access probe at startup. The three ways a container blocks S.M.A.R.T.
 	// all look identical from inside, so without this the first symptom is an empty
-	// dashboard and a message claiming the drive has no S.M.A.R.T. — which is wrong,
+	// dashboard and a message claiming the drive has no S.M.A.R.T., which is wrong,
 	// and sends the reader looking in the wrong place. One command, once.
 	if probe, perr := smart.ProbeDeviceAccess(ctx, cfg.CommandTimeout); perr != nil {
 		logger.Warn("device access probe could not run", "error", perr)
 	} else {
 		switch {
 		case probe.Devices == 0:
-			logger.Warn("no block devices visible — is /dev mounted into the container?")
+			logger.Warn("no block devices visible, is /dev mounted into the container?")
 		case probe.Cause.Blocked():
 			logger.Warn("S.M.A.R.T. reads are blocked, not unsupported",
 				"device", probe.Path, "cause", string(probe.Cause),
@@ -175,7 +175,7 @@ func runServe() error {
 
 	// Scheduled self-tests (`FEATURES.md` A19, `ADR-024`): a pass over every drive that can take one,
 	// one drive at a time. It re-reads each drive as its test finishes, so the result is stored and
-	// notified by the same path a manual test uses — and the fleet is never re-read while a test is
+	// notified by the same path a manual test uses, and the fleet is never re-read while a test is
 	// running on it, because the queue serialises the rescans too.
 	selfTests := selftest.New(selftest.Options{
 		Store:          st,
@@ -191,7 +191,7 @@ func runServe() error {
 	//
 	// It also owns digest schedules (`FEATURES.md` B13): a weekly summary is the same timing problem
 	// as a scan on a schedule, so it rides the same machinery rather than a second timer. And it owns
-	// self-test schedules (`A19`) for the same reason — the *timing* is shared, while the work is
+	// self-test schedules (`A19`) for the same reason, the *timing* is shared, while the work is
 	// queued rather than run inline, because a pass takes hours.
 	scheduler := sched.New(st, manager, hub, sched.Options{
 		MissedRunPolicy: cfg.MissedRunPolicy,

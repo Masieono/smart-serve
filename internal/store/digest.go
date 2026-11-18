@@ -10,7 +10,7 @@ import (
 // Used by the digest (`FEATURES.md` B13) to answer "what changed over the period" without storing a
 // second history: the snapshots are already the history, and the verdict is on every one of them.
 //
-// A drive with no snapshot that old is simply absent — the caller treats a missing baseline as
+// A drive with no snapshot that old is simply absent, the caller treats a missing baseline as
 // "we were not watching it yet" rather than as a change, which is the honest reading.
 func (s *Store) HealthAt(ctx context.Context, before time.Time) (map[string]string, error) {
 	rows, err := s.db.QueryContext(ctx, `

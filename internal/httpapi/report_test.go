@@ -11,7 +11,7 @@ import (
 )
 
 // A27 is one paragraph plus the evidence. The paragraph is the part that makes the file usable by
-// someone who did not generate it — a support engineer, or the reader of a forum post.
+// someone who did not generate it, a support engineer, or the reader of a forum post.
 func TestEveryReportSaysWhatItIsFor(t *testing.T) {
 	d := store.DeviceRecord{Serial: "S1", Model: "M", Health: "good"}
 	snap := &store.Snapshot{}
@@ -28,7 +28,7 @@ func TestEveryReportSaysWhatItIsFor(t *testing.T) {
 }
 
 // The drive's *own* threshold, not this app's. An RMA turns on "attribute 5 is at or below its own
-// threshold" — a limit the vendor wrote into the drive — and on a listing rather than a verdict, so
+// threshold", a limit the vendor wrote into the drive, and on a listing rather than a verdict, so
 // a threshold the user changed since the scan cannot make the report disagree with itself.
 func TestTheReportNamesTheFailingAttributes(t *testing.T) {
 	snap := &store.Snapshot{Attributes: `{"attributes":[` +
@@ -50,7 +50,7 @@ func TestTheReportNamesTheFailingAttributes(t *testing.T) {
 
 	// The counters section is about the number rather than the comparison. Attribute 5 is in both
 	// sections because it is two facts about it, but printing the six-column line twice would say it
-	// had been duplicated — and attribute 199, which has no threshold failure, is only here.
+	// had been duplicated, and attribute 199, which has no threshold failure, is only here.
 	i := strings.Index(body, "Evidence counters")
 	if i < 0 {
 		t.Fatalf("no counters section in:\n%s", body)
@@ -70,7 +70,7 @@ func TestTheReportNamesTheFailingAttributes(t *testing.T) {
 		{ID: 197, Value: 100, Threshold: 0},
 	})
 	if len(failed) != 0 {
-		t.Errorf("failing = %+v, want none — a zero threshold is not a failure", failed)
+		t.Errorf("failing = %+v, want none, a zero threshold is not a failure", failed)
 	}
 }
 
@@ -96,8 +96,8 @@ func TestACleanDriveGetsNoEvidenceSections(t *testing.T) {
 
 // The drive leads; the app's own words close.
 //
-// Both paragraphs used to bracket the content — the purpose above the identity, the provenance below
-// the tables — so a reader opening a warranty report met three lines about the *document* before the
+// Both paragraphs used to bracket the content, the purpose above the identity, the provenance below
+// the tables, so a reader opening a warranty report met three lines about the *document* before the
 // drive's serial number, and two more after the last table. What a file is for is worth saying;
 // saying it first was the wrong place to say it.
 func TestTheReportLeadsWithTheDrive(t *testing.T) {
@@ -127,7 +127,7 @@ func TestTheReportLeadsWithTheDrive(t *testing.T) {
 }
 
 // The ids come from the interpreter, so a report cannot name a different set of attributes than the
-// verdict reads — and it reads their counts the interpreter's way, so it cannot print 0 for a drive
+// verdict reads, and it reads their counts the interpreter's way, so it cannot print 0 for a drive
 // the verdict called failing.
 func TestTheEvidenceCountersAreTheInterpretersOwn(t *testing.T) {
 	var ids []int

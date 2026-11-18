@@ -17,8 +17,8 @@ import (
 // handleRaw serves the raw smartctl output for one drive.
 //
 // It reads from the store, not from the scanner's in-memory result. That result is
-// empty before the first scan of a process — so every drive 404'd after a restart, with
-// a populated database sitting right there — and a single-drive rescan replaces it with
+// empty before the first scan of a process, so every drive 404'd after a restart, with
+// a populated database sitting right there, and a single-drive rescan replaces it with
 // a one-device result, so rescanning one drive broke the raw view for all the others.
 func (s *Server) handleRaw(w http.ResponseWriter, r *http.Request) {
 	serial := r.PathValue("serial")
@@ -33,7 +33,7 @@ func (s *Server) handleRaw(w http.ResponseWriter, r *http.Request) {
 	}
 	if strings.TrimSpace(rec.RawOutput) == "" {
 		writeError(w, http.StatusNotFound,
-			"no raw smartctl output stored for this device yet — rescan it")
+			"no raw smartctl output stored for this device yet, rescan it")
 		return
 	}
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
@@ -61,6 +61,10 @@ func (s *Server) handleHistory(w http.ResponseWriter, r *http.Request) {
 			"power_on_hours": snap.PowerOnHours,
 			"wear_pct":       snap.WearPct,
 			"used_pct":       snap.UsedPct,
+			// The count that predicts failure (`FEATURES.md` A28). On the series because it is the
+			// one trend worth a slot next to health and temperature: a drive can be "good" while its
+			// reallocated count climbs, and that is the shape that precedes a failure.
+			"sectors": snap.Sectors,
 		})
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"serial": serial, "series": out})
@@ -151,8 +155,8 @@ func safeFilename(s string) string {
 // reportPurpose is what an exported report is for, and it is on every format (`FEATURES.md` A27).
 //
 // The report already existed (`A8`); saying what it is for is the whole reason some people run a
-// scan at all. It is written for the person who *receives* the file — a support engineer, or the
-// reader of a forum post — because a file found in a folder a year later has to explain itself
+// scan at all. It is written for the person who *receives* the file, a support engineer, or the
+// reader of a forum post, because a file found in a folder a year later has to explain itself
 // without this repository to hand.
 //
 // It claims evidence, not proof. A S.M.A.R.T. report shows what a drive reported and what this app
@@ -167,14 +171,14 @@ const reportPurpose = "Warranty / RMA evidence: the drive's identity, the S.M.A.
 
 // reportNote is the closing remark on an export: where the underlying document is, and what this
 // file is not.
-const reportNote = "Read from the drive by smartmontools, unedited — evidence, not a diagnosis. " +
+const reportNote = "Read from the drive by smartmontools, unedited, evidence, not a diagnosis. " +
 	"The raw smartctl document is stored with the drive and can be exported from its page."
 
 // failingAttributes lists the attributes the drive's *own* manufacturer thresholds call failed.
 //
 // Selected by the drive's threshold rather than by this app's, and that is the whole point. An RMA
-// conversation turns on "attribute 5 is at or below its own threshold" — a limit the vendor wrote
-// into the drive, in the drive's own terms — and not on a score this app computed. It also means
+// conversation turns on "attribute 5 is at or below its own threshold", a limit the vendor wrote
+// into the drive, in the drive's own terms, and not on a score this app computed. It also means
 // this list cannot contradict the stored verdict: it is a listing rather than a verdict, so a
 // threshold the user changed since the scan cannot make the report disagree with itself.
 //
@@ -262,7 +266,7 @@ func renderTextReport(d store.DeviceRecord, snap *store.Snapshot) string {
 
 	writeTextEvidence(&b, payload)
 
-	// What the report is for, and where its numbers came from — at the foot, under a rule, so the
+	// What the report is for, and where its numbers came from, at the foot, under a rule, so the
 	// drive's own data runs unbroken from the first line to the last table. See `reportPurpose`.
 	fmt.Fprintf(&b, "\n%s\n%s\n\n%s\n", strings.Repeat("-", 78),
 		wrapText(reportPurpose, 78), wrapText(reportNote, 78))
@@ -272,8 +276,8 @@ func renderTextReport(d store.DeviceRecord, snap *store.Snapshot) string {
 // writeTextEvidence appends the two evidence blocks to a plain-text report.
 //
 // This is the part that makes the export an RMA document rather than a summary. A vendor asks for
-// the counters, and the text report — the default format, and the one people paste into a support
-// ticket — had no attribute table at all. A section with no findings is omitted rather than printed
+// the counters, and the text report, the default format, and the one people paste into a support
+// ticket, had no attribute table at all. A section with no findings is omitted rather than printed
 // empty, because "nothing here" and "we did not look" are different, and an empty table reads as
 // the second.
 func writeTextEvidence(b *strings.Builder, payload snapshotPayload) {
@@ -304,7 +308,7 @@ func attributeLine(a model.Attribute) string {
 // counterLine renders one evidence counter: its id, its name and its count.
 //
 // Deliberately not the full attribute line. The failing-attribute section above is about a
-// *comparison* — the value against the drive's own threshold — and this one is about a number, so
+// *comparison*, the value against the drive's own threshold, and this one is about a number, so
 // printing the comparison twice would be noise on exactly the drives where the reader is reading
 // hardest. An attribute that appears in both appears in both because it is two facts, not because it
 // was duplicated.
@@ -520,7 +524,7 @@ func rawText(a model.Attribute) string {
 }
 
 // renderCSVReport emits a field/value sheet. A two-column shape stays readable for
-// both families — an ATA drive has an attribute table, an NVMe drive a health log —
+// both families, an ATA drive has an attribute table, an NVMe drive a health log,
 // and drops straight into a spreadsheet.
 func renderCSVReport(d store.DeviceRecord, snap *store.Snapshot) string {
 	payload := decodeSnapshot(snap)
@@ -543,7 +547,7 @@ func renderCSVReport(d store.DeviceRecord, snap *store.Snapshot) string {
 	// counters, so they are named rather than left to be found among the raw attribute dump below.
 	for _, a := range failingAttributes(payload.Attributes) {
 		write(fmt.Sprintf("Failed attribute %d (%s)", a.ID, a.Name),
-			fmt.Sprintf("raw %s — value %d at or below its own threshold of %d",
+			fmt.Sprintf("raw %s, value %d at or below its own threshold of %d",
 				rawText(a), a.Value, a.Threshold))
 	}
 	for _, a := range evidenceCounters(payload.Attributes) {
@@ -589,7 +593,7 @@ func smartState(d store.DeviceRecord) string {
 //
 // This is the field that explains the blanks. A drive with no S.M.A.R.T. leaves every reading empty,
 // and without it a reader concludes the export is broken rather than that the drive reports nothing
-// — the same mistake the em dash prevents on screen.
+// , the same mistake the em dash prevents on screen.
 func smartStateText(available bool, errMsg string) string {
 	if available {
 		return "available"

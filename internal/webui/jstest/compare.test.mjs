@@ -1,6 +1,6 @@
 // Side-by-side drive comparison (FEATURES.md D6).
 //
-// The alignment itself is tested in Go (`internal/httpapi/compare_test.go`) — that is where the
+// The alignment itself is tested in Go (`internal/httpapi/compare_test.go`), that is where the
 // feature lives. What is pinned here is what the *browser* adds: which cell to point at, which rows
 // are worth reading, and that an absent attribute renders as an absence rather than a zero.
 
@@ -16,7 +16,7 @@ const flush = () => new Promise((resolve) => setTimeout(resolve, 1));
 
 const cell = (value, threshold = 0) => ({ value, worst: value, threshold, raw_value: value });
 
-// Higher is worse for a normalised value — 100 is a healthy attribute — so the *lowest* one is the
+// Higher is worse for a normalised value, 100 is a healthy attribute, so the *lowest* one is the
 // drive to look at. Only attributes the drive publishes a threshold for have a scale at all.
 test('worstCell points at the lowest value among the drives that have a threshold', () => {
   assert.equal(worstCell({ cells: [cell(100, 10), cell(60, 10), cell(90, 10)] }), 1);
@@ -55,7 +55,7 @@ test('compareButton appears only once there is something to compare', () => {
 
   const button = compareButton(new Set(['a', 'b']), ctx);
   assert.ok(button, 'two drives should offer a comparison');
-  // The label is a child rather than `text`, because the button carries an icon — the same shape as
+  // The label is a child rather than `text`, because the button carries an icon, the same shape as
   // every other icon-and-label button in the app.
   assert.equal(textOf(button), 'Compare 2');
 });
@@ -69,7 +69,7 @@ test('addToCompare refuses a seventh drive rather than dropping it silently', ()
   assert.equal(refused.size, COMPARE_MAX_DRIVES, 'the seventh drive should not be added');
   assert.equal(refused.has('g'), false);
 
-  // Ticking and unticking within the cap still works, and the original set is not mutated — the
+  // Ticking and unticking within the cap still works, and the original set is not mutated, the
   // caller assigns the result.
   const one = addToCompare(new Set(), 'a', true);
   assert.deepEqual([...one], ['a']);
@@ -171,7 +171,7 @@ test('a drive without an attribute shows an absence, not a zero', async () => {
 
   const cells = hours.querySelectorAll('td');
   assert.equal(cells.length, 3, 'an attribute column and one cell per drive');
-  assert.equal(cells[2].textContent, '—', 'the missing cell should be an em dash');
+  assert.equal(cells[2].textContent, 'n/a', 'the missing cell should be an em dash');
 });
 
 // A failed comparison says so in the dialog rather than leaving an empty table, which would read as

@@ -79,7 +79,7 @@ func TestAnAttributeAtItsOwnThresholdIsATrouble(t *testing.T) {
 	}
 }
 
-// A threshold of 0 means the attribute has no threshold, not that it fails at zero — which is what
+// A threshold of 0 means the attribute has no threshold, not that it fails at zero, which is what
 // most informational attributes report.
 func TestAZeroThresholdIsNotABreach(t *testing.T) {
 	prev := attrsJSON(t, attr(9, "Power_On_Hours", 100, 0, 1))
@@ -174,7 +174,7 @@ func TestAnUnchangedDriveReportsNoChanges(t *testing.T) {
 			len(got.Attributes), got.Routine)
 	}
 	if got.Note != "" {
-		t.Errorf("Note = %q, but there is a diff — it is simply empty", got.Note)
+		t.Errorf("Note = %q, but there is a diff, it is simply empty", got.Note)
 	}
 }
 

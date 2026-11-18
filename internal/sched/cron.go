@@ -8,7 +8,7 @@ import (
 )
 
 // cronSpec is a parsed five-field cron expression: minute hour day-of-month
-// month day-of-week. It supports *, lists, ranges and steps — the subset the
+// month day-of-week. It supports *, lists, ranges and steps, the subset the
 // schedule editor produces (see internal/webui/assets/js/cron.js).
 type cronSpec struct {
 	expr                          string

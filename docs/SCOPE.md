@@ -206,7 +206,7 @@ work is only worth doing for a translator who will maintain the result (`ADR-023
 
 Written down so it can be implemented without re-deciding anything, and deliberately not started:
 
-- **Optional single-user basic auth** (`FEATURES.md` C5, `ADR-032`) — two environment variables, one
+- **Optional single-user basic auth** (`FEATURES.md` C5, `ADR-033`) — two environment variables, one
   user, off unless both are set. No accounts, no sessions, no migration. The ADR carries the design,
   the alternatives, where the middleware sits and eleven acceptance criteria.
 
@@ -235,4 +235,4 @@ character. See `FEATURES.md` §I and `ADR-019`.
 - Host metrics beyond storage (CPU/RAM monitoring) — scope creep away from the
   S.M.A.R.T. mission.
 - **Multi-user accounts, roles and user management** — a reverse proxy is the answer (D23). The
-  single-user case is the exception: optional basic auth is specified in `ADR-032`.
+  single-user case is the exception: optional basic auth is specified in `ADR-033`.

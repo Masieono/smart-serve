@@ -1,6 +1,6 @@
 // The partition schema (`FEATURES.md` A28).
 //
-// The app has always asked lsblk for the whole device tree and then flattened it — the walk existed
+// The app has always asked lsblk for the whole device tree and then flattened it, the walk existed
 // only to collect mountpoints, and the sizes, labels, types and usage were paid for on every scan and
 // never seen. These pin what is kept.
 
@@ -26,7 +26,7 @@ func parseFixture(t *testing.T, name string) []Discovered {
 }
 
 // The realistic case: GPT, an EFI partition, and an LVM volume group inside a second partition. The
-// nesting is the part a flat list has to get right — the logical volume is a row in its own right,
+// nesting is the part a flat list has to get right, the logical volume is a row in its own right,
 // not something the partition above it explains away.
 func TestPartitionSchemaFromARealisticDisk(t *testing.T) {
 	devices := parseFixture(t, "lsblk-gpt-lvm.json")
@@ -113,7 +113,7 @@ func TestFullestPicksTheFilesystemWithLeastRoom(t *testing.T) {
 	}
 }
 
-// A partition with no figure is skipped rather than treated as zero — otherwise an unmounted volume
+// A partition with no figure is skipped rather than treated as zero, otherwise an unmounted volume
 // would drag the answer down to the wrong filesystem.
 func TestFullestIgnoresFilesystemsWithNoFigure(t *testing.T) {
 	layout := DiskLayout{Partitions: []Partition{
@@ -132,7 +132,7 @@ func TestFullestIgnoresFilesystemsWithNoFigure(t *testing.T) {
 }
 
 // "Nothing measured" and "measured, and empty" are different answers, and the caller has to be able
-// to tell them apart — the list payload omits the storage block for the first and sends 0 for the
+// to tell them apart, the list payload omits the storage block for the first and sends 0 for the
 // second.
 func TestFullestReportsNothingWhenNothingWasMeasured(t *testing.T) {
 	for name, layout := range map[string]DiskLayout{
@@ -170,8 +170,8 @@ func TestUsePercentValueParsesLsblksFormat(t *testing.T) {
 // laid out side by side on the disk, and how big the disk is.
 //
 // `TopLevel` is the correction to an earlier decision. "The node name carries the nesting, so no
-// depth field is needed" was right about the *table* — `/dev/mapper/tank-media` is visibly inside
-// something — and wrong about a map, where a logical volume drawn beside the partition containing it
+// depth field is needed" was right about the *table*, `/dev/mapper/tank-media` is visibly inside
+// something, and wrong about a map, where a logical volume drawn beside the partition containing it
 // would claim the disk is bigger than it is.
 func TestTheDiskMapFieldsReachTheLayout(t *testing.T) {
 	sda := parseFixture(t, "lsblk-gpt-lvm.json")[0]
@@ -197,8 +197,8 @@ func TestTheDiskMapFieldsReachTheLayout(t *testing.T) {
 }
 
 // This is the case that produced "either unpartitioned or its table could not be read" for a drive
-// that was working perfectly. An md member has no partition table *because* it is an array member —
-// the layout lives in the array — and lsblk reports exactly that as the disk node's own filesystem
+// that was working perfectly. An md member has no partition table *because* it is an array member,
+// the layout lives in the array, and lsblk reports exactly that as the disk node's own filesystem
 // type. Saying so is the difference between a message that reads like a fault and one that describes
 // a drive doing its job.
 func TestARaidMemberIsNamedRatherThanCalledUnpartitioned(t *testing.T) {
@@ -223,7 +223,7 @@ func TestARaidMemberIsNamedRatherThanCalledUnpartitioned(t *testing.T) {
 	}
 }
 
-// A partitioned disk's own signature is its *table*, so the whole-disk fields stay empty — otherwise
+// A partitioned disk's own signature is its *table*, so the whole-disk fields stay empty, otherwise
 // the page would say "this disk holds a gpt filesystem".
 func TestAPartitionedDiskReportsNoWholeDiskSignature(t *testing.T) {
 	sda := parseFixture(t, "lsblk-gpt-lvm.json")[0]
@@ -264,7 +264,7 @@ func TestWholeDiskMemberNames(t *testing.T) {
 }
 
 // UUIDs are carried for the copy button rather than for display (`FEATURES.md` A28): they are what
-// `/etc/fstab` speaks in, and nobody reads them. Both kinds are kept, and either can be absent —
+// `/etc/fstab` speaks in, and nobody reads them. Both kinds are kept, and either can be absent,
 // a filesystem UUID is the filesystem's, a partition UUID is the table's, and a partition with no
 // filesystem has only the second.
 func TestUUIDsAreKeptForTheCopyButton(t *testing.T) {
@@ -278,7 +278,7 @@ func TestUUIDsAreKeptForTheCopyButton(t *testing.T) {
 		t.Errorf("EFI partition UUID = %q", efi.PartUUID)
 	}
 
-	// A partition holding a volume group has no filesystem, so no filesystem UUID — but it still
+	// A partition holding a volume group has no filesystem, so no filesystem UUID, but it still
 	// has a partition UUID, which is the one somebody would put in fstab's `PARTUUID=`.
 	member := sda.Partitions[1]
 	if member.UUID != "" {
@@ -330,7 +330,7 @@ func TestSectorSizesAndDiscardSupport(t *testing.T) {
 }
 
 // A drive with no partition table reports no rows and *no* unallocated figure, rather than claiming
-// the whole disk is free — which would be a confident wrong answer about a disk nobody can read.
+// the whole disk is free, which would be a confident wrong answer about a disk nobody can read.
 func TestADiskWithNoPartitionTableReportsNoSchema(t *testing.T) {
 	raw := []byte(`{"blockdevices":[{"name":"/dev/sdb","type":"disk","size":2000398934016,
 		"fstype":"ext4","mountpoints":["/mnt/backup"],"rota":true,"rm":true,"ro":true,

@@ -28,7 +28,7 @@ func sectorScan(t *testing.T, s *Store, base time.Time, day int, serial string, 
 }
 
 // The dashboard needs to know which drives are getting worse, and it needs it for every
-// drive at once — one query, not one per card.
+// drive at once, one query, not one per card.
 func TestSectorTrendReportsGrowthBetweenTheEnds(t *testing.T) {
 	ctx := context.Background()
 	s := newTestStore(t)
@@ -40,7 +40,7 @@ func TestSectorTrendReportsGrowthBetweenTheEnds(t *testing.T) {
 	sectorScan(t, s, base, 0, "stable", &five)
 	sectorScan(t, s, base, 10, "stable", &five)
 	sectorScan(t, s, base, 0, "once", &four)
-	// A drive that reports no sector counts at all — every NVMe — must not appear.
+	// A drive that reports no sector counts at all, every NVMe, must not appear.
 	sectorScan(t, s, base, 0, "nvme", nil)
 	sectorScan(t, s, base, 10, "nvme", nil)
 
@@ -91,10 +91,10 @@ func TestSectorTrendDecaysOnceGrowthStops(t *testing.T) {
 		t.Fatalf("SectorTrend: %v", err)
 	}
 	if got := trend["stopped"]; got != 0 {
-		t.Errorf("stopped = %d, want 0 — the badge must clear once growth stops", got)
+		t.Errorf("stopped = %d, want 0, the badge must clear once growth stops", got)
 	}
 	if got := trend["growing"]; got != 2 {
-		t.Errorf("growing = %d, want 2 — the growth since day 40, not since day 0", got)
+		t.Errorf("growing = %d, want 2, the growth since day 40, not since day 0", got)
 	}
 }
 
@@ -128,7 +128,7 @@ func TestSectorTrendIgnoresRowsBeforeTheWindow(t *testing.T) {
 // (`FEATURES.md` A20).
 //
 // Cleared rather than merged is the whole invariant. The finished result beside it is COALESCEd, so a
-// scan that could not read the log keeps the last known outcome — right for a result, wrong for a
+// scan that could not read the log keeps the last known outcome, right for a result, wrong for a
 // running test, where a stale badge would say a drive is busy long after it finished.
 func TestSelfTestStateIsRecordedAndCleared(t *testing.T) {
 	ctx := context.Background()
@@ -175,7 +175,7 @@ func TestSelfTestStateIsRecordedAndCleared(t *testing.T) {
 }
 
 // A drive whose S.M.A.R.T. could not be read is not testing itself as far as this app can tell, and
-// the state is cleared for it too — otherwise a drive that failed mid-test would keep its badge for
+// the state is cleared for it too, otherwise a drive that failed mid-test would keep its badge for
 // as long as the failure lasted.
 func TestAFailedReadClearsTheSelfTestState(t *testing.T) {
 	ctx := context.Background()
@@ -203,8 +203,8 @@ func TestAFailedReadClearsTheSelfTestState(t *testing.T) {
 	}
 }
 
-// The self-test poll interval is one setting with two readers — the browser card and the server-side
-// watcher (`FEATURES.md` A20) — so the *server* has to read it, and it has to be as defensive as the
+// The self-test poll interval is one setting with two readers, the browser card and the server-side
+// watcher (`FEATURES.md` A20), so the *server* has to read it, and it has to be as defensive as the
 // settings page is permissive.
 func TestSelfTestPollSecondsClampsToTheOfferedRange(t *testing.T) {
 	ctx := context.Background()
@@ -231,7 +231,7 @@ func TestSelfTestPollSecondsClampsToTheOfferedRange(t *testing.T) {
 			t.Fatalf("SetSetting: %v", err)
 		}
 		if got := s.SelfTestPollSeconds(ctx); got != tc.want {
-			t.Errorf("stored %q: got %v, want %v — %s", tc.stored, got, tc.want, tc.why)
+			t.Errorf("stored %q: got %v, want %v, %s", tc.stored, got, tc.want, tc.why)
 		}
 	}
 }
@@ -288,7 +288,7 @@ func deviceNamed(t *testing.T, s *Store, serial string) DeviceRecord {
 	return DeviceRecord{}
 }
 
-// `used_pct` has to survive the round trip for exactly the reason `sectors` did — it was added to a
+// `used_pct` has to survive the round trip for exactly the reason `sectors` did, it was added to a
 // struct that three separate queries populate, and a column added to the SELECT but not the Scan (or
 // the reverse) fails silently on the paths nobody happens to exercise.
 //
@@ -364,7 +364,7 @@ func TestSnapshotReadersAgreeAboutUsedPct(t *testing.T) {
 }
 
 // The trend and longevity code reads history through SnapshotSeries, which deliberately
-// skips the heavy attributes blob — so `sectors` has to survive the round trip on its own.
+// skips the heavy attributes blob, so `sectors` has to survive the round trip on its own.
 // It did not: the column was selected and scanned and then dropped on the floor, and
 // nothing noticed until an end-to-end run, because SectorTrend uses its own query.
 func TestSnapshotSeriesCarriesSectors(t *testing.T) {
@@ -449,7 +449,7 @@ func TestSaveScanUpdatesAndMarksMissing(t *testing.T) {
 }
 
 // The lsblk facts exist mainly for drives that report no S.M.A.R.T., so they have to
-// survive a round trip — including the difference between "not removable" and "lsblk
+// survive a round trip, including the difference between "not removable" and "lsblk
 // did not say", which is why removable is a pointer rather than a bool.
 func TestSaveScanStoresLsblkFacts(t *testing.T) {
 	ctx := context.Background()
@@ -623,7 +623,7 @@ func selfTestState(t *testing.T, s *Store, serial string) DeviceState {
 }
 
 // B9 compares the newest finished self-test against the one recorded last time, so that value has
-// to survive a restart — and a read that failed has to leave it alone. Without the second half, a
+// to survive a restart, and a read that failed has to leave it alone. Without the second half, a
 // single transient smartctl failure would turn the next successful scan into a "new result"
 // notification for a test that finished days ago.
 func TestSelfTestResultIsRecordedAndSurvivesAFailedRead(t *testing.T) {
@@ -754,7 +754,7 @@ func TestBaySurvivesTheNotesRoundTrip(t *testing.T) {
 }
 
 // A device with no notes row at all must still come back with an empty bay rather than failing
-// the scan — the LEFT JOIN is what makes that true, and the dashboard lists every drive.
+// the scan, the LEFT JOIN is what makes that true, and the dashboard lists every drive.
 func TestADeviceWithNoNotesHasAnEmptyBay(t *testing.T) {
 	ctx := context.Background()
 	s := newTestStore(t)

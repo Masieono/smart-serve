@@ -91,7 +91,7 @@ func TestCoolingDownIsNotAFinding(t *testing.T) {
 	}
 }
 
-// Untagged drives have no group, so they can never correlate — there is nothing for them to share.
+// Untagged drives have no group, so they can never correlate, there is nothing for them to share.
 func TestUntaggedDrivesAreNotAGroup(t *testing.T) {
 	readings := []HeatReading{
 		reading("a", nil, 35, 46),
@@ -117,7 +117,7 @@ func TestTheThresholdsAreTheCallers(t *testing.T) {
 	if got := CorrelatedHeat(readings, CorrelationThresholds{MinDrives: 3, DeltaC: 4}); len(got) != 1 {
 		t.Errorf("3 drives up 4 °C produced no finding: %+v", got)
 	}
-	// A MinDrives below two is not "off", it is "any one drive that moved" — and a DeltaC of zero
+	// A MinDrives below two is not "off", it is "any one drive that moved", and a DeltaC of zero
 	// would call every drive that held steady a mover. Both are refused rather than obeyed, so a
 	// typo cannot produce a wrong alert.
 	if got := CorrelatedHeat(readings, CorrelationThresholds{MinDrives: 1, DeltaC: 4}); got != nil {
@@ -159,7 +159,7 @@ func TestADriveCountsForEveryGroupItIsIn(t *testing.T) {
 	}
 }
 
-// A drive with no earlier reading belongs to its group — it is part of the ratio — but it cannot be
+// A drive with no earlier reading belongs to its group, it is part of the ratio, but it cannot be
 // one of the drives that moved. Dropping it would silently shrink the denominator and make a
 // two-of-three read as a two-of-two.
 func TestADriveWithNoPreviousReadingStaysInTheRatio(t *testing.T) {
@@ -174,7 +174,7 @@ func TestADriveWithNoPreviousReadingStaysInTheRatio(t *testing.T) {
 		t.Fatalf("got %+v, want one finding", got)
 	}
 	if got[0].Total != 3 {
-		t.Errorf("total = %d, want 3 — the new drive is still in the group", got[0].Total)
+		t.Errorf("total = %d, want 3, the new drive is still in the group", got[0].Total)
 	}
 	if len(got[0].Drives) != 2 {
 		t.Errorf("drives = %v, want the two that moved", got[0].Drives)
@@ -182,7 +182,7 @@ func TestADriveWithNoPreviousReadingStaysInTheRatio(t *testing.T) {
 }
 
 // A drive that reported no temperature is not a drive that held steady, so it is not in the
-// denominator either — otherwise a group with three silent drives could never reach any threshold.
+// denominator either, otherwise a group with three silent drives could never reach any threshold.
 func TestADriveWithNoTemperatureIsNotCounted(t *testing.T) {
 	readings := []HeatReading{
 		reading("a", []string{"tank"}, 35, 46),
@@ -192,7 +192,7 @@ func TestADriveWithNoTemperatureIsNotCounted(t *testing.T) {
 
 	got := CorrelatedHeat(readings, CorrelationThresholds{MinDrives: 2, DeltaC: 8})
 	if len(got) != 1 || got[0].Total != 2 {
-		t.Errorf("got %+v, want 2 of 2 — the silent drive is not a member", got)
+		t.Errorf("got %+v, want 2 of 2, the silent drive is not a member", got)
 	}
 }
 

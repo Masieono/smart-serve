@@ -57,7 +57,7 @@ func TestMetricsAreOffUntilEnabled(t *testing.T) {
 	}
 }
 
-// A reading the drive did not report drops the series rather than exporting a zero — the same rule as
+// A reading the drive did not report drops the series rather than exporting a zero, the same rule as
 // the em dash on screen, and here it is also what Prometheus expects: an absent series means "no
 // measurement", while a 0 is a claim that the drive reported zero.
 func TestMetricsOmitReadingsTheDriveDidNotReport(t *testing.T) {
@@ -90,7 +90,7 @@ func TestMetricsOmitReadingsTheDriveDidNotReport(t *testing.T) {
 }
 
 // The exposition format reserves three characters inside a label value, and a drive name is free text
-// a user typed — a quote or a backslash in it must not corrupt the scrape.
+// a user typed, a quote or a backslash in it must not corrupt the scrape.
 func TestMetricsEscapeLabelValues(t *testing.T) {
 	var b strings.Builder
 	writeMetrics(&b, "1.0.0", []store.DeviceRecord{{

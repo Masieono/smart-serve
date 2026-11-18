@@ -2,7 +2,7 @@
 //
 // The card answers one question, and the interesting cases are the quiet ones: "nothing changed"
 // has to be a real answer rather than an empty panel, an absent reading has to look absent rather
-// than like zero, and the counters the server decided were *routine* still have to be mentioned —
+// than like zero, and the counters the server decided were *routine* still have to be mentioned,
 // a silent filter would be a lie by omission.
 
 import test from 'node:test';
@@ -11,7 +11,7 @@ import { installStubDom, StubNode } from './stub-dom.mjs';
 
 installStubDom();
 
-const { changesCard } = await import('../assets/js/views/device.js');
+const { changesCard } = await import('../assets/js/views/device-parts.js');
 
 /** Every string in a subtree, in document order. */
 function textOf(node) {
@@ -28,7 +28,7 @@ function textOf(node) {
   return out.join(' | ');
 }
 
-// No diff means no card at all — not an empty one, which would read as "we did not look".
+// No diff means no card at all, not an empty one, which would read as "we did not look".
 test('no diff means no card', () => {
   assert.equal(changesCard(null), null);
   assert.equal(changesCard(undefined), null);
@@ -71,7 +71,7 @@ test('an absent end is an em dash, never a zero', () => {
     temperature_c: { to: 41 },
   }));
   assert.match(text, /Temperature/);
-  assert.match(text, /— \| → \| 41 °C/);
+  assert.match(text, /n\/a \| → \| 41 °C/);
 });
 
 // The routine counters are counted rather than listed, and the count is stated. Dropping them

@@ -5,7 +5,7 @@ import "strings"
 // BenchTag marks a drive as being on the bench rather than in the fleet (`FEATURES.md` D11).
 //
 // A tag rather than a new column, and that is the design rather than a shortcut. Tags already group
-// (`D9`), survive an unplug, export and import (`C7`), and appear in every report — so "label the
+// (`D9`), survive an unplug, export and import (`C7`), and appear in every report, so "label the
 // batch" needs no storage, no migration and no new control, and the feature's own words are exactly
 // that: *label, test and report a batch of bench drives*. What the tag *means* is the app's contract
 // with the user, which is why it is named here rather than spelled out at each use.
@@ -13,7 +13,7 @@ import "strings"
 // A drive on the bench is one being evaluated, so it is left out of the fleet's health summary and
 // out of the replacement ranking: a bench drive that fails is a **result**, not an alarm, and a
 // batch of five failing drives would otherwise dominate both. It is never left out of the list or an
-// export — being out of the summary is not the same as being hidden.
+// export, being out of the summary is not the same as being hidden.
 const BenchTag = "bench"
 
 // TagList splits a drive's stored tag string into its tags: comma-separated, trimmed, blanks

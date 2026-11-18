@@ -77,7 +77,7 @@ func TestParseSMARTNVMe(t *testing.T) {
 }
 
 // Some NVMe drives report hours and cycles only inside the health log, so the
-// parser must fall back to it (regression: the detail page showed "—").
+// parser must fall back to it (regression: the detail page showed "n/a").
 func TestParseSMARTNVMeFallsBackToHealthLog(t *testing.T) {
 	sd, err := ParseSMART(loadFixture(t, "nvme-log-only.json"))
 	if err != nil {

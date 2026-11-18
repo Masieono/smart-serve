@@ -5,7 +5,7 @@ package model
 // The counts are the headline, and they are the part verified against real hardware: a
 // non-zero error count is the difference between "this drive has never complained" and
 // "this drive has complained". The entry lists themselves are deliberately not modelled
-// here — see `internal/smart/logs.go` for why.
+// here, see `internal/smart/logs.go` for why.
 type LogSummary struct {
 	// ErrorCount is how many entries the drive's error log holds. Absent when the drive
 	// reports no error log at all, which is a different finding from an empty one.
@@ -26,7 +26,7 @@ type LogSummary struct {
 	Note string `json:"note,omitempty"`
 	// SelfTestLogUnread explains why a drive's self-test log could not be read, if it could not be.
 	// Present means the drive may well be able to test itself but its progress and past results
-	// cannot be shown here — a different statement from "this drive has no self-test log", and the
+	// cannot be shown here, a different statement from "this drive has no self-test log", and the
 	// only one of the two that a reader can act on. Either smartctl's own words, or the name of a
 	// log in a form this app does not read.
 	SelfTestLogUnread string `json:"self_test_log_unread,omitempty"`
@@ -65,7 +65,7 @@ type SelfTestEntry struct {
 //
 // Deliberately sparse, and that sparseness is the finding rather than an omission. On a drive
 // smartctl does not recognise, a logged error carries an error number and an index and nothing
-// else — no LBA, no timestamp, no status — so a row per entry can be a row of dashes. The count
+// else, no LBA, no timestamp, no status, so a row per entry can be a row of dashes. The count
 // is the useful part; these exist so a bare number does not go unexplained.
 type ErrorLogEntry struct {
 	Number *int64  `json:"number,omitempty"`
@@ -86,7 +86,7 @@ func (e ErrorLogEntry) HasDetail() bool {
 // IsEmpty reports whether a summary holds nothing worth showing.
 // A method rather than a comparison against the zero value, because the summary contains slices
 // and is no longer comparable. It exists so a caller can tell "the drive reported nothing" from
-// "the drive reported that it has nothing" — the two look identical in an empty panel, and only
+// "the drive reported that it has nothing", the two look identical in an empty panel, and only
 // the first is a reason not to draw one.
 func (s LogSummary) IsEmpty() bool {
 	return s.ErrorCount == nil &&
@@ -103,7 +103,7 @@ func (s LogSummary) IsEmpty() bool {
 // LatestFinished returns the newest self-test result that has finished, or nil.
 //
 // "Newest" is the drive's own ordering, because a self-test log is reported newest first, and
-// "finished" means the entry carries no percentage remaining — that field appears only while a
+// "finished" means the entry carries no percentage remaining, that field appears only while a
 // test runs. This is the entry `B9` compares against next time: a result that is still going is
 // not yet news, and one the drive reports no verdict on is not a failure.
 func (s LogSummary) LatestFinished() *SelfTestEntry {

@@ -13,15 +13,15 @@ import (
 //
 // Nothing in this application loads from anywhere but its own origin: the assets are
 // embedded, there is no CDN, no web font, no analytics and no third-party script. A
-// policy that says `'self'` and nothing else therefore costs nothing to enforce — and
+// policy that says `'self'` and nothing else therefore costs nothing to enforce, and
 // it closes the class of bug that matters here, where device-supplied strings (a model
 // name, a user's note on a drive, a `smartctl` log line, a serial echoed into a URL)
 // are rendered and must never be interpreted as markup or as a request somewhere else.
 //
 // `style-src` allows inline styles, and that is deliberate rather than lazy: the shell
 // emits the theme as a `style` attribute before first paint, which is what prevents the
-// flash of the wrong theme (`docs/UI.md` §5). There is no equivalent need for scripts —
-// no inline handler and no inline script exists — so `script-src` gets no allowance.
+// flash of the wrong theme (`docs/UI.md` §5). There is no equivalent need for scripts,
+// no inline handler and no inline script exists, so `script-src` gets no allowance.
 // That makes the one directive that would actually let injected markup run the one
 // directive that is strict.
 const contentSecurityPolicy = "default-src 'self'; " +
@@ -61,7 +61,7 @@ func securityHeadersMiddleware(next http.Handler) http.Handler {
 //
 // It exists for the panic path: once a status line is on the wire the only honest
 // thing left to do is stop, because a 500 appended to half a JSON document is a worse
-// answer than a truncated one. It also keeps streaming working — `handleEvents` asks
+// answer than a truncated one. It also keeps streaming working, `handleEvents` asks
 // for `http.Flusher` by type assertion, so a wrapper that forgot `Flush` would not
 // break visibly, it would turn every live scan into "streaming unsupported".
 type recordingWriter struct {
@@ -109,7 +109,7 @@ func (w *recordingWriter) Unwrap() http.ResponseWriter { return w.ResponseWriter
 //
 // The message sent is deliberately generic. A panic value is an internal detail, and
 // this handler is one of the few places where the temptation to echo one is strongest
-// — the reader is already getting a 500, so the only thing a detail adds is a hint at
+// , the reader is already getting a 500, so the only thing a detail adds is a hint at
 // what to probe.
 func recoverMiddleware(logger *slog.Logger, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -173,8 +173,8 @@ func logMiddleware(logger *slog.Logger, next http.Handler) http.Handler {
 			if status == 0 {
 				// No status line was written: the handler returned without answering, or a
 				// panic re-raised as http.ErrAbortHandler unwound past recovery. net/http's
-				// own answer — an empty 200 for a bare return, a closed connection for the
-				// abort — is written after this runs and is not visible here; a 0 would be
+				// own answer, an empty 200 for a bare return, a closed connection for the
+				// abort, is written after this runs and is not visible here; a 0 would be
 				// skipped by a log scan, so the request is recorded as a failure.
 				status = http.StatusInternalServerError
 			}
@@ -189,8 +189,8 @@ func logMiddleware(logger *slog.Logger, next http.Handler) http.Handler {
 			case status >= 500:
 				logger.Error("request", attrs...)
 			case status >= 400:
-				// A 4xx is usually the client's mistake — an unknown serial, a bad scan
-				// target — but it is the line that explains a broken bookmark, so it is a
+				// A 4xx is usually the client's mistake, an unknown serial, a bad scan
+				// target, but it is the line that explains a broken bookmark, so it is a
 				// warning rather than silence.
 				logger.Warn("request", attrs...)
 			default:

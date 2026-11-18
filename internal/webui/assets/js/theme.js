@@ -45,7 +45,7 @@ export function applyTheme(settings) {
   if (settings.theme_surface_tint) root.dataset.themeTint = settings.theme_surface_tint;
 
   // Only the custom theme takes its accent from settings. A named palette owns its
-  // own, so the inline override is cleared as well as skipped — leaving a stale one
+  // own, so the inline override is cleared as well as skipped, leaving a stale one
   // behind would quietly win over the stylesheet and flatten the theme.
   for (const property of ACCENT_PROPERTIES) {
     root.style.removeProperty(property);

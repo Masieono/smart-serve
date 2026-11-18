@@ -10,7 +10,7 @@ import (
 // SecretSource names where a channel field's effective value came from.
 //
 // It is surfaced in the UI so an operator can tell a value they typed from one the
-// deployment supplies — and, more to the point, can *see* when the environment has
+// deployment supplies, and, more to the point, can *see* when the environment has
 // overridden what is on screen. A silent override is the failure mode this whole mechanism
 // has to avoid: the field would look wrong, the send would use something else, and nothing
 // would say so.
@@ -31,7 +31,7 @@ const (
 // across all of that.
 //
 // The cost is that renaming a channel changes its variable names. That is why the UI displays
-// the expected name rather than leaving it to be discovered — a rename is then visible
+// the expected name rather than leaving it to be discovered, a rename is then visible
 // immediately instead of silently dropping the override and falling back to the database.
 func EnvPrefix(label string) string {
 	return "SMARTSERVE_CHANNEL_" + slug(label)
@@ -78,7 +78,7 @@ func slug(s string) string {
 //
 // An unreadable or empty `_FILE` is an **error rather than a fallback**. Silently dropping to
 // the database value would send a stale token while the operator believed they had rotated
-// it — the same silent-failure shape that made the original undocumented version of this
+// it, the same silent-failure shape that made the original undocumented version of this
 // feature so damaging.
 func Resolve(label, key, stored string) (string, SecretSource, error) {
 	name := EnvVar(label, key)

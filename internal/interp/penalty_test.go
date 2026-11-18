@@ -36,7 +36,7 @@ func TestATAPenaltiesCarryTheAttributeTheyCameFrom(t *testing.T) {
 	}
 }
 
-// The temperature check reads attribute 194, so the row it marks is that one — not the drive's
+// The temperature check reads attribute 194, so the row it marks is that one, not the drive's
 // temperature field, which is not a row in the table.
 func TestTheTemperaturePenaltyNamesAttribute194(t *testing.T) {
 	hot := 70
@@ -57,7 +57,7 @@ func TestTheTemperaturePenaltyNamesAttribute194(t *testing.T) {
 	}
 }
 
-// An NVMe drive has no ATA attributes at all, so its penalties must not name one — a made-up id
+// An NVMe drive has no ATA attributes at all, so its penalties must not name one, a made-up id
 // would mark a row the verdict never looked at.
 func TestNVMePenaltiesNameNoAttribute(t *testing.T) {
 	sd := &model.SmartData{
@@ -98,7 +98,7 @@ func TestTheBreakdownAccountsForTheScore(t *testing.T) {
 		t.Fatalf("penalties sum to %v: %+v", sum, res.Penalties)
 	}
 	// The score is 100 minus the penalties, floored at the verdict's cap. This drive is Bad, so the
-	// cap binds — which is exactly why the sum is checked as "at least what was taken off" rather
+	// cap binds, which is exactly why the sum is checked as "at least what was taken off" rather
 	// than "equal to 100 minus the score".
 	if want := 100.0 - sum; res.Score > int(want)+1 {
 		t.Errorf("score = %d, but the breakdown only accounts for %.1f points off", res.Score, sum)

@@ -1,6 +1,6 @@
 // Plain-English descriptions for common cron expressions, and the reverse:
 // building a cron expression from a friendly "daily at HH:MM" / weekday choice.
-// (docs/UI.md §7.3 — the user should not need to know cron syntax.)
+// (docs/UI.md §7.3, the user should not need to know cron syntax.)
 
 const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June',

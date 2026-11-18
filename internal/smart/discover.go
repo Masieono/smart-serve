@@ -29,12 +29,12 @@ type Discovered struct {
 	SmartType string `json:"smart_type,omitempty"` // smartctl -d transport hint
 
 	// Partitions is the drive's partition schema (`FEATURES.md` A28), flat and in tree order. Empty
-	// for a drive with no partition table — which is a fact worth reporting rather than a failure:
+	// for a drive with no partition table, which is a fact worth reporting rather than a failure:
 	// an unpartitioned disk is a disk nobody has set up yet.
 	Partitions []Partition `json:"partitions,omitempty"`
 	// UnallocatedBytes is disk size less the sum of its partitions, and it is *approximate*: it
 	// ignores alignment gaps, GPT's backup header and any nested volume that does not report a size.
-	// It answers "is this drive mostly empty?", which is a question about hundreds of gigabytes —
+	// It answers "is this drive mostly empty?", which is a question about hundreds of gigabytes,
 	// and it is nil when there is no partition table to reason about, rather than claiming the whole
 	// disk is unallocated.
 	UnallocatedBytes *uint64 `json:"unallocated_bytes,omitempty"`
@@ -47,7 +47,7 @@ type Discovered struct {
 	// It is the answer for a drive with no partitions: `linux_raid_member` on a disk pulled from an
 	// array, `zfs_member` on a pool member, `ext4` on a filesystem written straight to the device.
 	// Without it the only thing to say about such a drive is "unpartitioned", which is true and
-	// useless — the interesting fact is *what* is on it (`FEATURES.md` A28).
+	// useless, the interesting fact is *what* is on it (`FEATURES.md` A28).
 	DiskFstype string `json:"disk_fstype,omitempty"`
 	// LogSectorSize and PhySectorSize are the 512e / 4Kn distinction, which decides whether a drive
 	// can join a pool that demands one. Power-user facts: shown behind a disclosure, not in the
@@ -80,7 +80,7 @@ type lsblkDev struct {
 	WWN         *string    `json:"wwn"`
 	Children    []lsblkDev `json:"children"`
 
-	// The partition schema (`FEATURES.md` A28). Every one of these is on the wire already — the
+	// The partition schema (`FEATURES.md` A28). Every one of these is on the wire already, the
 	// tree was walked only to collect mountpoints and then discarded, so the sizes, labels and
 	// usage were paid for on every scan and never seen.
 	Label        *string `json:"label"`
@@ -103,13 +103,13 @@ type lsblkDev struct {
 	DiscGran *uint64 `json:"disc-gran"`
 	DiscMax  *uint64 `json:"disc-max"`
 	DiscZero *bool   `json:"disc-zero"`
-	// PtType is the partition table type (gpt, dos). Not shown itself — it is what makes
+	// PtType is the partition table type (gpt, dos). Not shown itself, it is what makes
 	// PartTypeName meaningful, and it is how a disk with no table is told from one whose table
 	// lsblk could not read.
 	PtType *string `json:"pttype"`
 	// UUID and PartUUID are captured for one reason: a "copy UUID" button beside each partition
 	// (`FEATURES.md` A28). They are what `/etc/fstab` and `blkid` speak in, so somebody adding this
-	// drive to a config needs one — but as columns they are two long opaque strings per row with
+	// drive to a config needs one, but as columns they are two long opaque strings per row with
 	// nothing to scan, which is why they are a button and not a field.
 	UUID     *string `json:"uuid"`
 	PartUUID *string `json:"partuuid"`
@@ -122,7 +122,7 @@ type lsblkDev struct {
 // and give the UI a second thing to get wrong.
 type Partition struct {
 	Name string `json:"name"`
-	// TopLevel is true for a direct child of the disk — the nodes laid out side by side on it. False
+	// TopLevel is true for a direct child of the disk, the nodes laid out side by side on it. False
 	// for anything nested inside another partition: a logical volume or a dm-crypt mapping. Only the
 	// disk map reads it (`FEATURES.md` A28); the table draws every row either way.
 	TopLevel bool `json:"top_level,omitempty"`
@@ -152,12 +152,12 @@ type Partition struct {
 }
 
 // Fullest is the filesystem with the least room left, which is the one number that answers "is this
-// drive full?" — and it is not the same as the average. A drive holding a 20%-full boot partition and
+// drive full?", and it is not the same as the average. A drive holding a 20%-full boot partition and
 // a 95%-full data volume is a drive that is about to run out of space, and a blended figure would hide
 // exactly the filesystem somebody needs to be told about.
 //
-// Returns false when nothing on the drive has a readable usage figure — no mountpoints, or none the
-// container can see — which is a different answer from "0% used".
+// Returns false when nothing on the drive has a readable usage figure, no mountpoints, or none the
+// container can see, which is a different answer from "0% used".
 func (l DiskLayout) Fullest() (Partition, bool) {
 	best := Partition{}
 	found := false
@@ -205,21 +205,21 @@ type DiskLayout struct {
 	Partitions []Partition `json:"partitions"`
 	// SizeBytes is the disk's own capacity, which is the disk map's denominator (`FEATURES.md` A28).
 	// It is the *reported* size rather than the sum of the partitions, so free space can be drawn as
-	// the difference — and so a disk whose partitions do not add up still draws at the right width.
+	// the difference, and so a disk whose partitions do not add up still draws at the right width.
 	SizeBytes uint64 `json:"size_bytes,omitempty"`
 	// WholeDiskFstype is what the disk node itself reports when it holds no partition table: a
 	// filesystem written directly to the device, or an array member signature.
 	//
 	// This is the field that turns "this drive has no partition table" into something worth
-	// reading. A disk pulled from a RAID array carries `linux_raid_member` and no table at all —
+	// reading. A disk pulled from a RAID array carries `linux_raid_member` and no table at all,
 	// which is not a fault, it is what an array member looks like on its own, and the app can say so
 	// instead of implying the drive is unset-up (`FEATURES.md` A28).
 	WholeDiskFstype string `json:"whole_disk_fstype,omitempty"`
-	// WholeDiskName is what the signature above is a member of — "a Linux md array", "a ZFS pool" —
+	// WholeDiskName is what the signature above is a member of, "a Linux md array", "a ZFS pool",
 	// or empty when it is a plain filesystem. The mapping lives in `smart` beside the token list,
 	// because it is knowledge about the tokens rather than about the page.
 	WholeDiskName string `json:"whole_disk_name,omitempty"`
-	// UnallocatedBytes is approximate — see the field on Discovered. Absent when there is no
+	// UnallocatedBytes is approximate, see the field on Discovered. Absent when there is no
 	// partition table to reason about.
 	UnallocatedBytes *uint64 `json:"unallocated_bytes,omitempty"`
 	// Table is lsblk's PTTYPE (gpt, dos), absent when there is no table.
@@ -259,7 +259,7 @@ func (d Discovered) DiskLayout() *DiskLayout {
 // wholeDiskFstype is the disk's own signature, kept only when it is the thing occupying the disk.
 //
 // A partitioned disk's `pttype` is what is on it, and lsblk reports the *partition table* as the
-// disk node's fstype on some systems — which would read as "this disk holds a gpt filesystem".
+// disk node's fstype on some systems, which would read as "this disk holds a gpt filesystem".
 func wholeDiskFstype(table, diskFstype string) string {
 	if strings.TrimSpace(table) != "" {
 		return ""
@@ -270,7 +270,7 @@ func wholeDiskFstype(table, diskFstype string) string {
 // memberSignatures maps a whole-disk signature to the thing the disk is a member of.
 //
 // These are the blkid tokens for "this device is not a filesystem, it is part of something bigger".
-// The list is closed in practice — they are the names the kernel's superblock probes write — so
+// The list is closed in practice, they are the names the kernel's superblock probes write, so
 // recognising them by name is the whole mechanism; there is no vendor-neutral way to ask "is this
 // RAID?".
 //
@@ -291,8 +291,8 @@ var memberSignatures = map[string]string{
 	"via_raid_member":               "a VIA array",
 	"highpoint_raid_member":         "a HighPoint array",
 	// Pools. Not arrays, and not faults either: a disk doing its job, with nothing to mount on its
-	// own. Grouped with the arrays because the *answer* is the same — "there is nothing to mount
-	// here, and that is expected" — even though the mechanism differs.
+	// own. Grouped with the arrays because the *answer* is the same, "there is nothing to mount
+	// here, and that is expected", even though the mechanism differs.
 	"zfs_member":  "a ZFS pool",
 	"lvm2_member": "an LVM volume group",
 	"bcache":      "a bcache cache or backing device",
@@ -309,7 +309,7 @@ func WholeDiskMemberName(signature string) string {
 
 // DiscardSupport reports whether the device advertises discard (TRIM) at all.
 //
-// A granularity of zero means it does not — which for an SSD behind a USB bridge is a real finding:
+// A granularity of zero means it does not, which for an SSD behind a USB bridge is a real finding:
 // without discard the drive cannot know which blocks are free, so its write performance degrades as
 // it fills. It is a fact about the bridge as much as the drive, and this app's audience is people
 // with drives in enclosures.
@@ -333,7 +333,7 @@ func ListDevices(ctx context.Context, timeout time.Duration) ([]Discovered, erro
 		"--json", "--paths", "--bytes",
 		"--output", "NAME,KNAME,MODEL,SERIAL,SIZE,TYPE,TRAN,MOUNTPOINTS,FSTYPE,FSVER,REV,ROTA,RM,WWN,"+
 			// The partition schema (`FEATURES.md` A28). Every one of these was already being
-			// fetched and then discarded — the columns cost one argument, and the tree below is
+			// fetched and then discarded, the columns cost one argument, and the tree below is
 			// walked anyway to collect the disk's mountpoints.
 			"LABEL,PARTLABEL,PARTTYPENAME,PARTN,STATE,RO,FSUSE%,FSUSED,FSSIZE,FSAVAIL,"+
 			"LOG-SEC,PHY-SEC,DISC-GRAN,DISC-MAX,DISC-ZERO,PTTYPE,UUID,PARTUUID",
@@ -374,8 +374,8 @@ func parseLsblk(data []byte) ([]Discovered, error) {
 		if d.Type != "disk" {
 			continue
 		}
-		// A whole disk is never mounted itself — its partitions carry the
-		// mountpoints and filesystems — so gather them from the tree.
+		// A whole disk is never mounted itself, its partitions carry the
+		// mountpoints and filesystems, so gather them from the tree.
 		var mounts, fstypes, fsvers []string
 		collectTree(d, &mounts, &fstypes, &fsvers)
 
@@ -421,8 +421,8 @@ func parseLsblk(data []byte) ([]Discovered, error) {
 // that tells the reader nothing they did not already know.
 //
 // `TopLevel` marks the direct children of the disk, and it exists for the disk map (`FEATURES.md`
-// A28). The table can do without it — the node name carries the nesting, so `/dev/mapper/vg-data`
-// is visibly inside something — but a map of the *disk* has to know which nodes are laid out side by
+// A28). The table can do without it, the node name carries the nesting, so `/dev/mapper/vg-data`
+// is visibly inside something, but a map of the *disk* has to know which nodes are laid out side by
 // side and which sit inside another. A logical volume drawn beside the partition containing it would
 // claim the disk is bigger than it is. The earlier "no depth field is needed" was right about the
 // table and wrong about the map.
@@ -465,7 +465,7 @@ func collectPartitions(disk lsblkDev) []Partition {
 // nothing. It answers "is this drive mostly empty?", where being a gigabyte out is irrelevant.
 //
 // Nil rather than zero for a disk with no partition table, and nil when the partitions add up to
-// more than the disk — the latter happens with an extended partition, whose size overlaps its own
+// more than the disk, the latter happens with an extended partition, whose size overlaps its own
 // logical partitions. Reporting "0 bytes unallocated" there would be a confident wrong answer.
 func unallocated(disk lsblkDev, partitions []Partition) *uint64 {
 	if deref(disk.PtType) == "" || len(partitions) == 0 {

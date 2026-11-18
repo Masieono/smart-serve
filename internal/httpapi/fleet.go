@@ -19,7 +19,7 @@ import (
 // and the page you print or attach when several drives are going back at once. Both are documents
 // someone else reads, so both say what they are.
 const fleetPurpose = "Every drive this host has seen, with its identity, its health and the readings " +
-	"that predict it — a fleet inventory for planning a purchase, and warranty / RMA evidence for " +
+	"that predict it, a fleet inventory for planning a purchase, and warranty / RMA evidence for " +
 	"drives that are going back. The data is read from the drives by smartmontools and is not edited."
 
 // fleetRow is one drive's line in the fleet export: the payload the dashboard shows, plus the
@@ -39,7 +39,7 @@ type fleetRow struct {
 // handleExportFleet serves the whole fleet as one file (`FEATURES.md` A23).
 //
 // The route is `/api/devices/export`, which shadows a device whose serial is literally "export".
-// The mux resolves it deterministically — a literal path segment is more specific than a wildcard —
+// The mux resolves it deterministically, a literal path segment is more specific than a wildcard,
 // so the only cost is that such a serial is unreachable, and no drive has one.
 func (s *Server) handleExportFleet(w http.ResponseWriter, r *http.Request) {
 	devices, ranks, err := s.deviceRows(r.Context())
@@ -105,7 +105,7 @@ func withTag(devices []deviceJSON, ranks []interp.ReplacementRank, tag string) (
 // fleetRows pairs the list payloads with the ranking and puts them in the ranking's own order.
 //
 // The order is the one thing a reader cannot recover from the file. Sorting by the band column
-// gives fine, now, soon, watch — alphabetical, and meaningless — and reconstructing "worst first"
+// gives fine, now, soon, watch, alphabetical, and meaningless, and reconstructing "worst first"
 // needs the banding rule itself. Walking the ranking keeps the export in the order the app would
 // answer in.
 //
@@ -155,7 +155,7 @@ type fleetColumn struct {
 //
 // It is deliberately not the dashboard table's columns. A screen shows a dozen cells and hides the
 // rest behind a drive's page; a spreadsheet is where you compare twenty drives at once, so the
-// columns that are too noisy to sit on a card — wear, new sector problems, the ranking's reasons —
+// columns that are too noisy to sit on a card, wear, new sector problems, the ranking's reasons,
 // belong here.
 func fleetColumns() []fleetColumn {
 	return []fleetColumn{
@@ -190,7 +190,7 @@ func fleetColumns() []fleetColumn {
 // Empty rather than zero, and it matters more here than anywhere else in the app. A blank cell is
 // what a spreadsheet's AVERAGE and MIN skip, while a 0 is a value: it drags every average down and
 // reads as "this drive scored zero", which is a claim the app is not making. `-1` is how the API
-// spells "not scored" (`API.md`), and it means exactly that — no reading, not a bad one.
+// spells "not scored" (`API.md`), and it means exactly that, no reading, not a bad one.
 func fleetScore(score int) string {
 	if score < 0 {
 		return ""
@@ -241,7 +241,7 @@ func yesNo(b bool) string {
 // renderFleetCSV renders the fleet as a spreadsheet.
 //
 // **One row per drive, not one row per attribute.** A spreadsheet's job here is to compare drives
-// with each other — oldest first, most worn first, which one to buy — and a field/value sheet cannot
+// with each other, oldest first, most worn first, which one to buy, and a field/value sheet cannot
 // be sorted by anything. The per-attribute sheet is the single-drive report's job (`A8`).
 //
 // **The file introduces itself.** Two lines above the header say what it is, because a CSV in a
@@ -288,7 +288,7 @@ func driveCount(n int) string {
 // fleetCSS is the printable page's own styling, on top of the report's.
 //
 // Twenty-one columns only fit a sheet of paper sideways, so the print rule says so rather than
-// leaving the browser to guess and clip the last columns — the ones the page exists for.
+// leaving the browser to guess and clip the last columns, the ones the page exists for.
 const fleetCSS = reportCSS +
 	"body{margin:1.5rem}h1{font-size:1.3rem}" +
 	"table{font-size:.78rem}th,td{padding:.25rem .4rem;white-space:nowrap}" +
@@ -317,7 +317,7 @@ func renderFleetHTML(rows []fleetRow, stamp string) string {
 
 	if len(rows) == 0 {
 		// Said outright. An empty table reads as a page that failed to render, not as a host with
-		// no drives on it — and the second is a real answer.
+		// no drives on it, and the second is a real answer.
 		b.WriteString("<p>No drives have been recorded yet. Run a scan and export again.</p>\n")
 	} else {
 		b.WriteString("<table>\n<thead><tr>")

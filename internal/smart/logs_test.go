@@ -22,7 +22,7 @@ func TestParseLogsATA(t *testing.T) {
 	if got.SelfTestSupported == nil || !*got.SelfTestSupported {
 		t.Errorf("SelfTestSupported = %v, want true", got.SelfTestSupported)
 	}
-	// The drive's own estimate of how long its tests run — the progress basis a running
+	// The drive's own estimate of how long its tests run, the progress basis a running
 	// test needs, and the reason this is parsed at all rather than left for A19.
 	if got.ShortMinutes == nil || *got.ShortMinutes != 2 {
 		t.Errorf("ShortMinutes = %v, want 2", got.ShortMinutes)
@@ -38,7 +38,7 @@ func TestParseLogsATA(t *testing.T) {
 // The BTO-1TB fixture is the only drive available to this project with a **populated** error
 // log, and it is what settled the counts-only decision. On a drive smartctl does not recognise
 // (`in_smartctl_database: false`), a logged error carries an error number and an index and
-// nothing else — no LBA, no timestamp, no status — so a row per entry would be a row of dashes.
+// nothing else, no LBA, no timestamp, no status, so a row per entry would be a row of dashes.
 //
 // Its self-test log is fully populated by contrast: type, status including the percentage
 // remaining for a test in progress, and lifetime hours. That is the shape `A19` will render.
@@ -46,7 +46,7 @@ func TestParseLogsATAWithPopulatedLogs(t *testing.T) {
 	got := ParseLogs(loadFixture(t, "ata-bto-1tb-logs.json"))
 
 	if got.ErrorCount == nil || *got.ErrorCount != 1 {
-		t.Errorf("ErrorCount = %v, want 1 — this drive has logged an error", got.ErrorCount)
+		t.Errorf("ErrorCount = %v, want 1, this drive has logged an error", got.ErrorCount)
 	}
 	if got.SelfTestCount == nil || *got.SelfTestCount != 2 {
 		t.Errorf("SelfTestCount = %v, want 2", got.SelfTestCount)
@@ -85,18 +85,18 @@ func TestParseLogsATAErrorEntries(t *testing.T) {
 // The drive's own self-test-execution status outvotes a stale percentage in the self-test log.
 //
 // This is a real report, and the fixture `ata-bto-1tb-logs.json` is the contradiction itself: its
-// `ata_smart_data.self_test.status` says "completed without error" — nothing is executing — while a
+// `ata_smart_data.self_test.status` says "completed without error", nothing is executing, while a
 // log row carries `remaining_percent: 50`. The old rule let the log row win unless no row had a
 // percentage, so a drive in that state reported itself as busy *forever*, at a figure that never
 // moved. Two USB-attached drives, one of them healthy at 100/100, were both stuck reading "10%".
 //
-// The rows are kept — their status text is the explanation for what happened — but they are results
+// The rows are kept, their status text is the explanation for what happened, but they are results
 // now, not running tests.
 func TestAStaleLogRowDoesNotOutvoteTheDrivesOwnStatus(t *testing.T) {
 	got := ParseLogs(loadFixture(t, "ata-bto-1tb-logs.json"))
 
 	if got.Running() != nil {
-		t.Errorf("Running() = %+v, want nil — the drive's status says nothing is executing",
+		t.Errorf("Running() = %+v, want nil, the drive's status says nothing is executing",
 			got.Running())
 	}
 	for _, e := range got.SelfTestEntries {
@@ -113,8 +113,8 @@ func TestAStaleLogRowDoesNotOutvoteTheDrivesOwnStatus(t *testing.T) {
 	}
 }
 
-// And the other direction: when the drive says a test *is* executing, that is the running test — with
-// the drive's own figure — and the log's leftover percentages are cleared so exactly one entry claims
+// And the other direction: when the drive says a test *is* executing, that is the running test, with
+// the drive's own figure, and the log's leftover percentages are cleared so exactly one entry claims
 // to be running.
 //
 // Two entries claiming it would be worse than the bug this replaces: the card would draw a progress
@@ -171,7 +171,7 @@ func countRunning(entries []model.SelfTestEntry) int {
 }
 
 // The self-test log is the one worth rendering: it carries the test, its outcome, and the
-// percentage remaining for a test still running — which is the progress reading A19 needs.
+// percentage remaining for a test still running, which is the progress reading A19 needs.
 func TestParseLogsATASelfTestEntries(t *testing.T) {
 	got := ParseLogs(loadFixture(t, "ata-bto-1tb-logs.json"))
 
@@ -196,7 +196,7 @@ func TestParseLogsATASelfTestEntries(t *testing.T) {
 		t.Errorf("Hours = %v, want 2116", done.Hours)
 	}
 
-	// The second row looks like a test in progress — it carries a percentage — but this drive's own
+	// The second row looks like a test in progress, it carries a percentage, but this drive's own
 	// self-test status says nothing is executing, so it is a stale leftover and the percentage is
 	// cleared. The row itself is kept: "Self-test routine in progress" as a *past* status is the
 	// explanation for a test that was interrupted. See
@@ -206,7 +206,7 @@ func TestParseLogsATASelfTestEntries(t *testing.T) {
 		t.Errorf("Status = %q", stale.Status)
 	}
 	if stale.Remaining != nil {
-		t.Errorf("Remaining = %v, want nil — the drive says it is not running", stale.Remaining)
+		t.Errorf("Remaining = %v, want nil, the drive says it is not running", stale.Remaining)
 	}
 }
 
@@ -222,7 +222,7 @@ func TestParseLogsEmptyLogsProduceNoEntries(t *testing.T) {
 }
 
 // A running test reports `passed: true`, so a rule built on `passed` would call it finished and hide
-// it. This pins that trap — and it is why the fixture used here is the one where the drive *states*
+// it. This pins that trap, and it is why the fixture used here is the one where the drive *states*
 // it is executing, rather than the one where only a log row says so.
 func TestRunningSelfTest(t *testing.T) {
 	got := ParseLogs(loadFixture(t, "ata-selftest-running.json"))
@@ -241,7 +241,7 @@ func TestRunningSelfTest(t *testing.T) {
 	// running, and the app deliberately does not carry it. Anything that read `passed` to decide
 	// whether a test had finished would see a green tick on a test in progress.
 	if running.Passed != nil {
-		t.Errorf("Passed = %v, want nil — a running test reports `passed: true` and the app must not read it",
+		t.Errorf("Passed = %v, want nil, a running test reports `passed: true` and the app must not read it",
 			*running.Passed)
 	}
 
@@ -255,10 +255,10 @@ func TestRunningSelfTest(t *testing.T) {
 // The NVMe fixture is a real WDC SN730. Two things about it matter:
 //
 //   - its SMART/Health log counts one error entry while the Error Information log emits no
-//     entries at all, with or without `-l error` — so the count is the only thing available;
+//     entries at all, with or without `-l error`, so the count is the only thing available;
 //   - it answers the self-test log request with an error, which says the *log* could not be read.
 //     That is not the same finding as a drive that cannot test itself, and the same drive under a
-//     newer smartctl reads the log fine — see `nvme-sn730-selftest.json`.
+//     newer smartctl reads the log fine, see `nvme-sn730-selftest.json`.
 func TestParseLogsNVMe(t *testing.T) {
 	got := ParseLogs(loadFixture(t, "nvme-sn730-logs.json"))
 
@@ -266,11 +266,11 @@ func TestParseLogsNVMe(t *testing.T) {
 		t.Errorf("ErrorCount = %v, want 1", got.ErrorCount)
 	}
 	if got.SelfTestSupported != nil {
-		t.Errorf("SelfTestSupported = %v, want nil — this document says nothing about whether the "+
+		t.Errorf("SelfTestSupported = %v, want nil, this document says nothing about whether the "+
 			"drive can test itself", got.SelfTestSupported)
 	}
 	if got.SelfTestCount != nil {
-		t.Errorf("SelfTestCount = %v, want nil — the drive reported none", got.SelfTestCount)
+		t.Errorf("SelfTestCount = %v, want nil, the drive reported none", got.SelfTestCount)
 	}
 	if got.ShortMinutes != nil || got.ExtendedMinutes != nil {
 		t.Errorf("polling minutes = %v/%v, want nil for NVMe", got.ShortMinutes, got.ExtendedMinutes)
@@ -313,7 +313,7 @@ func TestParseLogsToleratesRubbish(t *testing.T) {
 
 // A self-test log the parser does not read must be *named* rather than silently dropped: the UI can
 // then say that progress and past results are unavailable on this drive, which is a different
-// statement from "no test has ever run" — and the only one of the two a reader can act on.
+// statement from "no test has ever run", and the only one of the two a reader can act on.
 func TestParseLogsNamesASelfTestLogItCannotRead(t *testing.T) {
 	got := ParseLogs([]byte(`{"vendor_self_test_log":{"table":[]}}`))
 
@@ -340,7 +340,7 @@ func TestParseLogsDoesNotCallTheLogsItReadsUnread(t *testing.T) {
 
 // A drive can report a test in progress in its *self-test execution status* rather than in the
 // self-test log. The ATA spec puts the percentage in that status byte, and a real 850 EVO reports it
-// nowhere else — so reading only the log left such a drive looking idle mid-test: no progress, and a
+// nowhere else, so reading only the log left such a drive looking idle mid-test: no progress, and a
 // card that offered the run buttons again for a drive already testing itself.
 func TestParseLogsReadsTheSelfTestExecutionStatus(t *testing.T) {
 	got := ParseLogs([]byte(`{
@@ -385,13 +385,13 @@ func TestParseLogsDoesNotMistakeALastOutcomeForARunningTest(t *testing.T) {
 	}`))
 
 	if r := got.Running(); r != nil {
-		t.Errorf("Running() = %+v, want nil — nothing is executing", r)
+		t.Errorf("Running() = %+v, want nil, nothing is executing", r)
 	}
 }
 
 // The self-test log's *standard* variant, which is what a drive answers with when it does not keep
 // the extended one. Reading only `extended` and `summary` meant such a drive reported no self-test
-// log at all — no count, no entries, and no sign of the test it was running.
+// log at all, no count, no entries, and no sign of the test it was running.
 func TestParseLogsReadsTheStandardSelfTestLog(t *testing.T) {
 	got := ParseLogs([]byte(`{
 	  "ata_smart_self_test_log": {
@@ -440,12 +440,12 @@ func TestParseLogsReadsTheStandardSelfTestLog(t *testing.T) {
 // that closed the gap `A19` had been carrying, and it is the whole reason the feature looked broken
 // on NVMe: the test *in progress* is a header field here, not a table row, so a parser that only
 // knew the ATA log reported "no test running" for a drive that was mid-test. The card, believing it,
-// offered the run buttons again — and the drive refused the second one.
+// offered the run buttons again, and the drive refused the second one.
 func TestParseLogsNVMeSelfTestLog(t *testing.T) {
 	got := ParseLogs(loadFixture(t, "nvme-sn730-selftest.json"))
 
 	if got.SelfTestSupported == nil || !*got.SelfTestSupported {
-		t.Errorf("SelfTestSupported = %v, want true — the drive says it implements self-tests",
+		t.Errorf("SelfTestSupported = %v, want true, the drive says it implements self-tests",
 			got.SelfTestSupported)
 	}
 	if got.SelfTestLogUnread != "" {
@@ -464,7 +464,7 @@ func TestParseLogsNVMeSelfTestLog(t *testing.T) {
 		t.Errorf("Status = %q, want the drive's own words", running.Status)
 	}
 	if running.Remaining == nil || *running.Remaining != 99 {
-		t.Errorf("Remaining = %v, want 99 — the log reports 1%% complete", running.Remaining)
+		t.Errorf("Remaining = %v, want 99, the log reports 1%% complete", running.Remaining)
 	}
 
 	// The finished results, newest first, in the drive's own vocabulary.
@@ -476,7 +476,7 @@ func TestParseLogsNVMeSelfTestLog(t *testing.T) {
 		t.Fatal("LatestFinished() = nil")
 	}
 	if latest.Type != "Extended" {
-		t.Errorf("Type = %q, want Extended — the table is newest first", latest.Type)
+		t.Errorf("Type = %q, want Extended, the table is newest first", latest.Type)
 	}
 	if latest.Passed == nil || !*latest.Passed {
 		t.Errorf("Passed = %v, want true", latest.Passed)
@@ -486,7 +486,7 @@ func TestParseLogsNVMeSelfTestLog(t *testing.T) {
 	}
 }
 
-// A drive can carry a self-test log this parser does not read *alongside* one it does — and reporting
+// A drive can carry a self-test log this parser does not read *alongside* one it does, and reporting
 // the first while showing the second is what put "this drive's self-test log could not be read" on
 // the page of a drive whose results were on the same page, and suppressed the live read that would
 // have corrected its stale progress bar.
@@ -534,7 +534,7 @@ func TestParseLogsDoesNotCallASecondaryLogUnread(t *testing.T) {
 	}
 }
 
-// A drive whose *only* self-test log is one this parser cannot read still says so — the notice is the
+// A drive whose *only* self-test log is one this parser cannot read still says so, the notice is the
 // useful half of an unreadable log, and narrowing the rule must not lose it.
 func TestParseLogsStillNamesAnOnlyUnreadLog(t *testing.T) {
 	got := ParseLogs([]byte(`{
@@ -549,14 +549,14 @@ func TestParseLogsStillNamesAnOnlyUnreadLog(t *testing.T) {
 
 // A self-test log smartctl could not *read* is not the same finding as a drive that cannot test
 // itself, and this project has the receipts: the fixture below is the same SN730 under smartctl 7.4,
-// which reported "Read Self-test Log failed" — and under 7.5, with no hardware change, reads it
+// which reported "Read Self-test Log failed", and under 7.5, with no hardware change, reads it
 // fine. Concluding "this drive cannot run self-tests" from a failed read told the reader to give up
 // on a drive that tests itself perfectly well.
 func TestAnUnreadableLogIsNotAnUnsupportedDrive(t *testing.T) {
 	got := ParseLogs(loadFixture(t, "nvme-sn730-logs.json"))
 
 	if got.SelfTestSupported != nil {
-		t.Errorf("SelfTestSupported = %v, want nil — nothing said the drive cannot test itself",
+		t.Errorf("SelfTestSupported = %v, want nil, nothing said the drive cannot test itself",
 			got.SelfTestSupported)
 	}
 	if !strings.Contains(got.SelfTestLogUnread, "Read Self-test Log failed") {

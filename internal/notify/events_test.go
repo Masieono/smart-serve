@@ -46,7 +46,7 @@ func states(list ...store.DeviceState) map[string]store.DeviceState {
 }
 
 // withSelfTest attaches a stored self-test result, and says whether the drive has been read at
-// all — the two are independent, which is the point of the flag.
+// all, the two are independent, which is the point of the flag.
 func withSelfTest(e *model.SelfTestEntry, recorded bool) stateOpt {
 	return func(s *store.DeviceState) {
 		s.SelfTest = e
@@ -64,7 +64,7 @@ func withAck(health string) stateOpt {
 }
 
 // B7: an acknowledged condition is one the user has said they know about. It silences the two alerts
-// that describe the *condition* — a verdict change and a hot drive — and leaves the verdict alone:
+// that describe the *condition*, a verdict change and a hot drive, and leaves the verdict alone:
 // the drive still reads as caution on the dashboard, because it is caution.
 func TestAnAcknowledgedConditionDoesNotAlert(t *testing.T) {
 	rep := scan.PostScan{
@@ -78,7 +78,7 @@ func TestAnAcknowledgedConditionDoesNotAlert(t *testing.T) {
 	}
 }
 
-// The ack must never hide a drive getting *worse* — that is the one thing it cannot do. It is spent
+// The ack must never hide a drive getting *worse*, that is the one thing it cannot do. It is spent
 // the moment the verdict moves, because `AckHealth == cur.Health` stops being true.
 func TestAWorseVerdictAlertsThroughAnAcknowledgement(t *testing.T) {
 	rep := scan.PostScan{
@@ -165,7 +165,7 @@ func TestCollectReportsAGroupThatMovedTogether(t *testing.T) {
 	}
 	// Four drives moved and one event was produced. That ratio is the whole feature.
 	if n := len(events); n != 1 {
-		t.Errorf("got %d events, want 1 — not one per drive: %+v", n, events)
+		t.Errorf("got %d events, want 1, not one per drive: %+v", n, events)
 	}
 	// It states a correlation and never a cause: a RAID rebuild heats everything too.
 	body := ev.Body()
@@ -298,7 +298,7 @@ func scheduledReport(previous, current map[string]store.DeviceState) scan.PostSc
 }
 
 // A scheduled scan that ran and found nothing to say is the only proof that monitoring is
-// alive — and its *absence* is the thing you would want to notice.
+// alive, and its *absence* is the thing you would want to notice.
 func TestCollectScheduledScanHeartbeat(t *testing.T) {
 	// No previous state and a healthy device, so the scan produces no other events and the
 	// heartbeat is the only thing to send.
@@ -327,7 +327,7 @@ func TestCollectScheduledScanHeartbeat(t *testing.T) {
 
 // A scheduled scan that found something to say does not also get a heartbeat: the alert is
 // the message. This is what makes the heartbeat the complement of the alert stream rather
-// than an addition to it — you hear from a scheduled scan either way, and never twice.
+// than an addition to it, you hear from a scheduled scan either way, and never twice.
 func TestCollectNoHeartbeatWhenTheScanFoundSomething(t *testing.T) {
 	rep := scheduledReport(
 		states(state("S1", "good")),
@@ -506,7 +506,7 @@ func TestCollectTemperatureHigh(t *testing.T) {
 		t.Errorf("temperature = %v, want 61", ev.TemperatureC)
 	}
 	if ev.Key() != "temperature_high:S1" {
-		t.Errorf("key = %q — it must be stable so the squelch window applies", ev.Key())
+		t.Errorf("key = %q, it must be stable so the squelch window applies", ev.Key())
 	}
 }
 
@@ -600,7 +600,7 @@ func TestEventTitleIsASCII(t *testing.T) {
 }
 
 // A test notification has to read as a test. "Drive health changed" for a drive that
-// does not exist is confusing in a notification tray — and in the JSON it is worse,
+// does not exist is confusing in a notification tray, and in the JSON it is worse,
 // because it can trip an automation that is watching for real alerts.
 func TestTestEventIsIdentifiableAsATest(t *testing.T) {
 	ev := TestEvent("1.2.3")
@@ -741,7 +741,7 @@ func TestNotifierHonoursAConfiguredThreshold(t *testing.T) {
 	}
 }
 
-// A finished self-test is news, and a failed one is the whole reason to run a test — so the
+// A finished self-test is news, and a failed one is the whole reason to run a test, so the
 // outcome decides the priority rather than the event type.
 func TestSelfTestResultNotifiesWithTheDrivesOwnVerdict(t *testing.T) {
 	hours := int64(2116)
@@ -844,7 +844,7 @@ func TestFirstResultAgainstARecordedEmptyLogNotifies(t *testing.T) {
 }
 
 // A drive that has vanished cannot have finished a test, and its stored result is the last one
-// ever seen. Reporting it would be history dressed up as news — the same rule the temperature
+// ever seen. Reporting it would be history dressed up as news, the same rule the temperature
 // check follows.
 func TestAMissingDriveDoesNotReportASelfTestResult(t *testing.T) {
 	hours := int64(2116)
@@ -883,7 +883,7 @@ func TestASelfTestWithNoVerdictIsNotAFailure(t *testing.T) {
 
 // A group-scoped channel can only decide whether an event is its own if the event says which drives
 // it is about. `inScope` reads a private field, so nothing but this test would notice if `Collect`
-// stopped filling it — and the symptom would be a channel scoped to one pool receiving the whole
+// stopped filling it, and the symptom would be a channel scoped to one pool receiving the whole
 // fleet, which is the exact thing the scope exists to prevent.
 func TestCollectedEventsCarryTheDrivesGroups(t *testing.T) {
 	ev := onlyEvent(t, Collect(report(
@@ -895,7 +895,7 @@ func TestCollectedEventsCarryTheDrivesGroups(t *testing.T) {
 		t.Errorf("tags = %q, want the drive's own tag string", ev.tags)
 	}
 	// The scope is a routing decision rather than a fact about the drive, so it stays off the wire
-	// — a consumer re-implementing the filter from a payload field is how two copies of one rule
+	//, a consumer re-implementing the filter from a payload field is how two copies of one rule
 	// come to disagree.
 	raw, err := json.Marshal(ev)
 	if err != nil {

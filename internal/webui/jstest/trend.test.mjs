@@ -96,7 +96,7 @@ test('a reading outside the window is clamped into the box', () => {
   }
 });
 
-// With no window, a series is drawn across its own extent — which is what a standalone caller
+// With no window, a series is drawn across its own extent, which is what a standalone caller
 // wants, and what keeps this testable without a card around it.
 test('a series with no window fills its own extent', () => {
   const xs = pathX(sparkLine([at(0, 1), at(1, 2), at(2, 3)], 40));
@@ -289,7 +289,7 @@ test('the plot carries a summary for screen readers', () => {
 
 // The marker is positioned by time too, so it sits over the reading it names. By index, the last
 // reading of a series covering only the first day of a 30-day window was marked at the right edge
-// — under the wrong end of the axis, and far from the line it was pointing at.
+//, under the wrong end of the axis, and far from the line it was pointing at.
 test('the hover marker sits where the reading is, not at the edge', () => {
   const window = { from: START, to: START + 30 * DAY };
   const plot = sparkline([at(0, 90), at(1, 80)], { window, format: (v) => `${v}` });

@@ -1,0 +1,1841 @@
+/* The v2 views (ADR-032): the fleet table and the device page it opens.
+ *
+ * Every value here comes from tokens.css, so this file inherits all nineteen palettes and the
+ * surface tints without knowing they exist. Nothing in it is a colour, a radius or a spacing
+ * value, the same rule the rest of the stylesheet follows, and the reason a redesign can be
+ * compared against the incumbent in the same build.
+ *
+ * Scoped to [data-ui="v2"] so the two views can coexist while the comparison is running.
+ */
+
+.content {
+  padding: var(--space-6) var(--space-6) var(--space-7);
+}
+
+/* --- header ---------------------------------------------------------------- */
+
+.fleet-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+.fleet-head h1 {
+  margin: 0;
+  font-size: var(--text-xl);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.fleet-scan {
+  font: inherit;
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 6px 13px;
+  cursor: pointer;
+}
+
+.fleet-scan:hover {
+  border-color: var(--muted);
+}
+
+.fleet-scan:disabled {
+  color: var(--muted);
+  cursor: default;
+}
+
+/* The whole at-a-glance is one line. Counts are filters, so they are buttons. */
+.fleet-glance {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-5);
+  margin-top: var(--space-2);
+  font-size: var(--text-xs);
+  color: var(--muted);
+}
+
+.fleet-glance .count {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.fleet-glance .count:hover {
+  color: var(--text);
+}
+
+.fleet-glance .count[aria-pressed='true'] {
+  color: var(--text);
+}
+
+.fleet-glance .count b {
+  font-weight: 600;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.fleet-glance .when {
+  margin-left: auto;
+  color: var(--muted);
+}
+
+/* --- the table ------------------------------------------------------------- */
+
+.fleet-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  margin-top: var(--space-5);
+}
+
+.fleet-table col.drive { width: 34%; }
+.fleet-table col.health { width: 22%; }
+.fleet-table col.usage { width: 16%; }
+.fleet-table col.temp { width: 10%; }
+.fleet-table col.age { width: 14%; }
+
+.fleet-table th {
+  text-align: left;
+  font-weight: 400;
+  font-size: var(--text-xs);
+  color: var(--muted);
+  padding: 0 var(--space-4) var(--space-2) 0;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+.fleet-table th.r.fleet-table td.r {
+  text-align: right;
+  padding-right: 0;
+}
+
+.fleet-table th.r {
+  padding-left: var(--space-5);
+}
+
+.fleet-table td {
+  padding: var(--space-3) var(--space-4) var(--space-3) 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
+  vertical-align: baseline;
+  white-space: nowrap;
+}
+
+.fleet-table td.r {
+  padding-left: var(--space-5);
+}
+
+.fleet-table td.drive {
+  white-space: normal;
+}
+
+.fleet-table tbody tr {
+  cursor: pointer;
+}
+
+.fleet-table tbody tr:hover td {
+  background: color-mix(in srgb, var(--surface) 70%, transparent);
+}
+
+.fleet-table tbody tr:hover .name {
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
+
+/* A drive that needs attention marks its own row: a coloured word is a weak signal in a
+   column of words, and the eye finds an edge faster than it reads. */
+.fleet-table tbody tr.attention td:first-child {
+  box-shadow: inset 2px 0 0 var(--caution);
+  padding-left: var(--space-3);
+}
+
+.fleet-table tbody tr.missing .name.fleet-table tbody tr.missing td {
+  color: var(--muted);
+}
+
+.fleet-table .name {
+  font-size: var(--text-sm);
+  font-weight: 500;
+  letter-spacing: -0.008em;
+}
+
+.fleet-table .sub {
+  font-size: var(--text-xs);
+  color: var(--muted);
+  margin-top: 1px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.fleet-table .sub .mono {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+}
+
+/* --- the health cell: state and score, together ---------------------------- */
+
+.fleet-health {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+}
+
+.fleet-health .dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  display: inline-block;
+  flex: none;
+  transform: translateY(-1px);
+}
+
+.fleet-health .word {
+  font-size: var(--text-sm);
+}
+
+.fleet-health .score {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
+
+.fleet-health.good .dot { background: var(--good); }
+.fleet-health.good .word { color: var(--good); }
+.fleet-health.caution .dot { background: var(--caution); }
+.fleet-health.caution .word { color: var(--caution); }
+.fleet-health.bad .dot { background: var(--bad); }
+.fleet-health.bad .word { color: var(--bad); }
+.fleet-health.unknown .dot { background: var(--unknown); }
+.fleet-health.unknown .word { color: var(--muted); }
+
+.fleet-why {
+  display: block;
+  margin-top: 2px;
+  font-size: 11.5px;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 26ch;
+  white-space: nowrap;
+}
+
+/* --- usage ----------------------------------------------------------------- */
+
+.fleet-usage {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.fleet-usage .track {
+  width: 52px;
+  height: 4px;
+  /* Mixed from the muted text colour rather than the border: the border is a hairline and in a dark
+     palette it disappears, which turns the bar into a floating number. */
+  background: color-mix(in srgb, var(--muted) 30%, transparent);
+  position: relative;
+  flex: none;
+}
+
+.fleet-usage .track i {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: var(--muted);
+}
+
+.fleet-usage .track i.high {
+  background: var(--caution);
+}
+
+.fleet-usage .pct {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.fleet-num {
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.fleet-num.dim {
+  color: var(--muted);
+}
+
+/* --- states ---------------------------------------------------------------- */
+
+.fleet-empty {
+  margin-top: var(--space-6);
+  font-size: var(--text-sm);
+  color: var(--muted);
+  max-width: 60ch;
+}
+
+.fleet-note {
+  margin-top: var(--space-4);
+  font-size: var(--text-xs);
+  color: var(--muted);
+}
+
+.fleet-below {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-top: var(--space-3);
+  font-size: var(--text-xs);
+  color: var(--muted);
+}
+
+.fleet-below .links a {
+  color: var(--muted);
+  text-decoration: none;
+  margin-left: var(--space-4);
+}
+
+.fleet-below .links a:hover {
+  color: var(--text);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* The other view, offered rather than hidden: the point of the variant is comparison. */
+@media (max-width: 900px) {
+  .content {
+    padding: var(--space-4) var(--space-4) var(--space-6);
+  }
+
+  .fleet-table col.usage.fleet-table col.age {
+    display: none;
+  }
+
+  .fleet-table .usage-cell.fleet-table .age-cell {
+    display: none;
+  }
+}
+
+/* ============================================================================
+   Device page (v2). Same rules as above: tokens only, no colours of its own, so
+   nineteen palettes and the surface tints all apply without knowing they exist.
+   ========================================================================= */
+
+.v2-back {
+  font-size: var(--text-xs);
+  color: var(--muted);
+  text-decoration: none;
+}
+
+.v2-back:hover {
+  color: var(--text);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.v2-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-5);
+  margin-top: var(--space-3);
+}
+
+.v2-head h1 {
+  margin: 0;
+  font-size: var(--text-xl);
+  font-weight: 600;
+  letter-spacing: -0.022em;
+  line-height: 1.15;
+}
+
+.v2-sub {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: 5px;
+  font-size: var(--text-xs);
+  color: var(--muted);
+}
+
+.v2-sub .mono {
+  font-family: var(--font-mono);
+  color: var(--muted);
+}
+
+.v2-verdict {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+  font-size: var(--text-sm);
+}
+
+.v2-verdict .dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  display: inline-block;
+  flex: none;
+  transform: translateY(-1px);
+}
+
+.v2-verdict b {
+  font-weight: 600;
+}
+
+.v2-verdict span {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.v2-verdict .why {
+  max-width: 52ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.v2-verdict.good .dot { background: var(--good); }
+.v2-verdict.good b { color: var(--good); }
+.v2-verdict.caution .dot { background: var(--caution); }
+.v2-verdict.caution b { color: var(--caution); }
+.v2-verdict.bad .dot { background: var(--bad); }
+.v2-verdict.bad b { color: var(--bad); }
+.v2-verdict.unknown .dot { background: var(--unknown); }
+
+.v2-actions {
+  display: flex;
+  gap: var(--space-1);
+  flex: none;
+}
+
+.v2-btn {
+  font: inherit;
+  font-size: var(--text-xs);
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 6px 12px;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.v2-btn:hover {
+  border-color: var(--muted);
+}
+
+.v2-btn:disabled {
+  color: var(--muted);
+  cursor: default;
+}
+
+/* --- facts ----------------------------------------------------------------- */
+
+.v2-facts {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-2) var(--space-5);
+  margin: var(--space-5) 0 0;
+  padding: var(--space-4) 0;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+
+.v2-fact dt {
+  font-size: var(--text-xs);
+  color: var(--muted);
+}
+
+.v2-fact dd {
+  margin: 3px 0 0;
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* --- sections --------------------------------------------------------------- */
+
+.v2-section {
+  margin-top: var(--space-6);
+}
+
+.v2-shead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-4);
+  margin-bottom: var(--space-3);
+}
+
+.v2-shead h2 {
+  margin: 0;
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+.v2-aside {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-4);
+  font-size: var(--text-xs);
+  color: var(--muted);
+}
+
+.v2-ranges {
+  display: inline-flex;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.v2-ranges button {
+  font: inherit;
+  font-size: var(--text-xs);
+  background: var(--surface);
+  color: var(--muted);
+  border: 0;
+  padding: 4px 9px;
+  cursor: pointer;
+}
+
+.v2-ranges button + button {
+  border-left: 1px solid var(--border);
+}
+
+.v2-ranges button[aria-pressed='true'] {
+  background: color-mix(in srgb, var(--text) 8%, var(--surface));
+  color: var(--text);
+}
+
+/* --- usage ------------------------------------------------------------------ */
+
+.v2-usage-line {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+}
+
+.v2-usage-line b {
+  font-weight: 600;
+}
+
+.v2-usage-line span {
+  color: var(--muted);
+  font-size: var(--text-xs);
+}
+
+.v2-bar {
+  height: 6px;
+  margin-top: var(--space-2);
+  background: color-mix(in srgb, var(--muted) 22%, transparent);
+  position: relative;
+}
+
+.v2-bar i {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: var(--text);
+  opacity: 0.78;
+}
+
+.v2-bar i.high {
+  background: var(--caution);
+  opacity: 1;
+}
+
+/* --- trends ----------------------------------------------------------------- */
+
+.v2-trends {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+
+.v2-trend {
+  padding-right: var(--space-4);
+}
+
+/* A rule between columns, but not at the start of a row. */
+.v2-trend {
+  border-left: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+  padding-left: var(--space-4);
+}
+
+.v2-trend:nth-child(3n + 1) {
+  border-left: 0;
+  padding-left: 0;
+}
+
+.v2-trend .label {
+  font-size: var(--text-xs);
+  color: var(--muted);
+}
+
+.v2-trend .now {
+  margin-top: 2px;
+  font-size: var(--text-md);
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  font-variant-numeric: tabular-nums;
+}
+
+.v2-trend .now small {
+  font-size: var(--text-xs);
+  font-weight: 400;
+  color: var(--muted);
+  margin-left: 6px;
+  letter-spacing: 0;
+}
+
+.v2-trend .chart {
+  position: relative;
+  margin-top: var(--space-2);
+  padding-bottom: 14px;
+}
+
+/* The scale belongs under the plot, not floating beside it: these four charts each have their own
+   units, and an unlabelled line is a shape rather than a reading. */
+.v2-trend .chart .min.v2-trend .chart .max {
+  position: absolute;
+  bottom: 0;
+  font-size: 11px;
+  font-family: var(--font-mono);
+  color: var(--muted);
+}
+
+.v2-trend .chart .min {
+  left: 0;
+}
+
+.v2-trend .chart .max {
+  right: 0;
+}
+
+.v2-trend .chart svg {
+  display: block;
+  width: 100%;
+  height: 40px;
+  overflow: visible;
+}
+
+.v2-trend .chart polyline {
+  stroke: var(--muted);
+}
+
+/* --- attribute table -------------------------------------------------------- */
+
+.v2-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.v2-table.v2-attr col.id { width: 7%; }
+.v2-table.v2-attr col.name { width: 35%; }
+.v2-table.v2-attr col.v { width: 11%; }
+.v2-table.v2-attr col.raw { width: 19%; }
+.v2-table.v2-attr col.worst { width: 12%; }
+.v2-table.v2-attr col.th { width: 16%; }
+
+.v2-table th {
+  text-align: left;
+  font-weight: 400;
+  font-size: var(--text-xs);
+  color: var(--muted);
+  padding: 0 var(--space-4) var(--space-2) 0;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+.v2-table th.r.v2-table td.r {
+  text-align: right;
+}
+
+.v2-table td {
+  padding: var(--space-2) var(--space-4) var(--space-2) 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
+  font-size: var(--text-xs);
+  vertical-align: baseline;
+  font-variant-numeric: tabular-nums;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.v2-table td.id {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--muted);
+}
+
+.v2-table td.name {
+  text-transform: capitalize;
+}
+
+.v2-table tr.flagged td {
+  background: color-mix(in srgb, var(--caution) 8%, transparent);
+}
+
+.v2-table tr.flagged td:first-child {
+  box-shadow: inset 2px 0 0 var(--caution);
+}
+
+.v2-table .flagword {
+  color: var(--caution);
+  font-size: 11px;
+}
+
+/* --- foot ------------------------------------------------------------------- */
+
+.v2-foot {
+  margin-top: var(--space-6);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--border);
+  font-size: var(--text-xs);
+  color: var(--muted);
+}
+
+.v2-mono-note {
+  margin-top: var(--space-2);
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--muted);
+}
+
+@media (max-width: 900px) {
+  .v2-facts {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .v2-trends {
+    grid-template-columns: 1fr;
+  }
+
+  .v2-trend + .v2-trend {
+    border-left: 0;
+    padding-left: 0;
+    margin-top: var(--space-3);
+    padding-top: var(--space-3);
+    border-top: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+  }
+
+  .v2-head {
+    flex-direction: column;
+    gap: var(--space-3);
+  }
+}
+
+/* --- components reused from the incumbent page ------------------------------
+   The attribute table, the trend chart and the partition map are the same
+   components the card view uses, imported rather than reimplemented. They bring
+   their own frames, which belong to that layout, so in this one the frame comes
+   off and the content stays. */
+
+.v2-partitions.v2-trends-plain {
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  padding: 0;
+  display: block;
+}
+
+/* The section heading above already says "Trends"; the card's own row keeps only its range picker. */
+.v2-trends-plain > .row.v2-partitions > .row {
+  justify-content: flex-end;
+  margin-bottom: var(--space-3);
+}
+
+.v2-trends-plain > .row h2.v2-partitions > .row h2 {
+  display: none;
+}
+
+.v2-trend-host > .v2-trends-plain .stack {
+  gap: var(--space-3);
+}
+
+/* The chart was built for a card column about 500px wide. Given the whole page it stretches until a
+   two-point series is a speck at the right edge, so it stays in the width it was designed for. */
+.v2-trends-plain {
+  max-width: 760px;
+}
+
+/* --- v2 device page: spacing, the trend strip, the NVMe grid ---------------- */
+
+/* Sections are a stack: every child after the first is separated from it. This is the fix for the
+   "usage, map and table crammed together" complaint, an explicit rhythm rather than whatever the
+   component's own margins happened to be. */
+.v2-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.v2-section > .v2-shead {
+  margin-bottom: 0;
+}
+
+.v2-disk-map.v2-disk-table {
+  min-width: 0;
+}
+
+.v2-usage {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+/* The map and the table carry their own card frame in the incumbent layout; here the frame is gone
+   and the pieces stack with the section's rhythm. */
+.v2-disk-map .card.v2-disk-table .card {
+  border: 0;
+  box-shadow: none;
+  border-radius: 0;
+  padding: 0;
+  background: transparent;
+}
+
+/* --- trend strip ------------------------------------------------------------ */
+
+/* Two rows of three: six metrics, and each plot gets twice the width of a five-across row. */
+.v2-trend-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-5) var(--space-5);
+}
+
+.v2-trend {
+  min-width: 0;
+}
+
+/* A rule between columns, but not at the start of a row. */
+.v2-trend {
+  border-left: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+  padding-left: var(--space-4);
+}
+
+.v2-trend:nth-child(3n + 1) {
+  border-left: 0;
+  padding-left: 0;
+}
+
+.v2-trend .label {
+  font-size: var(--text-xs);
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.v2-trend .now {
+  margin-top: 2px;
+  font-size: var(--text-md);
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.v2-trend .now small {
+  font-size: 11.5px;
+  font-weight: 400;
+  margin-left: 5px;
+  letter-spacing: 0;
+  color: var(--muted);
+}
+
+.v2-trend .now small.good { color: var(--good); }
+.v2-trend .now small.bad { color: var(--bad); }
+
+.v2-trend-none {
+  margin-top: 4px;
+  padding-bottom: 22px;
+  font-size: 11.5px;
+  color: var(--muted);
+}
+
+/* The plot keeps the incumbent's hover readout, laid out for a narrow cell: three stacked lines
+   reserve 57px under every plot, which over six plots is a row's worth of empty page. One line,
+   value, date, time, reserves a third of that and still reads left to right. */
+.v2-trend .spark-plot {
+  margin-top: var(--space-1);
+  padding-bottom: 20px;
+}
+
+.v2-trend .spark-readout {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 2px 6px;
+  font-size: 11px;
+  line-height: 1.3;
+  white-space: nowrap;
+}
+
+.v2-trend .spark-readout {
+  max-width: 12ch;
+  white-space: nowrap;
+}
+
+.v2-trend-axis {
+  grid-column: 1 / -1;
+}
+
+/* --- NVMe log --------------------------------------------------------------- */
+
+.v2-nvme {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-5) var(--space-5);
+}
+
+.v2-nvme-group h3 {
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.v2-nvme-group dl {
+  margin: 0;
+  border-top: 1px solid var(--border);
+}
+
+.v2-nvme-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: 7px 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
+}
+
+.v2-nvme-row dt {
+  font-size: var(--text-xs);
+  color: var(--muted);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.v2-nvme-row dd {
+  margin: 0;
+  font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+@media (max-width: 1100px) {
+  .v2-trend-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .v2-trend:nth-child(3n + 1) { border-left: 1px solid color-mix(in srgb, var(--border) 60%, transparent); padding-left: var(--space-4); }
+  .v2-trend:nth-child(2n + 1) { border-left: 0; padding-left: 0; }
+  .v2-nvme { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 760px) {
+  .v2-trend-grid { grid-template-columns: 1fr; }
+  .v2-trend { border-left: 0; padding-left: 0; }
+  .v2-nvme { grid-template-columns: 1fr; }
+}
+
+/* The freshness line: what the last scan was, or that the drive is being read right now. */
+.v2-freshness {
+  margin-top: calc(-1 * var(--space-3));
+  font-size: var(--text-xs);
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.v2-readings {
+  font-variant-numeric: tabular-nums;
+}
+
+/* --- notifications (v2) ----------------------------------------------------- */
+
+/* The banner exists because a notification failure is invisible by nature: the message simply does
+   not arrive. It sits above the channels, not inside the log. */
+.v2-alert {
+  margin-top: var(--space-5);
+  padding: var(--space-3) var(--space-4);
+  border-left: 3px solid var(--bad);
+  background: color-mix(in srgb, var(--bad) 8%, transparent);
+}
+
+.v2-alert-title {
+  display: block;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--bad);
+}
+
+.v2-alert-body {
+  display: block;
+  margin-top: 3px;
+  font-size: var(--text-xs);
+  color: var(--muted);
+}
+
+.v2-table-wrap {
+  margin-top: var(--space-5);
+}
+
+.v2-channels col.drive { width: 30%; }
+.v2-channels col.events { width: 30%; }
+.v2-channels col.scope { width: 20%; }
+.v2-channels col.actions { width: 20%; }
+
+/* The status line's counts, separated the way the fleet view's are. */
+.fleet-glance .count + .count::before {
+  content: "";
+}
+
+.v2-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.v2-chip {
+  font-size: 11.5px;
+  color: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  padding: 1px 8px;
+  white-space: nowrap;
+}
+
+.v2-row-actions {
+  display: flex;
+  gap: var(--space-1);
+  justify-content: flex-end;
+}
+
+.v2-row-actions .v2-btn {
+  padding: 4px 9px;
+  font-size: 11.5px;
+}
+
+/* --- delivery feed ---------------------------------------------------------- */
+
+.v2-feed {
+  border-top: 1px solid var(--border);
+}
+
+.v2-feed-row {
+  display: grid;
+  grid-template-columns: 130px minmax(0, 1.1fr) minmax(0, 1.2fr) 90px minmax(0, 2fr);
+  gap: var(--space-3);
+  align-items: baseline;
+  padding: 8px 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
+  font-size: var(--text-xs);
+}
+
+.v2-feed-when {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--muted);
+}
+
+.v2-feed-channel { font-weight: 500; }
+
+.v2-feed-event {
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.v2-feed-status { white-space: nowrap; }
+.v2-feed-status.good { color: var(--good); }
+.v2-feed-status.bad { color: var(--bad); }
+.v2-feed-status.muted { color: var(--muted); }
+
+.v2-feed-detail {
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* --- maintenance windows ---------------------------------------------------- */
+
+.v2-windows {
+  border-top: 1px solid var(--border);
+}
+
+.v2-window {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 90px 80px;
+  gap: var(--space-3);
+  align-items: center;
+  padding: 10px 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
+}
+
+.v2-window-label { font-size: var(--text-sm); }
+
+.v2-window-when {
+  font-size: 11.5px;
+  color: var(--muted);
+  margin-top: 2px;
+}
+
+.v2-state {
+  font-size: var(--text-xs);
+  text-align: right;
+}
+
+.v2-state.caution { color: var(--caution); }
+.v2-state.muted { color: var(--muted); }
+
+.v2-window .v2-btn {
+  padding: 4px 9px;
+  font-size: 11.5px;
+  justify-self: end;
+}
+
+@media (max-width: 1100px) {
+  .v2-feed-row {
+    grid-template-columns: 96px minmax(0, 1fr) 80px;
+  }
+  .v2-feed-event.v2-feed-detail { display: none; }
+}
+
+/* --- dialogs in v2 ----------------------------------------------------------
+   The editor dialogs are the incumbent's, per-provider field specs, secret
+   handling, test-send against unsaved config. What was out of place was their
+   proportions: a narrow box with 12px of padding, where the page around it now
+   has rhythm. Scoped to [data-ui="v2"] so the card view keeps its own. */
+
+dialog {
+  /* Wide enough that a two-column checkbox set stays on one line per item; the incumbent's dialog
+     was sized for a single column and wrapped every label at this density. `max-width` too: the
+     shared rule clamps the width, so setting only `width` changed nothing. */
+  width: min(680px, 94vw);
+  max-width: min(680px, 94vw);
+  max-height: 86vh;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow-2);
+}
+
+.dialog-head {
+  padding: var(--space-4) var(--space-5);
+  border-bottom: 1px solid var(--border);
+}
+
+.dialog-head h2 {
+  margin: 0;
+  font-size: var(--text-md);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.dialog-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-5);
+  overflow-y: auto;
+  max-height: calc(86vh - 132px);
+}
+
+.dialog-foot {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-5);
+  border-top: 1px solid var(--border);
+  background: color-mix(in srgb, var(--bg) 60%, transparent);
+}
+
+/* Labels sit above their control and stay quiet; the control is what the eye should land on. */
+dialog .field {
+  gap: 5px;
+}
+
+dialog .field > label {
+  font-size: var(--text-xs);
+  font-weight: 500;
+  color: var(--muted);
+}
+
+dialog input[type='text'],
+dialog input[type='password'],
+dialog input[type='number'],
+dialog select,
+dialog textarea {
+  height: 34px;
+  padding: 0 var(--space-3);
+  font-size: var(--text-sm);
+  background: color-mix(in srgb, var(--bg) 70%, transparent);
+  border-color: var(--border);
+}
+
+dialog input[type='time'],
+dialog input[type='date'],
+dialog input[type='datetime-local'] {
+  width: auto;
+  min-width: 130px;
+}
+
+dialog textarea {
+  height: auto;
+  min-height: 84px;
+  padding: var(--space-2) var(--space-3);
+}
+
+dialog input:focus-visible,
+dialog select:focus-visible,
+dialog textarea:focus-visible {
+  outline: 2px solid var(--focus, var(--accent));
+  outline-offset: 1px;
+  border-color: transparent;
+}
+
+/* The event and group checkboxes are a set; two columns halves the scroll for eight of them. */
+dialog .field > .stack {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px 18px;
+}
+
+dialog .field-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  padding: 2px 0;
+}
+
+dialog .muted {
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+dialog .btn {
+  height: 32px;
+  padding: 0 var(--space-3);
+  font-size: var(--text-xs);
+  border-radius: var(--radius-sm);
+}
+
+dialog .btn-primary {
+  /* The app's primary is the accent, an inverted white button here read as a different system. */
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+  font-weight: 500;
+}
+
+@media (max-width: 760px) {
+  dialog .field > .stack {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* --- schedules (v2) -------------------------------------------------------- */
+
+.v2-schedules col.drive { width: 27%; }
+.v2-schedules col.cadence { width: 19%; }
+.v2-schedules col.next { width: 21%; }
+.v2-schedules col.last { width: 14%; }
+.v2-schedules col.on { width: 8%; }
+.v2-schedules col.actions { width: 11%; }
+
+/* A paused schedule is not broken, it is off, muted, not red. */
+.v2-schedules tbody tr.missing .name.v2-schedules tbody tr.missing .sub {
+  color: var(--muted);
+}
+
+.v2-schedules .v2-row-actions .v2-btn {
+  padding: 4px 9px;
+  font-size: 11.5px;
+}
+
+.v2-toggle {
+  width: 15px;
+  height: 15px;
+  margin: 0;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+/* A self-test pass runs for hours; the row's "last run" cannot say whether it is still going. */
+.v2-pass {
+  margin-top: var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  border-left: 3px solid var(--caution);
+  background: color-mix(in srgb, var(--caution) 7%, transparent);
+}
+
+.v2-pass-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-4);
+  font-size: var(--text-sm);
+}
+
+.v2-pass-head .muted {
+  font-size: 11.5px;
+}
+
+.v2-pass-bar {
+  height: 3px;
+  margin-top: var(--space-2);
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--border) 80%, transparent);
+  overflow: hidden;
+}
+
+.v2-pass-fill {
+  height: 100%;
+  border-radius: 2px;
+  background: var(--caution);
+}
+
+.fleet-empty .muted {
+  display: block;
+  margin-top: 3px;
+  font-size: 11.5px;
+}
+
+/* --- the weekday strip ------------------------------------------------------
+   Seven checkboxes in a wrapping row always orphan one day onto its own line. As a
+   seven-cell strip they read as what they are, a week, and the row is the same
+   width as the field above it. Guarded by @supports: without :has the checkbox
+   cannot look selected, so the plain row is the right fallback rather than a row
+   of empty boxes. */
+@supports selector(:has(*)) {
+  .day-strip {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 6px;
+    width: 100%;
+  }
+
+  .day-strip .field-row {
+    position: relative;
+    justify-content: center;
+    height: 34px;
+    padding: 0;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    font-size: var(--text-sm);
+    color: var(--muted);
+    cursor: pointer;
+    transition: border-color 120ms ease, background 120ms ease;
+  }
+
+  .day-strip .field-row:hover {
+    border-color: color-mix(in srgb, var(--muted) 60%, transparent);
+  }
+
+  /* Visually hidden, not display:none, it has to stay focusable and toggleable. */
+  .day-strip .field-row input[type='checkbox'] {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: 0;
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .day-strip .field-row:has(input:checked) {
+    background: color-mix(in srgb, var(--accent) 18%, transparent);
+    border-color: color-mix(in srgb, var(--accent) 70%, transparent);
+    color: var(--text);
+    font-weight: 500;
+  }
+
+  .day-strip .field-row:has(input:focus-visible) {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+  }
+}
+
+/* --- settings in v2 ---------------------------------------------------------
+   The view itself is the incumbent's, four pages of rows, with per-model
+   overrides, JSON editors and unit conversion in them, so this is a restyle, not
+   a rewrite. What changes is the surface: the card around the sheet goes away, and
+   sections become a hairline-separated list like every other v2 page, which is
+   also what stops a section heading from colliding with the row above it. */
+
+.settings-sheet {
+  display: block;
+  margin-top: var(--space-5);
+  padding: 0;
+  border: 0;
+  background: none;
+}
+
+.settings-section + .settings-section {
+  margin-top: var(--space-6);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--border);
+}
+
+.settings-section > h2 {
+  margin: 0 0 var(--space-3);
+  font-size: var(--text-md);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.settings-rows {
+  gap: 0;
+}
+
+/* The per-model editor is a section nested inside the thresholds section, same subject, one
+   heading. Nested, the `+` sibling rule above does not reach it, so it gets the same treatment
+   spelled out: without this its heading sat flush against the row above it. */
+.settings-section .settings-section {
+  margin-top: var(--space-5);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--border);
+}
+
+/* The note and the buttons are grid children like the rows are, so with the rows' gap removed they
+   need their own spacing back. */
+.settings-rows > .settings-note {
+  margin: var(--space-3) 0 0;
+}
+
+.settings-rows > .row {
+  margin: var(--space-3) 0 var(--space-2);
+}
+
+.setting-row {
+  gap: var(--space-5);
+  padding: var(--space-3) 0;
+  border-top: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+}
+
+.setting-label {
+  font-size: var(--text-sm);
+  font-weight: 500;
+}
+
+.setting-help {
+  margin-top: 2px;
+  font-size: 11.5px;
+  line-height: 1.45;
+  max-width: 62ch;
+}
+
+/* Every value lands in the same column, which is the point of the page. */
+.setting-control {
+  gap: var(--space-2);
+  min-width: 330px;
+  justify-content: flex-end;
+}
+
+.setting-control input[type='range'] {
+  width: 220px;
+}
+
+.setting-control input[type='number'] {
+  height: 32px;
+  width: 84px;
+}
+
+.setting-unit {
+  min-width: 2.5ch;
+  font-size: var(--text-xs);
+}
+
+.settings-note {
+  margin-top: var(--space-3);
+  font-size: 11.5px;
+  line-height: 1.5;
+}
+
+.settings-section .btn {
+  height: 30px;
+  padding: 0 var(--space-3);
+  font-size: var(--text-xs);
+}
+
+.settings-editor {
+  background: color-mix(in srgb, var(--bg) 70%, transparent);
+  min-height: 140px;
+  width: 100%;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.settings-error {
+  padding: var(--space-2) var(--space-3);
+  font-size: 11.5px;
+  border-left: 3px solid var(--bad);
+  background: color-mix(in srgb, var(--bad) 8%, transparent);
+}
+
+@media (max-width: 900px) {
+  .setting-control {
+    min-width: 0;
+  }
+  .setting-control input[type='range'] {
+    width: 150px;
+  }
+}
+
+/* Paragraphs inside a settings grid are grid children like the rows are, so they need the spacing
+   and the line length that a row gets for free. Full-bleed text was running the width of the page. */
+.settings-rows > p {
+  margin: var(--space-3) 0 0;
+  max-width: 72ch;
+  font-size: 11.5px;
+  line-height: 1.5;
+}
+
+.settings-rows > p + p {
+  margin-top: var(--space-2);
+}
+
+/* The knowledge section carries its own heading row so the summary can sit beside it. */
+.settings-section > .row {
+  margin-bottom: var(--space-3);
+  align-items: baseline;
+}
+
+.settings-section > .row > h2 {
+  margin: 0;
+  font-size: var(--text-md);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+/* Muted prose anywhere in the sheet keeps the same measure as the rest of the page. */
+.settings-sheet .muted {
+  max-width: 72ch;
+}
+
+.settings-sheet .settings-editor {
+  margin-top: var(--space-2);
+}
+
+/* The folded half of a setting's explanation, inline with the sentence it continues. */
+.setting-help details.setting-more {
+  display: inline;
+}
+
+.setting-help details.setting-more > summary {
+  display: inline;
+  list-style: none;
+  margin-left: 3px;
+  cursor: pointer;
+  color: var(--accent);
+  border-bottom: 1px dotted color-mix(in srgb, var(--accent) 55%, transparent);
+}
+
+.setting-help details.setting-more > summary::-webkit-details-marker {
+  display: none;
+}
+
+.setting-help details.setting-more[open] > summary {
+  color: var(--muted);
+  border-bottom-style: none;
+}
+
+/* --- settings: fewer rules ---------------------------------------------------
+   A hairline above every row turns a page of ten settings into a ledger. Spacing
+   separates rows; the line is kept only between sections, where it means "new
+   subject". */
+
+.setting-row {
+  border-top: 0;
+  padding: var(--space-4) 0;
+}
+
+.setting-row:first-child {
+  padding-top: 0;
+}
+
+.setting-row:last-child {
+  padding-bottom: 0;
+}
+
+/* A setting whose control cannot fit a right-hand column: the control goes under the text. */
+.setting-block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4) 0;
+}
+
+/* `.setting-text` grows inside a row's flex to push the control right; in a stacked block that
+   growth becomes a gap of empty air between the label and the control. */
+.setting-block .setting-text {
+  flex: 0 0 auto;
+}
+
+.setting-block:first-child {
+  padding-top: 0;
+}
+
+.setting-block:last-child {
+  padding-bottom: 0;
+}
+
+/* --- theme swatches ---------------------------------------------------------
+   Each chip carries its own data-theme, so the palette's own tokens resolve inside
+   it. Nothing here knows any colours, which is the point: a new theme in
+   tokens.css appears in the picker without this file changing. */
+
+.theme-swatches {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+  gap: var(--space-2);
+  width: 100%;
+}
+
+.theme-swatch {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 5px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: none;
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 120ms ease;
+}
+
+.theme-swatch:hover {
+  border-color: color-mix(in srgb, var(--muted) 60%, transparent);
+}
+
+.theme-swatch.is-on {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+.theme-swatch-chip {
+  position: relative;
+  display: block;
+  height: 30px;
+  border-radius: 3px;
+  overflow: hidden;
+  /* The raw palette, not the semantic tokens: `--bg` is computed once at :root and inherited as a
+     colour, so setting `data-theme` on a descendant cannot re-resolve it. `--palette-*` is declared
+     per element and does. */
+  background: var(--palette-bg, var(--bg));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--text) 12%, transparent);
+}
+
+/* The surface sits behind, the accent on top: three of a palette's jobs in one chip. */
+.theme-swatch-chip::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 40%;
+  background: var(--palette-surface, var(--surface));
+}
+
+.theme-swatch-chip::after {
+  content: "";
+  position: absolute;
+  left: 6px;
+  bottom: 6px;
+  width: 16px;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--palette-focus, var(--accent));
+}
+
+.theme-swatch-chip.is-auto {
+  background: linear-gradient(135deg, #e9edf2 0 50%, #12161c 50% 100%);
+}
+
+.theme-swatch-chip.is-custom {
+  background: linear-gradient(135deg, #12161c 0 50%, #e9edf2 50% 100%);
+}
+
+.theme-swatch-name {
+  font-size: 11px;
+  line-height: 1.3;
+  color: var(--muted);
+}
+
+.theme-swatch.is-on .theme-swatch-name {
+  color: var(--text);
+}
+
+/* --- the save bar ----------------------------------------------------------
+   The page is ~1000px tall and the only way to commit a change was at the top of
+   it. Pinned to the bottom of the window and shown only when something is dirty,
+   so it never covers content nobody is about to save. */
+
+.save-bar {
+  position: sticky;
+  bottom: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  margin-top: var(--space-5);
+  padding: var(--space-3) 0;
+  border-top: 1px solid var(--border);
+  /* Opaque: a translucent bar over a grid of swatches let the content read through the buttons. */
+  background: var(--bg);
+  box-shadow: 0 -10px 18px -12px rgba(0, 0, 0, 0.55);
+  transition: opacity 140ms ease, transform 140ms ease;
+}
+
+.save-bar:not(.is-dirty) {
+  opacity: 0;
+  transform: translateY(6px);
+  pointer-events: none;
+}
+
+.save-bar .save-status {
+  font-size: var(--text-xs);
+  color: var(--muted);
+}
+
+.save-bar.is-dirty .save-status {
+  color: var(--caution);
+}
+
+.save-bar .save-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.save-bar .btn-primary {
+  height: 32px;
+  padding: 0 var(--space-4);
+  font-size: var(--text-xs);
+}
+
+/* The self-test card is the incumbent's (`FEATURES.md` A19/A20) and keeps its own heading, so only
+   the frame comes off: same rule as the partition map. Its live read, progress and abort stay as
+   they were. */
+.v2-selftest .card.selftest {
+  margin-top: var(--space-6);
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+}
+
+.v2-selftest .card.selftest > h2 {
+  margin: 0 0 var(--space-3);
+  font-size: var(--text-md);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+/* Search sits between the title and the scan button: title left, the two narrow controls right. */
+.fleet-head .fleet-search {
+  margin-left: auto;
+  /* The shared `input[type="search"]` rule sets width:100%; an attribute selector outranks a single
+     class, so this has to be scoped to win. */
+  width: 240px;
+  height: 32px;
+  padding: 0 var(--space-3);
+  font-size: var(--text-sm);
+  background: color-mix(in srgb, var(--bg) 70%, transparent);
+}
+
+@media (max-width: 760px) {
+  .fleet-head .fleet-search {
+    width: 100%;
+    order: 3;
+    margin-left: 0;
+  }
+  .fleet-head {
+    flex-wrap: wrap;
+  }
+}
+
+/* --- per-model thresholds ---------------------------------------------------
+   The table is the editor; the JSON is kept behind a disclosure for the keys a
+   column does not cover. An empty cell is inheritance, so it reads as a
+   placeholder rather than a zero. */
+.pm-table {
+  margin-top: var(--space-3);
+}
+
+.pm-table th.r,
+.pm-table td {
+  text-align: right;
+}
+
+.pm-table td:first-child,
+.pm-table th:first-child {
+  text-align: left;
+}
+
+.pm-model {
+  white-space: nowrap;
+}
+
+.pm-model .sub {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+/* Inheritance is quiet: the row says "same as above" and the cells show the value
+   they would use, greyed, so the table still reads as the effective configuration. */
+.pm-inherit .pm-cell::placeholder {
+  color: color-mix(in srgb, var(--muted) 70%, transparent);
+}
+
+.pm-cell {
+  width: 76px;
+  height: 28px;
+  padding: 0 var(--space-2);
+  font-size: var(--text-xs);
+  text-align: right;
+  background: color-mix(in srgb, var(--bg) 70%, transparent);
+}
+
+.pm-advanced {
+  margin-top: var(--space-4);
+  padding-top: var(--space-3);
+  border-top: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+}
+
+.pm-advanced > summary {
+  cursor: pointer;
+  font-size: var(--text-xs);
+  color: var(--muted);
+}
+
+.pm-advanced > summary:hover {
+  color: var(--text);
+}
+
+.pm-advanced .settings-editor {
+  margin-top: var(--space-2);
+}

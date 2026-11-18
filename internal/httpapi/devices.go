@@ -34,8 +34,8 @@ type deviceJSON struct {
 	TemperatureC    *int    `json:"temperature_c,omitempty"`
 	SmartAvailable  bool    `json:"smart_available"`
 	SmartError      string  `json:"smart_error,omitempty"`
-	// SmartCause names *why* the read failed. Three unrelated problems — a blocked
-	// device node, a refused query, and a drive with no S.M.A.R.T. — all arrive as the
+	// SmartCause names *why* the read failed. Three unrelated problems, a blocked
+	// device node, a refused query, and a drive with no S.M.A.R.T., all arrive as the
 	// same "Operation not permitted", so the UI cannot tell them apart from the text.
 	SmartCause  string   `json:"smart_cause,omitempty"`
 	Mountpoints []string `json:"mountpoints"`
@@ -49,6 +49,11 @@ type deviceJSON struct {
 	// each drive's age per row, without opening every drive to find it.
 	PowerOnHours *int64   `json:"power_on_hours,omitempty"`
 	WearPct      *float64 `json:"wear_pct,omitempty"`
+	// UsedPct is how full the drive's fullest filesystem was at that same snapshot
+	// (`FEATURES.md` A28). On the fleet payload because the fleet table shows it: a
+	// per-drive request for the one number that makes a row scannable would be an
+	// N+1 for a page that draws every drive at once.
+	UsedPct *int `json:"used_pct,omitempty"`
 	// Removable and FsVersion come from lsblk. For a drive that reports no S.M.A.R.T.
 	// they are often the only description there is.
 	Removable *bool  `json:"removable,omitempty"`
@@ -73,7 +78,7 @@ type deviceJSON struct {
 	Ack *ackJSON `json:"ack,omitempty"`
 	// Knowledge is what the table knows about this drive (`FEATURES.md` A21): rated endurance, the
 	// source it came from, and any firmware advisory that applies. Nil when the table has nothing for
-	// this model, which is a real answer — the app says nothing rather than inventing a figure.
+	// this model, which is a real answer, the app says nothing rather than inventing a figure.
 	Knowledge *knowledge.Lookup `json:"knowledge,omitempty"`
 	FirstSeen string            `json:"first_seen"`
 	LastSeen  string            `json:"last_seen"`
@@ -89,7 +94,7 @@ type deviceJSON struct {
 	// put the answer.
 	Changes *changesJSON `json:"changes,omitempty"`
 	// Penalties is the score breakdown (`FEATURES.md` A12): why the score is what it is, as a list of
-	// reasons and the points each cost. Detail endpoint only — the list shows a score, and six
+	// reasons and the points each cost. Detail endpoint only, the list shows a score, and six
 	// reasons per drive is not something a fleet table can carry.
 	Penalties json.RawMessage `json:"penalties,omitempty"`
 	// DiskLayout is the partition schema (`FEATURES.md` A28): the partitions with their sizes,
@@ -112,7 +117,7 @@ type deviceJSON struct {
 type selfTestStateJSON struct {
 	Kind string `json:"kind,omitempty"`
 	// Pct is how far along, 0-100. Nil when the drive reports no progress while a test runs, which
-	// many do not — they only write a log entry when one finishes.
+	// many do not, they only write a log entry when one finishes.
 	Pct *int `json:"pct,omitempty"`
 }
 
@@ -128,7 +133,7 @@ type storageJSON struct {
 //
 // Read from the device row rather than the drive: this is the fleet's view, and reading every drive
 // to draw a badge would defeat the point of having the scan record it. The device page's own card
-// still reads the drive live — this is what the *list* has, and a badge that is a scan old is worth
+// still reads the drive live, this is what the *list* has, and a badge that is a scan old is worth
 // having where a page visit per drive is not.
 func selfTestStateFor(d store.DeviceRecord) *selfTestStateJSON {
 	if !d.SelfTestRunning {
@@ -259,7 +264,7 @@ func (s *Server) handleListDevices(w http.ResponseWriter, r *http.Request) {
 //
 // A failure here is not worth failing the list for: the finding is a nicety and the list is not.
 //
-// Bench drives are left out for the same reason the ranking leaves them out — a drive being tested
+// Bench drives are left out for the same reason the ranking leaves them out, a drive being tested
 // is *expected* to heat up, and a batch of them on one bench would fire this on every scan. The tags
 // are split here rather than in the interpreter, so the rule stays a function of names.
 func (s *Server) correlatedHeat(ctx context.Context) []interp.GroupHeat {
@@ -293,7 +298,7 @@ func (s *Server) correlatedHeat(ctx context.Context) []interp.GroupHeat {
 // dashboard shows, through the same ranking. A second copy of this would be a second answer to "what
 // is this drive", and the export's whole job is to be the version you can trust and file.
 //
-// The two derived queries — bad-sector growth, and power-on hours with wear — are best-effort. A
+// The two derived queries, bad-sector growth, and power-on hours with wear, are best-effort. A
 // failure in either is not worth failing the list for: the extra figures are a nicety and the list
 // is not.
 func (s *Server) deviceRows(ctx context.Context) ([]deviceJSON, []interp.ReplacementRank, error) {
@@ -326,7 +331,7 @@ func (s *Server) deviceRows(ctx context.Context) ([]deviceJSON, []interp.Replace
 			dj.Worsening = &delta
 		}
 		if f, ok := facts[d.Serial]; ok {
-			dj.PowerOnHours, dj.WearPct = f.PowerOnHours, f.WearPct
+			dj.PowerOnHours, dj.WearPct, dj.UsedPct = f.PowerOnHours, f.WearPct, f.UsedPct
 		}
 		if lookup := base.Find(d.Model, d.ModelFamily, d.Firmware, d.CapacityBytes); lookup.Known() {
 			dj.Knowledge = &lookup
@@ -338,8 +343,8 @@ func (s *Server) deviceRows(ctx context.Context) ([]deviceJSON, []interp.Replace
 
 // replacementCandidates maps the list payloads onto the ranking's inputs.
 //
-// A disconnected drive is deliberately left out. It is a finding of its own — the dashboard flags
-// it and has a toggle for it — and its stored verdict is the last one ever *seen* rather than a
+// A disconnected drive is deliberately left out. It is a finding of its own, the dashboard flags
+// it and has a toggle for it, and its stored verdict is the last one ever *seen* rather than a
 // reading anyone just took. Ranking it would put a backup drive someone unplugged on purpose above
 // a drive that is actually failing.
 func replacementCandidates(devices []deviceJSON) []interp.ReplacementCandidate {
@@ -349,7 +354,7 @@ func replacementCandidates(devices []deviceJSON) []interp.ReplacementCandidate {
 			continue
 		}
 		// A drive on the bench is being evaluated, not used (`FEATURES.md` D11). Ranking it would
-		// put a drive that is *expected* to fail above one in service that is actually failing —
+		// put a drive that is *expected* to fail above one in service that is actually failing,
 		// which is the same mistake the disconnected rule below avoids, in the other direction.
 		if d.OnBench {
 			continue
@@ -394,7 +399,7 @@ func (s *Server) handleGetDevice(w http.ResponseWriter, r *http.Request) {
 	device := toDeviceJSON(*rec)
 	device.Logs = logsFrom(rec.RawOutput)
 	// A12: the score breakdown, which the interpreter has always produced and the app has always
-	// thrown away. Sent raw — the UI reads it whole, and re-encoding it here would only be a chance
+	// thrown away. Sent raw, the UI reads it whole, and re-encoding it here would only be a chance
 	// to disagree with the stored shape.
 	//
 	// Guarded rather than assigned unconditionally: `rawOrNull` turns an empty string into a literal
@@ -450,7 +455,7 @@ func (s *Server) handleGetDevice(w http.ResponseWriter, r *http.Request) {
 
 // projectionWindow is how far back the longevity estimate looks, and it is the user's own
 // `retention_days` setting (`A26`). The window is the same number the pruning uses, so what the
-// user keeps is what the app reads — an owner who raised retention to five years to watch a slow
+// user keeps is what the app reads, an owner who raised retention to five years to watch a slow
 // trend should not have that history discarded by the projection anyway.
 //
 // Kept as a helper rather than inlined so the three callers cannot drift apart.
@@ -508,7 +513,7 @@ func decodeSnapshot(snap *store.Snapshot) snapshotPayload {
 // modelFamily is passed in rather than read from the snapshot because it is stored on the
 // device, not per snapshot. It is not decoration: whether an ATA drive's attribute 177
 // means "life remaining" depends on who made the drive (SMART_INTERPRETATION.md §1.1), so
-// a payload rebuilt without it silently loses the life figure — which is exactly what
+// a payload rebuilt without it silently loses the life figure, which is exactly what
 // happened the first time, and only an end-to-end run against a real drive's attributes
 // caught it.
 func snapshotMetrics(snap *store.Snapshot, modelFamily string) interp.Metrics {

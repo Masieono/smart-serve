@@ -8,7 +8,7 @@ import (
 // The scope is normalised on the way in so that the *empty* list is the only thing that means
 // "every group" (`FEATURES.md` B12). A stored `["", " tank "]` would otherwise be a scope that
 // matches nothing, and a channel that silently stops speaking is indistinguishable from a quiet
-// fleet — the one direction a notification filter must never fail in.
+// fleet, the one direction a notification filter must never fail in.
 func TestChannelScopeGroupsAreNormalised(t *testing.T) {
 	cases := []struct {
 		name string
@@ -39,7 +39,7 @@ func TestChannelScopeGroupsAreNormalised(t *testing.T) {
 
 // The round trip, against a real database: the column has to exist, the insert has to name it, and
 // the read has to come back with it. `B12` is one migration away from a channel that saves a scope
-// and forgets it, which would show every box unticked on a narrowed channel — and the next Save
+// and forgets it, which would show every box unticked on a narrowed channel, and the next Save
 // would quietly widen it.
 func TestChannelScopeGroupsRoundTrip(t *testing.T) {
 	s := newTestStore(t)

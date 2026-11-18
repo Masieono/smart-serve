@@ -9,7 +9,7 @@ import (
 // The variable name is the operator's whole interface to this feature, so it has to be
 // predictable from the label they typed. Punctuation is normalised away rather than escaped,
 // which means "Critical alerts", "critical-alerts" and "critical_alerts" name the same
-// variables — that is the intended reading, not an accident.
+// variables, that is the intended reading, not an accident.
 func TestSlugMakesAStableVariableName(t *testing.T) {
 	cases := map[string]string{
 		"Critical alerts": "CRITICAL_ALERTS",
@@ -68,7 +68,7 @@ func TestResolvePrefersEnvThenFileThenDatabase(t *testing.T) {
 }
 
 // A broken mount must be an error, never a fallback. Falling back would send a stale token
-// while the operator believed they had rotated it — the silent-failure shape that made the
+// while the operator believed they had rotated it, the silent-failure shape that made the
 // original undocumented version of this feature so damaging.
 func TestResolveRejectsAnUnusableSecretFile(t *testing.T) {
 	const label, key = "Critical alerts", "token"
@@ -88,7 +88,7 @@ func TestResolveRejectsAnUnusableSecretFile(t *testing.T) {
 		}
 		t.Setenv(EnvVar(label, key)+"_FILE", path)
 		if _, _, err := Resolve(label, key, "from-db"); err == nil {
-			t.Fatal("an empty secret file was accepted — the mount happened but the secret did not")
+			t.Fatal("an empty secret file was accepted, the mount happened but the secret did not")
 		}
 	})
 }
@@ -105,7 +105,7 @@ func TestApplyOverridesCoversEveryStringField(t *testing.T) {
 	if cfg["topic"] != "my-topic" || cfg["token"] != "secret" {
 		t.Errorf("overrides not applied: %v", cfg)
 	}
-	// Every string field is eligible, not only the ones the UI calls secret — that is what
+	// Every string field is eligible, not only the ones the UI calls secret, that is what
 	// makes one mechanism cover "keep the token in a Docker secret" and "point this channel
 	// at a different server per environment".
 	if cfg["server"] != "https://ntfy.sh" {

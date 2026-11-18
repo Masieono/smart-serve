@@ -1,12 +1,12 @@
 // Settings (docs/UI.md §7.5).
-import { el, mount, convertTemp, toCelsius, convertTempDelta, toCelsiusDelta, fmtAgo } from '../dom.js';
+import { el, mount, append, clear, convertTemp, toCelsius, convertTempDelta, toCelsiusDelta, fmtAgo } from '../dom.js';
 import { api } from '../api.js';
 import { errorBox, toast, confirmDialog } from '../components.js';
 import { applyTheme } from '../theme.js';
 import { icon } from '../icons.js';
 
 // Themes offered in Appearance. Kept in step with ThemeNames in
-// internal/webui/webui.go — a test on each side pins the pair together.
+// internal/webui/webui.go, a test on each side pins the pair together.
 const THEMES = [
   ['auto', 'Auto (follows your system)'],
   ['light', 'Light'],
@@ -84,7 +84,7 @@ const OPERATIONS = [
     key: 'retention_days',
     label: 'History retention',
     help: 'Snapshots older than this are pruned. It also sets how far back the trend and longevity ' +
-      'estimates look — a longer retention is a longer view as well as a longer memory.',
+      'estimates look, a longer retention is a longer view as well as a longer memory.',
     min: 7, max: 3650, step: 1, unit: 'days',
   },
   {
@@ -123,7 +123,7 @@ const DISPLAY_SPECS = [
     key: 'selftest_poll_seconds',
     label: 'Self-test refresh',
     help: 'How often the app re-reads a drive while a self-test runs. A long test moves a few percent ' +
-      'an hour, so a faster refresh mostly spends device reads — but a short test on a fast drive ' +
+      'an hour, so a faster refresh mostly spends device reads, but a short test on a fast drive ' +
       'moves visibly every couple of seconds.',
     min: 2, max: 30, step: 1, unit: 'seconds',
   },
@@ -131,7 +131,7 @@ const DISPLAY_SPECS = [
     key: 'device_refresh_minutes',
     label: 'Re-read a drive on open',
     help: 'When you open a drive, re-read it if its data is older than this. One drive, not the whole ' +
-      'fleet — but it is still a read nobody asked for, so a machine that parks its disks should turn ' +
+      'fleet, but it is still a read nobody asked for, so a machine that parks its disks should turn ' +
       'this down. 0 never re-reads on open; the Scan button always works.',
     min: 0, max: 1440, step: 5, unit: 'minutes',
   },
@@ -160,7 +160,7 @@ const STORAGE_SPECS = [
  *
  * `temperature` is a *reading* and converts with the offset (30 °C is 86 °F); `delta` is a *span*
  * and scales without it (a 8 °C rise is a 14 °F rise, not a 46 °F one). Both follow the unit, because
- * "eight degrees hotter" is the same physical change either way — and getting the second one wrong
+ * "eight degrees hotter" is the same physical change either way, and getting the second one wrong
  * would make the slider say 46 °F for a threshold that means 14.
  */
 const isTemperature = (spec) => Boolean(spec.temperature || spec.delta);
@@ -200,14 +200,13 @@ const DEFAULTS = {
   theme_base: 'dark',
   theme_accent: '#3b82f6',
   theme_surface_tint: 'neutral',
-  show_replace_first: 'true',
 };
 
 /**
  * The settings pages, in sidebar order.
  *
  * Each is a page rather than a heading on one long screen. The sections had grown to a dozen controls
- * between them — a wall to read, and a long scroll for the one number somebody came for — and
+ * between them, a wall to read, and a long scroll for the one number somebody came for, and
  * collapsing them only made the wall shorter to look at. Four short pages beat one long one with
  * everything folded up.
  *
@@ -231,7 +230,7 @@ const PAGE_NOTES = {
   data: 'Moving settings between hosts, and serving them to something else.',
 };
 
-/** The page for an id, or the first one — `/settings` is a section, not a page. */
+/** The page for an id, or the first one, `/settings` is a section, not a page. */
 export function settingsPage(id) {
   return PAGES.find((p) => p.id === id) || PAGES[0];
 }
@@ -297,14 +296,9 @@ function draw(container, ctx, data, page, { carried = {}, unit: unitOverride } =
   const showUsage = el('input', {
     type: 'checkbox', checked: settings.show_usage !== 'false',
   });
-  // A24. On by default, and the only one of these three that gates the *dashboard*: the shortlist sits
-  // above the grid, so it is the first thing on the page whether or not the reader wants it today.
-  const showReplaceFirst = el('input', {
-    type: 'checkbox', checked: settings.show_replace_first !== 'false',
-  });
 
   // Where the knowledge base refreshes from (`FEATURES.md` A21). Empty means the documented default,
-  // which points at the file in the repository — the same file this build ships.
+  // which points at the file in the repository, the same file this build ships.
   const knowledgeUrl = el('input', {
     type: 'url',
     class: 'setting-text',
@@ -331,10 +325,10 @@ function draw(container, ctx, data, page, { carried = {}, unit: unitOverride } =
   ]);
   // renderUnit, not the stored setting: this page re-renders on a unit change, and
   // reading the stored value back would snap the picker to Celsius the instant the
-  // user chose Fahrenheit — and Save would then persist the wrong unit.
+  // user chose Fahrenheit, and Save would then persist the wrong unit.
   unit.value = renderUnit;
 
-  // Switching units re-renders so the temperature slider's bounds and label match — and on the
+  // Switching units re-renders so the temperature slider's bounds and label match, and on the
   // Appearance page that slider is not mounted, so the re-render is only about the picker keeping
   // what was chosen. Values edited but not yet saved are carried across in Celsius, so nothing the
   // user typed is silently reinterpreted as a different temperature.
@@ -365,10 +359,55 @@ function draw(container, ctx, data, page, { carried = {}, unit: unitOverride } =
     theme_surface_tint: themeTint.value,
   });
 
-  // The base and accent only affect the custom theme — a named palette owns its own
-  // — so those two rows are hidden rather than sitting there doing nothing.
-  const themeRow = settingRow('Theme',
-    'Named palettes ship with the app. Auto follows your operating system.', theme);
+  // The base and accent only affect the custom theme, a named palette owns its own
+  //, so those two rows are hidden rather than sitting there doing nothing.
+  // Nineteen palettes in a dropdown whose names ("Ember", "Slate") say nothing about the palette. The
+  // swatches show the palette itself: each chip carries its own `data-theme`, so the same tokens the
+  // app uses resolve *inside* the chip and nothing new has to be kept in sync with `tokens.css`.
+  //
+  // The select stays in the DOM, hidden, because it is what `fieldsFor` reads and what the live
+  // preview listens to; the swatches only set its value and fire the same event a click would.
+  const themeSwatches = el('div', {
+    class: 'theme-swatches', role: 'radiogroup', 'aria-label': 'Theme',
+  });
+  const swatchButtons = THEMES.map(([value, label]) => {
+    const chip = el('span', { class: 'theme-swatch-chip' });
+    if (value !== 'auto' && value !== 'custom') chip.setAttribute('data-theme', value);
+    if (value === 'auto') chip.classList.add('is-auto');
+    if (value === 'custom') chip.classList.add('is-custom');
+    const button = el('button', {
+      type: 'button',
+      class: 'theme-swatch',
+      title: label,
+      'aria-label': label,
+      'aria-pressed': 'false',
+    }, [chip, el('span', { class: 'theme-swatch-name', text: label })]);
+    button.addEventListener('click', () => {
+      theme.value = value;
+      theme.dispatchEvent(new Event('input', { bubbles: true }));
+      syncSwatches();
+    });
+    return button;
+  });
+  const syncSwatches = () => {
+    swatchButtons.forEach((button, index) => {
+      const on = THEMES[index][0] === theme.value;
+      button.setAttribute('aria-pressed', String(on));
+      button.classList.toggle('is-on', on);
+    });
+  };
+  append(themeSwatches, swatchButtons);
+  syncSwatches();
+
+  theme.style.cssText = 'position:absolute;width:1px;height:1px;opacity:0;pointer-events:none';
+  const themeRow = el('div', { class: 'setting-block' }, [
+    el('div', { class: 'setting-text' }, [
+      el('div', { class: 'setting-label', text: 'Theme' }),
+      el('div', { class: 'setting-help', text: 'Named palettes ship with the app. Auto follows your operating system.' }),
+    ]),
+    theme,
+    themeSwatches,
+  ]);
   const customRows = [
     settingRow('Custom base', 'Light or dark foundations for a custom theme.', themeBase),
     settingRow('Accent colour', 'Recolours buttons, links and focus rings.', themeAccent),
@@ -389,7 +428,7 @@ function draw(container, ctx, data, page, { carried = {}, unit: unitOverride } =
   syncThemeRows();
 
   // The values on screen, as the seed for a new per-model entry. Celsius for the temperature,
-  // because that is what gets stored and what the parser reads — the display unit is a rendering
+  // because that is what gets stored and what the parser reads, the display unit is a rendering
   // choice, and seeding a Fahrenheit number would be seeding 130 °C.
   const thresholdValues = () => {
     const out = { warn_on_any_nonzero: warn.checked ? 'true' : 'false' };
@@ -407,11 +446,11 @@ function draw(container, ctx, data, page, { carried = {}, unit: unitOverride } =
    * The settings this page owns, read from its own controls.
    *
    * A page saves *its* fields and nothing else. `SetSettings` merges per key, so a save here cannot
-   * disturb a page you are not looking at — which is the property that makes per-page Save safe
+   * disturb a page you are not looking at, which is the property that makes per-page Save safe
    * rather than a way to silently drop somebody's other edits.
    *
    * It is also the dirty check: comparing this against what the page was drawn with is what tells the
-   * Save button — and the navigation guard — whether there is anything to save, without wiring a
+   * Save button, and the navigation guard, whether there is anything to save, without wiring a
    * listener to every control.
    */
   function fieldsFor(id) {
@@ -430,9 +469,7 @@ function draw(container, ctx, data, page, { carried = {}, unit: unitOverride } =
       case 'thresholds':
         return {
           warn_on_any_nonzero: warn.checked ? 'true' : 'false',
-          model_thresholds: perModel.value(),
-          ...numbers(THRESHOLDS),
-          ...numbers(STORAGE_SPECS),
+          model_thresholds: perModel.value(), ...numbers(THRESHOLDS), ...numbers(STORAGE_SPECS),
         };
       case 'notifications':
         return { public_url: publicUrl.value.trim(), ...numbers(OPERATIONS) };
@@ -441,14 +478,12 @@ function draw(container, ctx, data, page, { carried = {}, unit: unitOverride } =
           temperature_unit: unit.value,
           show_partitions: showPartitions.checked ? 'true' : 'false',
           show_usage: showUsage.checked ? 'true' : 'false',
-          show_replace_first: showReplaceFirst.checked ? 'true' : 'false',
-          ...currentTheme(),
-          ...numbers(DISPLAY_SPECS),
+          ...currentTheme(), ...numbers(DISPLAY_SPECS),
         };
       default:
         // The Data page renders two controls: the knowledge URL and the metrics toggle. Both are
         // this page's, and a control that renders but is never sent is a setting that silently does
-        // nothing — which is exactly what the first version of this switch did.
+        // nothing, which is exactly what the first version of this switch did.
         return {
           knowledge_url: knowledgeUrl.value.trim(),
           prometheus_enabled: prometheus.checked ? 'true' : 'false',
@@ -470,8 +505,8 @@ function draw(container, ctx, data, page, { carried = {}, unit: unitOverride } =
       const payload = fieldsFor(page.id);
 
       // Captured before the first `await`. The spec nulls `event.currentTarget` the moment
-      // dispatch ends, so reading it afterwards throws a TypeError into an unhandled promise —
-      // silently, because nobody awaits a click handler — and the button stays disabled for the
+      // dispatch ends, so reading it afterwards throws a TypeError into an unhandled promise,
+      // silently, because nobody awaits a click handler, and the button stays disabled for the
       // rest of the session. One click on Save, then the page is unusable.
       const button = event.currentTarget;
       button.disabled = true;
@@ -497,9 +532,24 @@ function draw(container, ctx, data, page, { carried = {}, unit: unitOverride } =
     },
   });
 
+  const saveBar = el('div', { class: 'save-bar' }, [
+    el('span', { class: 'save-status', text: 'No unsaved changes' }),
+    el('div', { class: 'save-actions' }, [
+      el('button', {
+        class: 'btn btn-sm', type: 'button', text: 'Revert',
+        onclick: () => ctx.refresh(),
+      }),
+      save,
+    ]),
+  ]);
+
   function setDirty(next) {
     dirty = next;
     save.disabled = !next;
+    // The bar is the only place a change can be committed, so it has to be where the eye already is:
+    // pinned to the bottom of the window, rather than 900 pixels up at the top of the page.
+    saveBar.classList.toggle('is-dirty', next);
+    saveBar.querySelector('.save-status').textContent = next ? 'Unsaved changes' : 'No unsaved changes';
   }
 
   // One delegated listener rather than one per control: the page knows its own fields, so a change
@@ -511,7 +561,7 @@ function draw(container, ctx, data, page, { carried = {}, unit: unitOverride } =
   }
 
   // Leaving a page with unsaved edits asks first. Nothing here writes to a drive, so this is not a
-  // safety net — it is the difference between "I meant to discard that" and losing a number you
+  // safety net, it is the difference between "I meant to discard that" and losing a number you
   // typed and did not press Save for.
   ctx.setNavGuard(async () => {
     refreshDirty();
@@ -525,7 +575,7 @@ function draw(container, ctx, data, page, { carried = {}, unit: unitOverride } =
    * Load the shipped values into the controls, without saving them.
    *
    * Deliberately not saved. The point of the button is that somebody who does not know what a
-   * reasonable threshold *is* can see one, compare it with what they had, and change their mind — and
+   * reasonable threshold *is* can see one, compare it with what they had, and change their mind, and
    * a reset that wrote straight to the database would take that look away. Save is right there, and
    * the note above it says the values take effect from the next scan.
    */
@@ -534,11 +584,11 @@ function draw(container, ctx, data, page, { carried = {}, unit: unitOverride } =
     const recommended = { warn_on_any_nonzero: DEFAULTS.warn_on_any_nonzero };
     for (const spec of ALL_SPECS) recommended[spec.key] = displayValue(spec, DEFAULTS, renderUnit);
     draw(container, ctx, data, page, { carried: recommended, unit: renderUnit });
-    toast('Recommended values loaded — press Save to apply them');
+    toast('Recommended values loaded, press Save to apply them');
   }
 
 
-  // The four page bodies. Each closes over the controls its page owns — they are built once above,
+  // The four page bodies. Each closes over the controls its page owns, they are built once above,
   // because building DOM is free and splitting the control creation would mean four copies of the
   // slider wiring.
   //
@@ -551,12 +601,15 @@ function draw(container, ctx, data, page, { carried = {}, unit: unitOverride } =
       el('h2', { text: 'Health thresholds' }),
       el('div', { class: 'settings-rows' }, [
         ...thresholdRows,
+        // Read by the browser rather than by the scan, so it is not covered by the note below, but
+        // it is a slider, and this is the list of sliders.
+        ...storageRows,
         settingRow('Caution on any sector problem',
           'Flag a drive as soon as a single reallocated, pending or uncorrectable sector appears.',
           warn),
         // The one place on this page where "applied immediately" is not true, and the reason a lowered
         // threshold looks like it did nothing: a verdict is worked out when a drive is *read*, and that
-        // reading is what the page shows. Changing a threshold changes nothing until the next one — so
+        // reading is what the page shows. Changing a threshold changes nothing until the next one, so
         // the page says so, and offers the scan rather than assuming it.
         el('p', { class: 'muted settings-note', text: 'A verdict is worked out when a drive is read, ' +
           'so a threshold changed here takes effect from the next scan.' }),
@@ -574,11 +627,8 @@ function draw(container, ctx, data, page, { carried = {}, unit: unitOverride } =
             onclick: (event) => scanNow(event.currentTarget),
           }, [icon('scan'), 'Scan now and re-check']),
         ]),
-        // Read by the browser rather than by the scan, which is why it sits after the note about what
-        // the scan does.
-        ...storageRows,
       ]),
-      // The same subject as the numbers above — one model's exceptions to them — so it shares the page
+      // The same subject as the numbers above, one model's exceptions to them, so it shares the page
       // rather than getting a heading of its own. It was separate only because of how tall it is.
       perModel.node,
     ]);
@@ -592,7 +642,7 @@ function draw(container, ctx, data, page, { carried = {}, unit: unitOverride } =
         ...operationRows,
         settingRow('Public URL',
           'Where this app is reachable from outside the host, for the "Open drive" button on a ' +
-          'notification. Empty adds no button — the app cannot know its own address, and a wrong ' +
+          'notification. Empty adds no button, the app cannot know its own address, and a wrong ' +
           'link is worse than none.',
           publicUrl),
       ]),
@@ -600,34 +650,51 @@ function draw(container, ctx, data, page, { carried = {}, unit: unitOverride } =
   }
 
   /** Theme, units, and what the other pages show. */
-  function appearanceSection() {
-    return el('section', { class: 'settings-section' }, [
-      el('h2', { text: 'Appearance' }),
-      el('div', { class: 'settings-rows' }, [
-        settingRow('Temperature unit',
-          'How temperatures are displayed; the threshold on the Thresholds page follows it. The stored ' +
-          'value stays Celsius, which is what the drives report.',
-          unit),
-        themeRow,
-        ...customRows,
-        tintRow,
-        // What the drive pages draw (A28), and how often a running self-test is re-read. Display
-        // preferences all, which is why they live here rather than with the thresholds.
-        ...displayRows,
-        settingRow('Partitions on the drive page',
-          'Show each drive’s partition table — what is on it, and how big each part is. Turn it off ' +
-          'if you only care about the drive as a whole.',
-          showPartitions),
-        settingRow('Storage usage',
-          'Show how full each filesystem is. Needs the host’s mount roots bind-mounted read-only — ' +
-          'for example `- /mnt:/mnt:ro` — or there is nothing to measure.',
-          showUsage),
-        settingRow('Replace first on the dashboard',
-          'The shortlist above the fleet, ordered by how strongly each drive argues for replacement. ' +
-          'Turn it off to go straight to the drives.',
-          showReplaceFirst),
+  /**
+   * Three sections, not one.
+   *
+   * Ten rows sat under a single heading called "Display and refresh": a theme picker, a unit, a
+   * tint, two refresh intervals and three toggles. The rows were already grouped that way in the
+   * code, the page simply did not say so, so the heading described half of what was under it.
+   */
+  function appearanceSections() {
+    return [
+      el('section', { class: 'settings-section' }, [
+        // Not "Appearance": the page is already called that, and a heading that repeats the title
+        // above it is a line that teaches the reader nothing.
+        el('h2', { text: 'Theme and units' }),
+        el('div', { class: 'settings-rows' }, [
+          settingRow('Temperature unit',
+            'How temperatures are displayed; the threshold on the Thresholds page follows it. The stored ' +
+            'value stays Celsius, which is what the drives report.',
+            unit),
+          themeRow, ...customRows,
+          tintRow,
+        ]),
       ]),
-    ]);
+      el('section', { class: 'settings-section' }, [
+        el('h2', { text: 'Refresh' }),
+        el('div', { class: 'settings-rows' }, [
+          ...displayRows,
+        ]),
+      ]),
+      // What the drive pages draw (A28). Display preferences all, which is why they live here
+      // rather than with the thresholds, but they are about the pages, not about the machine, so
+      // they are not filed under "Refresh".
+      el('section', { class: 'settings-section' }, [
+        el('h2', { text: 'What the pages show' }),
+        el('div', { class: 'settings-rows' }, [
+          settingRow('Partitions on the drive page',
+            'Show each drive’s partition table, what is on it, and how big each part is. Turn it off ' +
+            'if you only care about the drive as a whole.',
+            showPartitions),
+          settingRow('Storage usage',
+            'Show how full each filesystem is. Needs the host’s mount roots bind-mounted read-only, ' +
+            'for example `- /mnt:/mnt:ro`, or there is nothing to measure.',
+            showUsage),
+        ]),
+      ]),
+    ];
   }
 
   /**
@@ -664,7 +731,7 @@ function draw(container, ctx, data, page, { carried = {}, unit: unitOverride } =
       // A section of its own rather than a row under "Import and export". A control among prose reads as
       // a different kind of thing: it has a bold label and a smaller help line where the paragraphs
       // around it have neither, and its right-aligned switch wraps the text above it at a different
-      // width — which is what made this page look like two designs.
+      // width, which is what made this page look like two designs.
       el('section', { class: 'settings-section' }, [
         el('h2', { text: 'Prometheus metrics' }),
         el('div', { class: 'settings-rows' }, [
@@ -674,36 +741,41 @@ function draw(container, ctx, data, page, { carried = {}, unit: unitOverride } =
             prometheus),
         ]),
       ]),
-      // Read from `data`, not from the local `settings` map — that one is the stored settings, and the
+      // Read from `data`, not from the local `settings` map, that one is the stored settings, and the
       // knowledge status is its own payload.
       knowledgeSection(data.knowledge, ctx, knowledgeUrl),
     ];
   }
+  // Only the page's own sections are built. The object this used to index was evaluated eagerly, so
+  // every settings page built all four sections' rows, including the theme picker's nineteen swatches.
+  function sectionsFor() {
+    if (page.id === 'thresholds') return [thresholdsSection()];
+    if (page.id === 'notifications') return [notificationsSection()];
+    if (page.id === 'appearance') return appearanceSections();
+    if (page.id === 'data') return dataSections();
+    return [];
+  }
+
   mount(container,
     el('div', { class: 'page-head' }, [
       el('div', {}, [
         el('h1', { text: page.label }),
         el('div', { class: 'sub', text: PAGE_NOTES[page.id] || '' }),
       ]),
-      el('span', { class: 'spacer' }),
-      save,
     ]),
 
     // One sheet with sections, not four cards in a grid.
     //
     // The grid meant four different card heights and a ragged bottom, and reaching the shortest one
-    // meant scrolling past the tallest — so it did not make the page shorter, it made it uneven. A
+    // meant scrolling past the tallest, so it did not make the page shorter, it made it uneven. A
     // single surface whose sections lay their rows out in one column is both shorter and even.
     //
-    // Only the page's own sections are mounted. Everything above is built either way — it is DOM, not
-    // requests — but a section nobody is looking at is never read, and `fieldsFor` only asks its own
+    // Only the page's own sections are mounted. Everything above is built either way, it is DOM, not
+    // requests, but a section nobody is looking at is never read, and `fieldsFor` only asks its own
     // page.
-    el('div', { class: 'card stack settings-sheet' }, {
-      thresholds: [thresholdsSection()],
-      notifications: [notificationsSection()],
-      appearance: [appearanceSection()],
-      data: dataSections(),
-    }[page.id] || []),
+    el('div', { class: 'card stack settings-sheet' }, sectionsFor()),
+
+    saveBar,
   );
 }
 
@@ -719,7 +791,7 @@ async function scanNow(button) {
   button.disabled = true;
   try {
     await api.scan();
-    toast('Scan started — verdicts update as each drive is read', 'good');
+    toast('Scan started, verdicts update as each drive is read', 'good');
   } catch (err) {
     toast(err.message, 'error');
     button.disabled = false;
@@ -730,8 +802,8 @@ async function scanNow(button) {
  * Import a bundle (`FEATURES.md` C7).
  *
  * Confirmed before the file picker rather than after: the user should know what the file will do
- * before they spend time finding it, and the one destructive part — schedules are replaced rather
- * than merged — is the thing they most need to know.
+ * before they spend time finding it, and the one destructive part, schedules are replaced rather
+ * than merged, is the thing they most need to know.
  */
 async function importConfig(ctx, button) {
   const ok = await confirmDialog(
@@ -743,7 +815,7 @@ async function importConfig(ctx, button) {
   );
   if (!ok) return;
 
-  const input = el('input', { type: 'file', accept: 'application/json,.json', hidden: true });
+  const input = el('input', { type: 'file', accept: 'application/json.json', hidden: true });
   input.addEventListener('change', async () => {
     const file = input.files && input.files[0];
     if (!file) {
@@ -778,15 +850,15 @@ async function importConfig(ctx, button) {
  * The knowledge base card (`FEATURES.md` A21).
  *
  * Three layers, in the order they win: what ships with this build, a copy fetched from a URL, and the
- * entries typed here. The card exists because the last two are the *user's* — the whole point of the
+ * entries typed here. The card exists because the last two are the *user's*, the whole point of the
  * feature is that the data outlives the repository, which means whoever runs this has to be able to
  * maintain it without a pull request.
  *
  * The refresh is a button rather than a schedule, and the card says how old the copy is instead of
  * hiding it: the one thing worse than stale data is stale data you believe is current.
  *
- * The editor is a text box rather than a form, and that is deliberate. The format *is* the interface —
- * the same JSON the bundled file and the refresh URL use — so there is one thing to learn rather than
+ * The editor is a text box rather than a form, and that is deliberate. The format *is* the interface,
+ * the same JSON the bundled file and the refresh URL use, so there is one thing to learn rather than
  * a form that can only express what the form thought of. The parse error comes back verbatim and is
  * shown beside the box, which is the only place a message about a typo is worth anything.
  */
@@ -878,13 +950,13 @@ function knowledgeSection(knowledge, ctx, urlInput) {
         : null,
       settingRow('Refresh URL',
         'Where to fetch an updated table from. Empty uses the published one, which is the file this ' +
-        'build already ships. Nothing is fetched on a schedule — only when you press Refresh.',
+        'build already ships. Nothing is fetched on a schedule, only when you press Refresh.',
         urlInput),
       el('div', { class: 'row knowledge-actions' }, [
         refresh,
         k.cache ? discard : null,
         // The shipped document, verbatim. This is how somebody starts their own copy to point the URL
-        // at — which is the whole reason the refresh exists.
+        // at, which is the whole reason the refresh exists.
         el('a', {
           class: 'btn btn-sm btn-ghost',
           href: `data:application/json;charset=utf-8,${encodeURIComponent(k.bundled || '{}')}`,
@@ -930,7 +1002,7 @@ export function fleetModels(deviceData) {
 
 /**
  * Seeds the per-model editor with one entry per model in the fleet, at the values currently on
- * screen — the common edit is "one number is wrong for one model", and this is what makes that edit
+ * screen, the common edit is "one number is wrong for one model", and this is what makes that edit
  * one number rather than a schema to write from memory.
  *
  * It **merges** rather than replaces: an entry already in the editor is kept, and only models with
@@ -959,13 +1031,13 @@ export function seedModelThresholds(existing, models, values) {
 /**
  * The per-model health thresholds (`FEATURES.md` A3).
  *
- * A JSON editor rather than a table of inputs, and the same shape as the knowledge overrides above —
+ * A JSON editor rather than a table of inputs, and the same shape as the knowledge overrides above,
  * deliberately, because it is the same kind of thing: a small structured setting that most people
  * never touch, and that the few who do want to write precisely. The seed button is what makes it
  * usable: the common edit is one number for one model, and the seed produces exactly that.
  *
  * The values are the **same setting names** the sliders above use, so there is one vocabulary for
- * these six numbers rather than two. The server validates both the shape and the names on save —
+ * these six numbers rather than two. The server validates both the shape and the names on save,
  * a typo'd key would otherwise be stored, shown here, and never read by anything.
  */
 function perModelSection(settings, deviceData, currentValues) {
@@ -977,33 +1049,141 @@ function perModelSection(settings, deviceData, currentValues) {
     placeholder: '{\n  "870 EVO": { "reallocated_bad_threshold": "1" }\n}',
     value: settings.model_thresholds || '',
   });
+  const tableHost = el('div', { class: 'pm-rows' });
 
   const showError = (message) => {
     error.textContent = message;
     error.hidden = !message;
   };
 
+  // The textarea stays the source of truth: `fieldsFor` reads it, the seed writes to it, and the API
+  // already accepts its shape. The table is a second view onto the same string, which is why every
+  // edit lands back in it rather than in a parallel copy that could drift.
+  const readMap = () => {
+    const raw = editor.value.trim();
+    if (!raw) return {};
+    try {
+      const parsed = JSON.parse(raw);
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null;
+      return parsed;
+    } catch {
+      return null;
+    }
+  };
+
+  const writeMap = (map) => {
+    editor.value = Object.keys(map).length ? JSON.stringify(map, null, 2) : '';
+  };
+
   const models = fleetModels(deviceData);
+
+  const setCell = (model, key, value, placeholderValue) => {
+    const map = readMap();
+    if (map === null) return;
+    const entry = { ...(map[model] || {}) };
+    if (value === '') delete entry[key];
+    else entry[key] = value;
+    if (Object.keys(entry).length) map[model] = entry;
+    else delete map[model];
+    writeMap(map);
+    showError('');
+    redraw(placeholderValue);
+  };
+
+  function redraw(defaults) {
+    const map = readMap();
+    clear(tableHost);
+    if (map === null) {
+      append(tableHost, [el('p', { class: 'muted field-hint', text: 'The JSON below is not valid, so the table cannot show it. Fix it in Advanced, or Clear.' })]);
+      return;
+    }
+    const defaultsNow = defaults || currentValues();
+    const names = [...models];
+    for (const key of Object.keys(map)) {
+      if (!names.some((n) => n.toLowerCase() === key.toLowerCase())) names.push(key);
+    }
+    if (!names.length) {
+      append(tableHost, [el('p', { class: 'muted field-hint', text: 'No drives read yet. Scan once and the models that appear can be overridden here.' })]);
+      return;
+    }
+
+    const body = el('tbody', {});
+    for (const model of names) {
+      const entry = map[Object.keys(map).find((k) => k.toLowerCase() === model.toLowerCase()) || model] || {};
+      const cells = THRESHOLDS.map((spec) => {
+        const box = el('input', {
+          type: 'number', class: 'pm-cell',
+          min: spec.min === undefined ? '0' : String(spec.min),
+          max: spec.max === undefined ? '200' : String(spec.max),
+          step: spec.step === undefined ? '1' : String(spec.step),
+          value: entry[spec.key] === undefined ? '' : String(entry[spec.key]),
+          placeholder: String(defaultsNow[spec.key] ?? ''),
+          'aria-label': `${model}: ${spec.label}`,
+        });
+        box.addEventListener('change', () => setCell(model, spec.key, box.value.trim(), defaultsNow));
+        return el('td', {}, [box]);
+      });
+      const used = Object.keys(entry).length > 0;
+      append(body, [el('tr', { class: used ? null : 'pm-inherit' }, [
+        el('td', { class: 'pm-model' }, [
+          el('div', { text: model }),
+          el('div', { class: 'sub', text: used ? 'overridden' : 'same as above' }),
+        ]),
+        ...cells,
+        el('td', {}, [used ? el('button', {
+          class: 'btn btn-sm btn-ghost', type: 'button', text: 'Reset',
+          title: `Drop every override for ${model}`,
+          onclick: () => {
+            const m = readMap();
+            if (m === null) return;
+            delete m[model];
+            writeMap(m);
+            redraw(defaultsNow);
+          },
+        }) : null]),
+      ])]);
+    }
+
+    append(tableHost, [el('div', { class: 'v2-table-wrap' }, [
+      el('table', { class: 'fleet-table pm-table' }, [
+        el('thead', {}, [el('tr', {}, [
+          el('th', { text: 'Model' }),
+          ...THRESHOLDS.map((spec) => el('th', { class: 'r', text: shortLabel(spec) })),
+          el('th', { class: 'r', text: '' }),
+        ])]),
+        body,
+      ]),
+      el('p', { class: 'muted field-hint', text: 'A blank cell uses the value set above. A drive is matched on its model or family, case-insensitively; if two entries match, the longer name wins.' }),
+    ])]);
+  }
+
   const seed = el('button', {
-    class: 'btn btn-sm', type: 'button', text: 'Load the fleet’s models',
+    class: 'btn btn-sm', type: 'button', text: 'Load the fleet\u2019s models',
     title: 'Add an entry for every model in the fleet, at the values set above. ' +
       'Anything already in the box is kept.',
     onclick: () => {
       editor.value = JSON.stringify(seedModelThresholds(editor.value, models, currentValues()), null, 2);
       showError('');
+      redraw();
     },
   });
   seed.disabled = models.length === 0;
 
+  editor.addEventListener('input', () => { showError(''); redraw(); });
+  redraw();
+
   return {
+    // The textarea is the value; the table edits it. Callers keep the same two methods they had when
+    // this section was only a textarea.
+    value: () => editor.value,
+    showError,
     node: el('section', { class: 'settings-section' }, [
       el('h2', { text: 'Per-model thresholds' }),
       el('div', { class: 'settings-rows' }, [
-        el('div', { class: 'field' }, [
-          el('p', { class: 'muted field-hint', text: 'The thresholds above, except for one model. ' +
-            'A drive is matched on its model or its family, case-insensitively, and a number left ' +
-            'out here falls back to the value above. If two entries match the same drive the ' +
-            'longer name wins, so name them precisely rather than overlapping.' }),
+        tableHost,
+        el('details', { class: 'pm-advanced' }, [
+          el('summary', { text: 'Advanced (JSON)' }),
+          el('p', { class: 'muted field-hint', text: 'The same overrides as stored: every key the table does not cover, and the numbers exactly as they are sent. Edits here are what gets saved.' }),
           editor,
         ]),
       ]),
@@ -1015,24 +1195,67 @@ function perModelSection(settings, deviceData, currentValues) {
           : 'no drives read yet' }),
         el('button', {
           class: 'btn btn-sm btn-ghost', type: 'button', text: 'Clear',
-          onclick: () => { editor.value = ''; showError(''); },
+          onclick: () => { editor.value = ''; showError(''); redraw(); },
         }),
       ]),
     ]),
-    value: () => editor.value.trim(),
-    showError,
   };
+  }
+
+/**
+ * Where the first usable sentence ends, or -1 when the text is one sentence.
+ *
+ * "Off by default." is a full stop but not a summary, so a boundary only counts once the text
+ * before it is long enough to stand on its own.
+ */
+function firstSentenceEnd(text) {
+  const re = /[.!?]\s+/g;
+  let match;
+  while ((match = re.exec(text)) !== null) {
+    const end = match.index + 1;
+    if (end >= 40) return end;
+  }
+  return -1;
 }
 
-
+/** A column header that fits a table cell; the full label is the input's aria-label. */
+function shortLabel(spec) {
+  if (spec.temperature) return 'Temp';
+  if (spec.key === 'reallocated_bad_threshold') return 'Realloc';
+  if (spec.key === 'pending_bad_threshold') return 'Pending';
+  if (spec.key === 'uncorrectable_bad_threshold') return 'Uncorr';
+  if (spec.key === 'nvme_percentage_used_warn') return 'NVMe %';
+  return spec.label;
+}
 
 function settingRow(label, help, control) {
   return el('div', { class: 'setting-row' }, [
     el('div', { class: 'setting-text' }, [
       el('div', { class: 'setting-label', text: label }),
-      help ? el('div', { class: 'setting-help', text: help }) : null,
+      help ? helpBlock(help) : null,
     ]),
     el('div', { class: 'setting-control' }, [control]),
+  ]);
+}
+
+/**
+ * Help text: one sentence, and the rest behind a disclosure.
+ *
+ * Every row carried two to five lines of explanation, so the page read as prose with controls
+ * embedded in it, and the longest were 250 characters, which is documentation, not a hint. The
+ * explanations are worth keeping (several say why something is off by default, or what it costs),
+ * so they are folded rather than deleted: a native `<details>`, with the text still in the DOM, one
+ * click away. One sentence is enough to know whether a row matters to you.
+ */
+function helpBlock(help) {
+  const cut = firstSentenceEnd(help);
+  if (cut <= 0) return el('div', { class: 'setting-help', text: help });
+  return el('div', { class: 'setting-help' }, [
+    el('span', { text: help.slice(0, cut) }),
+    el('details', { class: 'setting-more' }, [
+      el('summary', { text: 'Why?' }),
+      el('span', { text: help.slice(cut) }),
+    ]),
   ]);
 }
 
@@ -1090,7 +1313,7 @@ function sliderRow(spec, settings, unit, carried, inputs) {
   return el('div', { class: 'setting-row' }, [
     el('div', { class: 'setting-text' }, [
       el('div', { class: 'setting-label', text: spec.label }),
-      el('div', { class: 'setting-help', text: spec.help }),
+      helpBlock(spec.help),
     ]),
     el('div', { class: 'setting-control' }, [
       range,

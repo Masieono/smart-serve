@@ -1,6 +1,6 @@
 /* Smart-Serve design tokens (docs/UI.md §4).
  *
- * Components must only ever reference these variables — never a raw colour,
+ * Components must only ever reference these variables, never a raw colour,
  * radius, or spacing value. That is what makes theming a token swap rather than
  * a rewrite.
  */
@@ -35,7 +35,7 @@
   --shadow-1: 0 1px 2px rgba(1, 4, 9, 0.12);
   --shadow-2: 0 10px 30px rgba(1, 4, 9, 0.35);
 
-  /* accent — overridden inline for custom themes (set by the server) */
+  /* accent, overridden inline for custom themes (set by the server) */
   --accent: #3b82f6;
   --accent-contrast: #ffffff;
   --accent-hover: #2f6fd0;
@@ -58,7 +58,7 @@
 
   /* layout */
   --sidebar-w: 232px;
-  /* Data views (the device grid, tables) use the full window width — a capped
+  /* Data views (the device grid, tables) use the full window width, a capped
      column leaves most of a wide screen empty for no benefit. Long-form controls
      that would look silly stretched are constrained individually. */
   --form-max: 760px;
@@ -127,7 +127,7 @@
    like itself rather than the default palette in a different shade. The derived
    tokens (soft variants, hover shades) are mixed once, below. */
 
-/* Catppuccin Latte — https://catppuccin.com */
+/* Catppuccin Latte, https://catppuccin.com */
 [data-theme="catppuccin-latte"] {
   color-scheme: light;
   --palette-bg: #e6e9ef;
@@ -167,7 +167,7 @@
   --unknown: #7f849c;
 }
 
-/* Dracula — https://draculatheme.com */
+/* Dracula, https://draculatheme.com */
 [data-theme="dracula"] {
   color-scheme: dark;
   --palette-bg: #21222c;
@@ -189,7 +189,7 @@
   --unknown: #7d84a8;
 }
 
-/* Nord — https://www.nordtheme.com */
+/* Nord, https://www.nordtheme.com */
 [data-theme="nord"] {
   color-scheme: dark;
   --palette-bg: #2e3440;
@@ -209,7 +209,7 @@
   --unknown: #8f9bb0;
 }
 
-/* Gruvbox dark — https://github.com/morhetz/gruvbox */
+/* Gruvbox dark, https://github.com/morhetz/gruvbox */
 [data-theme="gruvbox-dark"] {
   color-scheme: dark;
   --palette-bg: #282828;
@@ -292,7 +292,7 @@
 /* Derived tokens for every named palette.
    Soft variants and the hover shade are mixed from the solid colours, so a palette
    only has to state its own solid values. The hover mixes towards the text colour,
-   which darkens on a light theme and lightens on a dark one — one rule that is
+   which darkens on a light theme and lightens on a dark one, one rule that is
    correct in both directions.
 
    TestEveryThemeNameHasAPalette checks that every palette block also appears here,
@@ -315,7 +315,7 @@
   --sparkline: var(--accent);
 }
 
-/* Synthwave '84 — https://github.com/robb0wen/synthwave-vscode */
+/* Synthwave '84, https://github.com/robb0wen/synthwave-vscode */
 [data-theme="synthwave-dark"] {
   color-scheme: dark;
   --palette-bg: #241b2f;
@@ -335,7 +335,7 @@
   --unknown: #848bbd;
 }
 
-/* Synthwave light — the same palette family, darkened for a pale background. */
+/* Synthwave light, the same palette family, darkened for a pale background. */
 [data-theme="synthwave-light"] {
   color-scheme: light;
   --palette-bg: #f4ecff;
@@ -355,7 +355,7 @@
   --unknown: #7d84a8;
 }
 
-/* Hacker — phosphor green on near-black. */
+/* Hacker, phosphor green on near-black. */
 [data-theme="hacker"] {
   color-scheme: dark;
   --palette-bg: #050805;
@@ -375,7 +375,7 @@
   --unknown: #4d7a4d;
 }
 
-/* Solarized — https://ethanschoonover.com/solarized */
+/* Solarized, https://ethanschoonover.com/solarized */
 [data-theme="solarized-dark"] {
   color-scheme: dark;
   --palette-bg: #002b36;
@@ -414,7 +414,7 @@
   --unknown: #93a1a1;
 }
 
-/* Tokyo Night — https://github.com/enkia/tokyo-night-vscode-theme */
+/* Tokyo Night, https://github.com/enkia/tokyo-night-vscode-theme */
 [data-theme="tokyo-night"] {
   color-scheme: dark;
   --palette-bg: #16161e;
@@ -434,7 +434,7 @@
   --unknown: #565f89;
 }
 
-/* One Dark — https://github.com/atom/one-dark-syntax */
+/* One Dark, https://github.com/atom/one-dark-syntax */
 [data-theme="one-dark"] {
   color-scheme: dark;
   --palette-bg: #21252b;

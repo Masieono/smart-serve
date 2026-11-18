@@ -13,6 +13,19 @@ walked on every scan for two strings; the score breakdown was computed on every 
 the list of what is deliberately *not* captured, each with its reason — discarding is allowed,
 discarding silently is not. See `ADR-028`.
 
+### Changed
+
+- **The interface is one design, rebuilt.** The fleet is a table with one row per drive and the
+  verdict and score sharing a cell; the device page leads with facts, then usage and the partition
+  map, then trends, then attributes; notifications are channels as rows, deliveries as a feed and
+  windows as states; schedules show their next run relative to now, with a running self-test pass
+  reported as a banner. Settings keeps its four pages and gained a swatch picker for the nineteen
+  palettes, a save bar that appears when something is dirty, and explanations folded behind a
+  "Why?" so a page of settings is not a page of prose. The A/B variant it was built behind is gone:
+  no `?ui=`, no cookie, no `data-ui` attribute, one stylesheet.
+- **Em dashes are gone from the app's own text**, in the interface, in Go strings that reach a
+  person and in code comments. The glyph for a value that was never reported is `n/a`.
+
 ### Security
 
 - **A 500 no longer quotes the database.** Every failed request used to answer `err.Error()` verbatim,
@@ -129,6 +142,16 @@ discarding silently is not. See `ADR-028`.
   replaced.
 
 ### Added
+
+- **A table view of the fleet, as a variant.** `?ui=v2` sets a cookie and the same deployment serves a
+  second fleet view: one row per drive, with the verdict and the 0–100 score in a single Health column,
+  usage, temperature and age; the row that needs a second look marks itself with a rule down its left
+  edge and, when a drive cannot report, one line of the drive's own reason. It reads the same
+  `/api/devices` payload as the cards, so the two cannot disagree. The device page is unchanged, and
+  the card view is still the default — this exists to be compared against it. See `ADR-032`.
+- **`used_pct` on the fleet payload.** How full the drive's fullest filesystem was at the last scan,
+  absent when the container could not see one. It was already stored per snapshot; the fleet table is
+  the first thing that wanted it for every drive at once.
 
 - **The "Replace first" shortlist can be turned off** (`A24`) — `show_replace_first`, on the Appearance
   page. It sits above the fleet, so it is the first thing on the page whether or not you want it today,

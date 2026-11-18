@@ -90,7 +90,7 @@ func TestAcknowledgeAnUnknownDevice(t *testing.T) {
 }
 
 // An acknowledgement is user-assigned metadata about a drive, so editing the drive's name must not
-// silently drop it — `device_notes` is one row and the ack lives in it.
+// silently drop it, `device_notes` is one row and the ack lives in it.
 func TestEditingNotesKeepsTheAcknowledgement(t *testing.T) {
 	srv, st, runner, _ := newTestServer(t, Options{})
 	scanFailingDrive(t, srv, runner)

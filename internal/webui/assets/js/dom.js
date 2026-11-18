@@ -45,7 +45,7 @@ export function mount(node, ...children) {
  * Freeze a container at its current height while its contents are replaced.
  *
  * A view that empties its container and *then* waits for a fetch leaves the page short for as long as
- * the request takes, and the browser clamps the scroll position to the top of a short page — which is
+ * the request takes, and the browser clamps the scroll position to the top of a short page, which is
  * how a refresh throws you out of the section you were reading. The clear and the refill have to be in
  * different tasks for this to happen, which is why it shows up on the pages that load data and not on
  * the ones that just re-draw.
@@ -70,7 +70,7 @@ export function holdHeight(node) {
 /**
  * Put the window back at the top of the page.
  *
- * A navigation asks for a new page, and the reader is usually somewhere down the old one — the
+ * A navigation asks for a new page, and the reader is usually somewhere down the old one, the
  * self-test card is the last thing on a device page, so every trip back to the fleet meant scrolling
  * the whole way up first. The browser will not do this for us here: the shell's sidebar is a
  * full-height sticky column, so the document stays at least a viewport tall, the old offset stays
@@ -105,17 +105,17 @@ export function fmtBytes(bytes) {
 }
 
 export function fmtDateTime(iso) {
-  if (!iso) return '—';
+  if (!iso) return 'n/a';
   const d = new Date(iso);
-  return Number.isNaN(d.getTime()) ? '—' : d.toLocaleString();
+  return Number.isNaN(d.getTime()) ? 'n/a' : d.toLocaleString();
 }
 
-/* Date and time apart, for places that stack them — a single line wide enough to hold
+/* Date and time apart, for places that stack them, a single line wide enough to hold
    a full timestamp runs most of the way across a card. */
 export function fmtDate(iso) {
-  if (!iso) return '—';
+  if (!iso) return 'n/a';
   const d = new Date(iso);
-  return Number.isNaN(d.getTime()) ? '—' : d.toLocaleDateString();
+  return Number.isNaN(d.getTime()) ? 'n/a' : d.toLocaleDateString();
 }
 
 /**
@@ -126,18 +126,18 @@ export function fmtDate(iso) {
  * absolute stamp is what lets somebody match a row against the night they left a test running.
  */
 export function fmtStamp(iso) {
-  if (!iso) return '—';
+  if (!iso) return 'n/a';
   const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return '—';
+  if (Number.isNaN(d.getTime())) return 'n/a';
   return d.toLocaleString(undefined, {
     day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
   });
 }
 
 export function fmtTime(iso) {
-  if (!iso) return '—';
+  if (!iso) return 'n/a';
   const d = new Date(iso);
-  return Number.isNaN(d.getTime()) ? '—' : d.toLocaleTimeString();
+  return Number.isNaN(d.getTime()) ? 'n/a' : d.toLocaleTimeString();
 }
 
 export function fmtAgo(iso) {
@@ -154,7 +154,7 @@ export function fmtAgo(iso) {
 }
 
 export function fmtHours(hours) {
-  if (hours === null || hours === undefined) return '—';
+  if (hours === null || hours === undefined) return 'n/a';
   const years = hours / 8760;
   if (years >= 1) return `${years.toFixed(1)} yr`;
   const days = hours / 24;
@@ -210,7 +210,7 @@ export function toCelsius(displayed, fromUnit = currentUnit) {
 /**
  * A temperature *difference* in the display unit.
  *
- * A delta is a span, not a reading, so it scales without the offset — using
+ * A delta is a span, not a reading, so it scales without the offset, using
  * convertTemp on it would report a 2 °C rise as a 36 °F rise.
  */
 export function convertTempDelta(delta, targetUnit = currentUnit) {
@@ -231,37 +231,37 @@ export function toCelsiusDelta(displayed, fromUnit = currentUnit) {
 
 export function fmtTemp(celsius) {
   const value = convertTemp(celsius);
-  return value === null ? '—' : `${value} °${temperatureUnitName()}`;
+  return value === null ? 'n/a' : `${value} °${temperatureUnitName()}`;
 }
 
 /** Thousands separators for raw counters. */
 export function fmtInt(value) {
-  if (value === null || value === undefined) return '—';
+  if (value === null || value === undefined) return 'n/a';
   return Number(value).toLocaleString();
 }
 
 /**
  * A table cell value: the value as text, or an em dash when it is absent.
  *
- * A bare `String(value)` renders a missing field as the literal "undefined" — or "null",
- * if the API sent JSON null — which reads as data. "The drive did not report this" and
+ * A bare `String(value)` renders a missing field as the literal "undefined", or "null",
+ * if the API sent JSON null, which reads as data. "The drive did not report this" and
  * "this value is the word undefined" must never look the same, which is the same rule
  * `percent` and `dataUnits` already follow.
  */
 export function fmtCell(value) {
-  if (value === null || value === undefined) return '—';
-  if (typeof value === 'string' && value.trim() === '') return '—';
+  if (value === null || value === undefined) return 'n/a';
+  if (typeof value === 'string' && value.trim() === '') return 'n/a';
   return String(value);
 }
 
 /**
  * A counter that is a number of minutes, or an em dash when the drive did not report it.
  *
- * Interpolating straight into a template turned an absent value into "— min", which reads
+ * Interpolating straight into a template turned an absent value into ", min", which reads
  * as a measurement rather than as a gap.
  */
 export function fmtMinutes(value) {
-  if (value === null || value === undefined) return '—';
+  if (value === null || value === undefined) return 'n/a';
   return `${fmtInt(value)} min`;
 }
 

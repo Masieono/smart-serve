@@ -43,7 +43,7 @@ test('table-style row arrays render as rows', () => {
  * promise and leave a button disabled for the rest of the session.
  *
  * The stub used to hand out a plain property that stayed valid forever, so the whole suite was blind
- * to that bug — which is how "Save settings" came to work exactly once. This pins the behaviour, so
+ * to that bug, which is how "Save settings" came to work exactly once. This pins the behaviour, so
  * a future tidy-up of the stub cannot quietly re-blind the tests.
  */
 test('currentTarget is null after the handler returns, as the spec says', async () => {
@@ -97,7 +97,7 @@ test('holdHeight does nothing when there is no height to hold', () => {
 
 /**
  * `scrollToTop` is the other half of the same concern, and the opposite direction: a *navigation*
- * starts at the top (`docs/UI.md` §2). Nothing else does it — the sidebar is a full-height sticky
+ * starts at the top (`docs/UI.md` §2). Nothing else does it, the sidebar is a full-height sticky
  * column, so the document stays at least a viewport tall and the old offset stays valid.
  *
  * Reported from a device page: the self-test card is the last thing on it, so every trip back to the
@@ -131,14 +131,14 @@ test('formatters', () => {
 });
 
 test('fmtInt groups raw counters and blanks missing values', () => {
-  assert.equal(fmtInt(null), '—');
-  assert.equal(fmtInt(undefined), '—');
+  assert.equal(fmtInt(null), 'n/a');
+  assert.equal(fmtInt(undefined), 'n/a');
   assert.equal(fmtInt(0), '0');
   // Locale-aware grouping; compare against the platform's own rendering.
   assert.equal(fmtInt(31603), (31603).toLocaleString());
 });
 
-// Celsius is canonical everywhere else — API, database, notification payloads — so
+// Celsius is canonical everywhere else, API, database, notification payloads, so
 // the unit must be a display-only concern that cannot leak into stored values.
 test('temperature display honours the configured unit', () => {
   setTemperatureUnit('c');
@@ -173,8 +173,8 @@ test('an unrecognised temperature unit falls back to Celsius', () => {
 });
 
 test('fmtTemp blanks missing readings', () => {
-  assert.equal(fmtTemp(null), '—');
-  assert.equal(fmtTemp(undefined), '—');
+  assert.equal(fmtTemp(null), 'n/a');
+  assert.equal(fmtTemp(undefined), 'n/a');
 });
 
 // A delta is a span, not a reading: converting it with the offset would report a

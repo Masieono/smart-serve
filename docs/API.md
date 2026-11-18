@@ -27,6 +27,10 @@ manual one does not (the operator who pressed the button already knows).
 
 ### `GET /api/devices` — list devices (last known state; never triggers I/O)
 
+The fleet table (`ADR-032`) reads `used_pct` per drive: how full the drive's fullest filesystem was
+at the last scan, or absent when the container could not see one. It is on the list rather than the
+per-device payload because a table that draws every drive would otherwise need a request per row.
+
 ```json
 {
   "devices": [
@@ -736,8 +740,10 @@ native (browser `EventSource` auto-retry with `Last-Event-ID` cursor for missed
 ## History (implemented)
 
 - `GET /api/devices/{serial}/history?from=…&to=…` — snapshots in range, with
-  computed series (`temperature_c`, `wear_pct`, attr-5/197/198 raw values,
-  `power_on_hours`).
+  computed series (`temperature_c`, `wear_pct`, `used_pct`, `sectors`, attr-5/197/198 raw
+  values, `power_on_hours`). `sectors` is the reallocated count at that snapshot: the one
+  series whose shape precedes a failure, which is why the v2 trend strip gives it a slot
+  (`ADR-032`).
 
 ## Knowledge base (implemented, `A21`)
 

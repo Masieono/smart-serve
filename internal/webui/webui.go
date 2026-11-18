@@ -63,14 +63,14 @@ func New(themeFn ThemeFunc, opts Options) (http.Handler, error) {
 	}
 	fileServer := http.FileServer(http.FS(sub))
 
-	// ETags for the embedded assets, computed once. This is not an optimisation — it is the
+	// ETags for the embedded assets, computed once. This is not an optimisation, it is the
 	// correctness fix for a real upgrade hazard.
 	//
 	// `embed.FS` reports a zero modtime, so `http.ServeContent` emits no `Last-Modified` and no
-	// `ETag`. With no validator at all, a browser — or, worse, a reverse proxy — is free to serve a
+	// `ETag`. With no validator at all, a browser, or, worse, a reverse proxy, is free to serve a
 	// cached copy of `js/views/device.js` from before the upgrade. The shell is `no-store`, so the
 	// HTML is always fresh, and the result is a *mix*: new HTML, old modules. Because the frontend is
-	// ES modules, that mix does not degrade gracefully — an old `components.js` missing a symbol a
+	// ES modules, that mix does not degrade gracefully, an old `components.js` missing a symbol a
 	// new `device.js` imports is a hard failure, and "the new card is not there" is the mild version
 	// of the symptom.
 	//
@@ -90,6 +90,7 @@ func New(themeFn ThemeFunc, opts Options) (http.Handler, error) {
 	}
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+
 		// Serve real files (styles, scripts, icons) directly.
 		if name := strings.TrimPrefix(r.URL.Path, "/"); name != "" {
 			if info, statErr := fs.Stat(sub, name); statErr == nil && !info.IsDir() {
@@ -167,7 +168,7 @@ func etagMatches(header, etag string) bool {
 // ThemeNames lists every theme the UI can render. Named palettes live in
 // tokens.css; "custom" builds an accent from settings and "auto" follows the OS.
 //
-// internal/webui/assets/js/views/settings.js must offer the same list — the two are
+// internal/webui/assets/js/views/settings.js must offer the same list, the two are
 // pinned together by tests on both sides.
 var ThemeNames = []string{
 	"auto", "light", "dark",
@@ -208,7 +209,7 @@ func renderIndex(w http.ResponseWriter, tmpl *template.Template, theme Theme, ba
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-store")
 	if err := tmpl.ExecuteTemplate(w, "index.html", data); err != nil {
-		// The template names a field or a line, so the error is ours, not the reader's —
+		// The template names a field or a line, so the error is ours, not the reader's,
 		// the same rule the JSON API follows (`ADR-031`). It goes to the log instead.
 		logger.Error("rendering the shell", "err", err)
 		http.Error(w, "internal error", http.StatusInternalServerError)

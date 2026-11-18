@@ -30,7 +30,7 @@ func (k SelfTestKind) Valid() bool {
 // selfTestArgs builds the arguments for one self-test command.
 //
 // The per-device `-d` override is carried through exactly as the scan carries it, because a
-// drive behind a USB bridge that needs `-d sat` needs it for this too — and a self-test is the
+// drive behind a USB bridge that needs `-d sat` needs it for this too, and a self-test is the
 // worst place to discover that it was dropped.
 func selfTestArgs(path, transport string, extra ...string) []string {
 	args := append([]string{}, extra...)
@@ -87,7 +87,7 @@ func ReadSelfTestLog(ctx context.Context, timeout time.Duration, path, transport
 //
 // Only the low three bits mean the *command* did not work: an option it could not parse, a
 // device it could not open, and a SMART command the drive refused. The other bits describe the
-// drive itself — it is failing, it has a past failure, its logs hold errors — and those are the
+// drive itself, it is failing, it has a past failure, its logs hold errors, and those are the
 // verdict engine's business. Treating them as a failed self-test would report a command that
 // worked perfectly as broken, on exactly the drives that most need testing.
 func commandFailure(res Result) error {
@@ -95,7 +95,7 @@ func commandFailure(res Result) error {
 		return nil
 	}
 	// "exit status 4" is not a sentence, and smartctl prints nothing more often than you would
-	// expect — a drive refusing a self-test can do it silently. So the bit is named in smartctl's
+	// expect, a drive refusing a self-test can do it silently. So the bit is named in smartctl's
 	// own vocabulary, and the absence of a reason is stated rather than left as a bare number the
 	// reader has to go and look up.
 	detail := exitMeaning(res.ExitCode & 0x07)

@@ -7,7 +7,7 @@ import (
 
 // The bundled table is data, and data has typos. This is the test that catches them: a shipped file
 // that does not parse would leave every install with an empty knowledge base, and the only symptom
-// would be the app saying nothing about every drive — which looks exactly like working correctly.
+// would be the app saying nothing about every drive, which looks exactly like working correctly.
 func TestTheBundledTableIsValid(t *testing.T) {
 	b, err := Embedded()
 	if err != nil {
@@ -98,7 +98,7 @@ func TestAShortPatternMatchesNothing(t *testing.T) {
 	}
 }
 
-// `matches` is for a series that shares a suffix rather than a name — the SMR Red line, whose models
+// `matches` is for a series that shares a suffix rather than a name, the SMR Red line, whose models
 // are WD20EFAX through WD80EFAX. Four characters at the end is too short to match on safely by itself,
 // and no single family string can express it.
 func TestMatchesPatternsCoverASeries(t *testing.T) {
@@ -119,7 +119,7 @@ func TestMatchesPatternsCoverASeries(t *testing.T) {
 
 func ptr[T any](v T) *T { return &v }
 
-// Endurance is per capacity, because a 250 GB and a 4 TB drive in one family are rated differently —
+// Endurance is per capacity, because a 250 GB and a 4 TB drive in one family are rated differently,
 // and quoting the family's headline number for both would be wrong for one of them.
 func TestEnduranceResolvesForTheDrivesCapacity(t *testing.T) {
 	e := entry("Samsung SSD 870 EVO", map[string]float64{"250": 150, "500": 300, "1000": 600, "4000": 2400})
@@ -181,7 +181,7 @@ func TestAnUnknownCapacitySaysNothing(t *testing.T) {
 	}
 }
 
-// An advisory names the firmware it affects. One that names none applies to the whole family — which
+// An advisory names the firmware it affects. One that names none applies to the whole family, which
 // is how the SMR Red line is written, because the problem is the model rather than a revision.
 func TestAdvisoriesMatchOnFirmware(t *testing.T) {
 	e := Entry{Family: "Test Drive", Advisories: []Advisory{
@@ -212,8 +212,8 @@ func TestAdvisoriesMatchOnFirmware(t *testing.T) {
 		t.Errorf("advisories = %+v, want only the family-wide one", got.Advisories)
 	}
 
-	// A drive that reported no firmware cannot match a firmware-specific advisory — that would be
-	// guessing at the one fact the advisory is about — but the family-wide one still applies.
+	// A drive that reported no firmware cannot match a firmware-specific advisory, that would be
+	// guessing at the one fact the advisory is about, but the family-wide one still applies.
 	got = base.Find("Test Drive", "", "", nil)
 	if len(got.Advisories) != 1 || got.Advisories[0].Title != "whole family" {
 		t.Errorf("advisories with no firmware = %+v, want only the family-wide one", got.Advisories)
@@ -235,7 +235,7 @@ func TestWorstSeverity(t *testing.T) {
 }
 
 // Parsing is strict, and the source is why: this file arrives from a URL or a text box, and an entry
-// silently dropped for a typo looks *exactly* like the app not knowing a drive — the one failure a
+// silently dropped for a typo looks *exactly* like the app not knowing a drive, the one failure a
 // knowledge base cannot afford, because it is indistinguishable from having no data at all.
 func TestParseRefusesWhatItCannotUse(t *testing.T) {
 	for _, tc := range []struct {
@@ -290,7 +290,7 @@ func TestParseRefusesWhatItCannotUse(t *testing.T) {
 	}
 }
 
-// The layers are bundled, then fetched, then the user's overrides — and an entry *replaces* the one
+// The layers are bundled, then fetched, then the user's overrides, and an entry *replaces* the one
 // for the same family rather than merging field by field. Field-level merging would make it
 // impossible to remove an advisory, and "I deleted it and it is still there" is a bug report nobody
 // can act on.
@@ -333,7 +333,7 @@ func TestMergeLayersByFamily(t *testing.T) {
 		t.Errorf("updated = %q, want the newest layer's date", got.Updated)
 	}
 
-	// The result is sorted, so the same layers always produce the same document — which matters
+	// The result is sorted, so the same layers always produce the same document, which matters
 	// because the overrides editor hands the user a copy of it to edit.
 	for i := 1; i < len(got.Drives); i++ {
 		if got.Drives[i-1].Family > got.Drives[i].Family {

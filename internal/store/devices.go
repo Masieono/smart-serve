@@ -50,7 +50,7 @@ type ScannedDevice struct {
 	RawOutput string
 	// Penalties is the score breakdown as a JSON array (`FEATURES.md` A12). Empty for a row written
 	// before the column existed, which is distinguishable from a drive with a clean breakdown only
-	// by having never been rescanned — and a rescan fills it.
+	// by having never been rescanned, and a rescan fills it.
 	Penalties string
 	// DiskLayout is the partition schema and the storage facts with it (`FEATURES.md` A28), as JSON.
 	// Empty for a drive whose layout was never read.
@@ -130,7 +130,7 @@ type DeviceRecord struct {
 	Notes  string
 	Tags   string
 	Hidden bool
-	// Bay is where the drive physically is — "bay 4", "front top", "USB port 2". A serial
+	// Bay is where the drive physically is, "bay 4", "front top", "USB port 2". A serial
 	// identifies a drive; a bay *finds* it, which is the question someone standing in front of
 	// a machine at 3am actually has.
 	Bay string
@@ -509,7 +509,7 @@ type TestingDevice struct {
 
 // TestingDevices lists the drives recorded as testing themselves right now.
 //
-// A focused query rather than a filter over `ListDevices`, which loads every row's `raw_output` —
+// A focused query rather than a filter over `ListDevices`, which loads every row's `raw_output`,
 // hundreds of kilobytes per drive. This runs on a timer while a test is going, so it asks the
 // database for the three columns it needs and nothing else.
 func (s *Store) TestingDevices(ctx context.Context) ([]TestingDevice, error) {
@@ -730,14 +730,14 @@ type Snapshot struct {
 	// only, to avoid loading heavy blobs for whole series.
 	Attributes string
 	// UsedPct is how full the drive's fullest filesystem was at this snapshot (`FEATURES.md` A28).
-	// Nil means there was no readable figure — no mountpoints, or none the container can see — or
+	// Nil means there was no readable figure, no mountpoints, or none the container can see, or
 	// the row predates migration 0016. A pointer because 0 is a legitimate value and "not measured"
 	// must not be read as "empty".
 	UsedPct *int
 }
 
 // SectorTrend returns, per serial, how many bad sectors appeared over the *recent*
-// comparison window — not over the whole range.
+// comparison window, not over the whole range.
 //
 // The recent window is what makes the dashboard's warning decay. A drive that gained
 // sectors five months ago and has been stable since is not getting worse, and a badge that
@@ -758,6 +758,11 @@ type Snapshot struct {
 type SnapshotFacts struct {
 	PowerOnHours *int64
 	WearPct      *float64
+	// UsedPct is how full the drive's fullest filesystem was at that snapshot, when the
+	// container could see it. Absent is a real answer: a drive with no mounted filesystem,
+	// or a container without the host's mount roots, has no figure, and a zero there would
+	// read as an empty drive rather than an unmeasured one.
+	UsedPct *int
 }
 
 // LatestSnapshotFacts returns the newest snapshot's figures for every drive that has one.
@@ -766,7 +771,7 @@ type SnapshotFacts struct {
 // millisecond when a partial rescan follows a full one, and "the latest" has to be one row.
 func (s *Store) LatestSnapshotFacts(ctx context.Context) (map[string]SnapshotFacts, error) {
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT s.serial, s.power_on_hours, s.wear_pct
+		SELECT s.serial, s.power_on_hours, s.wear_pct, s.used_pct
 		FROM snapshots s
 		JOIN (SELECT serial, MAX(id) AS id FROM snapshots GROUP BY serial) newest
 		  ON newest.id = s.id`)
@@ -781,8 +786,9 @@ func (s *Store) LatestSnapshotFacts(ctx context.Context) (map[string]SnapshotFac
 			serial string
 			hours  sql.NullInt64
 			wear   sql.NullFloat64
+			used   sql.NullInt64
 		)
-		if err := rows.Scan(&serial, &hours, &wear); err != nil {
+		if err := rows.Scan(&serial, &hours, &wear, &used); err != nil {
 			return nil, err
 		}
 		f := SnapshotFacts{}
@@ -793,6 +799,10 @@ func (s *Store) LatestSnapshotFacts(ctx context.Context) (map[string]SnapshotFac
 		if wear.Valid {
 			v := wear.Float64
 			f.WearPct = &v
+		}
+		if used.Valid {
+			v := int(used.Int64)
+			f.UsedPct = &v
 		}
 		out[serial] = f
 	}
@@ -1062,7 +1072,7 @@ type DeviceState struct {
 	Missing bool
 	// SelfTestRecorded is false until a scan has stored what this drive's self-test log holds.
 	// It is what tells "the log is empty" apart from "we have never looked", and only the first
-	// is a baseline a new result can differ from — without it, every pre-existing result would
+	// is a baseline a new result can differ from, without it, every pre-existing result would
 	// look like news the first time a drive was scanned after an upgrade (`FEATURES.md` B9).
 	SelfTestRecorded bool
 	// SelfTest is the newest finished test in the drive's log, nil when there is none.
@@ -1112,7 +1122,7 @@ func (s *Store) DeviceStates(ctx context.Context) (map[string]DeviceState, error
 		st.Missing = isMissing != 0
 		st.SelfTestRecorded = recorded
 		// A recorded empty type is a log that was read and holds no finished test, so there is
-		// no entry to carry — as opposed to a row this migration has never seen.
+		// no entry to carry, as opposed to a row this migration has never seen.
 		if recorded && selfType != "" {
 			st.SelfTest = &model.SelfTestEntry{
 				Type:   selfType,

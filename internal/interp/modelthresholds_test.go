@@ -79,8 +79,8 @@ func TestModelThresholdsFor(t *testing.T) {
 }
 
 // The tie-break when two patterns both match: the longer one wins, whatever order the map iterated
-// in. The same rule `knowledge.Find` uses, and pinned here because the failure it prevents — a
-// different entry applying on alternate runs — is invisible in a running app.
+// in. The same rule `knowledge.Find` uses, and pinned here because the failure it prevents, a
+// different entry applying on alternate runs, is invisible in a running app.
 func TestTheLongestMatchingPatternWins(t *testing.T) {
 	base := DefaultThresholds()
 	base.ReallocatedBad = 10
@@ -91,7 +91,7 @@ func TestTheLongestMatchingPatternWins(t *testing.T) {
 	})
 
 	if got := resolver.For("Samsung SSD 870 EVO", "").ReallocatedBad; got != 1 {
-		t.Errorf("ReallocatedBad = %d, want 1 — the longest pattern should win", got)
+		t.Errorf("ReallocatedBad = %d, want 1, the longest pattern should win", got)
 	}
 	if got := resolver.For("Samsung SSD 860", "").ReallocatedBad; got != 8 {
 		t.Errorf("ReallocatedBad = %d, want 8 for a drive matching only the short entry", got)
@@ -104,7 +104,7 @@ func TestTheLongestMatchingPatternWins(t *testing.T) {
 
 // The sharp edge of that tie-break, pinned so it is a known property rather than a surprise: a
 // *broad* pattern that happens to be long beats a *narrow* short one. The rule is a tie-break, not a
-// measure of specificity, and the remedy belongs to the user — name patterns so they do not overlap.
+// measure of specificity, and the remedy belongs to the user, name patterns so they do not overlap.
 func TestALongBroadPatternBeatsAShortNarrowOne(t *testing.T) {
 	base := DefaultThresholds()
 	base.ReallocatedBad = 10
@@ -114,7 +114,7 @@ func TestALongBroadPatternBeatsAShortNarrowOne(t *testing.T) {
 	})
 
 	if got := resolver.For("Samsung SSD 870 EVO", "").ReallocatedBad; got != 8 {
-		t.Errorf("ReallocatedBad = %d, want 8 — the longer pattern wins even when it is the broader one", got)
+		t.Errorf("ReallocatedBad = %d, want 8, the longer pattern wins even when it is the broader one", got)
 	}
 }
 
@@ -129,12 +129,12 @@ func TestAModelOverrideOfZeroKeepsTheGlobalValue(t *testing.T) {
 	}).For("tank drive", "")
 
 	if got.ReallocatedBad != 10 {
-		t.Errorf("ReallocatedBad = %d, want the global 10 — 0 is not a threshold", got.ReallocatedBad)
+		t.Errorf("ReallocatedBad = %d, want the global 10, 0 is not a threshold", got.ReallocatedBad)
 	}
 }
 
-// A resolver built from the settings map is what the scan actually uses, so the two halves — reading
-// the global numbers and reading the overrides — are checked together.
+// A resolver built from the settings map is what the scan actually uses, so the two halves, reading
+// the global numbers and reading the overrides, are checked together.
 func TestModelThresholdsFromSettings(t *testing.T) {
 	settings := map[string]string{
 		"reallocated_bad_threshold": "25",
@@ -204,7 +204,7 @@ func TestValidateModelThresholds(t *testing.T) {
 }
 
 // The list the API validates against has to be the list the parser understands, or the two would
-// disagree about which keys are real — silently, in both directions.
+// disagree about which keys are real, silently, in both directions.
 func TestEveryThresholdSettingKeyIsApplied(t *testing.T) {
 	for _, key := range ThresholdSettingKeys {
 		// A value that differs from the shipped default, so "applied" is observable.
@@ -216,7 +216,7 @@ func TestEveryThresholdSettingKeyIsApplied(t *testing.T) {
 		after := before
 		applyThresholdSetting(&after, map[string]string{key: value}, key)
 		if after == before {
-			t.Errorf("setting %q changed nothing — the API accepts a name nothing reads", key)
+			t.Errorf("setting %q changed nothing, the API accepts a name nothing reads", key)
 		}
 	}
 }

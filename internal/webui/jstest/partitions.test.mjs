@@ -12,7 +12,7 @@ installStubDom();
 const { partitionTable, partitionUUID, sectorLabel, usageBar, outsideContainerNote, setStorageWarnPct, storageWarnLevel, diskMap } =
   await import('../assets/js/components.js');
 const { setDisplayOptions, currentDisplayOptions, diskLayoutCard } =
-  await import('../assets/js/views/device.js');
+  await import('../assets/js/views/device-parts.js');
 
 /** Every string in a subtree, in document order. */
 function textOf(node) {
@@ -38,8 +38,7 @@ const partition = (over = {}) => ({
   mountpoints: ['/boot/efi'],
   use_percent: '8%',
   used_bytes: 42949672,
-  fs_size_bytes: 536870912,
-  ...over,
+  fs_size_bytes: 536870912, ...over,
 });
 
 const LAYOUT = {
@@ -63,7 +62,7 @@ const LAYOUT = {
 // --- what a copy button offers -------------------------------------------------
 
 // A filesystem UUID is what fstab wants (`UUID=`); a partition UUID is the fallback for a partition
-// with no filesystem — a volume-group member, which is exactly the row somebody copies one from.
+// with no filesystem, a volume-group member, which is exactly the row somebody copies one from.
 test('the copy button prefers the filesystem UUID and falls back to the partition UUID', () => {
   assert.equal(partitionUUID({ uuid: 'AAAA', part_uuid: 'BBBB' }), 'AAAA');
   assert.equal(partitionUUID({ part_uuid: 'BBBB' }), 'BBBB');
@@ -76,7 +75,7 @@ test('the copy button prefers the filesystem UUID and falls back to the partitio
 // --- sector sizes --------------------------------------------------------------
 
 // Which label applies is decided by the *pair*: 512 on 4096 is 512e, 4096 on 4096 is 4Kn, and 512 on
-// 512 is neither — a drive that is not emulating anything gets no label rather than a wrong one.
+// 512 is neither, a drive that is not emulating anything gets no label rather than a wrong one.
 test('sector sizes are named the way people say them', () => {
   assert.equal(sectorLabel(512, 4096), '512e');
   assert.equal(sectorLabel(4096, 4096), '4Kn');
@@ -109,7 +108,7 @@ test('the usage column goes away entirely when it is turned off', () => {
 });
 
 // A filesystem the container cannot see has no figure, and says so in the cell. A dash would be read
-// as a bug, and a zero would be read as an empty filesystem — which is the opposite of the truth.
+// as a bug, and a zero would be read as an empty filesystem, which is the opposite of the truth.
 test('usage the container cannot see says so in the cell', () => {
   const layout = {
     partitions: [partition({ use_percent: '', used_bytes: undefined, fs_size_bytes: undefined })],
@@ -176,7 +175,7 @@ test('the warning level arrives with the display preferences', async () => {
 
   setDisplayOptions({ storage_warn_pct: '90' });
 });
-// The bar turns amber at the level the user set — a stored setting rather than a constant here,
+// The bar turns amber at the level the user set, a stored setting rather than a constant here,
 // because the browser deciding on its own where "nearly full" begins would be the UI inventing a
 // judgement.
 test('the usage bar turns amber at the warning level, and not before', () => {
@@ -200,7 +199,7 @@ test('the usage bar turns amber at the warning level, and not before', () => {
   setStorageWarnPct(90);
 });
 
-// A partition that is mounted nowhere and has no usage is not "not visible" — there is nothing to
+// A partition that is mounted nowhere and has no usage is not "not visible", there is nothing to
 // measure. Saying otherwise would send somebody to their compose file for no reason.
 test('an unmounted partition is not reported as invisible', () => {
   const layout = {
@@ -212,7 +211,7 @@ test('an unmounted partition is not reported as invisible', () => {
   assert.doesNotMatch(text, /not visible/);
 });
 
-// A drive with no table at all is a fact about the drive, not a failure — and an unpartitioned disk
+// A drive with no table at all is a fact about the drive, not a failure, and an unpartitioned disk
 // is one nobody has set up yet.
 test('a drive with no partitions says so', () => {
   assert.match(String(partitionTable({ partitions: [] }).textContent), /no partition table/i);
@@ -248,7 +247,7 @@ test('a drive with no partition table says what it actually holds', () => {
 });
 
 // A drive with partitions never gets the whole-disk sentence, even if the payload carries a signature
-// — a partitioned disk's signature *is* its table, and saying otherwise would be doubly wrong.
+//, a partitioned disk's signature *is* its table, and saying otherwise would be doubly wrong.
 test('a partitioned drive never shows the whole-disk note', () => {
   const layout = {
     whole_disk_fstype: 'linux_raid_member',
@@ -276,7 +275,7 @@ function mapped(partitions, total) {
  * What a segment's label says once the mouse is over it, and that the segment marked itself.
  *
  * `mouseenter` rather than `mouseover`: the segment has a child (the fill), and the bubbling pair
- * fires again every time the pointer crosses into it — which flickers the label and the row.
+ * fires again every time the pointer crosses into it, which flickers the label and the row.
  */
 function tooltipFor(seg) {
   seg.dispatch('mouseenter');
@@ -293,7 +292,7 @@ const GIB = 1024 ** 3;
 // and the table is the detail; without this the reader matches a bar to a path by eye.
 //
 // Matched by the drive's own name for the partition rather than by row order, which matters on a drive
-// whose table also carries a row per logical volume — more rows than the map has segments, and
+// whose table also carries a row per logical volume, more rows than the map has segments, and
 // deliberately so.
 test('pointing at a segment marks the row it stands for', () => {
   const layout = mapped([
@@ -345,7 +344,7 @@ test('pointing at a row marks the segment it came from', () => {
   assert.equal(rows.filter((r) => /is-hover/.test(r.className)).length, 0);
 });
 
-// A logical volume has a row and no segment — the map deliberately draws only top-level partitions —
+// A logical volume has a row and no segment, the map deliberately draws only top-level partitions,
 // so pointing at it marks nothing rather than marking the wrong segment or throwing.
 test('pointing at a row with no segment marks nothing', () => {
   const layout = mapped([
@@ -376,7 +375,7 @@ test('hovering a row is safe when the map is switched off', () => {
   assert.ok(true, 'no throw');
 });
 
-// The heading used to carry the partition count on its own — a bare number with nothing saying what it
+// The heading used to carry the partition count on its own, a bare number with nothing saying what it
 // counted. The map answers the question the count was reaching for, and a number nobody can label is
 // not worth a corner of the card.
 test('the partition heading carries no bare count', () => {
@@ -427,7 +426,7 @@ test('the map draws top-level partitions only', () => {
   assert.doesNotMatch(text, /vg-data/, 'the nested volume leaked into the map');
 });
 
-// Free space is the difference, and it is approximate — so it gets its own segment and says so.
+// Free space is the difference, and it is approximate, so it gets its own segment and says so.
 test('the map shows free space as approximate', () => {
   const map = diskMap(mapped([
     { top_level: true, name: '/dev/sdb1', size_bytes: 400 * GIB, use_percent: '20%' },
@@ -454,7 +453,7 @@ test('an unmeasured partition is hatched, not drawn at zero', () => {
     'an unmeasured partition must not be given a width');
 });
 
-// The whole thing is geometry, so the sentence a segment carries is what a screen reader gets — and
+// The whole thing is geometry, so the sentence a segment carries is what a screen reader gets, and
 // what a mouse gets. Both have to be complete enough to be worth having.
 //
 // The mouse gets a tooltip of the app's own rather than the `title` attribute: the browser's takes
@@ -488,7 +487,7 @@ test('the map refuses to draw when there is nothing to map', () => {
 });
 
 // An alignment remainder is not free space. The 1.4 MB left after a partition table is real, and
-// drawing it as a labelled segment would give a visible sliver to a number nobody acts on — the same
+// drawing it as a labelled segment would give a visible sliver to a number nobody acts on, the same
 // figure that was confusing in the card's old summary line.
 test('the map does not draw a segment for an alignment remainder', () => {
   const map = diskMap(mapped([

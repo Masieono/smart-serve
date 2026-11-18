@@ -15,7 +15,7 @@ import (
 // Six, because a comparison is read *across* rows: beyond a handful of columns the reader is
 // matching numbers by eye against a header they have scrolled away from, which is the thing the
 // comparison exists to avoid. It is enforced here rather than in the UI because it is a resource
-// limit as much as a readability one — the response carries a full attribute table per drive.
+// limit as much as a readability one, the response carries a full attribute table per drive.
 const CompareMaxDrives = 6
 
 // compareDrive is one column of a comparison: who the drive is and how it is doing.
@@ -33,7 +33,7 @@ type compareDrive struct {
 	WearPct       *float64 `json:"wear_pct,omitempty"`
 	Missing       bool     `json:"is_missing,omitempty"`
 	// NoAttributes is true when the drive has never been read, or its read produced no attribute
-	// table. The column is still shown — a drive that could not be read is a *result* of the
+	// table. The column is still shown, a drive that could not be read is a *result* of the
 	// comparison rather than a reason to leave it out.
 	NoAttributes bool `json:"no_attributes,omitempty"`
 }
@@ -43,7 +43,7 @@ type compareDrive struct {
 // A cell is **absent** (a nil in the row's cell list) when the drive does not have the attribute at
 // all, rather than present-with-zeros: an NVMe drive does not have "Reallocated Sector Count: 0", it
 // does not have the attribute, and a zero there would be this app inventing a reading. That is why
-// the row holds `[]*compareCell` and not a struct with a "present" flag — the absence is the shape.
+// the row holds `[]*compareCell` and not a struct with a "present" flag, the absence is the shape.
 type compareCell struct {
 	Value     int    `json:"value"`
 	Worst     int    `json:"worst"`
@@ -51,7 +51,7 @@ type compareCell struct {
 	RawValue  uint64 `json:"raw_value"`
 	RawString string `json:"raw_string,omitempty"`
 	// Flagged is the drive's **own** verdict on this attribute: at or below the threshold it
-	// publishes for itself (`A27`). The drive's alarm, not this app's opinion — the same rule the
+	// publishes for itself (`A27`). The drive's alarm, not this app's opinion, the same rule the
 	// device page and every export use, so a comparison cannot contradict the drive's own report.
 	Flagged bool `json:"flagged,omitempty"`
 }
@@ -77,7 +77,7 @@ type compareJSON struct {
 	Drives []compareDrive `json:"drives"`
 	Rows   []compareRow   `json:"rows"`
 	// NVMe carries each drive's NVMe health log, nil for an ATA drive. Kept apart from the attribute
-	// rows because it is a different shape entirely — counters rather than value/worst/threshold —
+	// rows because it is a different shape entirely, counters rather than value/worst/threshold,
 	// and an NVMe drive has no ATA attributes at all.
 	NVMe []*model.NVMeHealth `json:"nvme"`
 }
@@ -180,7 +180,7 @@ func compareSerials(raw string) ([]string, error) {
 }
 
 // NVMe carries each drive's NVMe health log, nil for an ATA drive. Kept apart from the attribute
-// rows because it is a different shape entirely — counters rather than value/worst/threshold —
+// rows because it is a different shape entirely, counters rather than value/worst/threshold,
 // and an NVMe drive has no ATA attributes at all.
 
 // alignAttributes turns several drives' attribute lists into rows keyed on attribute id.
@@ -191,7 +191,7 @@ func compareSerials(raw string) ([]string, error) {
 // this app inventing a reading.
 //
 // The row's name comes from the first drive that named it. Two drives can disagree about an
-// attribute's name — vendors rename them — and showing one name with the disagreement marked is more
+// attribute's name, vendors rename them, and showing one name with the disagreement marked is more
 // useful than two rows for one id.
 func alignAttributes(perDrive [][]model.Attribute) []compareRow {
 	order := []int{}
@@ -241,7 +241,7 @@ func alignAttributes(perDrive [][]model.Attribute) []compareRow {
 //
 // Only *present* cells are compared. A drive that does not have the attribute is not disagreeing
 // about it, and counting absence as a difference would mark every row of a mixed ATA/NVMe comparison
-// as interesting — which is the same as marking none of them.
+// as interesting, which is the same as marking none of them.
 //
 // Both the normalised value and the raw count are compared, because which one carries the finding
 // depends on the attribute: a healthy drive reports 100 for reallocated sectors whatever the real
@@ -267,7 +267,7 @@ func cellsDiffer(cells []*compareCell) bool {
 // the drive publishes for itself.
 //
 // The same rule as the device page and the exports (`A27`). A threshold of zero means *no
-// threshold*, not *fails at zero* — which is the mistake that would flag every attribute on a drive
+// threshold*, not *fails at zero*, which is the mistake that would flag every attribute on a drive
 // that publishes zeros, and is why this is a named function rather than an inline comparison.
 func attributeFlagged(a model.Attribute) bool {
 	return a.Threshold > 0 && a.Value <= a.Threshold

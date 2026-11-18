@@ -78,7 +78,7 @@ func TestTheDiskLayoutSurvivesAScanAndReachesTheDevicePayload(t *testing.T) {
 	}
 }
 
-// A drive whose layout was never read carries no field rather than an empty object — the same rule
+// A drive whose layout was never read carries no field rather than an empty object, the same rule
 // the score breakdown follows, and for the same reason: absent is how this payload says "nothing to
 // report", and `omitempty` does not drop a literal null.
 func TestADriveWithNoLayoutCarriesNoDiskLayout(t *testing.T) {
@@ -150,7 +150,7 @@ func TestTheStorageSummaryReachesTheListAndTheDetail(t *testing.T) {
 			t.Errorf("%s: used_pct = %d, want 47 (the fullest filesystem)", path, got.UsedPct)
 		}
 		if got.Mount != "/mnt/media" {
-			t.Errorf("%s: mount = %q, want /mnt/media — a bare percentage does not say what is full",
+			t.Errorf("%s: mount = %q, want /mnt/media, a bare percentage does not say what is full",
 				path, got.Mount)
 		}
 		if got.TotalBytes == 0 {
@@ -159,7 +159,7 @@ func TestTheStorageSummaryReachesTheListAndTheDetail(t *testing.T) {
 	}
 }
 
-// A drive with no readable usage figure carries no storage block at all — not one at 0%. The two are
+// A drive with no readable usage figure carries no storage block at all, not one at 0%. The two are
 // different facts and the bar must not be drawn for the first.
 func TestNoStorageSummaryWithoutAMeasuredFilesystem(t *testing.T) {
 	srv, st, _, _ := newTestServer(t, Options{})

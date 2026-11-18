@@ -84,7 +84,7 @@ migrations (`0015`–`0017`); no schema rewrite, so the v1.1.0 rollback note sti
 
 - **`D7` localization.** Unchanged from v1.1.0: deferred, not dropped, and still waiting on a
   translator who will maintain the result (`ADR-023`, `SCOPE.md`).
-- **Optional single-user auth is specified and not built.** `ADR-032` carries the design, the
+- **Optional single-user auth is specified and not built.** `ADR-033` carries the design, the
   alternatives, where the middleware sits and eleven acceptance criteria; `FEATURES.md` C5,
   `SCOPE.md` and `REQUIREMENTS.md` D28 carry the status. Nothing of it ships here, so the app still
   has no login of its own and the reverse-proxy pattern in `DEPLOYMENT.md` is the whole answer.
@@ -94,13 +94,13 @@ migrations (`0015`–`0017`); no schema rewrite, so the v1.1.0 rollback note sti
 - **RAID / LVM / ZFS member naming is built and unit-tested but never exercised on real hardware.** The
   no-partition-table path names a disk by its `blkid` signature — `linux_raid_member`, and so on — and
   the fixtures prove the naming, but nothing has pulled a disk from an array and opened its page
-  (`TESTING.md` 4.73, `FEATURES.md` A28). This is the weakest claim in the release.
-- **arm64 idle-memory acceptance is not measurable on that host as configured**, and that is a host
-  limitation rather than an app one: the container's cgroup exposes no `memory.*` files, and
-  `docker stats` reports `0B / 0B` for the same reason. CPU is confirmed near zero (about 0.02% over an
-  idle minute, with the scan count unchanged). On the amd64 host, where the controller *is* exposed, the
-  same build measures **18.9 MiB** idle — inside the 20 MB budget. The Pi's process `VmRSS` (21.25 MiB)
-  is *not* that metric and should not be read as a failure; `TESTING.md` Pass 8 has the host fix.
+  (listed under "Not covered here" in `TESTING.md`, `FEATURES.md` A28). This is the weakest claim in the release.
+- **arm64 idle budget: measured, 2026-11-18.** Ten minutes of samples with nothing else running give
+  **19.5 MiB** both as RSS and as PSS, 11 file descriptors and 11 threads flat, and 0.023% CPU. The
+  cgroup cannot account memory on that host (no memory controller; `docker stats` reads `0B / 0B`),
+  so the criterion is stated against **PSS**, which is the better figure anyway: it does not
+  double-count shared pages. The amd64 host reads 18.9 MiB by the cgroup and agrees. `TESTING.md`
+  8.5 carries the samples.
   The two defects this host found are fixed and **retested on 2026-11-11**, on both architectures.
 - **The image size was last measured at v1.0.0** (14.8 MB content / 53.5 MB on disk, 2026-10-17). This
   release changes no base image and adds no runtime dependency, so those figures should still hold —
@@ -121,11 +121,11 @@ The README's set, cropped to the app viewport and committed to `docs/images/`:
 
 | File | Shows |
 |---|---|
-| `dashboard.png` | The fleet: verdict badges, scores, the storage bar on each card, the last-scan line, the health summary |
-| ~~`device-page.png`~~ | **Removed pending a re-shoot.** The only capture that still showed the pre-1.2.0 card grid — it predates the partitions card, the storage figure and the two-column layout, so it documented a page that no longer exists. The replacement is part of the post-1.2.0 screenshot pass. |
-| `partitions.png` | The partition card: the disk map above the table, linked both ways |
+| `fleet.png` | The fleet: one row per drive, verdict and score in one cell, usage, temperature, powered-on hours |
+| `device-page.png` | A drive page: verdict, facts, disk space, trends, attributes, self-test |
+| `partitions.png` | Disk space: the usage line, the disk map and the partition table, linked both ways |
 | `attribute-explanation.png` | A `?` explanation open over the attribute table |
-| `selftest-card.png` | The self-test card: the buttons and the drive's own self-test log |
+| ~~`dashboard.png`~~, ~~`selftest-card.png`~~ | **Removed with the interface they showed.** The card grid and the self-test card are gone; the shots above replace them. |
 
 **Take them as viewport captures, not full screens**, so no cropping is needed — Firefox's right-click
 *Take Screenshot* → *Save visible*, or Chrome DevTools → `Ctrl+Shift+P` → *Capture screenshot*. Keep

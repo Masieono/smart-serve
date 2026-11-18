@@ -134,7 +134,7 @@ func TestTestChannelConfigSendsWithoutSaving(t *testing.T) {
 		t.Fatalf("ListChannels: %v", err)
 	}
 	if len(channels) != 0 {
-		t.Errorf("channels = %d, want 0 — Test must not save", len(channels))
+		t.Errorf("channels = %d, want 0, Test must not save", len(channels))
 	}
 }
 
@@ -233,7 +233,7 @@ func TestNotificationsEndpointListsTheLogAndTypes(t *testing.T) {
 }
 
 // `B12`: a channel's group scope has to survive a save and a read. If it did not, the editor would
-// show every box unticked on a channel that is actually narrowed — and the next Save would quietly
+// show every box unticked on a channel that is actually narrowed, and the next Save would quietly
 // widen it to the whole fleet, which is the kind of change nobody would think to look for.
 func TestChannelGroupScopeRoundTrips(t *testing.T) {
 	srv, st, _, _ := newTestServer(t, Options{})
@@ -302,7 +302,7 @@ func TestAChannelWithNoScopeMeansEveryGroup(t *testing.T) {
 	}
 }
 
-// Run now must not fire a scan when a scheduler owns the timings — it hands the
+// Run now must not fire a scan when a scheduler owns the timings, it hands the
 // work over, so last-run and next-run are recorded by the same path as a timed
 // fire.
 func TestRunScheduleDelegatesToTheScheduler(t *testing.T) {
@@ -328,7 +328,7 @@ func TestRunScheduleDelegatesToTheScheduler(t *testing.T) {
 		t.Errorf("scheduler runs = %v, want [%d]", sched.ran, created.Schedule.ID)
 	}
 	if runner.calls != 0 {
-		t.Errorf("runner calls = %d, want 0 — the scheduler owns the scan", runner.calls)
+		t.Errorf("runner calls = %d, want 0, the scheduler owns the scan", runner.calls)
 	}
 }
 

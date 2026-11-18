@@ -81,7 +81,7 @@ func TestProjectLowersConfidenceOnAShortWindow(t *testing.T) {
 	}
 }
 
-// A wear counter that has not moved is a real, reportable finding — and a change inside
+// A wear counter that has not moved is a real, reportable finding, and a change inside
 // the counter's own rounding is not a trend.
 func TestProjectTreatsFlatWearAsFlat(t *testing.T) {
 	for name, delta := range map[string]float64{"unchanged": 0, "inside rounding": 0.2} {

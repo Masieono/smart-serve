@@ -2,13 +2,13 @@
 // family, and known firmware advisories.
 //
 // **One format, three sources.** The same JSON document is bundled with the binary, fetched from a
-// configurable URL, and typed into the overrides editor — so a contributor edits exactly the shape the
+// configurable URL, and typed into the overrides editor, so a contributor edits exactly the shape the
 // app reads, and there is one thing to learn rather than three. This package owns that shape, the
 // validation, and the matching; where the bytes came from is the caller's business.
 //
 // The data is *published but not machine-readable* (`ADR-023`): rated endurance lives in datasheets
 // and support pages, so a curated table is the only honest source. Every entry therefore carries the
-// `source` it came from — a number nobody can check is a number nobody should believe, and the app
+// `source` it came from, a number nobody can check is a number nobody should believe, and the app
 // shows it wherever it shows the figure.
 package knowledge
 
@@ -34,15 +34,15 @@ type Base struct {
 
 // Entry is what the base knows about one model family.
 type Entry struct {
-	// Family is the entry's name: it is what the app shows, what the overrides editor keys on, and —
-	// unless `matches` says otherwise — the string matched against a drive's model and model family.
+	// Family is the entry's name: it is what the app shows, what the overrides editor keys on, and,
+	// unless `matches` says otherwise, the string matched against a drive's model and model family.
 	//
 	// It is matched case-insensitively as a *substring*, because model strings are messy: "WDC
 	// WD40EFRX-68N32N0" is a WD40EFRX, and no two vendors punctuate the same way.
 	Family string `json:"family"`
 	// Matches are additional patterns, for a series that shares a suffix rather than a name. The SMR
 	// Red line is the reason this exists: those drives are "WDC WD40EFAX-…", "WDC WD60EFAX-…" and so
-	// on, so the thing they have in common is four characters at the end — which is too short to match
+	// on, so the thing they have in common is four characters at the end, which is too short to match
 	// on safely by itself, and which no single `family` string can express.
 	//
 	// When set, these replace `family` as the match patterns; `family` stays the entry's name.
@@ -52,10 +52,10 @@ type Entry struct {
 	// RatedTBWByCapacityGB is the same figure per capacity, because it usually *does* depend on
 	// capacity: a 250 GB and a 4 TB drive in one family are rated differently, and quoting the
 	// family's headline number for both would be wrong for one of them. Keyed by the decimal GB the
-	// drive reports — 500, 512, 1000, 1024 — rounded to the nearest whole number.
+	// drive reports, 500, 512, 1000, 1024, rounded to the nearest whole number.
 	RatedTBWByCapacityGB map[string]float64 `json:"rated_tbw_by_capacity_gb,omitempty"`
 	// RatedWorkloadTBPerYear is the rotating-drive equivalent: the workload the vendor rates it for.
-	// Separate from TBW because they are different promises — one is a total, the other a rate — and
+	// Separate from TBW because they are different promises, one is a total, the other a rate, and
 	// adding them would let an HDD's rating be read as an SSD's.
 	RatedWorkloadTBPerYear *float64 `json:"rated_workload_tb_per_year,omitempty"`
 	// Source is where the figure came from, shown wherever the figure is.
@@ -85,7 +85,7 @@ type Lookup struct {
 	Entry *Entry `json:"-"`
 	// Family is the matched family's name, empty when nothing matched.
 	Family string `json:"family,omitempty"`
-	// RatedTBW is resolved for *this* drive's capacity, so a caller never has to do the lookup — or
+	// RatedTBW is resolved for *this* drive's capacity, so a caller never has to do the lookup, or
 	// forget to.
 	RatedTBW *float64 `json:"rated_tbw,omitempty"`
 	// RatedTBWApprox is true when the figure came from a capacity bucket that only nearly matches, so

@@ -14,7 +14,7 @@ func TestSelfTestKindRejectsAnythingElse(t *testing.T) {
 	}
 	for _, k := range []SelfTestKind{"", "offline", "conveyance", "SHORT", "short; rm -rf /"} {
 		if k.Valid() {
-			t.Errorf("%q should be refused — the value reaches a command line", k)
+			t.Errorf("%q should be refused, the value reaches a command line", k)
 		}
 	}
 }
@@ -48,7 +48,7 @@ func TestCommandFailureCountsOnlyTheLowThreeBits(t *testing.T) {
 		{1, true},    // a command line it could not parse
 		{2, true},    // a device it could not open
 		{4, true},    // a SMART command the drive refused
-		{8, false},   // DISK FAILING — the drive's problem, not the command's
+		{8, false},   // DISK FAILING, the drive's problem, not the command's
 		{16, false},  // a prefail attribute at or below threshold
 		{32, false},  // a failure in the past
 		{64, false},  // the error log holds errors
@@ -65,7 +65,7 @@ func TestCommandFailureCountsOnlyTheLowThreeBits(t *testing.T) {
 }
 
 // A refusal has to be a sentence. smartctl prints nothing more than an exit status more often than
-// you would expect — a drive can refuse a self-test silently — and "smartctl exit status 4" leaves
+// you would expect, a drive can refuse a self-test silently, and "smartctl exit status 4" leaves
 // the reader to go and look up what bit 2 means.
 func TestSelfTestRefusalNamesTheExitBit(t *testing.T) {
 	cases := map[int]string{
@@ -93,7 +93,7 @@ func TestSelfTestRefusalNamesTheExitBit(t *testing.T) {
 }
 
 // The high bits describe the drive rather than the command, so a drive that is merely failing must
-// not be reported as a broken self-test — the same rule `commandFailure` already followed.
+// not be reported as a broken self-test, the same rule `commandFailure` already followed.
 func TestSelfTestIgnoresDriveConditionBits(t *testing.T) {
 	for _, status := range []int{0, 8, 16, 32, 64, 8 | 16 | 32 | 64} {
 		if err := commandFailure(Result{ExitCode: status}); err != nil {
