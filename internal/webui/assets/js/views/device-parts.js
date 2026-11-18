@@ -627,7 +627,9 @@ export function trendWindow(series) {
 export function seriesFor(key, series) {
   return series
     .map((snap) => ({ ts: snap.ts, value: snap[key] }))
-    .filter((p) => typeof p.value === 'number' && Number.isFinite(p.value));
+    // A score of -1 is the store saying "this drive was never read", not a drive that scored minus
+    // one. Plotted, it draws a line under the axis and reads -1/100 in the card.
+    .filter((p) => typeof p.value === 'number' && Number.isFinite(p.value) && !(key === 'score' && p.value < 0));
 }
 
 /** "+3" / "-2 °C", always signed, so the direction is never ambiguous. */

@@ -135,14 +135,16 @@ picker offers exactly `ThemeNames`.
 | Component | Notes |
 |---|---|
 | **Verdict badge** | Pill: icon + word + colour (`good`/`caution`/`bad`/`unknown`). Colour is never the only signal. |
-| **Health gauge** | Circular SVG ring, 0–100 + grade. Colour = band. Sized from the `size` argument, never from CSS — a bare `svg` rule would override its width/height attributes. |
-| **Device card** | Name (user), model, capacity, verdict badge, small gauge, temperature, transport icon (USB vs internal), mountpoint(s), "last scanned". Actions: open, scan-this, hide. A card whose drive is absent from the latest scan shows a *Not connected* badge and is dimmed; a drive we were not allowed to read shows *Blocked*; a drive that cannot report S.M.A.R.T. shows *No S.M.A.R.T.* — and neither draws a gauge. |
-| **Devices header** | One card holding the page title, the clickable verdict counts and the search box. The counts are a filter for the grid below, so they sit beside the thing they filter instead of in a row of their own. |
+| **Fleet table** | One row per drive: Drive (name, then model · transport · capacity · first mountpoint), Health, Usage, Temp, Powered on. The health cell is the verdict dot, the word and the 0–100 score together, because they are the same fact. A row needing attention carries a 2px inset rule in its state colour down the left edge. Rows sort worst first (bad, caution, unknown, good), ties by name. |
+| **Glance line** | One line under every page title: counts, then the thing a reader wants next (when the next run is, when the last delivery was). On the fleet the counts are filters; clicking one narrows the table to that state and clicking it again clears. |
+| **Section heading pattern** | Every screen and every section is a title row: `h2` on the left, an aside on the right (a count, a control, or one sentence). A rule appears only *between* sections; rows inside a section are separated by space, never by a line per row. |
+| **Save bar** | Settings only. Pinned to the bottom of the window and shown only while something is dirty; carries the state text, Revert, and Save. Opaque, so a grid behind it cannot read through the buttons. |
+| **Theme swatch grid** | Nineteen chips, each carrying its own `data-theme` so the palette's real `--palette-*` values resolve inside it. Never reads the semantic tokens: those are computed at `:root` and inherit as colours, so a descendant cannot re-resolve them. |
+| **Weekday strip** | Seven cells for the schedule editor's day picker, each a label wrapping a visually hidden checkbox, selected state via `:has(input:checked)`. Guarded by `@supports selector(:has(*))`; a browser without `:has` gets the plain checkbox row. |
 | **Attribute table** | Zebra rows; ID / name / value / worst / threshold / interpreted raw. Every row the interpreter acts on carries a `?` that opens an explanation of what the field is and how to read it, and a row is tinted and badged *At threshold* when the drive reports it at or below its own threshold (`FEATURES.md` A12). Not sortable — the table is short enough to read, and sorting it is not worth a control. |
 | **Sparkline / trend card** | Inline SVG per metric (health score, temperature, power-on hours, wear) with the current value and the change across the window, plus a 7 / 30 / 90 day / all range selector. Hovering (or arrowing, when focused) shows a marker and a three-line readout — value, date, time — for that reading. A row with fewer than two readings is dropped — one point is not a trend. |
 | **Notice** | A neutral panel for an explanation that is not a fault. Two of them: "this drive does not report S.M.A.R.T." (with the transport-override control), and — added later — "the container was not allowed to read this drive", which names which of the three access gates is closed and prints the compose fragment that opens it. Deliberately not an error box in either case: neither is the drive failing. |
 | **Export dialog** | One row per format (plain text / web page / spreadsheet / JSON) with what each is for, rather than a single button that silently picks one. |
-| **Panel columns** (`.panel-flow`, `.panel-cols`, `.panel-col`) | The device page's card layout. `.panel-flow` stacks the full-width cards (the change list, a firmware advisory) with the column pair between them; `.panel-cols` holds two columns, one below 1024px and two above; `.panel-col` stacks its cards with the same gap. **Columns, not a grid of rows:** a grid row is as tall as its tallest card, so the shorter card beside it leaves a hole underneath, and this page pairs cards of very different heights. Explicit columns rather than CSS multi-column, because multicol balances content to choose a card's column — the layout would rearrange itself as the data changed, and which card sits where has to be a decision rather than an outcome. |
 | **Scan button** | Primary action. States: idle · scanning (spinner + "3/5 devices") · done (toast). |
 | **Toasts** | Scan complete, saved, notification sent; auto-dismiss, stacked. |
 | **Dialogs / sheets** | Schedule editor, channel editor, maintenance window, device notes, acknowledge, export, confirmations. Full-screen sheets on mobile. A dialog holding unsaved input — every editor above — does **not** close on a click outside it; only **Cancel** and `Esc` do, because a stray click beside a half-filled form should cost the click rather than the form. Confirmations and the export picker still dismiss on a backdrop click, where there is nothing to lose. Dismissal turns on where the *press* landed, not where the release did: a drag that starts on a field and ends outside the box is a text selection, not a dismissal. |
@@ -152,305 +154,66 @@ picker offers exactly `ThemeNames`.
 
 ## 7. Screen specifications
 
-### 7.1 Dashboard
-- Summary bar (verdict counts) → device grid.
-- **Scan actions:** exactly two — the sidebar's global **Scan now**, and a rescan on
-  every card. There is deliberately no header copy of the global action.
-- **Empty:** onboarding message + prominent Scan button.
-- **Loading:** skeleton cards.
-- **Scanning:** the sidebar button reflects progress; cards update live via SSE as
-  each device completes (no polling — `ADR-006`).
-- **Populated:** cards sorted by severity (bad → caution → good), then by user name.
-- **Sorting and filtering** (`FEATURES.md` D5): a second row beneath the identity row, drawn only
-  when there is more than one drive to order. The sort field carries its own direction — risk and
-  name ascending, capacity and temperature descending — because "first" means different things per
-  field, and one global toggle would make the control feel broken on first use whichever way it was
-  set. Ties break on name, so a rack of identical drives does not reshuffle between renders. The
-  transport filter is built from the transports *actually present*, not from a vocabulary the app
-  invented: a host with no SAS drives should not be offered "SAS" and then show nothing when it is
-  picked. Search covers the bay, because hunting a drive by where it physically is is the whole
-  point of recording one. A drive with no reading sorts *last*, never first — an absent temperature
-  is not 0 °C, and treating it as such would put the least informative drive at the top.
-- **Replace first** (`FEATURES.md` A24): a shortlist above the grid, ordered by how strongly each
-  drive argues for replacement. It answers "which one do I buy this month?", which is a different
-  question from the sort row's "how does each drive look today" — and it says so in its own header
-  ("by urgency, not by verdict"). A numbered list, because the order *is* the answer. Each entry
-  carries its band and the reasons that produced it, in the drive's own terms: a reader can disagree
-  with a band and act on it, and cannot do either with an unexplained number. It is absent when
-  nothing is worth replacing, and capped at five — past a handful, "which one first?" stops being an
-  answer. A shortlist, not a list. It can be **turned off** (`show_replace_first`, on the Appearance
-  page): it sits above the grid, so it is the first thing on the page whether or not the reader wants
-  it today, and somebody who has already acted on it should not have to scroll past it every visit.
-- **The header is three rows at most**, and each row has one job: the identity and the counts you
-  filter by, then the controls that arrange the list, then one muted line for the notes the counts
-  raise. The view switch and the exports are separated by a rule, because "how is this shown" and
-  "what happens to this list" are different questions — an export is a file to keep, and shoulder to
-  shoulder with the view switch it read as one more way to look at the page. The switch itself is a
-  segmented pair rather than two loose buttons, since it is a mutually exclusive choice and two
-  identical-looking buttons make the reader check which one is pressed. The standing instructions
-  about rescanning and forgetting are gone: a line of help on every page load is read once and then
-  only takes up room, and both actions are labelled on the things they act on.
-  The sort field and its direction are one labelled pair, and the direction says **Ascending** or
-  **Descending** with a real arrow: a bare ↑ in a ghost button beside a dropdown read as decoration
-  rather than as the other half of the sort. The transport filter
-  carries its own label, and lists only the transports present on this host — in a fixed order rather
-  than alphabetically, so the control keeps its shape as drives come and go.
-- **Two views** (`FEATURES.md` D8): Cards and Table, switched from the controls row. The card grid
-  is right for four drives and wrong for twenty-four, so the table gives one row per drive with
-  bay, verdict, score, transport, model, capacity, temperature, age and last scan. Its headers
-  sort: clicking the sorted column reverses it, and clicking another starts from that field's own
-  idea of "first". Only sortable headers carry a `title`, because `th[title]` is what the stylesheet
-  hangs the pointer cursor on — a header that looks clickable and is not is worse than a plain
-  label. The table *replaces* the grid rather than nesting inside it, since a table in a grid cell
-  is laid out as a single column and loses the columns it exists for. Both views are built from the
-  same payloads and the same badge functions, so they cannot disagree about a drive's state. The
-  choice is **stored rather than remembered by the tab**: it is a display preference like the theme
-  and the temperature unit, so it lives in the settings table, is read before the first render, and
-  travels in the config export. A reader who wants the table wants the table after a refresh, not cards
-  again. The filter and the sort beside it stay in the module, because those are about the question
-  being asked rather than about how this person likes to read.
-- **Grouping** (`FEATURES.md` D9): a "Group by tag" toggle, offered only when at least one drive is
-  tagged — a single "Untagged" heading is the list with a heading on it, not a grouping. It works in
-  both views: cards get a heading and their own grid per group, and the table gets a separator row
-  spanning every column so its header stays the only one. A drive with more than one tag appears
-  under **each** of them, and the header says so outright, because a reader who notices the counts
-  do not add up will otherwise conclude the app is wrong. Untagged drives come last.
-- **Bay:** a drive with a recorded physical location leads its card with it. A serial identifies a
-  drive; a bay *finds* it, and the person asking that question is standing in front of a machine
-  rather than reading a screen carefully. Unset bays get no row at all — a gap in the bookkeeping
-  is not a finding about the drive, and "Bay —" would read as a missing measurement (`FEATURES.md`
-  D10).
-- **Export** (`FEATURES.md` A23): one **Export…** button at the far end of the controls row, past a
-  rule, opening a dialog with the **format** and the **scope**. It was two links, and two links at the
-  end of a controls row read as two more ways to look at the page rather than as a file to keep — which
-  is the one thing an export is. The dialog is also where each format gets to say what it is *for*,
-  beside the choice it belongs to: the CSV is the inventory you sort when planning a purchase, the
-  printable page is the sheet you attach when several drives go back at once. Scope is a tag rather
-  than the dashboard's filter, deliberately — a filter is about what you are *looking at*, and an
-  export that silently honoured it would hand you a file missing rows you never chose to exclude. The
-  download is still an anchor with `download`, clicked and removed, because these are files to keep and
-  the browser's own save dialog is the right one. Offered only when there is a fleet: with one drive
-  the export is the single-drive report with fewer columns, and that report is better for the one thing
-  a lone drive needs.
-- **Schedule action** (`FEATURES.md` B13): the schedule editor's **Action** field chooses between
-  "Scan the drives" and "Send a digest of the period", and the list has an **Action** column so a
-  digest schedule is not mistaken for a scan. The two axes are independent — the timing controls below
-  answer *when*, the action answers *what* — which is why a weekly digest is a cron schedule with
-  `action: digest` rather than a second kind of schedule.
-- **Prometheus metrics** (`FEATURES.md` C6): a **Prometheus metrics** checkbox in Alerts and
-  retention, off by default, which serves `GET /metrics` in the text exposition format. The endpoint
-  costs nothing by itself; turning it on invites another service to poll this app, and that is the
-  operator's decision rather than a default — the same reasoning as a self-test being opt-in.
-- **Alert acknowledgement** (`FEATURES.md` B7): a **Notes**-row **Acknowledge** control on a drive's
-  page, with a note saying why. It silences the alerts for that condition and leaves the verdict
-  alone — the drive still reads as caution, because it is caution — and it is **spent the moment the
-  verdict moves**, so it can never hide a drive getting worse. The verdict card says outright that the
-  condition is acknowledged, with the note and when; without that the reader would conclude the app
-  had lost the alert. A drive that vanishes and a self-test you asked for still alert: an
-  acknowledgement covers a condition, not a drive.
-- **Action buttons on notifications** (`FEATURES.md` B10): ntfy notifications carry an "Open drive" /
-  "Open dashboard" button, from a new **Public URL** setting. Empty means no button — the app cannot
-  know its own external address, and a wrong link is worse than none.
-- **Self-test** (`FEATURES.md` A19): a short and a long button, each behind a confirmation that says
-  what the test does and what it costs, with the drive's own estimate of the time. A running test
-  shows its own percentage remaining and a **Stop test** button. The card also carries the **last
-  finished result**: "did the test I ran pass?" is asked here, so the answer belongs here rather than
-  only in the log table above, which is drawn from the last scan. A test this card started that is
-  over before the first reading says so, and triggers the one rescan that puts its outcome into the
-  stored log — without that a short test left no trace anywhere, because a fifteen-second poll only
-  ever sees the drive after it finished. A drive whose self-test log this app cannot read is told so
-  rather than shown an empty panel: an empty panel and a test that never ran look identical, and only
-  one of them is true.
-  A **long** test the drive refuses disables its own button and says so in the card, because a button
-  inviting a second attempt at something the drive has already declined is worse than no button. It is
-  disabled for the life of the card rather than remembered: "refused once" is not the same fact as
-  "cannot" — a drive can refuse a command it would take a minute later — and nothing smartctl reports
-  in advance says which tests a drive supports, so greying it out on a guess would hide a capability
-  that works. The short test stays available, because a refused extended test says nothing about it.
-- **Heating together** (`FEATURES.md` A25): a card that appears only when a group is actually moving,
-  the same rule as the other two. One block per group, each naming the group, the ratio (`3 of 4
-  drives`), the shared rise and the hottest current reading, with the drives as links to their pages.
-  The ratio is shown rather than a bare count because six of six is a different finding from six of
-  twenty-four, and that judgement belongs to the reader. The card is headed **"a correlation, not a
-  diagnosis"**, and its wording deliberately names what moved and where to look and never what is
-  wrong — a RAID rebuild heats everything too, and the reader knows whether one is running. It is
-  ordered first of the three panels: a condition comes before a suggestion.
-- **Testing session** (`FEATURES.md` D11): a card that appears only when a drive is being tested, the
-  same rule as the replace-first shortlist — a panel that is always present stops being read. It names
-  every drive in the batch as an inline chip (the session *is* the batch, so a shortlist of it would be
-  answering a different question, but eight rows of list for eight drives is a lot of card for a set of
-  names) and it says what the state *means* rather than what the tag is called: "Drives being tested
-  rather than used. They are left out of the health counts above: a drive that fails while you are
-  testing it is a result, not an alarm." The tag name is machinery, and a reader who wants to know how a
-  drive got here will find it in that drive's own tags. The card carries the batch's three verbs:
-  **Test all** (short self-tests, sequential, confirmed first because a self-test is the only thing this
-  app does that writes to a drive), **Export batch** (the fleet CSV scoped to the tag, so the batch gets
-  its own sheet), and **Forget all** (one confirmation listing the drives, then a client-side loop,
-  because a request that deletes every drive matching a tag is one mis-click from clearing the fleet).
-  Partial failures are named per drive — "2 of 6 failed" tells you nothing about which two to go and
-  look at.
-- **Getting a drive onto the bench is a checkbox, not a tag you have to know to type.** The device's
-  **Notes** dialog carries **Being tested — left out of the fleet counts**, and it and the tags field
-  are kept in step both ways. That is where the feature becomes discoverable: it is the dialog that
-  already describes the drive, so it is where somebody would look, and it states the consequence rather
-  than the mechanism. It is deliberately *not* on the dashboard — a card explaining a tag you have never
-  used is a card explaining nothing.
-- **Bench drives and the counts:** they are left out of the health summary, and the head says so
-  ("6 are tagged bench and left out of those counts"), because a reader who adds the counts up and
-  gets a number smaller than the list is owed the reason. They are **not** hidden: they stay in the
-  list, in the search and in every export, and a **Bench only (6)** control filters the list to them
-  without turning on grouping.
-- **Disconnected:** a drive absent from the latest scan keeps its record — its notes
-  and history must survive an unplug — but is flagged `is_missing`. Those cards are
-  hidden by default; a **Show N disconnected** toggle reveals them, dimmed and
-  carrying a *Not connected* badge instead of a verdict. They are excluded from the
-  summary-bar counts, so a vanished drive can never silently flatter the health
-  totals.
-- **No S.M.A.R.T.:** a drive that is present but cannot report S.M.A.R.T. at all
-  carries a *No S.M.A.R.T.* badge, not *Unknown* — "unknown" would read as "we have
-  not worked it out yet", when the truth is that most USB flash drives and card
-  readers simply do not implement it. Its health ring is omitted rather than drawn
-  permanently empty, since there is no score to draw.
-- **Blocked:** a drive the container was *not allowed* to read carries a *Blocked* badge
-  instead, because that is the container's problem rather than the drive's and the two
-  need different fixes. The distinction is made server-side (`smart_cause`), since
-  smartctl reports both as the same "Operation not permitted".
-- **Worsening:** a drive whose bad-sector count is rising over the recent window carries
-  a *Worsening* badge alongside its verdict. Separate from the verdict because the two
-  answer different questions — the verdict says how the drive looks *now*, this says which
-  way it is going, and a drive can be green today and still be the one worth replacing
-  first. Reported as a direction, never as a date (`SCOPE.md` §2.2).
+### 7.1 Fleet (`/`)
 
-### 7.2 Device detail
-- **Header:** the drive's name, with the model and device path beneath it, and the **scan age** beside
-  those (`FEATURES.md` A28 follow-up). The age is here rather than in a row of twelve facts because
-  "4 hours ago" among twelve is not where a reader notices it — and a stale figure that looks live is
-  the one thing this page must not do. It reads "data from 4 hours ago", "no data yet — reading the
-  drive now…" while the page re-reads a drive past `device_refresh_minutes`, or "— could not re-read
-  the drive" when that read fails, in which case the stored figures stay on screen because they are
-  still the last thing the drive actually said. The name is edited in the notes dialog, not inline;
-  serial, firmware and capacity live in the Identity card below.
-- **Health block:** large gauge + verdict badge + plain-language rationale
-  ("5 pending sectors").
-- **Since the last scan** (`FEATURES.md` A18): the first card in the grid, because "what changed" is
-  the news and the cards below it are reference material. One `was → now` line per field that moved,
-  with the field name fixed-width so the arrows line up and the list reads as a column. An absent
-  end is an em dash rather than a zero — a reading the drive never gave is not a reading of zero.
-  "Nothing changed" is stated in words, because an empty panel would read as "we did not look". The
-  counters that moved *and* are a finding get a table; the routine ones are counted and said out
-  loud ("4 other counters moved, which is ordinary wear") rather than dropped.
-- **Trend card:** per-metric sparklines with the current value and the change across the series,
-  over a 7/30/90-day/all range selector. The x-axis is **time rather than reading index**
-  (`ADR-023`): a fixed range is a *calendar* window, so 30 days means the last 30 days whether or
-  not anything was recorded in them, and a drive that stopped being scanned leaves a visible gap
-  instead of a line that quietly ends at the right edge. A series that began five days ago occupies
-  its own fifth of the window rather than being stretched edge to edge. One shared date axis sits
-  under the card rather than one per sparkline — four charts in one window need one axis, and four
-  would be noise — so the span is readable without hovering. "All" has no calendar to anchor to, so
-  it spans exactly the history that exists. The change figure is measured across the *series*, not
-  the window: a drive watched for five days has five days of change, and reporting 30 would invent
-  a trend. Per-metric y-scaling stays automatic.
-- **Two independent columns**, from `.panel-cols` and `.panel-col`: the facts about the drive down the
-  left — **Identity**, **Usage and media**, the attribute table — and what is on it and what is
-  happening to it down the right — **Partitions**, **Trend**, **Self-test**, notes. Full-width cards
-  (the change list, a firmware advisory) sit above them in `.panel-flow`.
-  **Columns rather than a grid of rows, and that is the point.** A grid row is as tall as its tallest
-  card, so the shorter card beside it leaves a hole underneath — and this page pairs cards of very
-  different heights, so the holes were large. In a column a card is followed immediately by the next
-  one in that column, and the only slack left is at the foot of the shorter column.
-  Two explicit columns rather than CSS multi-column, because multicol balances the content to decide
-  which column a card lands in: the layout would rearrange itself as the data changed, and which card
-  sits where has to be a decision rather than an outcome. Below 1024px the columns stack, which keeps
-  the reading order.
-- Each card holds its own heading and content in a `.card.stack`, so the internal
-  spacing comes from the container's gap and never from a per-heading margin.
-- **Identity card:** model, model family, serial, firmware, capacity, interface
-  speed, transport, rotation, removable, WWN, device path.
-- **Usage and media card:** power-on hours, power cycles, temperature, total data
-  read / written, life remaining, mountpoints, filesystem, first seen, last scanned.
-  **Storage used** (`FEATURES.md` A28) is a **figure like every other row here** — the percentage
-  with the filesystem that decides it in brackets, because "47%" is not actionable until you know
-  *what* is at 47%. It is the fullest filesystem, chosen server-side (`API.md`), so this card and
-  the fleet card cannot disagree. The *bar* belongs on the fleet card, under the facts, and in the
-  Partitions card where there is a table to say which filesystem is which — a bar was the only
-  graphic in a column of labels and values, and read as a different kind of thing bolted on.
-  Throughput and power figures come from the API's derived `metrics` block
-  (`API.md`), so ATA and NVMe drives read identically.
-- **Outlook** (`.projection`, at the foot of the Usage card): the longevity estimate from
-  the drive's history — a sentence, not a figure. Deliberately kept out of the stat grid
-  above it: a number in that column reads as a measurement, and this is an extrapolation
-  from a handful of readings. The confidence (`low` / `medium`) and the caveat are shown
-  inline rather than behind a tooltip, because a caveat nobody reads is not a caveat. A
-  *Worsening* badge appears here too when bad sectors are rising. A drive with too little
-  history says "Not enough history yet" instead of guessing.
-- **Mountpoints / Filesystem:** taken from the disk's *partitions* — a whole-disk
-  node is never mounted itself (`DATA_MODEL.md`). Filesystem shows every distinct
-  type found, e.g. `ext4, vfat`, followed by the filesystem version when lsblk
-  reports one (`exfat 1.0`).
-- **Partitions** (`FEATURES.md` A28): one row per node below the disk, in tree order, so a logical
-  volume inside a partition is a row in its own right. The **label leads and the node name follows
-  it** — a person recognises "media" long before "/dev/mapper/tank-media" — with the size, filesystem,
-  mountpoint and usage beside it, and a **copy UUID** button on the row. The button is the convenience;
-  a UUID *column* would have been two long opaque strings per row with nothing to scan. The partition
-  **type sits under the filesystem** rather than in a column of its own: the two answer one question,
-  and a partition with no filesystem shows "Linux LVM" under a dash, which is the *reason* there is
-  nothing to mount. A partition the device reports read-only is badged, because a write-protect switch
-  and a drive that has failed into read-only look identical otherwise. Usage is a **bar** — length
-  reads faster than two byte counts — and it turns **amber at the level set on the Thresholds page**
-  (default 90%). Fullness is not health, so the colour cannot contradict the verdict badge; the two
-  answer different questions. A
-  partition that is **not mounted** shows a dash — nothing to measure — while one that is mounted but
-  outside the container says **not visible**, with the explanation and the compose fix in **Details**
-  rather than as a paragraph under the table. **Details**, collapsed, also holds the sector sizes
-  (512e / 4Kn), TRIM support, the partition table type and the approximate unallocated space. Two
-  settings turn the card and the column off (`show_partitions`, `show_usage`). Above the table sits the
-  **disk map** (`FEATURES.md` A28): one segment per top-level partition, sized by its share of the disk,
-  with the partition's own fullness filled in from the left. The map and the table are **linked both
-  ways** — pointing at a segment marks the row it stands for, and pointing at a row marks the segment it
-  came from — which is what makes the bar and the list read as one thing rather than two.
-- **Drives with no S.M.A.R.T. reading:** the page shows a **notice** — a neutral panel,
-  not an error box — and it distinguishes two situations that smartctl reports
-  identically (`smart_cause`, `API.md`):
-  - *A drive that cannot report S.M.A.R.T.* says so, explains that most USB flash drives
-    and card readers do not implement it, notes that the identity, capacity and filesystem
-    shown come from the operating system rather than the drive, and offers the one thing
-    that sometimes fixes it: a per-device `smartctl -d` transport override with
-    **Apply & rescan**, shown as currently set.
-  - *A read the container was not allowed to make* says **that** instead, names which of
-    the three gates is closed, and prints the exact compose fragment to add. Telling a
-    container user their drive "does not report S.M.A.R.T." when it was simply blocked
-    sends them looking at the hardware instead of the compose file — which is the whole
-    reason the cause is classified server-side rather than left as raw text.
+The screen answers one question: **is anything wrong here?** Everything on it serves that, and
+everything that did not (a score ring per drive, a shortlist repeating the top three rows) has been
+cut.
 
-  The dashboard card carries a *Blocked* badge for the second case and *No S.M.A.R.T.*
-  for the first, so the two are distinguishable without opening the drive.
-- **Trend hover readout:** hovering a sparkline shows a vertical marker at the nearest
-  reading plus a readout of its value, date and time — stacked on three lines rather
-  than run together, because one line wide enough to hold a full timestamp spans most of
-  the card. The ends are anchored rather than centred so the readout cannot run off the
-  card. Arrow keys step through the readings and `Esc`/blur dismisses it, so the figures
-  are reachable without a mouse.
-- **Attribute table** (§6) — for NVMe, the full health log: critical warning,
-  spare, percentage used, data units read/written (count **and** humanised size),
-  host read/write commands, controller busy time, power cycles/hours, unsafe
-  shutdowns, media errors, error-log entries, warning/critical temperature time.
-  Sixteen counters in a flat list read as a wall, so the NVMe log is **grouped** —
-  *Health*, *Lifetime*, *Workload*, *Errors* — and set a size up from the attribute
-  table, which needs `--text-xs` for its seven columns and this does not.
-  A "show raw `smartctl` output" toggle sits alongside it. It shows the output stored
-  for the drive from the last scan — including when the read *failed*, where smartctl's
-  own complaint is the most useful thing on the page — so it is a reliable way to see
-  whether a drive is unsupported, mis-addressed, or blocked by container capabilities
-  (`DEPLOYMENT.md`).
-- **Attribute help** (`FEATURES.md` A12) — a `?` beside each interpreted attribute and each
-  NVMe counter, opening a short dialog: what the field is, and how to read it. The second
-  half is the part that earns its place, because it is what stops attribute 199 (usually a
-  SATA cable) or attribute 1 (not comparable between vendors) from reading as a drive in
-  trouble. A row the drive *itself* reports at or below its own threshold is tinted and
-  badged *At threshold* — the drive's own alarm, never a threshold this app invented.
-- **Actions:** scan this device, export report (formats from settings), edit
-  notes/tags, per-device transport override, hide.
-- **Notes editor:** free-form notes + tags; optimistic save with rollback.
+- **Title, then the glance line, then the table.** No hero, no summary block. The counts on the
+  glance line (`0 failing`, `1 caution`, `5 healthy`, `2 no reading`) are filters: clicking one
+  narrows the table, clicking it again clears. A count that cannot be clicked is the same information
+  with a dead affordance attached.
+- **Columns:** Drive · Health · Usage · Temp · Powered on. Health carries verdict word and score in one
+  cell. Usage is a thin bar plus its percentage, and reads `n/a` when the host exposes no filesystem.
+  Temperature and powered-on hours are right-aligned so a column of numbers scans vertically.
+- **Order** is severity first: bad, caution, unknown (which includes drives the app could not read),
+  good. Ties break on name so a rack of identical drives does not reshuffle between renders. A drive
+  with no reading sorts *last*: an absent temperature is not 0 °C.
+- **The attention edge.** A row whose drive is caution or failing gets a 2px inset rule in its state
+  colour down the left edge, and "no reading" keeps one line of the drive's own reason underneath.
+- **Actions:** `Scan now` in the page header, and the sidebar's global scan. Nothing else; opening a
+  drive is the row itself.
+- **States:** skeleton rows while loading; one card per drive updating live over SSE during a scan (no
+  polling, `ADR-006`); an onboarding empty state with a prominent Scan when no scan has run.
+- **Below the table:** `N drives`, and links to Schedules and Settings.
+
+There is no card view and no replace-first shortlist. Both were part of the previous design and were
+retired once the table carried the same information in less space (`ADR-032`).
+
+### 7.2 Device detail (`/device/<serial>`)
+
+Sections run **read-only first, and the one thing that writes to a drive last**. Within the read-only
+part the order is by who asks: facts and storage for everyone, trends for anyone watching a drive age,
+attributes for the power user.
+
+1. **Identity and verdict.** Drive name (user name, else model, else serial), then model · transport ·
+   firmware and the serial, then the verdict: dot, word, `score N of 100`, and the drive's own reason
+   when it has one. Actions: `Scan this drive`, `Export`.
+2. **Freshness line.** `data from 3d ago`, or `re-reading this drive` while it reads. Opening a drive
+   re-reads it when the stored data is older than `device_refresh_minutes` (default 15; `0` never),
+   because a read is the one thing here that can wake a parked disk.
+3. **Facts** — capacity, mountpoint, powered on, wear, device node, size, temperature, last scanned.
+   Values the drive did not report read `n/a`, never `0`.
+4. **Disk space** — `43% used of 1.8 TB on /mnt/media`, then the disk map, then the partition table.
+   The map and the table mark each other both ways: pointing at a segment marks its row and vice
+   versa. The map *is* the usage bar when a layout exists; drawing both states the same figure twice.
+5. **Trends** — six cards in two rows of three: health score, temperature, power-on hours, wear,
+   storage, bad sectors. Every reading draws a dot, so a gap in scanning is visible rather than
+   implied. The range picker (7d / 30d / 90d / All) redraws only the trend host, never the page, and
+   `All` is the default: a young install in a 30-day window draws a short line pinned to the right
+   edge, which reads as a broken chart. Hovering or arrowing shows value, date and time.
+6. **Attributes** — ID, name, value, worst, threshold, interpreted raw. A `?` on every attribute the
+   interpreter acts on explains what it is. A row is marked only when the drive reports its **own**
+   attribute at or below its **own** threshold; nothing is marked because the app could not read it.
+   The aside reads `N reported · M at threshold`.
+7. **NVMe health log** — NVMe drives only, as a grid of labelled values rather than a two-column
+   table that would put labels at one edge and values at the other.
+8. **Self-test** — the only control in the app that writes to a drive (`FEATURES.md` A19). Short and
+   long test, progress while it runs, abort, and the drive's own self-test log underneath. This is the
+   one place the page reads a drive live, and only while a test it started is still running.
+9. **Footer** — provenance (`Read from /dev/sda 3d ago`, or `Never scanned`) and the export entry
+   point.
 
 ### 7.3 Schedules
 - List of schedules: label, action, kind (interval/cron), next run, last run, enable toggle,

@@ -121,11 +121,11 @@ The README's set, cropped to the app viewport and committed to `docs/images/`:
 
 | File | Shows |
 |---|---|
-| `dashboard.png` | The fleet: verdict badges, scores, the storage bar on each card, the last-scan line, the health summary |
-| ~~`device-page.png`~~ | **Removed pending a re-shoot.** The only capture that still showed the pre-1.2.0 card grid — it predates the partitions card, the storage figure and the two-column layout, so it documented a page that no longer exists. The replacement is part of the post-1.2.0 screenshot pass. |
-| `partitions.png` | The partition card: the disk map above the table, linked both ways |
+| `fleet.png` | The fleet: one row per drive, verdict and score in one cell, usage, temperature, powered-on hours |
+| `device-page.png` | A drive page: verdict, facts, disk space, trends, attributes, self-test |
+| `partitions.png` | Disk space: the usage line, the disk map and the partition table, linked both ways |
 | `attribute-explanation.png` | A `?` explanation open over the attribute table |
-| `selftest-card.png` | The self-test card: the buttons and the drive's own self-test log |
+| ~~`dashboard.png`~~, ~~`selftest-card.png`~~ | **Removed with the interface they showed.** The card grid and the self-test card are gone; the shots above replace them. |
 
 **Take them as viewport captures, not full screens**, so no cropping is needed — Firefox's right-click
 *Take Screenshot* → *Save visible*, or Chrome DevTools → `Ctrl+Shift+P` → *Capture screenshot*. Keep
