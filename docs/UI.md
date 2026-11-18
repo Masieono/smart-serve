@@ -268,15 +268,17 @@ attributes for the power user.
   one destructive part (a file carrying schedules *replaces* the list) is the thing they most need
   to know. A malformed file reports what went wrong rather than surfacing `Unexpected token <`,
   which is the common failure and explains nothing.
-- **The per-model thresholds card** (`FEATURES.md` A3) is a JSON editor too, and the same argument
-  applies as for the knowledge overrides: a structured setting most people never touch, and the few
-  who do want to write it precisely. What makes it usable is the **seed**: one button that adds an
-  entry for every model in the fleet at the values currently on screen, *merging* with whatever is
-  already in the box rather than replacing it. The common edit is one number for one model, and the
-  seed produces exactly that. The keys are the same names the sliders above use, so there is one
-  vocabulary for these six numbers rather than two, and the server refuses a key it does not know —
-  shown beside the box as well as in a toast, because the message names a JSON field and a toast is
-  gone before it has been read. The button is disabled when no drive has been read yet, and says so.
+- **Per-model thresholds are a table, not a schema** (`FEATURES.md` A3). One row per model in the
+  fleet, one column per threshold, and an empty cell means "same as above" — the value it would
+  inherit is shown greyed as the placeholder, so the table reads as the effective configuration
+  rather than as a list of exceptions. A row whose model has no overrides says so; a row that has
+  any is marked *overridden* and carries a **Reset** that drops that model's entry. A model kept in
+  the stored JSON but no longer in the fleet still gets a row, because an override for an unplugged
+  drive is still the user's. **Advanced (JSON)** holds the same data for keys a column does not
+  cover, and it is the value that is saved: the table edits it rather than keeping a second copy.
+  **Load the fleet's models** merges an entry for every model at the values currently on screen,
+  never replacing what is already written, and the server refuses a key it does not know, reported
+  beside the table as well as in a toast.
 - **One sheet with sections, in a single column.** Four cards of different heights gave a ragged bottom,
   and reaching the shortest one meant scrolling past the tallest — so the grid did not make the page
   shorter, it made it uneven. The first attempt at a fix laid each section's rows out in *two* columns,

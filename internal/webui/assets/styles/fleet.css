@@ -1777,3 +1777,65 @@ dialog .btn-primary {
     flex-wrap: wrap;
   }
 }
+
+/* --- per-model thresholds ---------------------------------------------------
+   The table is the editor; the JSON is kept behind a disclosure for the keys a
+   column does not cover. An empty cell is inheritance, so it reads as a
+   placeholder rather than a zero. */
+.pm-table {
+  margin-top: var(--space-3);
+}
+
+.pm-table th.r,
+.pm-table td {
+  text-align: right;
+}
+
+.pm-table td:first-child,
+.pm-table th:first-child {
+  text-align: left;
+}
+
+.pm-model {
+  white-space: nowrap;
+}
+
+.pm-model .sub {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+/* Inheritance is quiet: the row says "same as above" and the cells show the value
+   they would use, greyed, so the table still reads as the effective configuration. */
+.pm-inherit .pm-cell::placeholder {
+  color: color-mix(in srgb, var(--muted) 70%, transparent);
+}
+
+.pm-cell {
+  width: 76px;
+  height: 28px;
+  padding: 0 var(--space-2);
+  font-size: var(--text-xs);
+  text-align: right;
+  background: color-mix(in srgb, var(--bg) 70%, transparent);
+}
+
+.pm-advanced {
+  margin-top: var(--space-4);
+  padding-top: var(--space-3);
+  border-top: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+}
+
+.pm-advanced > summary {
+  cursor: pointer;
+  font-size: var(--text-xs);
+  color: var(--muted);
+}
+
+.pm-advanced > summary:hover {
+  color: var(--text);
+}
+
+.pm-advanced .settings-editor {
+  margin-top: var(--space-2);
+}

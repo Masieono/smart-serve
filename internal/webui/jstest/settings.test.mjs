@@ -579,3 +579,60 @@ test('the seed survives a box that is not JSON', () => {
   assert.deepEqual(seedModelThresholds(null, [], VALUES), {});
 });
 
+
+// --- per-model thresholds: the table is the editor, the JSON is what gets saved ----------------
+//
+// A textarea holding a schema is a power-user tool pretending to be a setting. The table shows one
+// row per model in the fleet with the value each drive would actually use as a placeholder, so the
+// page answers "what applies to this drive" without the reader parsing JSON. The textarea stays as
+// the source of truth behind a disclosure, which is why these tests assert on it rather than on a
+// second copy of the data.
+
+test('the per-model table gives every model in the fleet a row', async () => {
+  installStubDom();
+  stubFetch({ settings: {}, devices: [{ serial: 'a', model: '870 EVO' }, { serial: 'b', model: 'WD40EFRX' }] });
+
+  const container = document.createElement('div');
+  await render(container, 'thresholds');
+
+  const models = container.querySelectorAll('td').filter((n) => n.className === 'pm-model');
+  assert.equal(models.length, 2, 'one row per model in the fleet');
+  assert.match(models[0].childNodes[0].textContent, /870 EVO/);
+  assert.match(models[0].childNodes[1].textContent, /same as above/, 'an untouched model inherits');
+
+  // The default is a placeholder, not a value: a cell showing 55 as text would be an override
+  // nobody typed.
+  const cells = container.querySelectorAll('input').filter((n) => n.className === 'pm-cell');
+  assert.ok(cells.length >= 10, 'five columns per model');
+  assert.equal(cells[0].value, '');
+  assert.notEqual(cells[0].placeholder, '');
+});
+
+test('a model kept in the JSON but not in the fleet still gets a row', async () => {
+  installStubDom();
+  stubFetch({ settings: { model_thresholds: '{"Old Drive": {"pending_bad_threshold": "3"}}' }, devices: [] });
+
+  const container = document.createElement('div');
+  await render(container, 'thresholds');
+
+  const models = container.querySelectorAll('td').filter((n) => n.className === 'pm-model');
+  assert.equal(models.length, 1, 'an override for an unplugged drive is still the user\'s');
+  assert.match(models[0].childNodes[0].textContent, /Old Drive/);
+  assert.match(models[0].childNodes[1].textContent, /overridden/);
+});
+
+test('editing a cell writes the value the page saves', async () => {
+  installStubDom();
+  stubFetch({ settings: {}, devices: [{ serial: 'a', model: '870 EVO' }] });
+
+  const container = document.createElement('div');
+  await render(container, 'thresholds');
+
+  const cell = container.querySelectorAll('input').filter((n) => n.className === 'pm-cell')[0];
+  cell.value = '42';
+  cell.dispatch('change');
+
+  // The textarea is what `fieldsFor` reads, so this is the value that would be saved.
+  const editor = container.querySelectorAll('textarea').filter((n) => n.className === 'settings-editor')[0];
+  assert.deepEqual(JSON.parse(editor.value), { '870 EVO': { temperature_threshold_c: '42' } });
+});

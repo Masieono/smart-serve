@@ -1,5 +1,5 @@
 // Settings (docs/UI.md §7.5).
-import { el, mount, append, convertTemp, toCelsius, convertTempDelta, toCelsiusDelta, fmtAgo } from '../dom.js';
+import { el, mount, append, clear, convertTemp, toCelsius, convertTempDelta, toCelsiusDelta, fmtAgo } from '../dom.js';
 import { api } from '../api.js';
 import { errorBox, toast, confirmDialog } from '../components.js';
 import { applyTheme } from '../theme.js';
@@ -1049,33 +1049,141 @@ function perModelSection(settings, deviceData, currentValues) {
     placeholder: '{\n  "870 EVO": { "reallocated_bad_threshold": "1" }\n}',
     value: settings.model_thresholds || '',
   });
+  const tableHost = el('div', { class: 'pm-rows' });
 
   const showError = (message) => {
     error.textContent = message;
     error.hidden = !message;
   };
 
+  // The textarea stays the source of truth: `fieldsFor` reads it, the seed writes to it, and the API
+  // already accepts its shape. The table is a second view onto the same string, which is why every
+  // edit lands back in it rather than in a parallel copy that could drift.
+  const readMap = () => {
+    const raw = editor.value.trim();
+    if (!raw) return {};
+    try {
+      const parsed = JSON.parse(raw);
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null;
+      return parsed;
+    } catch {
+      return null;
+    }
+  };
+
+  const writeMap = (map) => {
+    editor.value = Object.keys(map).length ? JSON.stringify(map, null, 2) : '';
+  };
+
   const models = fleetModels(deviceData);
+
+  const setCell = (model, key, value, placeholderValue) => {
+    const map = readMap();
+    if (map === null) return;
+    const entry = { ...(map[model] || {}) };
+    if (value === '') delete entry[key];
+    else entry[key] = value;
+    if (Object.keys(entry).length) map[model] = entry;
+    else delete map[model];
+    writeMap(map);
+    showError('');
+    redraw(placeholderValue);
+  };
+
+  function redraw(defaults) {
+    const map = readMap();
+    clear(tableHost);
+    if (map === null) {
+      append(tableHost, [el('p', { class: 'muted field-hint', text: 'The JSON below is not valid, so the table cannot show it. Fix it in Advanced, or Clear.' })]);
+      return;
+    }
+    const defaultsNow = defaults || currentValues();
+    const names = [...models];
+    for (const key of Object.keys(map)) {
+      if (!names.some((n) => n.toLowerCase() === key.toLowerCase())) names.push(key);
+    }
+    if (!names.length) {
+      append(tableHost, [el('p', { class: 'muted field-hint', text: 'No drives read yet. Scan once and the models that appear can be overridden here.' })]);
+      return;
+    }
+
+    const body = el('tbody', {});
+    for (const model of names) {
+      const entry = map[Object.keys(map).find((k) => k.toLowerCase() === model.toLowerCase()) || model] || {};
+      const cells = THRESHOLDS.map((spec) => {
+        const box = el('input', {
+          type: 'number', class: 'pm-cell',
+          min: spec.min === undefined ? '0' : String(spec.min),
+          max: spec.max === undefined ? '200' : String(spec.max),
+          step: spec.step === undefined ? '1' : String(spec.step),
+          value: entry[spec.key] === undefined ? '' : String(entry[spec.key]),
+          placeholder: String(defaultsNow[spec.key] ?? ''),
+          'aria-label': `${model}: ${spec.label}`,
+        });
+        box.addEventListener('change', () => setCell(model, spec.key, box.value.trim(), defaultsNow));
+        return el('td', {}, [box]);
+      });
+      const used = Object.keys(entry).length > 0;
+      append(body, [el('tr', { class: used ? null : 'pm-inherit' }, [
+        el('td', { class: 'pm-model' }, [
+          el('div', { text: model }),
+          el('div', { class: 'sub', text: used ? 'overridden' : 'same as above' }),
+        ]),
+        ...cells,
+        el('td', {}, [used ? el('button', {
+          class: 'btn btn-sm btn-ghost', type: 'button', text: 'Reset',
+          title: `Drop every override for ${model}`,
+          onclick: () => {
+            const m = readMap();
+            if (m === null) return;
+            delete m[model];
+            writeMap(m);
+            redraw(defaultsNow);
+          },
+        }) : null]),
+      ])]);
+    }
+
+    append(tableHost, [el('div', { class: 'v2-table-wrap' }, [
+      el('table', { class: 'fleet-table pm-table' }, [
+        el('thead', {}, [el('tr', {}, [
+          el('th', { text: 'Model' }),
+          ...THRESHOLDS.map((spec) => el('th', { class: 'r', text: shortLabel(spec) })),
+          el('th', { class: 'r', text: '' }),
+        ])]),
+        body,
+      ]),
+      el('p', { class: 'muted field-hint', text: 'A blank cell uses the value set above. A drive is matched on its model or family, case-insensitively; if two entries match, the longer name wins.' }),
+    ])]);
+  }
+
   const seed = el('button', {
-    class: 'btn btn-sm', type: 'button', text: 'Load the fleet’s models',
+    class: 'btn btn-sm', type: 'button', text: 'Load the fleet\u2019s models',
     title: 'Add an entry for every model in the fleet, at the values set above. ' +
       'Anything already in the box is kept.',
     onclick: () => {
       editor.value = JSON.stringify(seedModelThresholds(editor.value, models, currentValues()), null, 2);
       showError('');
+      redraw();
     },
   });
   seed.disabled = models.length === 0;
 
+  editor.addEventListener('input', () => { showError(''); redraw(); });
+  redraw();
+
   return {
+    // The textarea is the value; the table edits it. Callers keep the same two methods they had when
+    // this section was only a textarea.
+    value: () => editor.value,
+    showError,
     node: el('section', { class: 'settings-section' }, [
       el('h2', { text: 'Per-model thresholds' }),
       el('div', { class: 'settings-rows' }, [
-        el('div', { class: 'field' }, [
-          el('p', { class: 'muted field-hint', text: 'The thresholds above, except for one model. ' +
-            'A drive is matched on its model or its family, case-insensitively, and a number left ' +
-            'out here falls back to the value above. If two entries match the same drive the ' +
-            'longer name wins, so name them precisely rather than overlapping.' }),
+        tableHost,
+        el('details', { class: 'pm-advanced' }, [
+          el('summary', { text: 'Advanced (JSON)' }),
+          el('p', { class: 'muted field-hint', text: 'The same overrides as stored: every key the table does not cover, and the numbers exactly as they are sent. Edits here are what gets saved.' }),
           editor,
         ]),
       ]),
@@ -1087,16 +1195,38 @@ function perModelSection(settings, deviceData, currentValues) {
           : 'no drives read yet' }),
         el('button', {
           class: 'btn btn-sm btn-ghost', type: 'button', text: 'Clear',
-          onclick: () => { editor.value = ''; showError(''); },
+          onclick: () => { editor.value = ''; showError(''); redraw(); },
         }),
       ]),
     ]),
-    value: () => editor.value.trim(),
-    showError,
   };
+  }
+
+/**
+ * Where the first usable sentence ends, or -1 when the text is one sentence.
+ *
+ * "Off by default." is a full stop but not a summary, so a boundary only counts once the text
+ * before it is long enough to stand on its own.
+ */
+function firstSentenceEnd(text) {
+  const re = /[.!?]\s+/g;
+  let match;
+  while ((match = re.exec(text)) !== null) {
+    const end = match.index + 1;
+    if (end >= 40) return end;
+  }
+  return -1;
 }
 
-
+/** A column header that fits a table cell; the full label is the input's aria-label. */
+function shortLabel(spec) {
+  if (spec.temperature) return 'Temp';
+  if (spec.key === 'reallocated_bad_threshold') return 'Realloc';
+  if (spec.key === 'pending_bad_threshold') return 'Pending';
+  if (spec.key === 'uncorrectable_bad_threshold') return 'Uncorr';
+  if (spec.key === 'nvme_percentage_used_warn') return 'NVMe %';
+  return spec.label;
+}
 
 function settingRow(label, help, control) {
   return el('div', { class: 'setting-row' }, [
@@ -1127,22 +1257,6 @@ function helpBlock(help) {
       el('span', { text: help.slice(cut) }),
     ]),
   ]);
-}
-
-/**
- * Where the first usable sentence ends, or -1 when the text is one sentence.
- *
- * "Off by default." is a full stop but not a summary, so a boundary only counts once the text
- * before it is long enough to stand on its own.
- */
-function firstSentenceEnd(text) {
-  const re = /[.!?]\s+/g;
-  let match;
-  while ((match = re.exec(text)) !== null) {
-    const end = match.index + 1;
-    if (end >= 40) return end;
-  }
-  return -1;
 }
 
 /**
