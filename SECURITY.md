@@ -23,9 +23,11 @@ rota, so expect an acknowledgement within a few days.
 Three things are deliberate decisions rather than defects, and reports about them will be
 closed with a pointer here:
 
-- **No authentication.** Smart-Serve ships no login and no user management; access control is
-  delegated to a reverse proxy (`ADR-016`). An unauthenticated instance reachable from an
-  untrusted network is a misconfiguration, and `README.md` and `docs/DEPLOYMENT.md` say so.
+- **No authentication, by default.** Smart-Serve ships no login and no user management; access control
+  is delegated to a reverse proxy (`ADR-016`). An optional built-in **single-user** login is specified
+  and not yet built (`ADR-032`); multi-user accounts and roles are out of scope. An instance reachable
+  from an untrusted network without a proxy or that option is a misconfiguration, and `README.md` and
+  `docs/DEPLOYMENT.md` say so.
 - **The container's privileges.** Reading S.M.A.R.T. requires access to raw device nodes, so
   the reference deployment opens the device cgroup and grants `CAP_SYS_ADMIN` and
   `CAP_SYS_RAWIO`. That is a real privilege grant, it is the operator's decision, and the

@@ -1317,3 +1317,200 @@ is a real cost for someone running this from a NAS GUI with no shell. That is th
 error that is hidden is exactly the class a user could not act on. (±) `logMiddleware` is outermost and
 `recoverMiddleware` inside it, so a panic is logged once as a 500 with the stack beside it; the request
 log is the thing that made that ordering matter, and it is now pinned by a test.
+
+## ADR-032: Optional single-user basic auth — one operator, two variables, no accounts
+
+**Status: decided, not built.** This ADR is the specification. Nothing in this document is
+implemented; `DEPLOYMENT.md`, `README.md` and `SECURITY.md` still describe an app with no
+authentication, and they should keep saying so until this lands.
+
+**Context.** `ADR-016` decided that the app ships no authentication, on the reasoning that the owner
+runs Nginx and that access control belongs to the proxy. That reasoning holds for a *proxied*
+deployment and does not hold for the other one: a homelab box where this is the only thing on port
+8080, and where "put a proxy in front of it" is more moving parts than the thing being protected. The
+gap between "trusted LAN" and "a reverse proxy with TLS, a htpasswd file and a vhost" has nothing in
+it, and that is the gap most people are actually in.
+
+The owner has asked for a small optional layer to fill it — explicitly **not** multi-user, and
+explicitly not roles. This ADR reverses the "no authentication" half of `ADR-016` and leaves the
+"no user management" half standing.
+
+**Decision.** The app gains **optional HTTP Basic authentication with exactly one user**, configured
+entirely from the environment. No accounts, no registration, no user table, no sessions, no login page.
+
+Three variables, in the shape `ADR-013` and `ADR-022` already set for secrets (`env > file`):
+
+```
+SMARTSERVE_AUTH_USER            the single username
+SMARTSERVE_AUTH_PASSWORD        the password
+SMARTSERVE_AUTH_PASSWORD_FILE   a file to read the password from
+```
+
+- **Both unset → the feature is off.** That is the default and the shipped state, so an existing
+  deployment is unchanged by this landing.
+- **One set without the other refuses to start**, with a message naming the variable that is missing.
+  Silently disabling auth for a half-configured pair is the one outcome that must not happen: the
+  operator would believe they had turned something on.
+- **A `_FILE` that is missing, unreadable or empty is an error, never a fallback** — the rule
+  `ADR-022` set for channel secrets, for the same reason.
+- **The plain variable wins over `_FILE`**, because that is `ADR-013`'s documented precedence
+  (`env > file > DB`). Worth stating out loud: it is the opposite of what most people expect.
+- There is **no `SMARTSERVE_AUTH_USER_FILE`**. The username is not a secret, and a fourth variable for
+  a non-secret is surface with nothing behind it.
+
+**There is no account setup step, and that is the point.** The answer to "how is the account created"
+is that there is no account: the credentials *are* the configuration. Two `docker run -e` flags, two
+lines of compose, or two Docker secrets. There is nothing to store, nothing to migrate, nothing to
+reset, and nothing in the database that a config export could carry.
+
+**Why basic auth rather than a login form and a session cookie.** This is the decision most likely to
+be revisited, so the reasoning is recorded rather than implied.
+
+- **No session state at all.** A cookie session needs either a table (a migration, expiry, and a
+  "logged out" state to clean up) or an in-memory store (every restart logs everyone out, which on a
+  box that reboots for kernel updates is worse than no session). Basic auth has neither: the
+  credential is presented per request and checked in constant time.
+- **It works for the things that are not a browser.** `curl`, a Prometheus scrape and a script can all
+  send `-u user:pass`. A cookie session means every one of them needs a login round-trip first, which
+  is a client library rather than a flag.
+- **It is what the proxy already speaks.** An operator who outgrows this moves to nginx `auth_basic` —
+  the same mechanism, the same htpasswd file, one layer out. Nothing about their mental model changes.
+- **A login form is a UI, and this app's UI is deliberate about what it adds.** A form means a route
+  outside the SPA shell, a styled page that has to work before the app does, an error state for a
+  wrong password, and a logout button that has to go somewhere. That is a feature, not a security
+  layer.
+
+The cost is real and is recorded below rather than hidden: **there is no logout**, and the browser
+keeps sending the credential until it closes.
+
+**Where it sits in the chain.** `server.go` builds its middleware outside-in, and the auth layer goes
+**inside `StripPrefix` and outside `sameOriginMiddleware`**:
+
+```
+log → recover → securityHeaders → StripPrefix(basePath) → auth → sameOrigin → mux
+```
+
+- **Inside `StripPrefix`** so the exempt path is exactly `/healthz` rather than `<basePath>/healthz`,
+  which keeps the exemption one string instead of one string plus an interpolation that can be got
+  wrong.
+- **Inside `securityHeadersMiddleware`** so a 401 is as constrained as a 200 — it is a document a
+  browser will render, and it should carry the same CSP, `nosniff` and `X-Frame-Options` as anything
+  else. The existing comment on that middleware already makes this argument for the CSRF 403.
+- **Inside `recoverMiddleware` and `logMiddleware`** so a panic in the comparison is a 500 rather than
+  a dropped connection, and so a failed attempt leaves a line. That last one matters: **the request
+  log is the brute-force log**, because a 401 is a 4xx and `logMiddleware` already records those at
+  warning with method, path and status. Nothing new is needed to make an attack visible.
+- **Outside `sameOriginMiddleware`**, which changes nothing about CSRF but does decide which error a
+  cross-site request gets first: an unauthenticated one gets 401, an authenticated one still gets 403.
+  Either is fine; this order is the one that asks "who are you" before "did you mean to".
+
+**`/healthz` is exempt; `/metrics` is not.**
+
+- **`/healthz`** has to be. The `Dockerfile`'s `HEALTHCHECK` runs `wget` *inside the container*, so
+  requiring credentials there would mean baking a secret into the image — and an image is a public
+  artifact. The endpoint answers `ok` with no I/O, no data and no state, so the exemption costs
+  nothing but the knowledge that something is listening on the port.
+- **`/metrics`** is protected. Every series is labelled with a drive serial, which is exactly the
+  information a homelab's LAN should not be handing out. Prometheus sends basic auth from its scrape
+  config, so this is a two-line change for the operator and is documented when this lands.
+- **`/api/events` (SSE)** is protected like everything else and needs nothing special: a browser that
+  has authenticated to load the page sends the credential on the `EventSource` request too. `curl`
+  needs `-u`.
+
+**What this does not do, stated plainly, because each is a way to be disappointed by it:**
+
+- **It does not encrypt anything.** Basic auth sends the password base64-encoded, which is an encoding
+  and not a cipher — anyone on the network path reads it as easily as plain text. The app does not
+  terminate TLS and will not learn to. So this is a layer for a network you already trust, or it is
+  something to put *behind* a TLS terminator; it is not a substitute for one.
+- **It does not protect against CSRF, and looks like it does.** A browser sends its cached credentials
+  on a request *to this origin* even when another site initiated it, which is the classic basic-auth
+  CSRF hole. What stands between a hostile page and a scan or a self-test is `sameOriginMiddleware`
+  (`ADR-015`), which is unchanged by this and must stay enforced. Anyone tempted to relax the Origin
+  check "because we have auth now" is about to remove the only thing doing that job.
+- **It does not rate-limit or lock out.** There is no attempt counter, no delay and no ban; a wrong
+  password is a 401 and the next attempt is welcome. A strong password is the control, the log makes
+  attempts visible, and a proxy adds the rate limiting if that is wanted. A small fixed delay on
+  failure is cheap and is worth considering at implementation time; a lockout is not, because the
+  single user locking themselves out of their own homelab is a worse failure than the one it prevents.
+- **It does not survive a shared browser.** No logout means "log out" is "close the browser". A shared
+  or kiosk machine is the case this is worst at, and the honest answer there is a private window.
+- **It changes nothing about what the app does.** The scan, the scheduler and the notifier are
+  in-process, not HTTP. This decides who may ask, not what happens.
+
+**Alternatives.**
+
+- **A login form with a signed session cookie** — deferred, not rejected. It buys a logout button and
+  hides the credential from the URL bar; it costs session state, a logout endpoint, and a decision
+  about where sessions live. Revisit if the logout gap turns out to matter more than it reads like it
+  will.
+- **A bcrypt hash instead of a plaintext password** (`SMARTSERVE_AUTH_PASSWORD_HASH`) — deferred, not
+  rejected. It protects the *user's* password if the configuration leaks, which matters because people
+  reuse passwords across a NAS, its admin UI and this. It costs `golang.org/x/crypto` in a module tree
+  that holds exactly one module (`ADR-020` declined a Prometheus client library on that ground) and an
+  extra generation step (`htpasswd -bnBC 12`). The middleware compares either way, so this is one
+  function and one dependency if it is wanted. The `_FILE` form means the secret never has to appear
+  in a compose file in the meantime, which is the part that matters most.
+- **`SMARTSERVE_AUTH_USER` defaulting to `admin`** — rejected. A default username is a default
+  deployment: half-configured, enabled by accident, and identical everywhere. Requiring both halves
+  makes "is it on?" answerable by looking at the configuration.
+- **Enabling it from the Settings UI** — rejected. It is a bootstrap setting (`ADR-009`, `D2`), it
+  belongs with the address and the database path rather than with the thresholds, and a toggle that
+  can lock the only user out of the page the toggle lives on is a footgun with no upside.
+- **Multi-user accounts and roles** — still rejected, unchanged from `ADR-016`. This is one operator
+  with one password.
+
+**Consequences.** (+) the gap between "trusted LAN" and "a proxy" is closed with two variables and no
+new state; an unproxied homelab gets a real door. (+) the request log already makes failed attempts
+visible, and the CSRF guard already covers the hole basic auth is famous for. (+) zero idle cost — one
+constant-time comparison per request, no timers, no background anything, so the invariant in
+`DESIGN.md` §2.1 is untouched. (−) a plaintext secret in the environment is visible to `docker
+inspect`, which is why the `_FILE` form is the documented one and Docker secrets are the recommended
+deployment. (−) no logout, no lockout, no TLS — three limitations that are fine for the deployment
+this is for and are wrong for an internet-facing one, and `DEPLOYMENT.md` will have to say so where
+someone will read it. (±) `ADR-016` is narrowed rather than contradicted: it remains the answer for
+multi-user, and this is the one exception.
+
+**Acceptance criteria.** Each of these is a test, and the list is the definition of done:
+
+1. With both variables unset, every request behaves exactly as it does today — no 401, no
+   `WWW-Authenticate` header, nothing to notice.
+2. With both set, a request to any path other than `/healthz` without credentials answers `401` and
+   carries `WWW-Authenticate: Basic realm="Smart-Serve"`.
+3. With correct credentials, the request is served normally — including `GET /api/events`, which
+   streams rather than completing.
+4. `GET /healthz` answers `200 ok` with no credentials at all, with auth enabled.
+5. `GET /metrics` answers `401` without credentials when the exporter is enabled.
+6. A wrong username and a wrong password produce the same 401 with the same body, so the response
+   cannot be used to find out whether a username is right.
+7. Setting only one of the two variables refuses to start, exits non-zero, and names the variable that
+   is missing.
+8. A `SMARTSERVE_AUTH_PASSWORD_FILE` that is missing, unreadable or empty refuses to start.
+9. A cross-site `POST` with *valid* credentials still answers `403`, so the CSRF guard is provably
+   unaffected by this change.
+10. A 401 carries the same security headers as a 200 and appears in the request log at warning level.
+11. A password shorter than 12 characters logs a warning and still works — a nudge, not a refusal.
+
+**Implementation notes.** Small, and deliberately confined to four places:
+
+- `internal/config/config.go` — three fields on `Config` plus a validation function. `Load()` keeps
+  its signature (the new tests in that package depend on it); a separate `Validate`/`AuthConfig` is
+  what `main` calls, so "is it on?" is one place.
+- `cmd/smartserve/main.go` — validate before the store opens, log the warning, pass the credentials
+  into `webui`/`httpapi` `Options`. Failing before anything is opened means a misconfiguration cannot
+  half-start the app.
+- `internal/httpapi/middleware.go` — `basicAuthMiddleware(user, pass string, next http.Handler)
+  http.Handler`, using `crypto/subtle.ConstantTimeCompare` on both halves, with the `/healthz`
+  exemption as a single comparison against `r.URL.Path`.
+- `internal/httpapi/server.go` — one wrap, in the position argued above.
+- Tests beside each: the config pair and the `_FILE` cases in `internal/config`, and the eleven
+  behaviours above in `internal/httpapi/middleware_test.go`, which is where the rest of the shell is
+  already tested.
+
+**Documentation this will require when it lands** (none of it written yet, by design): the
+`SMARTSERVE_*` table and a "Built-in authentication" subsection in `DEPLOYMENT.md` — replacing the
+line there that still calls this a Phase 2 feature; the 401 and the `/healthz` exemption in `API.md`;
+the `README.md` note that currently reads "ships no authentication, by design"; the "not in scope"
+bullet in `SECURITY.md`; and a manual pass in `TESTING.md`. The CHANGELOG entry belongs with the code.
+
+

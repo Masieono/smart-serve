@@ -46,10 +46,6 @@ database daemon.
 
 ## Screenshots
 
-**A device page** — verdict, score, identity, usage, and the trend sparklines.
-
-![The device page for a drive](docs/images/device-page.png)
-
 **Partitions** — a map of the disk above the table of what is on it. The two are linked **both ways**:
 point at a segment and the row it stands for is marked; point at a row and the segment is.
 
@@ -87,9 +83,9 @@ docker run -d \
 > fail identically, which is why they are listed together — see
 > [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) for least-privilege options and USB specifics.
 
-> **Smart-Serve ships no authentication, by design** (`ADR-016`). It expects a reverse
-> proxy to provide it. Publishing port 8080 as above is appropriate on a trusted LAN and
-> nowhere else.
+> **Smart-Serve ships no authentication by default** (`ADR-016`). It expects a reverse proxy to
+> provide it, and publishing port 8080 as above is appropriate on a trusted LAN and nowhere else. An
+> optional built-in single-user login is **specified and not yet built** (`ADR-032`).
 
 Then open `http://<host>:8080` and press **Scan**.
 

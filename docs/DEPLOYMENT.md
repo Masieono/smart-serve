@@ -161,8 +161,13 @@ location /smartserve/ {
 ```
 
 SSE requires `proxy_buffering off` and HTTP/1.1 — noted here because it is the
-most common reverse-proxy misconfiguration. Built-in basic auth is a Phase 2
-feature (`SCOPE.md`).
+most common reverse-proxy misconfiguration.
+
+**A built-in single-user option is specified and not built** (`ADR-032`, `FEATURES.md` C5). It is
+HTTP Basic with one user, configured from two environment variables, and it exists for the deployment
+that has no proxy at all — a homelab box where this is the only thing on the port. Until it lands, the
+pattern above is what ships, and the app has no login of its own. Multi-user accounts and roles are
+out of scope and a reverse proxy is the answer for them (`D23`).
 
 ## Updating an existing install
 
