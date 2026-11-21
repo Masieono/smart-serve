@@ -293,3 +293,44 @@ test('a drive with no measurable filesystem still renders', async () => {
   assert.match(text, /Samsung SSD 870 EVO/);
   assert.doesNotMatch(text, /Storage/, 'a storage row was drawn for a drive with no figure');
 });
+
+// The error log, rendered from a fixture (`FEATURES.md` A20).
+//
+// No drive available to this project has ever logged an error, so the shape comes from smartctl's
+// own documentation rather than a capture, and the parser test carries the same fixture. What this
+// pins is the panel's *decision*: entries with detail get a table, entries without get a sentence,
+// and a drive whose count is zero still says so rather than showing nothing at all.
+test('a drive that has logged errors gets a table, not a bare count', async () => {
+  const device = devicePayload({
+    logs: {
+      error_count: 2,
+      error_entries: [
+        { number: 2, index: 2, hours: 41207, lba: 3214530944, status: 'Uncorrectable error in data' },
+        { number: 1, index: 1, hours: 38914, lba: 1903210021, status: 'UNC error in data' },
+      ],
+    },
+  });
+  const text = textOf(await renderDevice(device));
+
+  assert.match(text, /Drive logs/, 'the panel is missing');
+  assert.match(text, /Error log/, 'the entries have no heading of their own');
+  assert.match(text, /Uncorrectable error in data/, 'the drive\'s own status is not shown');
+  // The "At" column is the drive's own lifetime hours, formatted.
+  assert.match(text, /41,207 h/, 'the entry is not placed in time');
+});
+
+test('error entries with no detail get a sentence rather than empty columns', async () => {
+  const device = devicePayload({
+    logs: { error_count: 1, error_entries: [{ number: 1, index: 1 }] },
+  });
+  const text = textOf(await renderDevice(device));
+
+  assert.match(text, /reports nothing about it beyond which entry it is/);
+  assert.doesNotMatch(text, /Uncorrectable/, 'nothing was reported to show');
+});
+
+test('a drive with no errors still says so', async () => {
+  const device = devicePayload({ logs: { error_count: 0 } });
+  const text = textOf(await renderDevice(device));
+  assert.match(text, /Drive logs/, 'an empty log is an answer, not an absence');
+});

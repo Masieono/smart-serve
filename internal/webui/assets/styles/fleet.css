@@ -1839,3 +1839,19 @@ dialog .btn-primary {
 .pm-advanced .settings-editor {
   margin-top: var(--space-2);
 }
+
+/* Drive logs: the incumbent's summary, given the page's section rhythm rather than a card. */
+.v2-logs {
+  margin-top: var(--space-6);
+}
+
+.v2-logs h3 {
+  margin: 0 0 var(--space-3);
+  font-size: var(--text-md);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.v2-logs .table-wrap {
+  margin-top: var(--space-2);
+}

@@ -470,8 +470,11 @@ Check this order before calling it a finding:
 
 ## Not covered here
 
-- **Error-log entry lists** — no drive here with a readable error log to test against, and the page
-  has no error-log section yet.
+- **Error-log entry lists on real hardware** — the panel is built and the parser is tested against a
+  **fixture** (`internal/smart/testdata/ata-error-log-entries.json`), reconstructed from smartctl's
+  documented shape because no drive here has ever logged an error. Treat the panel as
+  fixture-verified: it renders what that shape says it will, and a drive with real errors is the
+  confirmation still owed.
 - **Which attribute the verdict blamed, seen live** — the marking itself is built and unit-tested on
   both sides (`interp.Penalty.AttributeID`, and `jstest/breakdown.test.mjs` asserting that the table
   marks exactly the blamed rows). What has not been seen is a *real* drive producing such a penalty

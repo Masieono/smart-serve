@@ -1,6 +1,8 @@
 package smart
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -561,5 +563,49 @@ func TestAnUnreadableLogIsNotAnUnsupportedDrive(t *testing.T) {
 	}
 	if !strings.Contains(got.SelfTestLogUnread, "Read Self-test Log failed") {
 		t.Errorf("SelfTestLogUnread = %q, want smartctl's own words", got.SelfTestLogUnread)
+	}
+}
+
+// A drive that *has* logged errors. No drive available to this project has ever produced this
+// section, so the shape below is reconstructed from smartctl's own documentation of
+// `ata_smart_error_log.extended.table` rather than captured. It is a fixture, and `TESTING.md` says
+// so: the renderer is verified against it, and the panel is marked fixture-verified until a drive
+// with real errors confirms the shape.
+func TestErrorLogEntriesAreParsed(t *testing.T) {
+	raw, err := os.ReadFile(filepath.Join("testdata", "ata-error-log-entries.json"))
+	if err != nil {
+		t.Fatalf("read fixture: %v", err)
+	}
+	summary := ParseLogs(raw)
+
+	if summary.ErrorCount == nil || *summary.ErrorCount != 3 {
+		t.Fatalf("ErrorCount = %v, want 3", summary.ErrorCount)
+	}
+	if len(summary.ErrorEntries) != 3 {
+		t.Fatalf("got %d entries, want 3", len(summary.ErrorEntries))
+	}
+
+	first := summary.ErrorEntries[0]
+	if first.Hours == nil || *first.Hours != 41207 {
+		t.Errorf("hours = %v, want 41207", first.Hours)
+	}
+	if first.LBA == nil || *first.LBA != 3214530944 {
+		t.Errorf("lba = %v, want 3214530944", first.LBA)
+	}
+	if first.Status != "Uncorrectable error in data" {
+		t.Errorf("status = %q", first.Status)
+	}
+	if !first.HasDetail() {
+		t.Error("an entry with hours, an LBA and a status has detail and should get a table row")
+	}
+
+	// The sparse entry is the case the old panel was built around: a number and an index and
+	// nothing else, which is what a drive smartctl does not recognise reports.
+	last := summary.ErrorEntries[2]
+	if last.HasDetail() {
+		t.Error("an entry with only a number and an index must not be given table columns it has no values for")
+	}
+	if last.Number == nil || *last.Number != 1 {
+		t.Errorf("number = %v, want 1", last.Number)
 	}
 }

@@ -16,7 +16,7 @@ import { nvmeHelp } from '../attributes.js';
 import {
   TREND_METRICS, seriesFor, trendWindow, setTrendRange, currentTrendRange, trendFrom,
   currentDisplayOptions, nvmeSections, parsePenalties, startFreshness,
-  highlightPartitionRow, highlightSegment, selfTestLogSection,
+  highlightPartitionRow, highlightSegment, selfTestLogSection, logSummary,
 } from './device-parts.js';
 import { selfTestCard } from './selftest.js';
 
@@ -90,6 +90,7 @@ export async function render(content, ctx, serial, opts = {}) {
     trendSection(serial),
     attributeSection(d, payload),
     selfTestSection(ctx, d, serial),
+    logSection(d),
     footer(d),
   ].filter(Boolean));
 
@@ -461,6 +462,21 @@ function selfTestSection(ctx, d, serial) {
     .catch(() => {});
 
   return host;
+}
+
+/**
+ * What the drive has complained about (`FEATURES.md` A20).
+ *
+ * `logSummary` is the incumbent's, and it already draws the two cases this panel is about: a table
+ * when an entry carries hours, an LBA or a status, and one sentence when the drive records that an
+ * error happened but reports nothing beyond which entry it is. An empty drive still gets a line,
+ * because "no errors" is the answer somebody came looking for.
+ */
+function logSection(d) {
+  if (!d.logs) return null;
+  const node = logSummary(d.logs);
+  if (!node) return null;
+  return el('div', { class: 'v2-logs' }, [node]);
 }
 
 function stateOf(d) {
