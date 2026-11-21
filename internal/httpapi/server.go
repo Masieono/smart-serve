@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/masieono/smart-serve/internal/auth"
 	"github.com/masieono/smart-serve/internal/events"
 	"github.com/masieono/smart-serve/internal/notify"
 	"github.com/masieono/smart-serve/internal/scan"
@@ -40,7 +41,13 @@ type Notifier interface {
 type Options struct {
 	BasePath string // subpath hosting, e.g. "/smartserve" (ADR-015)
 	Version  string
-	Logger   *slog.Logger
+	// Auth, when it carries a complete credential, gates the app behind one user (ADR-033). The
+	// zero value leaves the layer off, which is the documented default.
+	Auth auth.Credentials
+	// AuthIdleMinutes reports the idle window from the settings, so the login layer honours the
+	// number the operator set rather than a constant.
+	AuthIdleMinutes func(ctx context.Context) int
+	Logger          *slog.Logger
 	// UI, when set, serves the web interface at every path the API does not
 	// claim (including SPA deep links).
 	UI http.Handler
@@ -120,6 +127,10 @@ type Server struct {
 	// commandTimeoutFn resolves the per-command timeout for the smartctl calls this package
 	// makes directly, so they honour the same setting the scans do.
 	commandTimeoutFn func(ctx context.Context) time.Duration
+
+	// auth is the optional single-user gate (ADR-033). Nil means the layer is off.
+	auth     *authGate
+	basePath string
 }
 
 // commandTimeout returns the per-command timeout for the smartctl calls this package makes.
@@ -152,6 +163,22 @@ func New(st *store.Store, sc *scan.Manager, hub *events.Hub, opts Options) *Serv
 		commandTimeoutFn: opts.CommandTimeout, selfTestCmd: selfTestCmd,
 	}
 
+	s.basePath = strings.TrimRight(opts.BasePath, "/")
+	if opts.Auth.Enabled() {
+		idle := auth.DefaultIdle
+		if opts.AuthIdleMinutes != nil {
+			if mins := opts.AuthIdleMinutes(context.Background()); mins > 0 {
+				idle = time.Duration(mins) * time.Minute
+			}
+		}
+		s.auth = &authGate{
+			creds: opts.Auth,
+			store: auth.New(idle, auth.DefaultMax),
+			idle:  func() time.Duration { return s.auth.store.Idle() },
+			log:   logger,
+		}
+	}
+
 	mux := http.NewServeMux()
 	s.routes(mux)
 	if opts.UI != nil {
@@ -163,6 +190,11 @@ func New(st *store.Store, sc *scan.Manager, hub *events.Hub, opts Options) *Serv
 	h = sameOriginMiddleware(h)
 	if bp := strings.TrimRight(opts.BasePath, "/"); bp != "" {
 		h = http.StripPrefix(bp, h)
+	}
+	// Auth sits inside the security headers (a 401 has to be as constrained as a 200) and outside
+	// the CSRF guard (an unauthenticated request is answered 401 before the origin is considered).
+	if s.authEnabled() {
+		h = s.auth.middleware(h)
 	}
 	// Outermost first: recovery has to catch a panic from any layer below it, the
 	// security headers have to be set before the CSRF guard can reject a request, so
@@ -182,6 +214,14 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) routes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /healthz", s.handleHealthz)
+	// The shell asks this on every load to decide whether to offer a sign-out control, so it answers
+	// with `enabled: false` rather than falling through to the SPA when the layer is off.
+	mux.HandleFunc("GET /api/session", s.handleSessionInfo)
+	if s.authEnabled() {
+		mux.HandleFunc("GET /login", s.handleLogin)
+		mux.HandleFunc("POST /api/session", s.handleLoginPost)
+		mux.HandleFunc("POST /api/logout", s.handleLogout)
+	}
 	// The Prometheus exporter (`FEATURES.md` C6). Outside `/api` because that is where a scraper
 	// looks for it, and behind a setting because enabling it invites someone else's poller.
 	mux.HandleFunc("GET /metrics", s.handleMetrics)

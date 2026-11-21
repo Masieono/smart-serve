@@ -81,6 +81,8 @@ export const api = {
   runSchedule: (id) => request('POST', `/api/schedules/${id}/run`),
 
   channels: () => request('GET', '/api/channels'),
+  // Whether the optional single-user layer is on, and who is asking (ADR-033).
+  session: () => request('GET', '/api/session'),
   createChannel: (c) => request('POST', '/api/channels', c),
   updateChannel: (c) => request('PUT', `/api/channels/${c.id}`, c),
   deleteChannel: (id) => request('DELETE', `/api/channels/${id}`),

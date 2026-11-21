@@ -193,6 +193,7 @@ const DEFAULTS = {
   selftest_poll_seconds: '15',
   device_refresh_minutes: '15',
   public_url: '',
+  auth_idle_minutes: '30',
   prometheus_enabled: 'false',
   knowledge_url: '',
   temperature_unit: 'c',
@@ -317,6 +318,14 @@ function draw(container, ctx, data, page, { carried = {}, unit: unitOverride } =
     placeholder: 'https://nas.example.lan:8080',
     value: settings.public_url || '',
     'aria-label': 'Public URL',
+  });
+
+  // How long a browser session survives without activity (ADR-033). It sits on the Data page with
+  // the other "how this deployment is served" controls; the credential itself is environment-only.
+  const authIdle = el('input', {
+    type: 'number', min: '1', max: '1440', step: '1',
+    value: settings.auth_idle_minutes || '30',
+    'aria-label': 'Sign-in idle timeout in minutes',
   });
 
   const unit = el('select', {}, [
@@ -487,6 +496,7 @@ function draw(container, ctx, data, page, { carried = {}, unit: unitOverride } =
         return {
           knowledge_url: knowledgeUrl.value.trim(),
           prometheus_enabled: prometheus.checked ? 'true' : 'false',
+          auth_idle_minutes: authIdle.value.trim() || '30',
         };
     }
   }

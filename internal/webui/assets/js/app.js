@@ -129,6 +129,7 @@ async function route({ keepScroll = false } = {}) {
   // one sets it again on the way in.
   navGuard = null;
   renderSidebar(path);
+  renderSignOut();
   // A navigation starts at the top; a re-render keeps the reader where they were. Nothing else does
   // this, see `scrollToTop`, and the shell comment in `UI.md` §2.
   if (!keepScroll) scrollToTop();
@@ -156,6 +157,31 @@ async function route({ keepScroll = false } = {}) {
   } finally {
     if (release) release();
   }
+}
+
+/**
+ * A sign-out control, but only where there is something to sign out of.
+ *
+ * The layer is off unless the operator sets a username and password, so the link exists only when
+ * the app is actually gated: a "Sign out" button on an open app would be a lie about its state.
+ */
+async function renderSignOut() {
+  const side = document.querySelector('.sidebar');
+  if (!side || side.querySelector('.nav-signout')) return;
+  let info;
+  try {
+    info = await api.session();
+  } catch {
+    return;
+  }
+  if (!info || !info.enabled) return;
+
+  // A form POST, not a fetch: the server answers with a redirect to the login page, so the browser
+  // lands somewhere sensible with no JavaScript involved if this handler never runs.
+  const form = el('form', { class: 'nav-signout', method: 'post', action: appPath('/api/logout') }, [
+    el('button', { class: 'nav-item', type: 'submit', text: 'Sign out' }),
+  ]);
+  side.append(form);
 }
 
 function renderSidebar(path) {

@@ -15,6 +15,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/masieono/smart-serve/internal/auth"
 	"github.com/masieono/smart-serve/internal/config"
 	"github.com/masieono/smart-serve/internal/events"
 	"github.com/masieono/smart-serve/internal/httpapi"
@@ -89,6 +90,12 @@ func runScan() error {
 func runServe() error {
 	cfg := config.Load()
 	cfg.Version = version
+	if cfg.AuthIssue != "" {
+		// Refusing is the point: the alternative reading of a half-set pair is "run without a
+		// password", and nobody means to do that.
+		fmt.Fprintf(os.Stderr, "smart-serve: %s\n", cfg.AuthIssue)
+		os.Exit(1)
+	}
 
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
 		Level: logLevel(cfg.LogLevel),
@@ -232,6 +239,19 @@ func runServe() error {
 		// The self-test endpoints call smartctl directly, so they resolve the same timeout the
 		// scans do rather than falling back to the default and ignoring the setting.
 		CommandTimeout: scanner.CommandTimeout,
+		// Optional single-user auth (ADR-033): off unless both variables are set.
+		Auth: auth.Credentials{User: cfg.AuthUser, Password: cfg.AuthPassword},
+		AuthIdleMinutes: func(ctx context.Context) int {
+			settings, err := st.GetSettings(ctx)
+			if err != nil {
+				return 0
+			}
+			n, cerr := strconv.Atoi(strings.TrimSpace(settings["auth_idle_minutes"]))
+			if cerr != nil || n <= 0 {
+				return 0
+			}
+			return n
+		},
 	})
 
 	srv := &http.Server{

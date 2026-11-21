@@ -1,6 +1,8 @@
 package config
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 )
@@ -126,5 +128,76 @@ func TestCommandTimeoutParsing(t *testing.T) {
 		if got := Load().CommandTimeout; got != tc.want {
 			t.Errorf("SMARTSERVE_COMMAND_TIMEOUT=%q gave %v, want %v", tc.in, got, tc.want)
 		}
+	}
+}
+
+func TestAuthIsOffWithNoEnvironment(t *testing.T) {
+	t.Setenv("SMARTSERVE_AUTH_USER", "")
+	t.Setenv("SMARTSERVE_AUTH_PASSWORD", "")
+	t.Setenv("SMARTSERVE_AUTH_PASSWORD_FILE", "")
+
+	c := Load()
+	if c.AuthUser != "" || c.AuthPassword != "" {
+		t.Fatalf("auth should be unconfigured, got user=%q", c.AuthUser)
+	}
+	if c.AuthIssue != "" {
+		t.Fatalf("no environment is not an error: %q", c.AuthIssue)
+	}
+}
+
+func TestHalfACredentialIsAnIssue(t *testing.T) {
+	t.Setenv("SMARTSERVE_AUTH_PASSWORD_FILE", "")
+	t.Setenv("SMARTSERVE_AUTH_PASSWORD", "")
+	t.Setenv("SMARTSERVE_AUTH_USER", "admin")
+	if c := Load(); c.AuthIssue == "" {
+		t.Error("a username with no password must be refused, not read as 'off'")
+	}
+
+	t.Setenv("SMARTSERVE_AUTH_USER", "")
+	t.Setenv("SMARTSERVE_AUTH_PASSWORD", "s3cret")
+	if c := Load(); c.AuthIssue == "" {
+		t.Error("a password with no username must be refused")
+	}
+}
+
+func TestPasswordFileIsReadAndTrimmedOfOneNewline(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "password")
+	if err := os.WriteFile(path, []byte("correct horse\n"), 0o600); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	t.Setenv("SMARTSERVE_AUTH_USER", "admin")
+	t.Setenv("SMARTSERVE_AUTH_PASSWORD", "")
+	t.Setenv("SMARTSERVE_AUTH_PASSWORD_FILE", path)
+
+	c := Load()
+	if c.AuthIssue != "" {
+		t.Fatalf("unexpected issue: %s", c.AuthIssue)
+	}
+	if c.AuthPassword != "correct horse" {
+		t.Errorf("password = %q, want the file's contents without the trailing newline", c.AuthPassword)
+	}
+}
+
+func TestInlinePasswordWinsOverTheFile(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "password")
+	if err := os.WriteFile(path, []byte("from-file\n"), 0o600); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	t.Setenv("SMARTSERVE_AUTH_USER", "admin")
+	t.Setenv("SMARTSERVE_AUTH_PASSWORD", "from-env")
+	t.Setenv("SMARTSERVE_AUTH_PASSWORD_FILE", path)
+
+	if c := Load(); c.AuthPassword != "from-env" {
+		t.Errorf("password = %q, want the inline value", c.AuthPassword)
+	}
+}
+
+func TestMissingPasswordFileIsAnIssue(t *testing.T) {
+	t.Setenv("SMARTSERVE_AUTH_USER", "admin")
+	t.Setenv("SMARTSERVE_AUTH_PASSWORD", "")
+	t.Setenv("SMARTSERVE_AUTH_PASSWORD_FILE", filepath.Join(t.TempDir(), "nope"))
+
+	if c := Load(); c.AuthIssue == "" {
+		t.Error("an unreadable password file must be refused, not treated as no password")
 	}
 }
