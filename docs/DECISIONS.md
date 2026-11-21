@@ -1380,9 +1380,10 @@ point of the document.
 
 ## ADR-033: Optional single-user basic auth — one operator, two variables, no accounts
 
-**Status: decided, not built.** This ADR is the specification. Nothing in this document is
-implemented; `DEPLOYMENT.md`, `README.md` and `SECURITY.md` still describe an app with no
-authentication, and they should keep saying so until this lands.
+**Status: built.** The design below is what shipped, with one change made during implementation and
+recorded in place: the layer keeps Basic for scripts but authenticates a *browser* with a session
+cookie, because Basic cannot log out. `internal/auth` holds the credential match and the session
+store, `internal/httpapi/auth.go` the gate and the login form.
 
 **Context.** `ADR-016` decided that the app ships no authentication, on the reasoning that the owner
 runs Nginx and that access control belongs to the proxy. That reasoning holds for a *proxied*
@@ -1423,16 +1424,23 @@ is that there is no account: the credentials *are* the configuration. Two `docke
 lines of compose, or two Docker secrets. There is nothing to store, nothing to migrate, nothing to
 reset, and nothing in the database that a config export could carry.
 
-**Why basic auth rather than a login form and a session cookie.** This is the decision most likely to
-be revisited, so the reasoning is recorded rather than implied.
+**Why Basic *and* a session, rather than one or the other.** The first draft of this ADR chose Basic
+alone, and the cost of that turned out to be the feature the operator actually asked for: a browser
+keeps replaying a Basic credential until it closes, so "log out" is "close the browser", and there is
+no way to end a session that was left open. The layer therefore does both, each for what it is good
+at.
 
-- **No session state at all.** A cookie session needs either a table (a migration, expiry, and a
-  "logged out" state to clean up) or an in-memory store (every restart logs everyone out, which on a
-  box that reboots for kernel updates is worse than no session). Basic auth has neither: the
-  credential is presented per request and checked in constant time.
-- **It works for the things that are not a browser.** `curl`, a Prometheus scrape and a script can all
-  send `-u user:pass`. A cookie session means every one of them needs a login round-trip first, which
-  is a client library rather than a flag.
+- **A browser gets a session cookie.** `POST /api/session` checks the credential, issues a token and
+  sets an HttpOnly, SameSite=Strict cookie; `POST /api/logout` revokes the token server-side, so a
+  copied cookie stops working rather than merely disappearing from one browser. Sessions live **in
+  memory**: no table, no migration, and a restart logs everyone out, which is the right trade on a
+  single-operator box because nothing is left on disk to leak.
+- **Everything else keeps Basic.** `curl`, a Prometheus scrape and a script send `-u user:pass` and
+  never see a login page. This is not a compatibility shim: it is why the layer can be switched on in
+  a homelab without breaking the scraper, the backup script or the healthcheck.
+- **Two bounds, one of them a setting.** An **idle window** (`auth_idle_minutes`, default 30) is what
+  "auto-logout after a period of inactivity" means, and an **absolute cap** of 24 hours bounds a tab
+  left open, which never goes idle long enough to expire on its own.
 - **It is what the proxy already speaks.** An operator who outgrows this moves to nginx `auth_basic` —
   the same mechanism, the same htpasswd file, one layer out. Nothing about their mental model changes.
 - **A login form is a UI, and this app's UI is deliberate about what it adds.** A form means a route
@@ -1440,8 +1448,10 @@ be revisited, so the reasoning is recorded rather than implied.
   wrong password, and a logout button that has to go somewhere. That is a feature, not a security
   layer.
 
-The cost is real and is recorded below rather than hidden: **there is no logout**, and the browser
-keeps sending the credential until it closes.
+The costs that remain are recorded rather than hidden: the login form is the one page outside the
+SPA shell (a self-contained HTML document, so it works before any JavaScript has run), there is no
+lockout after repeated failures, and Basic is still base64 rather than encryption, so this protects a
+trusted LAN and not an internet-facing port.
 
 **Where it sits in the chain.** `server.go` builds its middleware outside-in, and the auth layer goes
 **inside `StripPrefix` and outside `sameOriginMiddleware`**:
@@ -1500,10 +1510,9 @@ log → recover → securityHeaders → StripPrefix(basePath) → auth → sameO
 
 **Alternatives.**
 
-- **A login form with a signed session cookie** — deferred, not rejected. It buys a logout button and
-  hides the credential from the URL bar; it costs session state, a logout endpoint, and a decision
-  about where sessions live. Revisit if the logout gap turns out to matter more than it reads like it
-  will.
+- **Session state in SQLite instead of memory** — rejected for now: it survives a restart, which
+  nobody asked for, and it puts a token table on disk for the sake of a convenience. Revisit if a
+  restart ever becomes frequent enough for "log in again after every update" to annoy.
 - **A bcrypt hash instead of a plaintext password** (`SMARTSERVE_AUTH_PASSWORD_HASH`) — deferred, not
   rejected. It protects the *user's* password if the configuration leaks, which matters because people
   reuse passwords across a NAS, its admin UI and this. It costs `golang.org/x/crypto` in a module tree
@@ -1526,9 +1535,9 @@ visible, and the CSRF guard already covers the hole basic auth is famous for. (+
 constant-time comparison per request, no timers, no background anything, so the invariant in
 `DESIGN.md` §2.1 is untouched. (−) a plaintext secret in the environment is visible to `docker
 inspect`, which is why the `_FILE` form is the documented one and Docker secrets are the recommended
-deployment. (−) no logout, no lockout, no TLS — three limitations that are fine for the deployment
-this is for and are wrong for an internet-facing one, and `DEPLOYMENT.md` will have to say so where
-someone will read it. (±) `ADR-016` is narrowed rather than contradicted: it remains the answer for
+deployment. (−) no lockout and no TLS, and Basic is an encoding rather than encryption, so this is
+right for a trusted LAN and wrong for an internet-facing port; `DEPLOYMENT.md` says so where someone
+will read it. (±) `ADR-016` is narrowed rather than contradicted: it remains the answer for
 multi-user, and this is the one exception.
 
 **Acceptance criteria.** Each of these is a test, and the list is the definition of done:
@@ -1567,11 +1576,14 @@ multi-user, and this is the one exception.
   behaviours above in `internal/httpapi/middleware_test.go`, which is where the rest of the shell is
   already tested.
 
-**Documentation this will require when it lands** (none of it written yet, by design): the
-`SMARTSERVE_*` table and a "Built-in authentication" subsection in `DEPLOYMENT.md` — replacing the
-line there that still calls this a Phase 2 feature; the 401 and the `/healthz` exemption in `API.md`;
-the `README.md` note that currently reads "ships no authentication, by design"; the "not in scope"
-bullet in `SECURITY.md`; and a manual pass in `TESTING.md`. The CHANGELOG entry belongs with the code.
+**Acceptance criteria** (all built, all covered by `internal/auth` and `internal/httpapi/auth_test.go`
+unless noted): off unless both variables are set; a half-set pair refuses to start; the password may
+come from a file; the credential is compared in constant time on both halves; `/healthz` and static
+assets stay open; a browser without a session is redirected to the login page, an API call gets 401
+with a challenge; Basic is accepted everywhere; the login form issues an HttpOnly, SameSite=Strict
+cookie; logout revokes the token server-side; the idle window is honoured and is a setting; the
+absolute cap ends a session that never goes idle; `next` cannot point off-site. The manual pass for
+all of this is `TESTING.md` Pass 7.
 
 
 

@@ -202,13 +202,11 @@ part is not the translations but extracting every string and keeping every local
 work is only worth doing for a translator who will maintain the result (`ADR-023`).
 
 
-## Specified, not built
+## Built since the roadmap closed
 
-Written down so it can be implemented without re-deciding anything, and deliberately not started:
-
-- **Optional single-user basic auth** (`FEATURES.md` C5, `ADR-033`) — two environment variables, one
-  user, off unless both are set. No accounts, no sessions, no migration. The ADR carries the design,
-  the alternatives, where the middleware sits and eleven acceptance criteria.
+- **Optional single-user auth** (`FEATURES.md` C5, `ADR-033`) was specified here and is now built: one
+  user from the environment, a sign-in page with a logout and an idle timeout for browsers, Basic kept
+  for scripts and scrapers. Multi-user accounts and roles remain out of scope (`D23`).
 
 ## Phase 3 — backlog (nice-to-have, no commitments)
 

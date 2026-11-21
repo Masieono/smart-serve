@@ -30,7 +30,7 @@ is listed for a decision before implementation begins.
 | D3 (was Q4) | `device_appeared` is **opt-in per channel** (default priority `low`). | `NOTIFICATIONS.md` |
 | D4 (was Q5) | RAID-controller pass-through stays **out of scope**. | `SCOPE.md` non-goals |
 | D5 (was Q6) | **No default schedule** on first run; the user creates schedules explicitly. | `SCOPE.md`, `DATA_MODEL.md` |
-| D6 (was Q7) | **Authentication** — off by default. Optional **single-user basic auth** is specified and not built (`ADR-033`); multi-user accounts and roles remain out of scope, where a reverse proxy is the answer. | `ADR-016`, `ADR-033`, `DEPLOYMENT.md` |
+| D6 (was Q7) | **Authentication** — off by default. Optional **single-user basic auth** is built (`ADR-033`); multi-user accounts and roles remain out of scope, where a reverse proxy is the answer. | `ADR-016`, `ADR-033`, `DEPLOYMENT.md` |
 | D7 (was Q8) | **180-day** snapshot retention default. | `DATA_MODEL.md` |
 | D8 | **No hot-plug watcher** confirmed — on-demand/scheduled scans are the freshness mechanism. | `ADR-007` |
 | D9 | **Go stack accepted** on the strength of the idle-cost analysis; implementation risks and mitigations are documented. | `ADR-001`, `ADR-010` |
@@ -57,7 +57,7 @@ is listed for a decision before implementation begins.
 | D25 (was C19) | **Base path** — default `/`; `SMARTSERVE_BASE_PATH` for subpath hosting. | `ADR-015` |
 | D26 | **The NAS fleet tier** — accepted after a review of the fleet use case: dense fleet table (`D8`), grouping by tag (`D9`), bay/slot field (`D10`), import/export of labels & notes promoted to P2 (`C7`), projection window follows retention (`A26`), "replace first" ranking (`A24`), fleet-wide export (`A23`), warranty/RMA evidence pack (`A27`), testing session (`D11`), and correlated-change detection (`A25`, P3). Batch self-test **tabled**. | `SCOPE.md` Phase 2.5, `FEATURES.md` §A23–A27 / C7 / D8–D11 / §H, `ADR-018` |
 | D27 | **Working order** — documentation → implementation → UI spot-cleaning, for every batch. | `FEATURES.md` §I, `SCOPE.md` "UI consolidation passes", `ADR-019` |
-| D28 | **Optional single-user auth** — HTTP Basic, one user, configured from the environment, **off unless both variables are set**. No accounts, no sessions, no migration; the Settings UI cannot enable it; `/healthz` stays exempt so the image never carries a secret. Multi-user and roles remain out of scope. **Specified, not built.** | `ADR-033`, `FEATURES.md` C5, `SCOPE.md` |
+| D28 | **Optional single-user auth** — HTTP Basic, one user, configured from the environment, **off unless both variables are set**. No accounts, no sessions, no migration; the Settings UI cannot enable it; `/healthz` stays exempt so the image never carries a secret. Multi-user and roles remain out of scope. **Built.** | `ADR-033`, `FEATURES.md` C5, `SCOPE.md` |
 
 ## 4. Considerations — status
 

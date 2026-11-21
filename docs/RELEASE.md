@@ -84,10 +84,9 @@ migrations (`0015`–`0017`); no schema rewrite, so the v1.1.0 rollback note sti
 
 - **`D7` localization.** Unchanged from v1.1.0: deferred, not dropped, and still waiting on a
   translator who will maintain the result (`ADR-023`, `SCOPE.md`).
-- **Optional single-user auth is specified and not built.** `ADR-033` carries the design, the
-  alternatives, where the middleware sits and eleven acceptance criteria; `FEATURES.md` C5,
-  `SCOPE.md` and `REQUIREMENTS.md` D28 carry the status. Nothing of it ships here, so the app still
-  has no login of its own and the reverse-proxy pattern in `DEPLOYMENT.md` is the whole answer.
+- **Optional single-user auth is built** (`ADR-033`): one user from the environment, a sign-in page
+  with a logout and a configurable idle timeout for browsers, and Basic kept for `curl`, Prometheus
+  and scripts. Off unless both halves of the credential are set. No lockout, and no TLS of its own.
 - **Error-log entry *lists* are still not rendered.** Unchanged, and still blocked on the same thing —
   smartctl emits no entry list for an empty log, and no drive available to this project has ever logged
   an error, so the populated shape has never been observed (`FEATURES.md` A20).

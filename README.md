@@ -82,9 +82,11 @@ docker run -d \
 > fail identically, which is why they are listed together — see
 > [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) for least-privilege options and USB specifics.
 
-> **Smart-Serve ships no authentication by default** (`ADR-016`). It expects a reverse proxy to
-> provide it, and publishing port 8080 as above is appropriate on a trusted LAN and nowhere else. An
-> optional built-in single-user login is **specified and not yet built** (`ADR-032`).
+> **Smart-Serve ships no authentication by default** (`ADR-016`). Publishing port 8080 as above is
+> appropriate on a trusted LAN and nowhere else. An **optional single-user login** is built
+> (`ADR-033`): set `SMARTSERVE_AUTH_USER` and `SMARTSERVE_AUTH_PASSWORD_FILE`, and the app asks for a
+> password before it draws anything. It is one user, with no accounts and no roles; more than one
+> person still means a reverse proxy.
 
 Then open `http://<host>:8080` and press **Scan**.
 
