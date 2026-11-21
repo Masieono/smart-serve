@@ -472,8 +472,10 @@ Check this order before calling it a finding:
 
 - **Error-log entry lists** — no drive here with a readable error log to test against, and the page
   has no error-log section yet.
-- **Which attribute the verdict blamed** — no drive here produces a penalty that names one, so the
-  marking is untested.
+- **Which attribute the verdict blamed, seen live** — the marking itself is built and unit-tested on
+  both sides (`interp.Penalty.AttributeID`, and `jstest/breakdown.test.mjs` asserting that the table
+  marks exactly the blamed rows). What has not been seen is a *real* drive producing such a penalty
+  on screen; every drive available here reports zero sector counts.
 - **RAID, LVM and ZFS member naming** — no hardware to test against. A drive with no readable table
   gets one generic note.
 
