@@ -13,6 +13,18 @@ walked on every scan for two strings; the score breakdown was computed on every 
 the list of what is deliberately *not* captured, each with its reason — discarding is allowed,
 discarding silently is not. See `ADR-028`.
 
+### Added
+
+- **Optional single-user sign-in** (`ADR-033`). Off unless `SMARTSERVE_AUTH_USER` and a password are
+  set. A browser gets a sign-in page, a session cookie, a **Sign out** control and a configurable idle
+  timeout (default 30 minutes, capped at 24 hours); `curl`, Prometheus and scripts keep sending HTTP
+  Basic, so switching it on does not break anything that talks to the app without a browser. Sessions
+  live in memory, so a restart signs everyone out. A half-set credential refuses to start rather than
+  running unauthenticated.
+- **Per-model thresholds are a table.** One row per model in the fleet, one column per threshold; an
+  empty cell inherits the value set above it and shows that value greyed, so the table reads as the
+  effective configuration. The JSON stays behind **Advanced** for keys a column does not cover.
+
 ### Changed
 
 - **The interface is one design, rebuilt.** The fleet is a table with one row per drive and the

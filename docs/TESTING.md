@@ -438,6 +438,26 @@ published tag takes about four minutes and is worth doing if the release needs t
 | 7.8 | Open an unknown path (`/nonsense`). | The fleet, not a blank page |
 | 7.9 | Scroll to the bottom of a drive page and click the wordmark. | The fleet opens at the top |
 
+## Pass 9 — sign-in (optional layer, `ADR-033`)
+
+Off unless `SMARTSERVE_AUTH_USER` and a password are set; with neither, nothing in this pass applies
+and the app has no login at all. Restart the container between steps that change the environment.
+
+| # | Do | Expect |
+|---|---|---|
+| 9.1 | With neither variable set, open the app and the sidebar. | No login page, no **Sign out**, and `GET /api/session` answers `{"enabled":false}` |
+| 9.2 | Set only `SMARTSERVE_AUTH_USER` and start the container. | It **refuses to start** and names the missing password variable |
+| 9.3 | Set both, then open `/`. | The sign-in page, not the app: username, password, **Sign in** |
+| 9.4 | Enter the wrong password. | The same sign-in page with one vague message; nothing says which half was wrong |
+| 9.5 | Sign in correctly. | The page you asked for opens (`next` is honoured), and the sidebar gains **Sign out** |
+| 9.6 | Reload, and open a second tab. | Still signed in, so the session is a cookie and not per-page state |
+| 9.7 | Click **Sign out**, then press Back. | The sign-in page: the token is revoked server-side, so a copied cookie is dead too |
+| 9.8 | `curl -u user:pass http://host:port/api/devices`. | `200` with the JSON — Basic works without any session |
+| 9.9 | `curl http://host:port/api/devices` (no credential). | `401` with `WWW-Authenticate: Basic` and `{"error":"authentication required"}` |
+| 9.10 | `curl http://host:port/healthz` and scrape `/metrics` with Basic. | Both answer without a session: a probe cannot sign in, and the scraper sends the credential |
+| 9.11 | Set **Settings → Data → Sign-in → Idle timeout** to 1, save, sign in and wait two minutes. | The next page load returns to the sign-in page |
+| 9.12 | Set `SMARTSERVE_AUTH_PASSWORD_FILE` to a file holding the password, remove the inline variable, restart. | Sign-in works with the file's contents (one trailing newline is not part of the password) |
+
 ## When something is missing
 
 Check this order before calling it a finding:

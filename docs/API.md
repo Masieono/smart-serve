@@ -1,7 +1,8 @@
 # Smart-Serve — Internal API Specification
 
-All endpoints JSON unless noted. Unauthenticated at MVP (see SECURITY notes in
-`DESIGN.md` §7). Paths are relative to `SMARTSERVE_BASE_PATH` (default `/`,
+All endpoints JSON unless noted. **Authentication is optional and off by default** (`ADR-033`): when
+`SMARTSERVE_AUTH_USER` and a password are set, every endpoint except `/healthz` requires either a
+session cookie or HTTP Basic. Paths are relative to `SMARTSERVE_BASE_PATH` (default `/`,
 `ADR-015`). State-changing requests (POST/PUT/DELETE) require a same-origin/CSRF
 check. Error envelope: `{ "error": "message" }` with an appropriate HTTP status.
 A `500` never carries the underlying error: the API answers with a reference
@@ -329,6 +330,31 @@ stored record. Unset fields are `null`, not omitted — full replace semantics.
 `bay` is free text: where the drive physically is. It is user metadata rather than
 something read from the drive, so it survives an unplug, and it is what the dashboard
 card leads with when it is set (`FEATURES.md` D10).
+
+## Authentication (optional, `ADR-033`)
+
+Off unless both `SMARTSERVE_AUTH_USER` and a password are set. One user, no accounts, no roles.
+
+Two ways to present that one credential, and a client may use either:
+
+- **HTTP Basic** on any request: `curl -u user:pass …`. This is what scripts, scrapers and
+  healthchecks use. It has no session and no logout: each request carries the credential.
+- **A session cookie** for a browser: `POST /api/session` sets an `HttpOnly`, `SameSite=Strict`
+  cookie, and `POST /api/logout` revokes the token server-side. The idle window is
+  `auth_idle_minutes` (default 30); an absolute cap of 24 hours ends a session however active.
+
+| Endpoint | Auth | Purpose |
+|---|---|---|
+| `GET /login` | exempt | the sign-in form (self-contained HTML, no JavaScript required) |
+| `POST /api/session` | exempt | form fields `user`, `password`, `next`; sets the cookie and redirects to `next` (same-site only) |
+| `POST /api/logout` | session | revokes the token, clears the cookie, redirects to `/login` |
+| `GET /api/session` | session | `{ "enabled": bool, "authenticated": bool }`; answers when the layer is off |
+
+Unauthenticated failures depend on what asked: an API request gets `401` with
+`WWW-Authenticate: Basic realm="Smart-Serve"` and `{"error":"authentication required"}`; a page
+request gets `303` to `/login?next=…`. `/healthz`, `/icon.svg` and `/styles/`, `/js/` are exempt so a
+container probe and the login page itself work without a session. `/metrics` is **not** exempt:
+Prometheus is expected to send Basic, which keeps the fleet's health off an open port.
 
 ## Prometheus metrics
 
