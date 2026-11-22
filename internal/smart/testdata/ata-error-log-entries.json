@@ -1,0 +1,35 @@
+{
+  "json_format_version": [1, 0],
+  "smartctl": { "version": [7, 5], "svn_revision": "5714", "exit_status": 0 },
+  "device": { "name": "/dev/sdb", "info_name": "/dev/sdb [SAT]", "type": "sat", "protocol": "ATA" },
+  "model_name": "WDC WD20EURX-64HYZY0",
+  "serial_number": "WD-WCC4E0TS7P3C",
+  "smart_status": { "passed": true },
+  "ata_smart_error_log": {
+    "extended": {
+      "revision": 1,
+      "sectors": 2,
+      "count": 3,
+      "table": [
+        {
+          "error_number": 3,
+          "log_index": 3,
+          "lifetime_hours": 41207,
+          "lba": 3214530944,
+          "status": { "value": 285217089, "string": "Uncorrectable error in data" }
+        },
+        {
+          "error_number": 2,
+          "log_index": 2,
+          "lifetime_hours": 38914,
+          "lba": 1903210021,
+          "status": { "value": 285212706, "string": "UNC error in data" }
+        },
+        {
+          "error_number": 1,
+          "log_index": 1
+        }
+      ]
+    }
+  }
+}

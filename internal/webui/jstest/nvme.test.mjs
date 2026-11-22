@@ -1,6 +1,6 @@
 // The NVMe health log.
 //
-// Sixteen counters in a flat list read as a wall — health, lifetime, workload and error
+// Sixteen counters in a flat list read as a wall, health, lifetime, workload and error
 // figures all look alike at a glance. The grouping is the fix, so the grouping is what
 // this pins.
 
@@ -10,7 +10,7 @@ import { installStubDom, StubNode } from './stub-dom.mjs';
 
 installStubDom();
 
-const { nvmeTable } = await import('../assets/js/views/device.js');
+const { nvmeTable } = await import('../assets/js/views/device-parts.js');
 
 /** Every string in a subtree, in document order. */
 function textOf(node) {

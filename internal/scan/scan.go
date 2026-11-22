@@ -93,7 +93,7 @@ func preScanSerial(d smart.Discovered) string {
 //
 // `path` is the drive's last-seen device node. It is the fallback for a drive whose
 // bridge reports a different serial to lsblk than the drive reports to smartctl, and
-// the result is only accepted if its identity matches — the node may now belong to a
+// the result is only accepted if its identity matches, the node may now belong to a
 // different drive, and reading the wrong disk would be worse than reporting that the
 // original is gone.
 func (s *Scanner) RunDevice(ctx context.Context, serial, path string) (Device, error) {
@@ -126,8 +126,8 @@ func (s *Scanner) RunDevice(ctx context.Context, serial, path string) (Device, e
 
 // CommandTimeout reports the per-command timeout in force, for callers outside a scan.
 //
-// The API makes smartctl calls of its own — reading a self-test log for progress, and starting
-// or aborting a test — and they should honour the same `SMARTSERVE_COMMAND_TIMEOUT` the scans
+// The API makes smartctl calls of its own, reading a self-test log for progress, and starting
+// or aborting a test, and they should honour the same `SMARTSERVE_COMMAND_TIMEOUT` the scans
 // do. Exposing the resolution rather than repeating it means the two cannot drift apart.
 func (s *Scanner) CommandTimeout(ctx context.Context) time.Duration {
 	t, _ := s.resolve(ctx)

@@ -16,7 +16,7 @@ import (
 // fakeCommands stands in for smartctl on the three self-test paths. It records what the
 // endpoint asked for, because half of what these tests are for is the *arguments*: the
 // device path, the transport override, the test kind, and the timeout the setting resolves
-// to. The command itself is not what is under test — the endpoint's decisions are.
+// to. The command itself is not what is under test, the endpoint's decisions are.
 type fakeCommands struct {
 	readFn  func() (smart.Result, error)
 	startFn func() (smart.Result, error)
@@ -90,7 +90,7 @@ func TestSelfTestStatusIsReadLive(t *testing.T) {
 		t.Fatalf("status = %d, want 200: %s", rec.Code, rec.Body.String())
 	}
 	if cmds.readCalls != 1 {
-		t.Errorf("read calls = %d, want 1 — the status must not come from the snapshot", cmds.readCalls)
+		t.Errorf("read calls = %d, want 1, the status must not come from the snapshot", cmds.readCalls)
 	}
 	if cmds.lastPath != "/dev/sda" {
 		t.Errorf("read path = %q, want the drive's own node", cmds.lastPath)

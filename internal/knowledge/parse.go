@@ -12,7 +12,7 @@ import (
 // FormatVersion is the only document version this build reads.
 //
 // Checked on load rather than assumed, so a file written for a later version is refused instead of
-// half-understood — an entry whose meaning changed is worse than a missing one.
+// half-understood, an entry whose meaning changed is worse than a missing one.
 const FormatVersion = 1
 
 // minFamilyLength is the shortest family string that can match.
@@ -25,7 +25,7 @@ const minFamilyLength = 5
 // Parse reads a knowledge document, refusing anything it cannot use.
 //
 // Strict rather than tolerant, and the source is why: this file arrives from a URL or a text box, and
-// an entry silently dropped for a typo looks *exactly* like the app not knowing a drive — which is
+// an entry silently dropped for a typo looks *exactly* like the app not knowing a drive, which is
 // the one failure a knowledge base cannot afford, because it is indistinguishable from having no data
 // at all. Unknown fields are refused for the same reason: a misspelled key is a typo, and ignoring it
 // produces an entry that looks fine and says less than its author meant.
@@ -79,7 +79,7 @@ func (b Base) Validate() error {
 
 		if e.RatedTBW == nil && len(e.RatedTBWByCapacityGB) == 0 &&
 			e.RatedWorkloadTBPerYear == nil && len(e.Advisories) == 0 {
-			return fmt.Errorf("%s (%s): nothing to say — add a rating or an advisory", where, family)
+			return fmt.Errorf("%s (%s): nothing to say, add a rating or an advisory", where, family)
 		}
 		if e.RatedTBW != nil && *e.RatedTBW <= 0 {
 			return fmt.Errorf("%s (%s): rated_tbw must be positive", where, family)

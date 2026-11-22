@@ -15,7 +15,7 @@ import (
 // handleMetrics serves the Prometheus exposition format (`FEATURES.md` C6).
 //
 // **Off unless the operator turns it on.** The idle-cost argument is not that this handler is
-// expensive — it does no work of its own and runs no timer — but that enabling it invites *someone
+// expensive, it does no work of its own and runs no timer, but that enabling it invites *someone
 // else's* scraper to poll this app on a schedule, and that is the operator's decision rather than a
 // default (`ADR-023`). A disabled endpoint answers **404, not 403**: the honest answer to "is this
 // feature on?" is "it is not here", and a 403 would advertise an endpoint the operator did not
@@ -23,7 +23,7 @@ import (
 //
 // The format is written by hand rather than with `prometheus/client_golang`. The exposition format
 // is four rules and a handful of escaping, this is six metrics, and the library would multiply a
-// dependency tree that currently holds exactly one module — which is a feature of this project, not
+// dependency tree that currently holds exactly one module, which is a feature of this project, not
 // an accident (`ADR-020`).
 func (s *Server) handleMetrics(w http.ResponseWriter, r *http.Request) {
 	settings, err := s.store.GetSettings(r.Context())
@@ -42,7 +42,7 @@ func (s *Server) handleMetrics(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// The same three derived queries the dashboard makes, and for the same reason: a scrape should
-	// see what the screen sees. Each is best-effort — a missing figure drops a series rather than
+	// see what the screen sees. Each is best-effort, a missing figure drops a series rather than
 	// failing the whole scrape, which is exactly what Prometheus wants for "no measurement".
 	facts, ferr := s.store.LatestSnapshotFacts(r.Context())
 	if ferr != nil {
@@ -75,7 +75,7 @@ type metricSample struct {
 }
 
 // add appends a sample. Empty label values are dropped rather than rendered, because the exposition
-// format treats an empty value as equivalent to an absent label — and `bay=""` on every drive would
+// format treats an empty value as equivalent to an absent label, and `bay=""` on every drive would
 // be noise in a scrape diff.
 func (f *metricFamily) add(labels map[string]string, value string) {
 	kept := map[string]string{}
@@ -132,7 +132,7 @@ func escapeLabelValue(v string) string {
 // Two decisions are visible in the shape of this. **Descriptive labels live in one `_info` metric**,
 // with the numeric series keyed by serial alone: a model, a bay and a tag set are constants per
 // drive, and repeating them across five metrics would multiply the series count for nothing. And **a
-// reading the drive did not report drops the series rather than exporting a zero** — which is the
+// reading the drive did not report drops the series rather than exporting a zero**, which is the
 // same rule as the em dash on screen and the empty cell in an export, and here it is also what
 // Prometheus expects: an absent series means "no measurement", while a `0` is a claim that the drive
 // reported zero.

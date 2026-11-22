@@ -55,7 +55,7 @@ func ProbeDeviceAccess(ctx context.Context, timeout time.Duration) (ProbeResult,
 //
 // The nesting matters: smartctl puts them under `smartctl.messages`, not at the top level,
 // which is the same shape parse.go reads. An earlier version of this looked at the top
-// level, where nothing ever appears — so the probe found no messages, classified an empty
+// level, where nothing ever appears, so the probe found no messages, classified an empty
 // string as "no failure", and reported a blocked container as healthy. An unread message
 // list and an empty one are indistinguishable, which is what made it invisible.
 func messagesFrom(stdout, stderr []byte) string {

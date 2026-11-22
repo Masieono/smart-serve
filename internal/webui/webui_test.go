@@ -93,7 +93,7 @@ func TestEveryThemeNameHasAPalette(t *testing.T) {
 
 	// The derived tokens (hover shade, soft variants) live in one :is(...) rule.
 	// Extract it so membership is checked against that rule alone, not the sheet as a
-	// whole — the palette block would otherwise satisfy the check by itself.
+	// whole, the palette block would otherwise satisfy the check by itself.
 	derived := ""
 	if start := strings.Index(sheet, ":is([data-theme="); start >= 0 {
 		if end := strings.Index(sheet[start:], ") {"); end >= 0 {
@@ -193,7 +193,7 @@ func TestStaticAssetIsServed(t *testing.T) {
 }
 
 // Embedded assets must carry a validator. `embed.FS` reports a zero modtime, so without one a
-// browser or a reverse proxy is free to serve a module from before an upgrade — and since the
+// browser or a reverse proxy is free to serve a module from before an upgrade, and since the
 // frontend is ES modules, a mixed set does not degrade gracefully, it fails outright.
 func TestStaticAssetsCarryACacheValidator(t *testing.T) {
 	h, _ := New(themeFunc(DefaultTheme), Options{})
@@ -241,7 +241,7 @@ func TestAMatchingETagGetsNotModified(t *testing.T) {
 }
 
 // The dangerous direction. A browser holding a copy from *before* an upgrade must be given the new
-// file, not a 304 — that is the whole bug this validator exists to prevent.
+// file, not a 304, that is the whole bug this validator exists to prevent.
 func TestAStaleETagGetsTheNewFile(t *testing.T) {
 	h, _ := New(themeFunc(DefaultTheme), Options{})
 
@@ -251,7 +251,7 @@ func TestAStaleETagGetsTheNewFile(t *testing.T) {
 	h.ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusOK {
-		t.Fatalf("status = %d, want 200 — a stale ETag must not be answered with 304", rec.Code)
+		t.Fatalf("status = %d, want 200, a stale ETag must not be answered with 304", rec.Code)
 	}
 	if rec.Body.Len() == 0 {
 		t.Error("the new file was not sent")
@@ -338,7 +338,7 @@ func TestETagsFollowTheContent(t *testing.T) {
 	}
 }
 
-// The shell is rendered per request from the current theme, so it must not be cached or validated —
+// The shell is rendered per request from the current theme, so it must not be cached or validated,
 // a 304 there would pin the theme.
 func TestTheShellIsNotCachedOrValidated(t *testing.T) {
 	h, _ := New(themeFunc(DefaultTheme), Options{})

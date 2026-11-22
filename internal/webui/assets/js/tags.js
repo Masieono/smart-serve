@@ -2,8 +2,8 @@
 //
 // A tag is free text on a drive (`FEATURES.md` D9): the storage is one comma-separated field and
 // there is no table of tags anywhere, so "which tags are there" is a question asked of the drives.
-// Two views ask it — the dashboard, to scope an export, and the notification editor, to scope a
-// channel to a group (`B12`) — which is why it lives here rather than in either of them.
+// Two views ask it, the dashboard, to scope an export, and the notification editor, to scope a
+// channel to a group (`B12`), which is why it lives here rather than in either of them.
 //
 // The Go side splits the same field in `store.TagList`, and the two have to agree: a drive that
 // grouped one way on screen and another way in an export would be a drive in a group the export
@@ -27,7 +27,7 @@ export function tagList(tags) {
  * be offering two checkboxes that do the same thing, and whichever one a user ticked would match
  * the other's drives.
  *
- * Sorted with `sensitivity: 'base'` so the order is stable across renders — a list that reshuffles
+ * Sorted with `sensitivity: 'base'` so the order is stable across renders, a list that reshuffles
  * between two draws of the same page is a list nobody can learn.
  */
 export function fleetTags(devices) {

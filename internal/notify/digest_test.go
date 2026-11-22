@@ -13,8 +13,8 @@ func dev(serial, name, health string) store.DeviceRecord {
 	return store.DeviceRecord{Serial: serial, Name: name, Health: health, Score: 80}
 }
 
-// B13: one message instead of a stream. The event catalog is exception-shaped — every other event
-// fires because something changed — and a quiet week sends nothing at all. That is right for alerts
+// B13: one message instead of a stream. The event catalog is exception-shaped, every other event
+// fires because something changed, and a quiet week sends nothing at all. That is right for alerts
 // and wrong for the question "is my fleet okay?".
 func TestADigestSaysWhatTheFleetIs(t *testing.T) {
 	ev := DigestEvent(Digest{
@@ -66,7 +66,7 @@ func TestADigestAboutAFailingDriveIsNotALowPriorityNote(t *testing.T) {
 		t.Errorf("digest does not name the failing count:\n%s", body)
 	}
 	// The ranking's own words, so the digest and the dashboard cannot disagree about which drive to
-	// buy — and the drive the ranking called fine is left out.
+	// buy, and the drive the ranking called fine is left out.
 	if !strings.Contains(body, "Replace first: parity (failing now)") {
 		t.Errorf("digest does not name the drive to replace:\n%s", body)
 	}
@@ -105,7 +105,7 @@ func TestADriveWithNoBaselineIsNotAChange(t *testing.T) {
 	}
 }
 
-// A section listing twenty-four drives is not a summary — it is the dashboard in a notification tray.
+// A section listing twenty-four drives is not a summary, it is the dashboard in a notification tray.
 // What was left out is said, because a silently truncated list reads as a complete one.
 func TestADigestCapsItsListsAndSaysSo(t *testing.T) {
 	var devices []store.DeviceRecord

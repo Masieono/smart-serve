@@ -6,7 +6,7 @@ installStubDom();
 const {
   parseWindows, localInputValue, parseLocalInput, windowState, buildWindow,
   parseClock, fmtClock, describeWindow, isRecurring,
-} = await import('../assets/js/views/notifications.js');
+} = await import('../assets/js/views/notification-editors.js');
 
 const HOUR = 3600000;
 const NOW = Date.UTC(2026, 9, 12, 12, 0, 0);

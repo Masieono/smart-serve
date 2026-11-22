@@ -14,7 +14,7 @@ const ModelThresholdsSetting = "model_thresholds"
 // ThresholdSettingKeys are the setting names a per-model override may carry, in the order the UI
 // shows them.
 //
-// The *same* names the global settings use, because they tune the same six numbers — one vocabulary
+// The *same* names the global settings use, because they tune the same six numbers, one vocabulary
 // rather than two. Exported so the API can refuse a name it does not know: a typo'd key would
 // otherwise be stored and never read, which is the worst kind of setting, because it looks applied.
 var ThresholdSettingKeys = []string{
@@ -69,13 +69,13 @@ func NewModelThresholds(base Thresholds, overrides map[string]map[string]string)
 		out.entries = append(out.entries, modelOverride{pattern: pattern, values: values})
 	}
 	// Longest pattern first, so **the longest matching pattern wins** whatever order the map iterated
-	// in — the same tie-break `knowledge.Find` uses when two entries match one drive, and for the
+	// in, the same tie-break `knowledge.Find` uses when two entries match one drive, and for the
 	// same reason: something has to be deterministic, and "the longer name is usually the more
 	// precise one" is the best available guess when a user's two patterns both match.
 	//
 	// It is a tie-break rather than a measure of specificity, and the sharp edge is worth naming: a
 	// *broad* pattern that happens to be long (`Samsung SSD`) beats a *narrow* short one (`870 EVO`).
-	// The fix is the user's, and it is cheap — name patterns so they do not overlap — which is why
+	// The fix is the user's, and it is cheap, name patterns so they do not overlap, which is why
 	// the rule is documented rather than worked around.
 	sort.SliceStable(out.entries, func(i, j int) bool {
 		return len(out.entries[i].pattern) > len(out.entries[j].pattern)
@@ -83,13 +83,13 @@ func NewModelThresholds(base Thresholds, overrides map[string]map[string]string)
 	return out
 }
 
-// Base is the global set, for callers with no drive to resolve against — a read that failed before
+// Base is the global set, for callers with no drive to resolve against, a read that failed before
 // the drive's model was known, for instance.
 func (m ModelThresholds) Base() Thresholds { return m.base }
 
 // For returns the thresholds that apply to one drive.
 //
-// The pattern is matched against the model **and** the family, case-insensitively, as a substring —
+// The pattern is matched against the model **and** the family, case-insensitively, as a substring,
 // the same haystack `knowledge.Find` uses, because smartctl puts the informative string in one or the
 // other depending on the drive: a Samsung reports its family, a WD reports only a model with a part
 // number in it. A drive that reported neither gets the global set, which is the honest answer rather
@@ -120,7 +120,7 @@ func ModelThresholdsFromSettings(settings map[string]string) ModelThresholds {
 // ParseModelThresholds decodes the `model_thresholds` setting.
 //
 // Tolerant on read, strict on write: a value this app cannot parse means "no overrides" rather than
-// an error on every scan, and `PUT /api/settings` is where a mistake is reported — at the moment
+// an error on every scan, and `PUT /api/settings` is where a mistake is reported, at the moment
 // somebody made it, naming the field, rather than as a scan that quietly judged drives by defaults.
 func ParseModelThresholds(raw string) map[string]map[string]string {
 	if strings.TrimSpace(raw) == "" {
@@ -157,7 +157,7 @@ func ValidateModelThresholds(raw string) error {
 		}
 		for key := range values {
 			if !known[key] {
-				return fmt.Errorf("unknown threshold %q for %q — expected one of: %s",
+				return fmt.Errorf("unknown threshold %q for %q, expected one of: %s",
 					key, pattern, strings.Join(ThresholdSettingKeys, ", "))
 			}
 		}

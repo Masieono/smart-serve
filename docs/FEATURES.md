@@ -20,7 +20,7 @@ so. A blank Notes cell means the entry predates the column, not that the feature
 | Error-log **entry lists** (`A20`) | §A20 above | The counts and the self-test entries are shown; smartctl emits no list at all for an empty log, and neither drive available here has ever logged an error, so the populated shape has never been captured |
 | arm64 on real hardware | [TESTING.md Pass 8](TESTING.md#pass-8--arm64-raspberry-pi), `SCOPE.md`, `RELEASE.md` | **Partial verification on Pi 5 / DietPi (2026-11-08):** native arm64 execution, startup health, a full container SMART read through USB SAT, and identity/attribute checks confirmed for the tested disk. That session surfaced two defects — the self-test progress bar sticking at a percentage the drive's own log had already moved past, and an SD-card page that re-read itself in a loop — **both fixed and retested on 2026-11-11, on the Pi and on amd64**. The self-test symptom was never ARM-specific. Idle **memory** cannot be read on that host at all — it exposes no memory controller, so `docker stats` reports `0B / 0B` — though CPU is confirmed near zero and the amd64 host measures **18.9 MiB** idle. Overnight stability and broader parity remain open. |
 | Multi-user accounts / roles | `SCOPE.md` Phase 3 | **Conflicts with `D23`** — a reverse proxy is the answer for more than one user, so this needs that decision revisited rather than built |
-| Optional single-user auth (`C5`) | `ADR-032`, `SCOPE.md` | **Specified, not built.** Two environment variables and one constant-time comparison; no accounts, no sessions, no migration. The design, the alternatives, the middleware position and eleven acceptance criteria are in the ADR |
+| Optional single-user auth (`C5`) | `ADR-033`, `SCOPE.md` | **Built.** Two environment variables and one constant-time comparison; no accounts, no sessions, no migration. The design, the alternatives, the middleware position and eleven acceptance criteria are in the ADR |
 
 Everything else recorded in these documents is either shipped or an **explicit non-goal** — writing
 to drives, RAID-controller passthrough, udev hot-plug detection, host CPU/RAM metrics, and multi-user
@@ -53,7 +53,7 @@ accounts with roles (`SCOPE.md` §Explicit non-goals). Those are decisions, not 
 | A21 | Drive knowledge base (rated TBW, known firmware advisories) | P3 | 💤 | **done** — a bundled table, an opt-in refresh from a URL, and your own entries. Rated endurance on the device page, advisories only when the firmware matches, and every figure carries its source. Never fetched on a schedule. See below |
 | A22 | Usable support for drives with no S.M.A.R.T. (USB flash drives, card readers) | P2 | 💤 | **done** — see below |
 | A23 | Fleet-wide export (every drive in one CSV or page) | P2 | 💤 | **done** — one row per drive, as a CSV or a printable page. A missing reading is an empty cell, never a zero. See below |
-| A24 | "Replace first" ranking (verdict + direction + remaining life, ordered, with reasons) | P2 | 💤 | **done** — a "Replace first" card, using bands rather than a weighted score so the reasons can be shown. See below |
+| A24 | "Replace first" ranking (verdict + direction + remaining life, ordered, with reasons) | P2 | 💤 | **done, partly retired** — the ranking is built and orders the digest; the card above the fleet is retired, because the fleet table already sorts worst-first with the score on every row. See below |
 | A25 | Correlated-change detection (N drives in a group moving together → one alert about the enclosure) | P3 | 💤 | **done** — temperature only, because that is what an enclosure shares. Two settings, an opt-in notification, and wording that claims a correlation rather than a cause. See below |
 | A26 | Projection window follows retention (or becomes a setting) | P2 | 💤 | **done** — the projection, the worsening flag and the trend adjustment all use the `retention_days` setting. See below |
 | A27 | Warranty / RMA evidence pack (the exported report says what it is for) | P2 | 💤 | **done** — every format says what it is for, and names the evidence: the attributes failing the drive's *own* threshold, and the counters the app reads. The saying is at the **foot** of the file, so the drive's own data leads |
@@ -570,10 +570,11 @@ of the problem; each item below carries the reason it exists.
   problems in 30 days", "94% of its rated write endurance used". A reader can disagree with
   a band and act on it; they cannot do either with an unexplained 63.4. A disconnected drive
   is deliberately left out: it is a finding of its own, and ranking it would put a backup
-  drive someone unplugged on purpose above a drive that is actually failing. The card can be **turned
-  off** (`show_replace_first`, on the Appearance page): it sits above the fleet, so it is the first
-  thing on the page whether or not the reader wants it today. The ranking is computed and sent either
-  way — this hides a card, not a feature.
+  drive someone unplugged on purpose above a drive that is actually failing. The card that showed this ranking above the fleet is
+  retired: it cost the top third of the page to repeat the three rows the reader was about to look at,
+  and the fleet table now sorts worst-first with the score in every health cell, so "which one first"
+  is answered by the first row. The ranking itself is not retired: the digest orders its drives by it
+  and the API still serves it. See `ADR-032`.
 - **Bench work is the second use case** (`D11`). Testing a batch of drives you do not want
   in your permanent fleet: label them, test them, export the reports, forget them. **Built**,
   and the design is that **the tag *is* the session** — no mode, no new column, no new
@@ -743,7 +744,7 @@ and all of them still hold.
 | C2 | `/healthz` endpoint for Docker `HEALTHCHECK` | MVP | 💤 | trivial, aids orchestrators |
 | C3 | SQLite single-file storage + retention pruning | MVP | 💤 | |
 | C4 | Reverse-proxy auth documented (nginx/Caddy) | MVP | 💤 | |
-| C5 | Optional single-user basic auth (no user management) | P3 | 💤 | **specified, not built** — `ADR-032`. Two environment variables, one user, off unless both are set. Multi-user accounts and roles stay out of scope (`D23`) |
+| C5 | Optional single-user auth (no user management) | P3 | ✅ | **done** — `ADR-033`. One user from the environment, off unless both halves are set; browsers get a sign-in page with a logout and an idle timeout, scripts keep Basic. Multi-user accounts and roles stay out of scope (`D23`) |
 | C6 | Prometheus `/metrics` exporter | P3 | ⚠ | **done** — `GET /metrics` in the exposition format, **off by default** (`prometheus_enabled`). Hand-written rather than with the client library: four rules and six metrics do not justify multiplying a one-module dependency tree. See `API.md` |
 | C7 | Import/export config, notes & labels (JSON) | P2 | 💤 | **done** — one JSON bundle of labels, settings and schedules. Channels are deliberately excluded, because their config holds tokens. See below |
 | C8 | Multi-arch image (amd64 / arm64) | MVP | 💤 | home NAS / Raspberry Pi |

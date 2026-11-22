@@ -1,7 +1,7 @@
 // The score breakdown (`FEATURES.md` A12).
 //
 // The interpreter has always produced it and the app always threw it away, so the one question a
-// 0-100 score invites — "why?" — had an answer that existed for a few milliseconds. What is worth
+// 0-100 score invites, "why?", had an answer that existed for a few milliseconds. What is worth
 // pinning is that the reasons *add up* to the score they claim to explain, and that a malformed
 // breakdown costs the reader nothing.
 
@@ -10,7 +10,7 @@ import assert from 'node:assert/strict';
 import { installStubDom, StubNode } from './stub-dom.mjs';
 
 installStubDom();
-const { scoreBreakdown, parsePenalties } = await import('../assets/js/views/device.js');
+const { scoreBreakdown, parsePenalties } = await import('../assets/js/views/device-parts.js');
 const { attributeTable } = await import('../assets/js/components.js');
 
 /** Every string in a subtree, in document order. */
@@ -77,7 +77,7 @@ function countedIds(node) {
 
 // Two different claims on one row, and the table has to be able to make both: the drive's own
 // threshold, and this app saying the row is part of the score. Only the ids the verdict actually
-// read are marked — inferring from thresholds is what A12 existed to stop doing.
+// read are marked, inferring from thresholds is what A12 existed to stop doing.
 test('only the attributes the verdict read are marked as counted', () => {
   const attributes = [attr(5, 'Reallocated_Sector_Ct'), attr(9, 'Power_On_Hours'), attr(197, 'Current_Pending_Sector')];
   const blamed = new Set(PENALTIES.map((p) => p.attribute_id).filter(Boolean));
@@ -91,7 +91,7 @@ test('no blamed set means no markers', () => {
   assert.deepEqual(countedIds(attributeTable(attributes, { blamed: new Set() })), []);
 });
 
-// A line with no attribute id must not mark attribute 0 — or, worse, mark nothing and look broken.
+// A line with no attribute id must not mark attribute 0, or, worse, mark nothing and look broken.
 test('a breakdown line with no attribute marks no row', () => {
   const attributes = [attr(0, 'unknown'), attr(5, 'Reallocated_Sector_Ct')];
   const blamed = new Set(PENALTIES.map((p) => p.attribute_id).filter(Boolean));

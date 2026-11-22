@@ -1318,11 +1318,72 @@ error that is hidden is exactly the class a user could not act on. (±) `logMidd
 `recoverMiddleware` inside it, so a panic is logged once as a 500 with the stack beside it; the request
 log is the thing that made that ordering matter, and it is now pinned by a test.
 
-## ADR-032: Optional single-user basic auth — one operator, two variables, no accounts
+## ADR-032: The fleet view is a table, and a variant is a cookie
 
-**Status: decided, not built.** This ADR is the specification. Nothing in this document is
-implemented; `DEPLOYMENT.md`, `README.md` and `SECURITY.md` still describe an app with no
-authentication, and they should keep saying so until this lands.
+**Context.** The fleet has been a grid of cards since the first build, and the card carries everything
+about a drive at once: a 100px score ring, five label/value rows, the model, the mountpoints, the verdict
+badge. At three drives that is a wall of dials; at twelve it is a page you scroll to answer a question
+whose answer is one word. The card's density is fixed — it costs the same height whether a drive is
+boring or failing — so a fleet of healthy drives is the most expensive state to look at, and the one row
+that matters is found by reading rather than by looking.
+
+**Decision — one row per drive, and the verdict and the score are one cell.** The list is a table:
+drive (name, then model · transport · capacity · first mountpoint), health, usage, temperature,
+powered on. The health cell is the verdict dot and word with the 0–100 score beside it, because a
+verdict and the number behind it are the same fact told twice, and the ring was a second column's worth
+of width to say it again. The score itself stays: it is the number other disk tools put in front of
+people, and the point of this view is to be *more* readable than those tools, not differently informed.
+
+**Decision — the row that needs a second look marks itself.** A caution or failing drive gets a 2px
+inset rule in the state colour down its left edge, and "No reading" keeps one line of the drive's own
+reason underneath. A coloured word in a column of coloured words is a weak signal; an edge is found by
+the eye without reading anything.
+
+**Decision — a variant is a cookie, not a setting.** `?ui=v2` sets `ui=v2` for that browser and
+redirects to the plain URL; the shell renders `data-ui` from it. A *setting* would be one value for the
+whole instance, which makes comparison impossible — the thing being compared would be a rebuild and a
+toggle apart. A cookie lets both views run against the same database, in two tabs, on the same drives,
+and lets the server render the right stylesheet before first paint rather than restyling after it.
+
+**Alternatives.**
+- *Keep the cards and make them smaller* — rejected: the card's shape is the problem. Five label/value
+  rows at 11px is not a compact version of a row, it is a wide card poured into a narrow column.
+- *A dense cards mode* (a "table" toggle beside "cards", which the incumbent already has) — rejected as
+  the *replacement*: the table there is a fallback with different information. This view is a different
+  reading order, not a different density of the same drawing.
+- *A URL path (`/v2`) instead of a cookie* — would need the SPA router to know about a second root and
+  the base path to carve out a prefix. The cookie costs six lines and touches neither.
+- *One build per variant* — that is what a variant *branch* is for, and it makes A/B a redeploy. The
+  point of a cookie is that both exist in one binary.
+
+**Consequences.** (+) the fleet reads at a glance, a drive's second line says what it is and where it is
+mounted without opening it, and the quota of information per row is spent on the row that needs it;
+`used_pct` reaches the fleet payload, so the one visual the dashboard keeps costs nothing per row.
+(−) two fleet views to keep working until the comparison ends, and the device page is still the
+incumbent design in v2 — clicking a row crosses between them, which is honest while the comparison runs
+and unacceptable as a destination. (±) the cookie is a persisted per-browser choice with no UI to clear
+it except the link at the foot of the view; the switch has to be discoverable from the view it changes.
+
+**Superseded — the comparison ended, and the variant went with it.** The second paragraph above
+described a cookie because two views had to run side by side against one database. They no longer
+do: every page is the new design, so `?ui=`, the `ui` cookie, the `data-ui` attribute on the shell
+and the conditional `fleet.css` link are all gone. The consequences listed above are discharged with
+them. What stays true is the part that was never about the mechanism: the fleet is a table, the
+verdict and the score share a cell, and a row that needs a second look marks its own edge.
+
+**The "Replace first" card went with the dashboard.** It was the top third of the old page: a banded
+shortlist repeating the three drives the reader was about to look at. Against a table that sorts
+worst-first and puts the score in the health cell, it answered a question the first row already
+answers, so the card, the `show_replace_first` setting and the component are gone. The ranking itself
+stays, because the digest uses it to order its drives and that is a place where ordering is the whole
+point of the document.
+
+## ADR-033: Optional single-user basic auth — one operator, two variables, no accounts
+
+**Status: built.** The design below is what shipped, with one change made during implementation and
+recorded in place: the layer keeps Basic for scripts but authenticates a *browser* with a session
+cookie, because Basic cannot log out. `internal/auth` holds the credential match and the session
+store, `internal/httpapi/auth.go` the gate and the login form.
 
 **Context.** `ADR-016` decided that the app ships no authentication, on the reasoning that the owner
 runs Nginx and that access control belongs to the proxy. That reasoning holds for a *proxied*
@@ -1363,16 +1424,23 @@ is that there is no account: the credentials *are* the configuration. Two `docke
 lines of compose, or two Docker secrets. There is nothing to store, nothing to migrate, nothing to
 reset, and nothing in the database that a config export could carry.
 
-**Why basic auth rather than a login form and a session cookie.** This is the decision most likely to
-be revisited, so the reasoning is recorded rather than implied.
+**Why Basic *and* a session, rather than one or the other.** The first draft of this ADR chose Basic
+alone, and the cost of that turned out to be the feature the operator actually asked for: a browser
+keeps replaying a Basic credential until it closes, so "log out" is "close the browser", and there is
+no way to end a session that was left open. The layer therefore does both, each for what it is good
+at.
 
-- **No session state at all.** A cookie session needs either a table (a migration, expiry, and a
-  "logged out" state to clean up) or an in-memory store (every restart logs everyone out, which on a
-  box that reboots for kernel updates is worse than no session). Basic auth has neither: the
-  credential is presented per request and checked in constant time.
-- **It works for the things that are not a browser.** `curl`, a Prometheus scrape and a script can all
-  send `-u user:pass`. A cookie session means every one of them needs a login round-trip first, which
-  is a client library rather than a flag.
+- **A browser gets a session cookie.** `POST /api/session` checks the credential, issues a token and
+  sets an HttpOnly, SameSite=Strict cookie; `POST /api/logout` revokes the token server-side, so a
+  copied cookie stops working rather than merely disappearing from one browser. Sessions live **in
+  memory**: no table, no migration, and a restart logs everyone out, which is the right trade on a
+  single-operator box because nothing is left on disk to leak.
+- **Everything else keeps Basic.** `curl`, a Prometheus scrape and a script send `-u user:pass` and
+  never see a login page. This is not a compatibility shim: it is why the layer can be switched on in
+  a homelab without breaking the scraper, the backup script or the healthcheck.
+- **Two bounds, one of them a setting.** An **idle window** (`auth_idle_minutes`, default 30) is what
+  "auto-logout after a period of inactivity" means, and an **absolute cap** of 24 hours bounds a tab
+  left open, which never goes idle long enough to expire on its own.
 - **It is what the proxy already speaks.** An operator who outgrows this moves to nginx `auth_basic` —
   the same mechanism, the same htpasswd file, one layer out. Nothing about their mental model changes.
 - **A login form is a UI, and this app's UI is deliberate about what it adds.** A form means a route
@@ -1380,8 +1448,10 @@ be revisited, so the reasoning is recorded rather than implied.
   wrong password, and a logout button that has to go somewhere. That is a feature, not a security
   layer.
 
-The cost is real and is recorded below rather than hidden: **there is no logout**, and the browser
-keeps sending the credential until it closes.
+The costs that remain are recorded rather than hidden: the login form is the one page outside the
+SPA shell (a self-contained HTML document, so it works before any JavaScript has run), there is no
+lockout after repeated failures, and Basic is still base64 rather than encryption, so this protects a
+trusted LAN and not an internet-facing port.
 
 **Where it sits in the chain.** `server.go` builds its middleware outside-in, and the auth layer goes
 **inside `StripPrefix` and outside `sameOriginMiddleware`**:
@@ -1440,10 +1510,9 @@ log → recover → securityHeaders → StripPrefix(basePath) → auth → sameO
 
 **Alternatives.**
 
-- **A login form with a signed session cookie** — deferred, not rejected. It buys a logout button and
-  hides the credential from the URL bar; it costs session state, a logout endpoint, and a decision
-  about where sessions live. Revisit if the logout gap turns out to matter more than it reads like it
-  will.
+- **Session state in SQLite instead of memory** — rejected for now: it survives a restart, which
+  nobody asked for, and it puts a token table on disk for the sake of a convenience. Revisit if a
+  restart ever becomes frequent enough for "log in again after every update" to annoy.
 - **A bcrypt hash instead of a plaintext password** (`SMARTSERVE_AUTH_PASSWORD_HASH`) — deferred, not
   rejected. It protects the *user's* password if the configuration leaks, which matters because people
   reuse passwords across a NAS, its admin UI and this. It costs `golang.org/x/crypto` in a module tree
@@ -1466,9 +1535,9 @@ visible, and the CSRF guard already covers the hole basic auth is famous for. (+
 constant-time comparison per request, no timers, no background anything, so the invariant in
 `DESIGN.md` §2.1 is untouched. (−) a plaintext secret in the environment is visible to `docker
 inspect`, which is why the `_FILE` form is the documented one and Docker secrets are the recommended
-deployment. (−) no logout, no lockout, no TLS — three limitations that are fine for the deployment
-this is for and are wrong for an internet-facing one, and `DEPLOYMENT.md` will have to say so where
-someone will read it. (±) `ADR-016` is narrowed rather than contradicted: it remains the answer for
+deployment. (−) no lockout and no TLS, and Basic is an encoding rather than encryption, so this is
+right for a trusted LAN and wrong for an internet-facing port; `DEPLOYMENT.md` says so where someone
+will read it. (±) `ADR-016` is narrowed rather than contradicted: it remains the answer for
 multi-user, and this is the one exception.
 
 **Acceptance criteria.** Each of these is a test, and the list is the definition of done:
@@ -1507,10 +1576,22 @@ multi-user, and this is the one exception.
   behaviours above in `internal/httpapi/middleware_test.go`, which is where the rest of the shell is
   already tested.
 
-**Documentation this will require when it lands** (none of it written yet, by design): the
-`SMARTSERVE_*` table and a "Built-in authentication" subsection in `DEPLOYMENT.md` — replacing the
-line there that still calls this a Phase 2 feature; the 401 and the `/healthz` exemption in `API.md`;
-the `README.md` note that currently reads "ships no authentication, by design"; the "not in scope"
-bullet in `SECURITY.md`; and a manual pass in `TESTING.md`. The CHANGELOG entry belongs with the code.
+**Acceptance criteria** (all built, all covered by `internal/auth` and `internal/httpapi/auth_test.go`
+unless noted): off unless both variables are set; a half-set pair refuses to start; the password may
+come from a file; the credential is compared in constant time on both halves; `/healthz` and static
+assets stay open; a browser without a session is redirected to the login page, an API call gets 401
+with a challenge; Basic is accepted everywhere; the login form issues an HttpOnly, SameSite=Strict
+cookie; logout revokes the token server-side; the idle window is honoured and is a setting; the
+absolute cap ends a session that never goes idle; `next` cannot point off-site; and under a base path
+the gate judges stripped paths, so `/healthz`, the login page and the static assets stay exempt and
+every redirect it builds carries the prefix. The manual pass for all of this is `TESTING.md` Pass 9.
+
+**The chain order is load-bearing, and the first build had it wrong.** The ADR says
+`… → StripPrefix(basePath) → auth → sameOrigin → mux`, and applying `auth` outside the prefix instead
+made every exempt path stop matching in a subpath deployment: the healthcheck was redirected, the
+assets were gated, an API call answered 303 instead of 401, and the login page redirected to itself,
+so a browser could not sign in at all while `curl` kept working. `TestBasePathDeploymentKeepsTheGateOnStrippedPaths`
+pins the order now, because nothing else would notice if it moved.
+
 
 

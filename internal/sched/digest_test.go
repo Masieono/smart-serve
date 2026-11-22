@@ -73,7 +73,7 @@ func waitForLastRun(t *testing.T, st *store.Store, id int64) *store.Schedule {
 	return nil
 }
 
-// B13: the action decides what a fire *means*. A digest schedule must send a digest and **not** scan —
+// B13: the action decides what a fire *means*. A digest schedule must send a digest and **not** scan,
 // the two produce completely different things from the same timing, and running a scan as well would
 // make a weekly summary quietly re-read every drive.
 func TestADigestScheduleDigestsInsteadOfScanning(t *testing.T) {
@@ -104,7 +104,7 @@ func TestADigestScheduleDigestsInsteadOfScanning(t *testing.T) {
 }
 
 // A digest schedule with nowhere to send must still advance. The boundary arrived, and a schedule that
-// stopped advancing would fire in a tight loop — so a missing sender is a log line, not a failure.
+// stopped advancing would fire in a tight loop, so a missing sender is a log line, not a failure.
 func TestADigestScheduleWithoutASenderStillAdvances(t *testing.T) {
 	st := newTestStore(t)
 	id := createDigestSchedule(t, st)

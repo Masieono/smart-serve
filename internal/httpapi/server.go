@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/masieono/smart-serve/internal/auth"
 	"github.com/masieono/smart-serve/internal/events"
 	"github.com/masieono/smart-serve/internal/notify"
 	"github.com/masieono/smart-serve/internal/scan"
@@ -40,7 +41,13 @@ type Notifier interface {
 type Options struct {
 	BasePath string // subpath hosting, e.g. "/smartserve" (ADR-015)
 	Version  string
-	Logger   *slog.Logger
+	// Auth, when it carries a complete credential, gates the app behind one user (ADR-033). The
+	// zero value leaves the layer off, which is the documented default.
+	Auth auth.Credentials
+	// AuthIdleMinutes reports the idle window from the settings, so the login layer honours the
+	// number the operator set rather than a constant.
+	AuthIdleMinutes func(ctx context.Context) int
+	Logger          *slog.Logger
 	// UI, when set, serves the web interface at every path the API does not
 	// claim (including SPA deep links).
 	UI http.Handler
@@ -51,7 +58,7 @@ type Options struct {
 	// not validated and test sends report 501.
 	Notifier Notifier
 	// CommandTimeout, when set, supplies the per-command timeout for the smartctl calls the API
-	// makes itself — the self-test ones. Without it the shipped default is used, which would
+	// makes itself, the self-test ones. Without it the shipped default is used, which would
 	// quietly ignore SMARTSERVE_COMMAND_TIMEOUT for exactly those calls.
 	CommandTimeout func(ctx context.Context) time.Duration
 	// SelfTests, when set, reports what a scheduled self-test pass is doing. Without it the
@@ -78,7 +85,7 @@ type SelfTests interface {
 // It exists as an interface for one reason: these are the only endpoints in the API that change a
 // drive, and a direct call into the `smart` package cannot be exercised by a test that has no drive
 // to change. The production implementation is a thin adapter over the allow-listed `smartctl`
-// wrappers, so the seam adds no behaviour of its own — it only lets the endpoint logic (status codes,
+// wrappers, so the seam adds no behaviour of its own, it only lets the endpoint logic (status codes,
 // the read-back after an abort, the timeout it passes down) be tested without hardware.
 type SelfTestCommands interface {
 	Read(ctx context.Context, timeout time.Duration, path, transport string) (smart.Result, error)
@@ -120,6 +127,10 @@ type Server struct {
 	// commandTimeoutFn resolves the per-command timeout for the smartctl calls this package
 	// makes directly, so they honour the same setting the scans do.
 	commandTimeoutFn func(ctx context.Context) time.Duration
+
+	// auth is the optional single-user gate (ADR-033). Nil means the layer is off.
+	auth     *authGate
+	basePath string
 }
 
 // commandTimeout returns the per-command timeout for the smartctl calls this package makes.
@@ -152,6 +163,23 @@ func New(st *store.Store, sc *scan.Manager, hub *events.Hub, opts Options) *Serv
 		commandTimeoutFn: opts.CommandTimeout, selfTestCmd: selfTestCmd,
 	}
 
+	s.basePath = strings.TrimRight(opts.BasePath, "/")
+	if opts.Auth.Enabled() {
+		idle := auth.DefaultIdle
+		if opts.AuthIdleMinutes != nil {
+			if mins := opts.AuthIdleMinutes(context.Background()); mins > 0 {
+				idle = time.Duration(mins) * time.Minute
+			}
+		}
+		s.auth = &authGate{
+			base:  s.basePath,
+			creds: opts.Auth,
+			store: auth.New(idle, auth.DefaultMax),
+			idle:  func() time.Duration { return s.auth.store.Idle() },
+			log:   logger,
+		}
+	}
+
 	mux := http.NewServeMux()
 	s.routes(mux)
 	if opts.UI != nil {
@@ -161,13 +189,22 @@ func New(st *store.Store, sc *scan.Manager, hub *events.Hub, opts Options) *Serv
 
 	var h http.Handler = mux
 	h = sameOriginMiddleware(h)
+	// Auth sits inside the security headers (a 401 has to be as constrained as a 200), outside the
+	// CSRF guard (an unauthenticated request is answered before the origin is considered), and
+	// **inside StripPrefix**, so the paths it judges are the ones the mux serves: `/healthz`,
+	// `/login`, `/api/...` rather than `/smartserve/healthz`. Built the other way round the exempt
+	// list matches nothing under a subpath, so the healthcheck is redirected, the assets are gated,
+	// an API call answers 303 instead of 401, and the login page redirects to itself forever.
+	if s.authEnabled() {
+		h = s.auth.middleware(h)
+	}
 	if bp := strings.TrimRight(opts.BasePath, "/"); bp != "" {
 		h = http.StripPrefix(bp, h)
 	}
 	// Outermost first: recovery has to catch a panic from any layer below it, the
 	// security headers have to be set before the CSRF guard can reject a request, so
 	// that a 403 is as constrained as a 200, and the log line has to see the status the
-	// client was actually given — including the 500 the recovery synthesises.
+	// client was actually given, including the 500 the recovery synthesises.
 	h = securityHeadersMiddleware(h)
 	h = recoverMiddleware(logger, h)
 	h = logMiddleware(logger, h)
@@ -182,6 +219,14 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) routes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /healthz", s.handleHealthz)
+	// The shell asks this on every load to decide whether to offer a sign-out control, so it answers
+	// with `enabled: false` rather than falling through to the SPA when the layer is off.
+	mux.HandleFunc("GET /api/session", s.handleSessionInfo)
+	if s.authEnabled() {
+		mux.HandleFunc("GET /login", s.handleLogin)
+		mux.HandleFunc("POST /api/session", s.handleLoginPost)
+		mux.HandleFunc("POST /api/logout", s.handleLogout)
+	}
 	// The Prometheus exporter (`FEATURES.md` C6). Outside `/api` because that is where a scraper
 	// looks for it, and behind a setting because enabling it invites someone else's poller.
 	mux.HandleFunc("GET /metrics", s.handleMetrics)
@@ -276,20 +321,20 @@ func sameOriginMiddleware(next http.Handler) http.Handler {
 
 // fail logs the error and answers with a reference rather than the error's own words.
 //
-// A store error can name a column, a file or a SQL statement — internals whose only use
+// A store error can name a column, a file or a SQL statement, internals whose only use
 // to a reader is as a hint about what to probe, and whose only use to us is in the log.
 // The reference is the bridge between the two: the same four bytes appear in the log
 // line, so "it said 3f2a91c4" is a search that finds the failure, its action and its
 // stack, instead of a message the reader cannot act on and we would rather not have sent.
 //
-// This is the 500 path only. Messages that describe the *hardware* — smartctl's own
-// reason strings, a drive that will not answer — are the app's product, not its
+// This is the 500 path only. Messages that describe the *hardware*, smartctl's own
+// reason strings, a drive that will not answer, are the app's product, not its
 // internals, and those go out unchanged under their own status.
 func (s *Server) fail(w http.ResponseWriter, action string, err error) {
 	ref := newRef()
 	s.log.Error("request failed", "action", action, "ref", ref, "err", err)
 	writeError(w, http.StatusInternalServerError,
-		"something went wrong (ref "+ref+") — the detail is in the server log")
+		"something went wrong (ref "+ref+"), the detail is in the server log")
 }
 
 // --- helpers ------------------------------------------------------------------

@@ -248,7 +248,7 @@ func TestRetryStopsWhenTheContextIsCancelled(t *testing.T) {
 		t.Error("want an error")
 	}
 	if attempts != 1 {
-		t.Errorf("attempts = %d, want 1 — the backoff must not outlive the context", attempts)
+		t.Errorf("attempts = %d, want 1, the backoff must not outlive the context", attempts)
 	}
 }
 

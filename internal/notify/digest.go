@@ -12,7 +12,7 @@ import (
 
 // digestListLimit caps each section of a digest.
 //
-// A digest is one message, and a section listing twenty-four drives is not a summary — it is the
+// A digest is one message, and a section listing twenty-four drives is not a summary, it is the
 // dashboard in a notification tray. The cap is on *entries*, and what was left out is always said,
 // because a silently truncated list reads as a complete one.
 const digestListLimit = 5
@@ -21,7 +21,7 @@ const digestListLimit = 5
 //
 // Plain data rather than a store handle, so the wording is a pure function of the facts and can be
 // tested without a database. Everything in it is something the app already computes for the
-// dashboard — the snapshots *are* the history, so a digest needs no storage of its own.
+// dashboard, the snapshots *are* the history, so a digest needs no storage of its own.
 type Digest struct {
 	From, To time.Time
 	// Devices is the fleet as it stands now, in the store's order (worst verdict first).
@@ -45,8 +45,8 @@ type Digest struct {
 // because something changed, and a quiet week sends nothing at all. That is right for alerts and
 // wrong for the question "is my fleet okay?", which a weekly digest answers in a sentence.
 //
-// The priority reflects the content rather than the event type — a digest of a healthy fleet is a
-// note, and a digest naming a failing drive is not — because a weekly message that always arrives at
+// The priority reflects the content rather than the event type, a digest of a healthy fleet is a
+// note, and a digest naming a failing drive is not, because a weekly message that always arrives at
 // the same importance stops carrying information.
 //
 // It is **not** opt-in the way `scan_success` and `group_heat` are: those two would be sent to
@@ -172,7 +172,7 @@ func digestWorsening(d Digest) []string {
 	return capList(out, "worse")
 }
 
-// digestReplaceFirst names the drives the ranking says to act on, in its own words — the same words
+// digestReplaceFirst names the drives the ranking says to act on, in its own words, the same words
 // the dashboard shows, so the two cannot disagree about which drive to buy.
 func digestReplaceFirst(d Digest) []string {
 	var out []string

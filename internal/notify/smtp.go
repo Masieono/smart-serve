@@ -15,7 +15,7 @@ import (
 )
 
 // smtpSender emails the event. It is the one adapter that is not an HTTP POST, so
-// it does not go through doRequest — but it shares the retry rules and the transient
+// it does not go through doRequest, but it shares the retry rules and the transient
 // classification, so a broken mail server behaves like any other broken channel.
 type smtpSender struct{}
 
@@ -68,7 +68,7 @@ func (s smtpSender) Send(ctx context.Context, cfg map[string]any, ev Event) erro
 }
 
 // buildEmail renders the RFC 5322 message. The subject is encoded because it carries
-// a device model, and the body is quoted-printable because it carries emoji — a raw
+// a device model, and the body is quoted-printable because it carries emoji, a raw
 // 8-bit body is not legal and some servers reject it outright.
 func buildEmail(cfg map[string]any, ev Event) string {
 	to := splitList(stringField(cfg, "to"))
@@ -98,7 +98,7 @@ func deliverSMTP(ctx context.Context, cfg map[string]any, message string) error 
 	}
 	addr := net.JoinHostPort(host, strconv.Itoa(port))
 
-	// Port 465 is implicit TLS — the socket is encrypted from the first byte — while
+	// Port 465 is implicit TLS, the socket is encrypted from the first byte, while
 	// 587 and friends start in the clear and upgrade via STARTTLS. Getting that
 	// backwards is the usual reason an SMTP config fails with no useful error.
 	implicitTLS := port == 465

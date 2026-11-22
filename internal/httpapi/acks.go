@@ -46,7 +46,7 @@ func (s *Server) handleAckDevice(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// A drive with nothing wrong has nothing to acknowledge. Refused rather than allowed, because an
-	// ack on a healthy drive would sit there waiting to silence the first problem it develops — which
+	// ack on a healthy drive would sit there waiting to silence the first problem it develops, which
 	// is the opposite of what the user meant.
 	if model.Verdict(rec.Health) == model.Good {
 		writeError(w, http.StatusBadRequest,

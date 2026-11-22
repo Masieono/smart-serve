@@ -15,7 +15,7 @@ type EvidenceAttribute struct {
 // does not otherwise look at is one the app cannot stand behind. Keeping one list means a report
 // and a verdict can never name different attributes for the same drive.
 //
-// The ids here are the ones `evaluateATA` reads — 5, 197 and 198 as lost storage; 187, 196 and 199
+// The ids here are the ones `evaluateATA` reads, 5, 197 and 198 as lost storage; 187, 196 and 199
 // as recorded errors; 10 as a mechanical fault. A new check there belongs here too.
 //
 // This is the evidence, not the verdict. Whether a count is *enough* to call a drive bad is a

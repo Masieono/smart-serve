@@ -14,7 +14,7 @@ import (
 // The counts and capabilities below are verified against real hardware on both transports
 // (see the fixtures `ata-850-evo-logs.json` and `nvme-sn730-logs.json`). The per-entry field
 // names are *not*, because neither drive available to this project has ever logged an error,
-// and smartctl emits no `table` at all when a log is empty — so the populated shape has never
+// and smartctl emits no `table` at all when a log is empty, so the populated shape has never
 // been observed. Guessing it would produce a panel that renders nothing precisely when a
 // drive has something to say, which is the one moment it matters.
 //
@@ -35,7 +35,7 @@ func ParseLogs(raw []byte) model.LogSummary {
 
 	// Whether the document carried a self-test log this parser *reads*. It decides whether an unread
 	// one is worth reporting at the end, and the rule is deliberately about what was read rather than
-	// about which key names exist — see `unreadSelfTestLog`.
+	// about which key names exist, see `unreadSelfTestLog`.
 	selfTestLogSeen := r.ATASelfTestLog != nil || r.NVMeSelfTestLog != nil
 
 	// The drive's own answer to "do you implement self-tests?", when it gives one. A direct
@@ -46,7 +46,7 @@ func ParseLogs(raw []byte) model.LogSummary {
 
 	// The NVMe self-test log. A different shape from the ATA one in the way that mattered: the test
 	// in progress is a *header* field rather than a table row, so a parser that only knew the ATA log
-	// reported "no test running" for a drive that was mid-test — and the card, believing it, offered
+	// reported "no test running" for a drive that was mid-test, and the card, believing it, offered
 	// the run buttons again and the drive refused the second one.
 	if l := r.NVMeSelfTestLog; l != nil {
 		// A readable self-test log is the drive telling us it can test itself.
@@ -79,7 +79,7 @@ func ParseLogs(raw []byte) model.LogSummary {
 				Hours:  e.PowerOnHours,
 			})
 		}
-		// The table is a bounded circular buffer, so its length is the count — and a table that is
+		// The table is a bounded circular buffer, so its length is the count, and a table that is
 		// present but empty is a drive that has never run a test, which is worth saying.
 		if l.Table != nil {
 			count := int64(len(l.Table))
@@ -95,7 +95,7 @@ func ParseLogs(raw []byte) model.LogSummary {
 	} else if r.NVMeHealth != nil && r.NVMeHealth.NumErrLogEntries != nil {
 		// NVMe has no ATA-style log. The SMART/Health log carries the count of entries the
 		// drive has logged; the Error Information log itself frequently cannot be read even
-		// when that count is non-zero — a real SN730 reports 1 and emits no entries at all,
+		// when that count is non-zero, a real SN730 reports 1 and emits no entries at all,
 		// with or without `-l error`.
 		out.ErrorCount = r.NVMeHealth.NumErrLogEntries
 	}
@@ -134,25 +134,25 @@ func ParseLogs(raw []byte) model.LogSummary {
 	}
 
 	// A test in progress is reported in one of two places, and drives differ about which. The
-	// self-test log's newest row carries `remaining_percent` while one runs — but so does the drive's
+	// self-test log's newest row carries `remaining_percent` while one runs, but so does the drive's
 	// own self-test-execution status in the SMART data structure, which is where the ATA spec puts it.
 	//
 	// **The status field wins when it exists, in both directions.** It is the field the ATA spec
 	// defines for this; the log's percentage is a convenience, and drives are not reliable about
 	// clearing it. A drive that has left a percentage in a log row for a test that is no longer
-	// running — an aborted one, commonly, or any test at all on firmware that does not tidy up after
-	// itself — otherwise reports itself as busy *forever*, with a figure that never moves. That is a
+	// running, an aborted one, commonly, or any test at all on firmware that does not tidy up after
+	// itself, otherwise reports itself as busy *forever*, with a figure that never moves. That is a
 	// real report and not a hypothetical: two USB-attached drives, one of them healthy at 100/100,
 	// both stuck reading "10%" and neither stoppable.
 	//
-	// The previous rule was the reverse — the log won unless no row had a percentage — which is what
+	// The previous rule was the reverse, the log won unless no row had a percentage, which is what
 	// let the stale row outvote the drive's own statement about itself.
 	//
 	// Absent status is silence rather than a statement of idle: a drive that does not report the field
 	// at all leaves the log as the only evidence there is, and it is used.
 	if ataReportsStatus(r.ATASmartData) {
 		// The drive said something, so no log row is a running test: they are results, and their
-		// percentages are the stale part. Cleared rather than dropped — the status text ("Aborted by
+		// percentages are the stale part. Cleared rather than dropped, the status text ("Aborted by
 		// host", "Completed: read failure") is the explanation for what happened to each of them.
 		for i := range out.SelfTestEntries {
 			out.SelfTestEntries[i].Remaining = nil
@@ -179,7 +179,7 @@ func ParseLogs(raw []byte) model.LogSummary {
 		}
 	}
 
-	// A self-test log the drive has that this parser does not read — and only when it is the *only*
+	// A self-test log the drive has that this parser does not read, and only when it is the *only*
 	// self-test log the drive offered. Reported rather than ignored: the UI can then say that a test's
 	// progress and past results cannot be shown on this drive, instead of leaving a panel that stays
 	// empty, which looks exactly like a test that never ran. `unreadSelfTestLog` has the rest.
@@ -195,7 +195,7 @@ func ParseLogs(raw []byte) model.LogSummary {
 			continue
 		}
 		// The *log* could not be read, which is not the same finding as a drive that cannot test
-		// itself — and this project has the receipts: the same SN730 under smartctl 7.4 reported
+		// itself, and this project has the receipts: the same SN730 under smartctl 7.4 reported
 		// exactly this, and under 7.5 reads the log fine. Concluding "this drive cannot run
 		// self-tests" from a failed read was a confident statement about the wrong thing, and it
 		// told the reader to give up on a drive that tests itself perfectly well.
@@ -216,7 +216,7 @@ func ParseLogs(raw []byte) model.LogSummary {
 // Detected rather than decoded, and that is the whole design. The shape of smartctl's NVMe self-test
 // log has never been observed on this project's hardware (`testdata/nvme-*.json` carry no self-test
 // data at all), and guessing it would produce a panel that renders nothing precisely when a drive
-// has something to say — the one moment it matters. Naming the gap is the useful half instead: a
+// has something to say, the one moment it matters. Naming the gap is the useful half instead: a
 // drive whose test ran and left no trace in the UI is indistinguishable from a test that never ran,
 // and only one of those is true.
 //
@@ -224,7 +224,7 @@ func ParseLogs(raw []byte) model.LogSummary {
 // list of key names to skip: that is a rule about smartctl's vocabulary, and smartctl has more
 // self-test logs than the two this parser reads. `ata_smart_selective_self_test_log` holds the *ranges*
 // a selective test covers, not a test's history, and this app never starts a selective test, so there
-// is nothing in it to show — and most modern ATA drives report it, which meant nearly every ATA drive
+// is nothing in it to show, and most modern ATA drives report it, which meant nearly every ATA drive
 // was told its self-test log could not be read while the ordinary log was parsed correctly beside it.
 //
 // Asking "is there a self-test log we can show?" makes both cases fall out: a drive whose ordinary log
@@ -279,7 +279,7 @@ type rawATASmartData struct {
 // Its shape differs from the ATA log in the one way that mattered: the test *in progress* is a
 // header field rather than a table row, and its progress is a separate number rather than a field on
 // an entry. Reading the ATA log, finding nothing, and reporting "no test running" is how an NVMe
-// drive mid-test came to look idle — which made the card offer the run buttons again, and the drive
+// drive mid-test came to look idle, which made the card offer the run buttons again, and the drive
 // refuse the second one with a bare exit status.
 type rawNVMeSelfTestLog struct {
 	CurrentSelfTestOperation *struct {
@@ -355,8 +355,8 @@ func nvmeOperationName(value int, fallback string) string {
 
 // nvmePassed reads the NVMe base spec's Device Self-test Result code.
 //
-// Only the two unambiguous ends are claimed. Codes 1–6 are **aborts** — a controller reset, a
-// format, a host abort — and an abort is not a failure of the drive, so they are left without a
+// Only the two unambiguous ends are claimed. Codes 1–6 are **aborts**, a controller reset, a
+// format, a host abort, and an abort is not a failure of the drive, so they are left without a
 // verdict rather than rendered as one; the drive's own words are shown either way, which is where
 // "Aborted due to a Controller Level Reset" reads as exactly what it is.
 func nvmePassed(result *rawEnum) *bool {
@@ -395,7 +395,7 @@ type rawLogDoc struct {
 	NVMeHealth     *struct {
 		NumErrLogEntries *int64 `json:"num_err_log_entries"`
 	} `json:"nvme_smart_health_information_log"`
-	// SelfTest is the drive's own answer to "do you implement self-tests?" — a direct statement
+	// SelfTest is the drive's own answer to "do you implement self-tests?", a direct statement
 	// rather than an inference from whether a log could be read.
 	NVMeAdminCommands *struct {
 		SelfTest *bool `json:"self_test"`
@@ -416,7 +416,7 @@ type rawLogDoc struct {
 //   - the self-test log answers `standard` (the shorter one) or `extended`.
 //
 // Reading only `extended` and `summary` meant a drive whose self-test log is the `standard` variant
-// reported no self-test log at all — no count, no entries, and no sign of a test in progress, so the
+// reported no self-test log at all, no count, no entries, and no sign of a test in progress, so the
 // card offered the run buttons again for a drive that was already testing itself.
 type rawATALogs struct {
 	Standard *rawATALog `json:"standard"`

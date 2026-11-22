@@ -1,7 +1,7 @@
 {
   "version": 1,
   "updated": "2026-10-20",
-  "note": "Rated endurance and known advisories, keyed by model family. Figures are taken from the vendor's own datasheet or support page, named in each entry's `source` — check it before acting on a number, and prefer your drive's own reported wear where it has one. This table is deliberately short: an entry nobody can verify is worse than a missing one, because a missing one says so. Add your own in Settings, or edit this file and point the refresh URL at your copy.",
+  "note": "Rated endurance and known advisories, keyed by model family. Figures are taken from the vendor's own datasheet or support page, named in each entry's `source`, check it before acting on a number, and prefer your drive's own reported wear where it has one. This table is deliberately short: an entry nobody can verify is worse than a missing one, because a missing one says so. Add your own in Settings, or edit this file and point the refresh URL at your copy.",
   "drives": [
     {
       "family": "Samsung SSD 870 EVO",
@@ -54,7 +54,7 @@
         "1000": 600
       },
       "source": "Samsung 980 datasheet, 2021",
-      "notes": "Not the 980 PRO — that is a different family with higher ratings."
+      "notes": "Not the 980 PRO, that is a different family with higher ratings."
     },
     {
       "family": "Crucial MX500",

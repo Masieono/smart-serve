@@ -7,7 +7,7 @@
 // The set is **curated, not exhaustive**, and it deliberately mirrors the fields the
 // interpreter actually acts on (docs/SMART_INTERPRETATION.md §1.1 and §2). Explaining a
 // row the verdict ignores is noise, and a description that disagreed with the verdict
-// would be worse than no description at all. Anything absent here still renders — the
+// would be worse than no description at all. Anything absent here still renders, the
 // name smartctl reported is shown as-is, just without a `?` affordance.
 //
 // `what` is the definition; `watch` is how to read it, which is the part people actually
@@ -206,15 +206,15 @@ export function nvmeHelp(field) {
 /**
  * Whether the drive *itself* reports this attribute as failing.
  *
- * This is the drive's own alarm condition — its normalised value has fallen to or below
- * the threshold the drive publishes for itself — and not a threshold this app invented.
+ * This is the drive's own alarm condition, its normalised value has fallen to or below
+ * the threshold the drive publishes for itself, and not a threshold this app invented.
  * That distinction is why it is the only attribute-level judgement made in the UI: the
  * verdict and the score are computed server-side from the interpreted set
  * (`SMART_INTERPRETATION.md` §2), and re-deriving "is this bad?" here would let the
  * attribute table and the verdict disagree about the same drive.
  *
- * A threshold of 0 means the attribute has no threshold, not that it fails at zero —
- * most informational attributes report 0 — so those are never flagged.
+ * A threshold of 0 means the attribute has no threshold, not that it fails at zero,
+ * most informational attributes report 0, so those are never flagged.
  */
 export function attributeFlagged(attr) {
   if (!attr) return false;

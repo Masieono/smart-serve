@@ -43,7 +43,7 @@ func TestEventLinkPointsAtTheDriveOrTheDashboard(t *testing.T) {
 	}
 }
 
-// A serial with a slash or a space in it must not break the URL — USB bridges report serials with
+// A serial with a slash or a space in it must not break the URL, USB bridges report serials with
 // punctuation in them, and the drive page is addressed by serial.
 func TestEventLinkEscapesTheSerial(t *testing.T) {
 	ev := Event{Serial: "usb/0 space", baseURL: "https://nas.lan"}

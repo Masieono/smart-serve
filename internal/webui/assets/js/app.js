@@ -3,17 +3,17 @@ import { el, mount, clear, holdHeight, scrollToTop, setTemperatureUnit as applyT
 import { icon } from './icons.js';
 import { api, appPath } from './api.js';
 import { toast, confirmDialog } from './components.js';
-import * as dashboard from './views/dashboard.js';
 import * as device from './views/device.js';
+import * as fleet from './views/fleet.js';
 import * as schedules from './views/schedules.js';
 import * as notifications from './views/notifications.js';
 import * as settings from './views/settings.js';
 import { setPollSeconds as setSelfTestRefresh } from './views/selftest.js';
-import { setDisplayOptions } from './views/device.js';
+import { setDisplayOptions } from './views/device-parts.js';
 
 // The sidebar. A fourth element on an entry means it is a *group*: the pages underneath it are
 // listed when you are in that part of the app, and only then. Settings is the first one, because its
-// sections are each a page rather than a stack of collapsible headings — a dozen controls on one
+// sections are each a page rather than a stack of collapsible headings, a dozen controls on one
 // screen is a wall, and a dozen controls split four ways is four short pages.
 const NAV = [
   ['/', 'Devices', 'dashboard'],
@@ -39,7 +39,7 @@ let navGuard = null;
 const ctx = {
   async navigate(path) {
     // Asked before the history entry is written, so a refused navigation leaves no trace to go back
-    // to — a "no" that still changed the URL would be worse than not asking.
+    // to, a "no" that still changed the URL would be worse than not asking.
     if (navGuard && !(await navGuard(path))) return;
     history.pushState({}, '', appPath(path));
     sidebar.dataset.open = 'false';
@@ -66,9 +66,6 @@ const ctx = {
   setTemperatureUnit: applyTemperatureUnit,
   setDisplayOptions(options) {
     setDisplayOptions(options);
-    // The dashboard's own display preference, pushed from here rather than by each caller, so the boot
-    // path and the settings-save path cannot disagree about it.
-    dashboard.setReplaceFirst(options && options.show_replace_first);
   },
   async scan() {
     if (scanning) return;
@@ -122,8 +119,8 @@ function currentPath() {
 /**
  * Render the view for the current path.
  *
- * `keepScroll` is for a re-render of the view that is *already on screen* — a refresh, a rescan, a
- * scan finishing — where the reader's place has to survive it. Navigation passes nothing, because a
+ * `keepScroll` is for a re-render of the view that is *already on screen*, a refresh, a rescan, a
+ * scan finishing, where the reader's place has to survive it. Navigation passes nothing, because a
  * page you have just asked for should start at the top.
  */
 async function route({ keepScroll = false } = {}) {
@@ -132,8 +129,9 @@ async function route({ keepScroll = false } = {}) {
   // one sets it again on the way in.
   navGuard = null;
   renderSidebar(path);
+  renderSignOut();
   // A navigation starts at the top; a re-render keeps the reader where they were. Nothing else does
-  // this — see `scrollToTop`, and the shell comment in `UI.md` §2.
+  // this, see `scrollToTop`, and the shell comment in `UI.md` §2.
   if (!keepScroll) scrollToTop();
 
   // Every view mounts a skeleton and then awaits its data, so the container is empty for the length
@@ -142,7 +140,8 @@ async function route({ keepScroll = false } = {}) {
   const release = keepScroll ? holdHeight(content) : null;
   try {
     if (path.startsWith('/device/')) {
-      await device.render(content, ctx, decodeURIComponent(path.slice('/device/'.length)));
+      const serial = decodeURIComponent(path.slice('/device/'.length));
+      await device.render(content, ctx, serial);
     } else if (path === '/schedules') {
       await schedules.render(content, ctx);
     } else if (path === '/notifications') {
@@ -152,11 +151,37 @@ async function route({ keepScroll = false } = {}) {
       // sidebar entry working and means a bookmarked `/settings` is never a dead end.
       await settings.render(content, ctx, path.slice('/settings/'.length));
     } else {
-      await dashboard.render(content, ctx);
+      // The fleet table (`ADR-032`). One view per page now: the card dashboard it replaced is gone.
+      await fleet.render(content, ctx);
     }
   } finally {
     if (release) release();
   }
+}
+
+/**
+ * A sign-out control, but only where there is something to sign out of.
+ *
+ * The layer is off unless the operator sets a username and password, so the link exists only when
+ * the app is actually gated: a "Sign out" button on an open app would be a lie about its state.
+ */
+async function renderSignOut() {
+  const side = document.querySelector('.sidebar');
+  if (!side || side.querySelector('.nav-signout')) return;
+  let info;
+  try {
+    info = await api.session();
+  } catch {
+    return;
+  }
+  if (!info || !info.enabled) return;
+
+  // A form POST, not a fetch: the server answers with a redirect to the login page, so the browser
+  // lands somewhere sensible with no JavaScript involved if this handler never runs.
+  const form = el('form', { class: 'nav-signout', method: 'post', action: appPath('/api/logout') }, [
+    el('button', { class: 'nav-item', type: 'submit', text: 'Sign out' }),
+  ]);
+  side.append(form);
 }
 
 function renderSidebar(path) {
@@ -165,7 +190,7 @@ function renderSidebar(path) {
     const link = el('a', {
       class: 'nav-item',
       href: appPath(href),
-      // Only the exact page is `page`. A section whose child is current is *marked*, not claimed —
+      // Only the exact page is `page`. A section whose child is current is *marked*, not claimed,
       // saying "you are here" about a link that goes somewhere else is worse than saying nothing.
       'aria-current': (href === '/' ? path === '/' : path === href) ? 'page' : null,
       onclick: (event) => {
@@ -179,8 +204,7 @@ function renderSidebar(path) {
     // The sub-pages of the section you are in, and only then. Ten permanent entries would make the
     // sidebar as long as the page the sections were split to shorten.
     return [
-      el('div', { class: here ? 'nav-group nav-group-active' : 'nav-group' }, [link]),
-      ...(here ? [el('div', { class: 'nav-children' }, children.map(([subHref, subLabel]) =>
+      el('div', { class: here ? 'nav-group nav-group-active' : 'nav-group' }, [link]), ...(here ? [el('div', { class: 'nav-children' }, children.map(([subHref, subLabel]) =>
         el('a', {
           class: 'nav-item nav-sub',
           href: appPath(subHref),
@@ -197,7 +221,7 @@ function renderSidebar(path) {
   sidebar.append(
     // The wordmark is the way home, which is what a wordmark in a corner is for. It is a
     // button rather than an <a> because every navigation in this shell goes through
-    // ctx.navigate, which owns the base path — a raw href would have to interpolate it and
+    // ctx.navigate, which owns the base path, a raw href would have to interpolate it and
     // get it wrong behind a proxy (ADR-015).
     el('button', {
       class: 'brand', type: 'button', title: 'Back to devices',
@@ -267,7 +291,7 @@ function connectEvents() {
     route({ keepScroll: true });
   });
   // A drive's self-test progress changed (`FEATURES.md` A20). The watcher re-reads only drives that
-  // are mid-test, and publishes this when something actually moved — so the badge tracks a running
+  // are mid-test, and publishes this when something actually moved, so the badge tracks a running
   // test instead of freezing at whatever the last scan caught.
   source.addEventListener('selftest_progress', () => {
     route({ keepScroll: true });
@@ -307,14 +331,11 @@ async function loadDisplayPreferences() {
     const data = await api.settings();
     const stored = (data && data.settings) || {};
     applyTemperatureUnit(stored.temperature_unit);
-    // Same reason as the temperature unit, and the same place: a list that flashed cards and then
-    // became a table would be worse than either one on its own.
-    dashboard.setView(stored.dashboard_view);
     // And again: a card that polls should start at the interval the user chose, not at the default
     // and then change under them.
     setSelfTestRefresh(stored.selftest_poll_seconds);
     // A28: the partition table, its usage column and the dashboard's "Replace first" shortlist, read
-    // here for the same reason as the rest — a card that appeared and then vanished on first load is
+    // here for the same reason as the rest, a card that appeared and then vanished on first load is
     // worse than either state. Through `ctx` so the boot path and the save path run the same code.
     ctx.setDisplayOptions(stored);
   } catch {

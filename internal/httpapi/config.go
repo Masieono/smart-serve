@@ -34,15 +34,15 @@ type configBundle struct {
 	Schedules []bundleSchedule  `json:"schedules,omitempty"`
 	// Knowledge is the user's own knowledge base entries (`FEATURES.md` A21), verbatim.
 	//
-	// Carried because they are *the user's data* — hand-typed figures for drives nobody else has
-	// written down — and a host migration that dropped them would drop the only copy. The fetched
+	// Carried because they are *the user's data*, hand-typed figures for drives nobody else has
+	// written down, and a host migration that dropped them would drop the only copy. The fetched
 	// layer is deliberately absent: it is a cache of a URL the settings already carry, and a bundle
 	// holding a stale copy of somebody else's file would be worse than re-fetching it.
 	Knowledge string `json:"knowledge,omitempty"`
 }
 
 // bundleDevice is one drive's labels. Keyed by serial, which is the only identifier that survives a
-// host migration — a device path does not, and that is the whole problem being solved.
+// host migration, a device path does not, and that is the whole problem being solved.
 type bundleDevice struct {
 	Serial string `json:"serial"`
 	Name   string `json:"name,omitempty"`
@@ -57,7 +57,7 @@ type bundleDevice struct {
 //
 // `Action` and `SelfTestKind` are carried. They were not, and that was a bug rather than a saving: a
 // schedule has two axes, and a bundle that carried only the timing one turned a digest schedule into
-// a scan schedule on import — silently, and in the direction of *doing something to the drives*
+// a scan schedule on import, silently, and in the direction of *doing something to the drives*
 // rather than of doing nothing.
 type bundleSchedule struct {
 	Kind         string `json:"kind"`
@@ -75,7 +75,7 @@ type bundleSchedule struct {
 // survives a restart but not a move, and re-labelling sixteen drives by hand is an evening's work.
 //
 // Channels are deliberately absent. Their config holds tokens and passwords, and an export file is
-// exactly the kind of thing that gets emailed to yourself — the app already refuses to serve secret
+// exactly the kind of thing that gets emailed to yourself, the app already refuses to serve secret
 // values over the API (`NOTIFICATIONS.md`), and a backup that quietly undid that would be a worse
 // trade than the one it saves. The bundle says so in its own `note`.
 func (s *Server) handleExportConfig(w http.ResponseWriter, r *http.Request) {
@@ -133,7 +133,7 @@ func (s *Server) handleExportConfig(w http.ResponseWriter, r *http.Request) {
 //
 // **Merge, with the file winning for what it contains.** A drive or a setting the file does not
 // mention is left alone, because the usual reason to import is a fresh install that needs its
-// labels back — and a restore that deleted anything it did not recognise would be one you could not
+// labels back, and a restore that deleted anything it did not recognise would be one you could not
 // safely run twice. Schedules are the one exception, and they say so.
 func (s *Server) handleImportConfig(w http.ResponseWriter, r *http.Request) {
 	var bundle configBundle
@@ -171,7 +171,7 @@ func (s *Server) handleImportConfig(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Knowledge overrides are the user's own data, so they are *applied* when the file carries them
-	// and left alone when it does not — the same rule as labels. Validated first, because a bundle is
+	// and left alone when it does not, the same rule as labels. Validated first, because a bundle is
 	// a file from somewhere else and a bad layer would degrade every drive page rather than failing
 	// loudly here.
 	if strings.TrimSpace(bundle.Knowledge) != "" {
@@ -203,7 +203,7 @@ func (s *Server) handleImportConfig(w http.ResponseWriter, r *http.Request) {
 		applied["schedules"] = len(schedules)
 		// The scheduler arms a schedule that has no next run on its next pass, so it has to be told
 		// there is work to do. Without this the imported schedules would sit dormant until a restart
-		// — imported successfully, and never run.
+		//, imported successfully, and never run.
 		if s.scheduler != nil {
 			s.scheduler.Wake()
 		}

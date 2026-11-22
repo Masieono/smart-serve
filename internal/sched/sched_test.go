@@ -150,7 +150,7 @@ func TestCronUsesTheConfiguredTimezone(t *testing.T) {
 		t.Errorf("next = %v, want %v (03:00 local)", next, want)
 	}
 	if next.Hour() != 3 {
-		t.Errorf("next hour = %d, want 3 — cron must be evaluated in local time", next.Hour())
+		t.Errorf("next hour = %d, want 3, cron must be evaluated in local time", next.Hour())
 	}
 }
 

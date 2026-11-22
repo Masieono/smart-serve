@@ -24,10 +24,11 @@ Three things are deliberate decisions rather than defects, and reports about the
 closed with a pointer here:
 
 - **No authentication, by default.** Smart-Serve ships no login and no user management; access control
-  is delegated to a reverse proxy (`ADR-016`). An optional built-in **single-user** login is specified
-  and not yet built (`ADR-032`); multi-user accounts and roles are out of scope. An instance reachable
-  from an untrusted network without a proxy or that option is a misconfiguration, and `README.md` and
-  `docs/DEPLOYMENT.md` say so.
+  is delegated to a reverse proxy (`ADR-016`). An optional built-in **single-user** login is built
+  (`ADR-033`): it is off unless both `SMARTSERVE_AUTH_USER` and a password are set, it has no lockout,
+  and it does not encrypt anything, so it suits a trusted LAN and is no substitute for TLS. Multi-user
+  accounts and roles are out of scope. An instance reachable from an untrusted network without a
+  proxy, TLS or that option is a misconfiguration, and `README.md` and `docs/DEPLOYMENT.md` say so.
 - **The container's privileges.** Reading S.M.A.R.T. requires access to raw device nodes, so
   the reference deployment opens the device cgroup and grants `CAP_SYS_ADMIN` and
   `CAP_SYS_RAWIO`. That is a real privilege grant, it is the operator's decision, and the

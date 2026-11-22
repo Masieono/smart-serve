@@ -62,7 +62,7 @@ func (f *fakeRescanner) seen() []string {
 //
 // `onRead` is how a test simulates time passing: the runner's wait loop is driven by a clock, and the
 // clock is advanced by the read that follows each poll. `failFrom` makes reads fail from a given
-// index onward, which is how "the first read worked and a later poll did not" is expressed — the
+// index onward, which is how "the first read worked and a later poll did not" is expressed, the
 // distinction the runner depends on, since a failed read is not a finished test.
 type fakeDriver struct {
 	mu       sync.Mutex
@@ -250,7 +250,7 @@ func TestEligibleIsOrderedBySerial(t *testing.T) {
 }
 
 // The queue exists for this and nothing else: twenty-four long tests starting together is an I/O
-// meltdown. Asserted through the rescanner, which is called only after a drive's test has ended — so
+// meltdown. Asserted through the rescanner, which is called only after a drive's test has ended, so
 // a second start before the first rescan would mean two tests were running at once.
 func TestAPassTestsOneDriveAtATime(t *testing.T) {
 	clock := &fakeClock{t: time.Unix(0, 0)}
@@ -302,7 +302,7 @@ func TestADriveAlreadyTestingIsNotAskedAgain(t *testing.T) {
 	waitFor(t, "the pass to finish", func() bool { return !r.Progress().Running })
 
 	if got := drv.startedPaths(); len(got) != 0 {
-		t.Fatalf("starts = %v, want none — the drive was already testing", got)
+		t.Fatalf("starts = %v, want none, the drive was already testing", got)
 	}
 	if got := re.seen(); len(got) != 0 {
 		t.Fatalf("rescanned = %v, want none", got)
@@ -326,7 +326,7 @@ func TestADriveThatNeverReportsProgressIsNotAbandonedEarly(t *testing.T) {
 	waitFor(t, "the pass to finish", func() bool { return len(re.seen()) == 1 })
 
 	// Three reads: the one before starting, then two polls. The first poll was a minute in and the
-	// floor is two, so it could not conclude anything — which is the whole point.
+	// floor is two, so it could not conclude anything, which is the whole point.
 	if got := drv.readCount("/dev/sda"); got != 3 {
 		t.Fatalf("reads = %d, want 3 (the check, then two polls)", got)
 	}
@@ -348,14 +348,14 @@ func TestAReportedRunningTestExtendsTheWait(t *testing.T) {
 	waitFor(t, "the pass to finish", func() bool { return len(re.seen()) == 1 })
 
 	// Four reads: the check, then three polls. Two of those were well past the two-minute floor and
-	// the drive said it was still testing — so the pass kept waiting.
+	// the drive said it was still testing, so the pass kept waiting.
 	if got := drv.readCount("/dev/sda"); got != 4 {
 		t.Fatalf("reads = %d, want 4 (the check, then three polls)", got)
 	}
 }
 
 // A failed read is not a finished test. Treating it as one would start the next drive on top of a
-// test that is still running — and this is the failure the project has actually seen on hardware: the
+// test that is still running, and this is the failure the project has actually seen on hardware: the
 // same SN730 reported "Read Self-test Log failed" under one smartctl and read fine under the next.
 func TestAReadFailureIsNotAFinishedTest(t *testing.T) {
 	drv := newFakeDriver(map[string][]string{"/dev/sda": {noLog, noLog, finishedLog}})
@@ -378,7 +378,7 @@ func TestAReadFailureIsNotAFinishedTest(t *testing.T) {
 }
 
 // Two overlapping passes would test the same drives twice, and the second would find each one already
-// testing and skip it — so the honest answer is to refuse up front.
+// testing and skip it, so the honest answer is to refuse up front.
 func TestAPassRefusesToOverlap(t *testing.T) {
 	drv := newFakeDriver(map[string][]string{"/dev/sda": {noLog, runningLog}})
 	st := &fakeStore{devices: []store.DeviceRecord{record("a", "/dev/sda")}}

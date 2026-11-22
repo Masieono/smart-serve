@@ -11,7 +11,7 @@ import { installStubDom } from './stub-dom.mjs';
 
 installStubDom();
 
-const { setDisplayOptions, deviceRefreshWindow } = await import('../assets/js/views/device.js');
+const { setDisplayOptions, deviceRefreshWindow } = await import('../assets/js/views/device-parts.js');
 
 test('an absent setting means the default, not "never"', () => {
   setDisplayOptions({});

@@ -31,7 +31,7 @@ func DefaultCorrelationThresholds() CorrelationThresholds {
 type HeatReading struct {
 	Serial string
 	// Groups are the tags the drive belongs to, already split by the caller. Which tags exist is
-	// the store's business, so this stays a list of names rather than a string to parse — the
+	// the store's business, so this stays a list of names rather than a string to parse, the
 	// interpreter has no opinion about how tags are stored.
 	Groups []string
 	// Prev and Now are nil when the drive reported no temperature at that reading. A drive with
@@ -90,7 +90,7 @@ func CorrelatedHeat(readings []HeatReading, t CorrelationThresholds) []GroupHeat
 
 	for _, r := range readings {
 		// A reading with no current temperature is not a drive that held steady, it is a drive that
-		// did not report — so it is not in the denominator either. The input contract is that `Now`
+		// did not report, so it is not in the denominator either. The input contract is that `Now`
 		// is set; a caller that has unmeasured drives leaves them out.
 		if r.Now == nil {
 			continue
@@ -158,7 +158,7 @@ func HeatSummary(g GroupHeat, delta string) string {
 		where = "most of them share an enclosure"
 	}
 	return fmt.Sprintf("%d of the %d drives tagged %s are at least %s hotter than at the previous "+
-		"reading. %s, so the cause is more likely to be there — a fan, a filter, or ambient — than in "+
+		"reading. %s, so the cause is more likely to be there, a fan, a filter, or ambient, than in "+
 		"%d drives at once.", len(g.Drives), g.Total, g.Group, delta, where, len(g.Drives))
 }
 

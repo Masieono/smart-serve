@@ -41,8 +41,7 @@ function device(overrides = {}) {
     score: 100,
     health_rationale: 'all checks passed',
     smart_available: true,
-    mountpoints: [],
-    ...overrides,
+    mountpoints: [], ...overrides,
   };
 }
 
@@ -90,7 +89,7 @@ test('a blocked read is labelled differently from a drive with no S.M.A.R.T.', (
 });
 
 // A drive whose bad-sector count is moving is worth replacing before it stops moving at
-// all, so the dashboard flags it — separately from the verdict, which only describes today.
+// all, so the dashboard flags it, separately from the verdict, which only describes today.
 test('a drive with growing bad sectors is flagged as worsening', () => {
   const worsening = textOf(card({
     smart_available: true, health: 'good', score: 98, worsening: 5,
@@ -116,20 +115,20 @@ test('a bay is shown on the card', () => {
   assert.match(text, /bay 4/);
 });
 
-// A drive with no bay recorded is not a drive with a problem. A row reading "Bay —" would look
+// A drive with no bay recorded is not a drive with a problem. A row reading "Bay," would look
 // like a missing measurement rather than a gap in the bookkeeping, so the row is dropped.
 
 // A drive testing itself gets a badge on its fleet card (`FEATURES.md` A20).
 //
 // This is the reported problem stated as a test: start a long test, look at another drive, come back
-// — and the fleet gave no sign of which one was busy, so the app got asked to start a second test it
+//, and the fleet gave no sign of which one was busy, so the app got asked to start a second test it
 // would refuse. The badge answers "which drive is busy?" without visiting each page.
 test('a drive testing itself is badged on its fleet card', () => {
   const running = card({ selftest: { kind: 'Extended offline', pct: 62 } });
   assert.match(textOf(running), /Testing 62%/);
 
   // Which *drive* is the badge's job, and a card is not the place for "Extended offline" in the
-  // label — but which *test* has to be somewhere, and the tooltip is where a sentence belongs.
+  // label, but which *test* has to be somewhere, and the tooltip is where a sentence belongs.
   const badge = running.querySelectorAll('span').find((n) => /selftest-badge/.test(n.className));
   assert.ok(badge, 'no badge');
   assert.match(badge.getAttribute('title'), /Extended offline/);
@@ -140,7 +139,7 @@ test('a drive testing itself is badged on its fleet card', () => {
   assert.match(noFigure, /Testing/);
   assert.doesNotMatch(noFigure, /Testing \d/, 'a figure was invented for a drive that reports none');
 
-  // And nothing at all when nothing is running — a permanent badge would be noise on every card.
+  // And nothing at all when nothing is running, a permanent badge would be noise on every card.
   assert.doesNotMatch(textOf(card({})), /Testing/);
 });
 

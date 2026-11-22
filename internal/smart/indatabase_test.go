@@ -1,7 +1,7 @@
 // `in_smartctl_database` (`FEATURES.md` A28).
 //
 // The attribute table used to *infer* "smartctl does not know this model" from seeing
-// `Unknown_Attribute` names. This says it — and it is tri-state, because "smartctl did not say" is a
+// `Unknown_Attribute` names. This says it, and it is tri-state, because "smartctl did not say" is a
 // third answer rather than a missing one, and the note under the table words all three differently.
 
 package smart
@@ -30,7 +30,7 @@ func TestInSmartctlDatabaseIsRead(t *testing.T) {
 	}
 }
 
-// A drive smartctl does not know reports false — which is the fact the attribute table's note was
+// A drive smartctl does not know reports false, which is the fact the attribute table's note was
 // previously guessing at.
 func TestADriveSmartctlDoesNotKnowReportsFalse(t *testing.T) {
 	raw := []byte(`{"json_format_version":[1,0],"in_smartctl_database":false,
@@ -48,7 +48,7 @@ func TestADriveSmartctlDoesNotKnowReportsFalse(t *testing.T) {
 }
 
 // Absent stays absent. A smartctl that did not say must not be read as "no", because the note under
-// the table says something different for each — and claiming smartctl does not know a drive it never
+// the table says something different for each, and claiming smartctl does not know a drive it never
 // commented on would be the app inventing a fact about it.
 func TestAMissingInSmartctlDatabaseStaysAbsent(t *testing.T) {
 	raw := []byte(`{"json_format_version":[1,0],

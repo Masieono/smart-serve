@@ -75,8 +75,8 @@ const (
 
 // RankForReplacement orders drives by how strongly each argues for replacement (`FEATURES.md` A24).
 //
-// The dashboard already sorts by *today's* severity. This answers a different question — "which one
-// do I buy this month?" — which is about direction and remaining life as much as about the verdict.
+// The dashboard already sorts by *today's* severity. This answers a different question, "which one
+// do I buy this month?", which is about direction and remaining life as much as about the verdict.
 //
 // Bands rather than a weighted sum, deliberately. A weighted sum would be a number nobody could
 // argue with or explain, and the whole point of this ranking is that it shows its reasons: "failing
@@ -84,7 +84,7 @@ const (
 // disagree with a band and act on it; they cannot do either with an unexplained 63.4.
 //
 // Every drive is returned, including the healthy ones, so a caller can decide how much of the
-// ranking to show. Within a band the order is by score ascending — the worst of the bad first — and
+// ranking to show. Within a band the order is by score ascending, the worst of the bad first, and
 // then by serial, so the list is stable between renders.
 func RankForReplacement(candidates []ReplacementCandidate) []ReplacementRank {
 	ranks := make([]ReplacementRank, 0, len(candidates))

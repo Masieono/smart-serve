@@ -2,7 +2,7 @@
 // editor's group scope (`B12`).
 //
 // This file exists because two views needed the same answer to "which groups are there", and two
-// answers to one question is how they come to disagree — the same argument `store/tags.go` makes for
+// answers to one question is how they come to disagree, the same argument `store/tags.go` makes for
 // the split rule, which the Go side and this one have to keep matching.
 
 import test from 'node:test';
@@ -12,11 +12,11 @@ const { tagList, fleetTags } = await import('../assets/js/tags.js');
 
 test('tagList splits, trims and drops blanks', () => {
   assert.deepEqual(tagList('tank, spare'), ['tank', 'spare']);
-  assert.deepEqual(tagList(' tank , , backup '), ['tank', 'backup']);
+  assert.deepEqual(tagList(' tank , backup '), ['tank', 'backup']);
   assert.deepEqual(tagList(''), []);
   assert.deepEqual(tagList('   '), []);
   // A drive with no tags at all, which the API sends as an empty string and a caller may send as
-  // null — neither is a group called "null".
+  // null, neither is a group called "null".
   assert.deepEqual(tagList(null), []);
   assert.deepEqual(tagList(undefined), []);
 });

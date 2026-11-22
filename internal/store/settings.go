@@ -129,8 +129,8 @@ func (s *Store) SelfTestPollSeconds(ctx context.Context) time.Duration {
 
 // RetentionWindow is `RetentionDays` as a duration, for callers asking how far back history goes.
 //
-// This bounds every question about history — the longevity projection, the worsening flag, the
-// trend adjustment — because snapshots older than it have been pruned. A longer window would be a
+// This bounds every question about history, the longevity projection, the worsening flag, the
+// trend adjustment, because snapshots older than it have been pruned. A longer window would be a
 // promise the database cannot keep; a *shorter* one would hide history the user deliberately kept,
 // which is exactly what `A26` set out to stop.
 func (s *Store) RetentionWindow(ctx context.Context) time.Duration {
@@ -157,7 +157,7 @@ type Schedule struct {
 	// Action is *what* happens when it does: scan | digest | selftest (`FEATURES.md` B13, A19).
 	//
 	// Two axes rather than a third kind, so a digest inherits every timing feature the scan schedules
-	// already have — cron, time zones, the missed-run policy — instead of duplicating them. An empty
+	// already have, cron, time zones, the missed-run policy, instead of duplicating them. An empty
 	// Action means "scan", which is what every row written before migration 0010 meant.
 	Action string
 	// SelfTestKind is *short* or *long*, and only means anything when Action is `selftest`. Kept
@@ -203,7 +203,7 @@ func scheduleAction(action string) string {
 //
 // Anything unrecognised becomes `short`, which is the same rule the API and the UI apply. A value
 // that silently meant *long* would turn a mistyped column into hours of I/O on every drive in the
-// fleet, and the failure mode of guessing wrong is asymmetric — so it guesses the cheap way.
+// fleet, and the failure mode of guessing wrong is asymmetric, so it guesses the cheap way.
 func scheduleSelfTestKind(kind string) string {
 	if strings.EqualFold(strings.TrimSpace(kind), SelfTestLong) {
 		return SelfTestLong
@@ -302,7 +302,7 @@ func (s *Store) MarkScheduleRun(ctx context.Context, id int64, lastRun, nextRun 
 }
 
 // MakeScheduleDue brings a schedule's next run forward to now so the scheduler
-// picks it up on its next wake — the mechanism behind "run now".
+// picks it up on its next wake, the mechanism behind "run now".
 func (s *Store) MakeScheduleDue(ctx context.Context, id int64, now time.Time) error {
 	_, err := s.db.ExecContext(ctx,
 		`UPDATE scan_schedules SET next_run = ? WHERE id = ? AND enabled = 1`,
@@ -319,7 +319,7 @@ func (s *Store) MakeScheduleDue(ctx context.Context, id int64, now time.Time) er
 // `last_run` and `next_run` are deliberately dropped. They are bookkeeping about *this* install,
 // not configuration: an imported schedule has never run here, and its next run is a time the
 // scheduler computes from the current clock. Leaving `next_run` null is what makes the scheduler
-// arm it — see `Scheduler.Wake`.
+// arm it, see `Scheduler.Wake`.
 func (s *Store) ReplaceSchedules(ctx context.Context, schedules []Schedule) error {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {

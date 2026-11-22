@@ -5,11 +5,11 @@ information for **all** storage devices visible to the host — internal SATA/NV
 *and* USB-attached drives. If it shows up in `lsblk`, it shows up in the web interface.
 
 Smart-Serve is deliberately built to be **out of the way**: a single Go binary that idles
-at ~0% CPU and ~10–15 MB RAM. It only wakes up when you look at it, when you press
+at about 0.03% CPU and 19.5 MiB resident memory, measured over a ten-minute idle sample on arm64. It only wakes up when you look at it, when you press
 **Scan**, or when a scheduled scan fires. No polling loops, no metrics scrapers, no
 database daemon.
 
-![The dashboard: one card per drive, with verdict, score, storage and last scan](docs/images/dashboard.png)
+![The fleet: one row per drive, with verdict and score in one cell, usage, temperature and powered-on hours](docs/images/fleet.png)
 
 ## Feature highlights
 
@@ -46,21 +46,20 @@ database daemon.
 
 ## Screenshots
 
-**Partitions** — a map of the disk above the table of what is on it. The two are linked **both ways**:
+**The drive page** — facts, then disk space, then trends, then attributes, then the self-test. The one
+control that writes to a drive is last, after everything that only reads it.
+
+![A drive page: verdict and score, facts, disk space, trends, attributes](docs/images/device-page.png)
+
+**Disk space** — a map of the disk above the table of what is on it. The two are linked **both ways**:
 point at a segment and the row it stands for is marked; point at a row and the segment is.
 
-![The partition card: a disk map above a table of partitions](docs/images/partitions.png)
+![Disk space: a usage line, a disk map, and a table of partitions](docs/images/partitions.png)
 
 **Attribute help** — every attribute the interpreter acts on carries a `?` explaining what it is
 and how to read it.
 
 ![An attribute explanation open over the attribute table](docs/images/attribute-explanation.png)
-
-**The self-test card** — a test is started from here, and its progress and history appear in the same
-card. This is the one place the UI reads a drive live, and only while a test it started is still
-running.
-
-![The self-test card, with the test buttons and the drive's own self-test log](docs/images/selftest-card.png)
 
 ## Quick start
 
@@ -83,9 +82,11 @@ docker run -d \
 > fail identically, which is why they are listed together — see
 > [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) for least-privilege options and USB specifics.
 
-> **Smart-Serve ships no authentication by default** (`ADR-016`). It expects a reverse proxy to
-> provide it, and publishing port 8080 as above is appropriate on a trusted LAN and nowhere else. An
-> optional built-in single-user login is **specified and not yet built** (`ADR-032`).
+> **Smart-Serve ships no authentication by default** (`ADR-016`). Publishing port 8080 as above is
+> appropriate on a trusted LAN and nowhere else. An **optional single-user login** is built
+> (`ADR-033`): set `SMARTSERVE_AUTH_USER` and `SMARTSERVE_AUTH_PASSWORD_FILE`, and the app asks for a
+> password before it draws anything. It is one user, with no accounts and no roles; more than one
+> person still means a reverse proxy.
 
 Then open `http://<host>:8080` and press **Scan**.
 

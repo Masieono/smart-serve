@@ -71,7 +71,7 @@ type PostScan struct {
 }
 
 // PostScanFunc reacts to a finished scan. It runs after the scan is committed,
-// so it cannot affect the result, and it must not block for long — the next
+// so it cannot affect the result, and it must not block for long, the next
 // scheduled scan is waiting on the manager.
 type PostScanFunc func(ctx context.Context, rep PostScan)
 
@@ -367,7 +367,7 @@ func encodePenalties(penalties []interp.Penalty) string {
 // encodeDiskLayout renders a drive's partition schema for storage, or "" when there is none.
 //
 // Empty rather than "{}" so "never read" stays distinguishable from "read, and there is nothing to
-// report" — and so a database dump reads the same as it does for a row written before the column
+// report", and so a database dump reads the same as it does for a row written before the column
 // existed.
 func encodeDiskLayout(layout *smart.DiskLayout) string {
 	if layout == nil {
@@ -400,7 +400,7 @@ func toStored(d Device) store.ScannedDevice {
 		HealthRationale: d.Health.Rationale,
 		Score:           d.Health.Score,
 		// The score breakdown (`FEATURES.md` A12), encoded here rather than in the store because the
-		// interpreter's type is the interpreter's business — the store holds a blob it never reads.
+		// interpreter's type is the interpreter's business, the store holds a blob it never reads.
 		Penalties: encodePenalties(d.Health.Penalties),
 		// And the partition schema (`A28`), same reasoning: `smart` owns the shape, the store holds
 		// the JSON.
@@ -450,7 +450,7 @@ func toStored(d Device) store.ScannedDevice {
 			// Stored as percentage *used*, the same unit as NVMe's percentage_used, so one
 			// longevity projection covers both transports.
 			//
-			// Before this, an ATA SSD had no wear figure at all — not because it lacked
+			// Before this, an ATA SSD had no wear figure at all, not because it lacked
 			// one, but because only attribute 231 was read and most drives report the wear
 			// somewhere else (177 on Samsung, 233 or 202 on others).
 			wear := float64(100 - left)
@@ -482,7 +482,7 @@ func toStored(d Device) store.ScannedDevice {
 		out.SelfTest = logs.LatestFinished()
 		// And whether one is running right now (`FEATURES.md` A20), so the fleet can show which drive
 		// is busy without reading every drive. The same log, the same read: a test in progress is the
-		// entry carrying a percentage remaining — and many drives report no figure at all, so
+		// entry carrying a percentage remaining, and many drives report no figure at all, so
 		// "running, no number" is a real state rather than a missing one.
 		if running := logs.Running(); running != nil {
 			out.SelfTestRunning = true
@@ -522,7 +522,7 @@ func applyTrendPenalties(devices []Device, trend map[string]int64) int {
 		d.Health.Score = max(0, d.Health.Score-penalty)
 		d.Health.Rationale = trendRationale(d.Health.Rationale, penalty, added)
 		// The breakdown has to account for the whole score, so the adjustment appears in it too.
-		// Without this line the lines would sum to less than the score they claim to explain — the
+		// Without this line the lines would sum to less than the score they claim to explain, the
 		// one thing a breakdown must never do. No attribute id: the trend is the *total* of 5, 197
 		// and 198 moving, which is not a statement about any one row.
 		d.Health.Penalties = append(d.Health.Penalties, interp.Penalty{

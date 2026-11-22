@@ -163,7 +163,7 @@ location /smartserve/ {
 SSE requires `proxy_buffering off` and HTTP/1.1 — noted here because it is the
 most common reverse-proxy misconfiguration.
 
-**A built-in single-user option is specified and not built** (`ADR-032`, `FEATURES.md` C5). It is
+**A built-in single-user option is specified and not built** (`ADR-033`, `FEATURES.md` C5). It is
 HTTP Basic with one user, configured from two environment variables, and it exists for the deployment
 that has no proxy at all — a homelab box where this is the only thing on the port. Until it lands, the
 pattern above is what ships, and the app has no login of its own. Multi-user accounts and roles are
@@ -223,6 +223,9 @@ partition card, which is the honest state: the app has not read it yet.
 | `SMARTSERVE_COMMAND_TIMEOUT` | `15` | per-command timeout (s) |
 | `SMARTSERVE_LOG_LEVEL` | `info` | `debug` \| `info` \| `warn` \| `error` |
 | `SMARTSERVE_BASE_PATH` | `/` | URL subpath when hosted behind a proxy at e.g. `/smartserve/` (`ADR-015`) |
+| `SMARTSERVE_AUTH_USER` | unset | the single login username; set with one of the password variables (`ADR-033`) |
+| `SMARTSERVE_AUTH_PASSWORD_FILE` | unset | path to a file holding the password; the documented form, so the secret can come from a Docker secret |
+| `SMARTSERVE_AUTH_PASSWORD` | unset | the password inline. Inline wins over the file if both are set |
 
 **Configuration precedence (ADR-009):** env vars provide *defaults* only while the
 setting is absent from the database. Once a setting is changed in the web UI it is
@@ -230,6 +233,31 @@ stored in SQLite and the DB value wins — the UI shows each setting's effective
 source. All **interpretation thresholds** (temperature, sector-count thresholds,
 retention, squelch windows) are configured **in the UI**, never via env vars.
 `SMARTSERVE_ADDR` and `SMARTSERVE_DB` are env-only and never stored.
+
+### Built-in sign-in
+
+Off unless both `SMARTSERVE_AUTH_USER` and a password are set. Setting one without the other **refuses
+to start** rather than running unauthenticated, and the error says which half is missing.
+
+```yaml
+environment:
+  SMARTSERVE_AUTH_USER: admin
+  # Read from a Docker secret, so `docker inspect` does not show the password.
+  SMARTSERVE_AUTH_PASSWORD_FILE: /run/secrets/smartserve_password
+secrets:
+  smartserve_password:
+    file: ./smartserve-password.txt
+```
+
+A browser gets a sign-in page and a session cookie; `curl`, Prometheus and scripts keep sending HTTP
+Basic and never see a login. Sessions live in memory, so **a restart signs everyone out**, and
+Settings → Data → Sign-in → **Idle timeout** (default 30 minutes, capped at 24 hours) ends a session
+that goes quiet. There is no lockout after repeated failures. Basic is base64, not encryption: this
+protects a trusted LAN and is no substitute for TLS on a port the internet can reach.
+
+It combines with `SMARTSERVE_BASE_PATH`: the gate works in stripped paths, so the healthcheck, the
+sign-in page and the static assets stay exempt under a subpath, and the redirects it builds carry the
+prefix.
 
 ### Secrets
 

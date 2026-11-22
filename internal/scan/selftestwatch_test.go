@@ -48,7 +48,7 @@ func watchManager(t *testing.T, st *store.Store, hub *events.Hub, reply func() (
 	return m
 }
 
-/** The fixture bytes, read from the smart package's own testdata — the same files its parser is
+/** The fixture bytes, read from the smart package's own testdata, the same files its parser is
  *  tested against, so the watcher is not asserting against a second, invented copy of the format. */
 func fixture(t *testing.T, name string) smart.Result {
 	t.Helper()
@@ -61,7 +61,7 @@ func fixture(t *testing.T, name string) smart.Result {
 
 // The drive's progress reaches the store, which is what the fleet badge reads.
 func TestTheWatcherRecordsMovingProgress(t *testing.T) {
-	// The stored figure is stale — the last scan caught 3% — and the drive now says 10%.
+	// The stored figure is stale, the last scan caught 3%, and the drive now says 10%.
 	stale := 3
 	st := watchFixture(t, true, &stale, "")
 	hub := events.NewHub()

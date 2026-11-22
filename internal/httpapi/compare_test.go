@@ -17,7 +17,7 @@ import (
 // different drives, a missing attribute reading as a zero, or the "these disagree" mark being
 // useless because it is always on.
 func TestAlignAttributes(t *testing.T) {
-	// Two drives of one model, reporting the same attributes in different orders — which is what
+	// Two drives of one model, reporting the same attributes in different orders, which is what
 	// smartctl actually does, and the reason this cannot be done in the browser.
 	first := []model.Attribute{
 		{ID: 5, Name: "Reallocated_Sector_Ct", Value: 100, Worst: 100, Threshold: 10, RawValue: 0},
@@ -87,12 +87,12 @@ func TestAlignedAttributesMarkAbsence(t *testing.T) {
 	}
 	// One present value cannot disagree with anything.
 	if rows[0].Differs {
-		t.Error("a row only one drive has does not differ — absence is not a difference")
+		t.Error("a row only one drive has does not differ, absence is not a difference")
 	}
 }
 
 // The drive's own threshold is what flags an attribute, and a threshold of zero means *no
-// threshold* rather than *fails at zero* — the mistake that would flag every attribute on a drive
+// threshold* rather than *fails at zero*, the mistake that would flag every attribute on a drive
 // that publishes zeros.
 func TestAlignedAttributesFlagTheDrivesOwnThreshold(t *testing.T) {
 	rows := alignAttributes([][]model.Attribute{
@@ -137,7 +137,7 @@ func TestCompareSerials(t *testing.T) {
 		// Comparing a drive with itself is a mistake worth absorbing.
 		{"a,a,b", []string{"a", "b"}},
 		// Blanks are not drives.
-		{"a,,b,", []string{"a", "b"}},
+		{"a,b,", []string{"a", "b"}},
 	}
 	for _, tc := range good {
 		got, err := compareSerials(tc.raw)

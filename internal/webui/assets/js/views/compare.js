@@ -6,8 +6,8 @@
 // left.
 //
 // The table itself is built from the server's aligned rows, not from N device payloads. The
-// alignment *is* the feature — two drives of one model report their attributes in whatever order
-// smartctl felt like — and it lives in Go where it can be tested (`internal/httpapi/compare.go`).
+// alignment *is* the feature, two drives of one model report their attributes in whatever order
+// smartctl felt like, and it lives in Go where it can be tested (`internal/httpapi/compare.go`).
 import { el, mount } from '../dom.js';
 import { api } from '../api.js';
 import { openDialog, toast } from '../components.js';
@@ -25,8 +25,8 @@ export const COMPARE_MAX_DRIVES = 6;
 /**
  * Which cell of a row is the "worst" one, for the reader who is scanning rather than reading.
  *
- * Higher is worse for a normalised value — 100 is a healthy attribute and a low value is a worn one
- * — but only for attributes the drive itself publishes a threshold for. Without a threshold there is
+ * Higher is worse for a normalised value, 100 is a healthy attribute and a low value is a worn one
+ *, but only for attributes the drive itself publishes a threshold for. Without a threshold there is
  * no scale to compare on, and picking the numerically highest would call a drive with more power-on
  * hours the worse drive, which is not a judgement this app makes.
  *
@@ -61,7 +61,7 @@ export function interestingRows(rows) {
 /**
  * Open the comparison for a set of serials.
  *
- * `serials` is the order the columns appear in, which is the order the user selected them — a
+ * `serials` is the order the columns appear in, which is the order the user selected them, a
  * comparison whose columns reshuffle between openings is one nobody can learn to read.
  */
 export function openCompare(ctx, serials) {
@@ -74,8 +74,7 @@ export function openCompare(ctx, serials) {
       const rows = data.rows || [];
 
       const head = el('tr', {}, [
-        el('th', { class: 'compare-attr', text: 'Attribute' }),
-        ...drives.map((d) => el('th', {}, [
+        el('th', { class: 'compare-attr', text: 'Attribute' }), ...drives.map((d) => el('th', {}, [
           el('div', { class: 'compare-drive', text: d.name || d.serial }),
           el('div', { class: 'muted', text: d.model || '' }),
           d.bay ? el('div', { class: 'muted', text: d.bay }) : null,
@@ -88,12 +87,11 @@ export function openCompare(ctx, serials) {
           el('td', { class: 'compare-attr' }, [
             el('span', { class: 'compare-id', text: String(row.id) }),
             el('span', { text: row.name }),
-          ]),
-          ...drives.map((_, index) => {
+          ]), ...drives.map((_, index) => {
             const cell = (row.cells || [])[index];
             // An absent attribute is an em dash, never a zero: an NVMe drive does not have
             // "Reallocated Sector Count: 0", it does not have the attribute at all.
-            if (!cell) return el('td', { class: 'num muted', text: '—' });
+            if (!cell) return el('td', { class: 'num muted', text: 'n/a' });
             const flagged = cell.flagged;
             const worst = !flagged && index === worstAt;
             return el('td', {
@@ -102,8 +100,8 @@ export function openCompare(ctx, serials) {
             }, [
               el('span', { class: 'compare-value', text: String(cell.value) }),
               // The raw count, when it says something the normalised value does not. For the sector
-              // counters it is the whole finding — a healthy drive reports 100 whatever the real
-              // count is, so "100" beside "100" hides the drive with twelve bad sectors — while for
+              // counters it is the whole finding, a healthy drive reports 100 whatever the real
+              // count is, so "100" beside "100" hides the drive with twelve bad sectors, while for
               // a temperature the two are the same number and printing it twice is noise.
               cell.raw_value !== cell.value
                 ? el('span', { class: 'compare-raw', text: String(cell.raw_value) })

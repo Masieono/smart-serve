@@ -1,7 +1,8 @@
 # Smart-Serve — Internal API Specification
 
-All endpoints JSON unless noted. Unauthenticated at MVP (see SECURITY notes in
-`DESIGN.md` §7). Paths are relative to `SMARTSERVE_BASE_PATH` (default `/`,
+All endpoints JSON unless noted. **Authentication is optional and off by default** (`ADR-033`): when
+`SMARTSERVE_AUTH_USER` and a password are set, every endpoint except `/healthz` requires either a
+session cookie or HTTP Basic. Paths are relative to `SMARTSERVE_BASE_PATH` (default `/`,
 `ADR-015`). State-changing requests (POST/PUT/DELETE) require a same-origin/CSRF
 check. Error envelope: `{ "error": "message" }` with an appropriate HTTP status.
 A `500` never carries the underlying error: the API answers with a reference
@@ -26,6 +27,10 @@ whether a failure is notification-worthy: a failed *scheduled* scan alerts, a fa
 manual one does not (the operator who pressed the button already knows).
 
 ### `GET /api/devices` — list devices (last known state; never triggers I/O)
+
+The fleet table (`ADR-032`) reads `used_pct` per drive: how full the drive's fullest filesystem was
+at the last scan, or absent when the container could not see one. It is on the list rather than the
+per-device payload because a table that draws every drive would otherwise need a request per row.
 
 ```json
 {
@@ -325,6 +330,35 @@ stored record. Unset fields are `null`, not omitted — full replace semantics.
 `bay` is free text: where the drive physically is. It is user metadata rather than
 something read from the drive, so it survives an unplug, and it is what the dashboard
 card leads with when it is set (`FEATURES.md` D10).
+
+## Authentication (optional, `ADR-033`)
+
+Off unless both `SMARTSERVE_AUTH_USER` and a password are set. One user, no accounts, no roles.
+
+Two ways to present that one credential, and a client may use either:
+
+- **HTTP Basic** on any request: `curl -u user:pass …`. This is what scripts, scrapers and
+  healthchecks use. It has no session and no logout: each request carries the credential.
+- **A session cookie** for a browser: `POST /api/session` sets an `HttpOnly`, `SameSite=Strict`
+  cookie, and `POST /api/logout` revokes the token server-side. The idle window is
+  `auth_idle_minutes` (default 30); an absolute cap of 24 hours ends a session however active.
+
+| Endpoint | Auth | Purpose |
+|---|---|---|
+| `GET /login` | exempt | the sign-in form (self-contained HTML, no JavaScript required) |
+| `POST /api/session` | exempt | form fields `user`, `password`, `next`; sets the cookie and redirects to `next` (same-site only) |
+| `POST /api/logout` | session | revokes the token, clears the cookie, redirects to `/login` |
+| `GET /api/session` | session | `{ "enabled": bool, "authenticated": bool }`; answers when the layer is off |
+
+Under a base path (`SMARTSERVE_BASE_PATH=/smartserve`) every path here is relative to it: the gate
+sits inside the prefix, so the exempt list is exactly `/healthz` and `/login`, and the redirects it
+builds carry the prefix (`/smartserve/login?next=%2Fschedules`).
+
+Unauthenticated failures depend on what asked: an API request gets `401` with
+`WWW-Authenticate: Basic realm="Smart-Serve"` and `{"error":"authentication required"}`; a page
+request gets `303` to `/login?next=…`. `/healthz`, `/icon.svg` and `/styles/`, `/js/` are exempt so a
+container probe and the login page itself work without a session. `/metrics` is **not** exempt:
+Prometheus is expected to send Basic, which keeps the fleet's health off an open port.
 
 ## Prometheus metrics
 
@@ -736,8 +770,10 @@ native (browser `EventSource` auto-retry with `Last-Event-ID` cursor for missed
 ## History (implemented)
 
 - `GET /api/devices/{serial}/history?from=…&to=…` — snapshots in range, with
-  computed series (`temperature_c`, `wear_pct`, attr-5/197/198 raw values,
-  `power_on_hours`).
+  computed series (`temperature_c`, `wear_pct`, `used_pct`, `sectors`, attr-5/197/198 raw
+  values, `power_on_hours`). `sectors` is the reallocated count at that snapshot: the one
+  series whose shape precedes a failure, which is why the v2 trend strip gives it a slot
+  (`ADR-032`).
 
 ## Knowledge base (implemented, `A21`)
 
