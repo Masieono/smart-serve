@@ -255,6 +255,10 @@ Settings → Data → Sign-in → **Idle timeout** (default 30 minutes, capped a
 that goes quiet. There is no lockout after repeated failures. Basic is base64, not encryption: this
 protects a trusted LAN and is no substitute for TLS on a port the internet can reach.
 
+It combines with `SMARTSERVE_BASE_PATH`: the gate works in stripped paths, so the healthcheck, the
+sign-in page and the static assets stay exempt under a subpath, and the redirects it builds carry the
+prefix.
+
 ### Secrets
 
 Smart-Serve itself needs **no credentials** — no login, no database password, no API key. The

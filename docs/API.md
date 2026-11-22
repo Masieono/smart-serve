@@ -350,6 +350,10 @@ Two ways to present that one credential, and a client may use either:
 | `POST /api/logout` | session | revokes the token, clears the cookie, redirects to `/login` |
 | `GET /api/session` | session | `{ "enabled": bool, "authenticated": bool }`; answers when the layer is off |
 
+Under a base path (`SMARTSERVE_BASE_PATH=/smartserve`) every path here is relative to it: the gate
+sits inside the prefix, so the exempt list is exactly `/healthz` and `/login`, and the redirects it
+builds carry the prefix (`/smartserve/login?next=%2Fschedules`).
+
 Unauthenticated failures depend on what asked: an API request gets `401` with
 `WWW-Authenticate: Basic realm="Smart-Serve"` and `{"error":"authentication required"}`; a page
 request gets `303` to `/login?next=…`. `/healthz`, `/icon.svg` and `/styles/`, `/js/` are exempt so a

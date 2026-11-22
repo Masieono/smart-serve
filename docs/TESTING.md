@@ -456,7 +456,8 @@ and the app has no login at all. Restart the container between steps that change
 | 9.9 | `curl http://host:port/api/devices` (no credential). | `401` with `WWW-Authenticate: Basic` and `{"error":"authentication required"}` |
 | 9.10 | `curl http://host:port/healthz` and scrape `/metrics` with Basic. | Both answer without a session: a probe cannot sign in, and the scraper sends the credential |
 | 9.11 | Set **Settings → Data → Sign-in → Idle timeout** to 1, save, sign in and wait two minutes. | The next page load returns to the sign-in page |
-| 9.12 | Set `SMARTSERVE_AUTH_PASSWORD_FILE` to a file holding the password, remove the inline variable, restart. | Sign-in works with the file's contents (one trailing newline is not part of the password) |
+| 9.12 | With the layer on, also set `SMARTSERVE_BASE_PATH=/smartserve` and open `/smartserve/healthz`, `/smartserve/login` and the app. | Healthcheck `200`, login page `200` (no redirect loop), the app asks for a password, and a container healthcheck passes |
+| 9.13 | Set `SMARTSERVE_AUTH_PASSWORD_FILE` to a file holding the password, remove the inline variable, restart. | Sign-in works with the file's contents (one trailing newline is not part of the password) |
 
 ## When something is missing
 

@@ -26,6 +26,7 @@ const (
 
 // authGate is the middleware and the handlers that go with it.
 type authGate struct {
+	base  string // the deployment's base path, for Location headers the browser will follow
 	creds auth.Credentials
 	store *auth.Store
 	// idle is read from the settings on demand, because the idle window is a setting and a session
@@ -91,7 +92,7 @@ func (g *authGate) middleware(next http.Handler) http.Handler {
 		if next == "" || next == "/" {
 			next = ""
 		}
-		target := loginPath
+		target := joinBase(g.base, loginPath)
 		if next != "" {
 			target += "?next=" + template.URLQueryEscaper(next)
 		}
@@ -149,7 +150,7 @@ func (s *Server) handleLoginPost(w http.ResponseWriter, r *http.Request) {
 	if next == "" {
 		next = "/"
 	}
-	http.Redirect(w, r, next, http.StatusSeeOther)
+	http.Redirect(w, r, s.link(next), http.StatusSeeOther)
 }
 
 // handleLogout ends the session server-side and clears the cookie.
@@ -169,13 +170,13 @@ func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
 		Secure:   r.TLS != nil,
 		MaxAge:   -1,
 	})
-	http.Redirect(w, r, loginPath, http.StatusSeeOther)
+	http.Redirect(w, r, s.link(loginPath), http.StatusSeeOther)
 }
 
 // handleLogin serves the form.
 func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	if c, err := r.Cookie(sessionCookie); err == nil && s.auth.store.Touch(c.Value) {
-		http.Redirect(w, r, "/", http.StatusSeeOther)
+		http.Redirect(w, r, s.link("/"), http.StatusSeeOther)
 		return
 	}
 	s.renderLogin(w, r, http.StatusOK, "", safeNext(r.URL.Query().Get("next")))
@@ -186,7 +187,7 @@ func (s *Server) renderLogin(w http.ResponseWriter, r *http.Request, status int,
 		Message string
 		Next    string
 		Base    string
-	}{Message: message, Next: next, Base: s.basePathOrRoot()}
+	}{Message: message, Next: next, Base: s.baseHref()}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-store")
@@ -206,11 +207,42 @@ func safeNext(next string) string {
 	return next
 }
 
-func (s *Server) basePathOrRoot() string {
-	if s.basePath == "" {
+// basePathOrRoot is the prefix a cookie is scoped to: the subpath when there is one, else `/`.
+func (s *Server) basePathOrRoot() string { return rootOf(s.basePath) }
+
+// baseHref is the same prefix with a trailing slash, for joining a relative URL onto it.
+func (s *Server) baseHref() string { return hrefOf(s.basePath) }
+
+// link puts a server-relative path back under the base path.
+func (s *Server) link(p string) string { return joinBase(s.basePath, p) }
+
+func rootOf(base string) string {
+	if base == "" {
 		return "/"
 	}
-	return s.basePath
+	return base
+}
+
+func hrefOf(base string) string {
+	if base == "" {
+		return "/"
+	}
+	return base + "/"
+}
+
+// joinBase puts a server-relative path back under the base path.
+//
+// The gate and the handlers work in stripped paths (`/login`, `/api/devices`), because that is what
+// the mux serves, but a Location header is read by the browser and has to include the subpath. It is
+// idempotent: a `next` that already carries the prefix is left alone rather than prefixed twice.
+func joinBase(base, p string) string {
+	if base == "" || p == "" {
+		return p
+	}
+	if p == base || strings.HasPrefix(p, base+"/") || strings.HasPrefix(p, base+"?") {
+		return p
+	}
+	return base + p
 }
 
 func (s *Server) authEnabled() bool { return s.auth != nil }

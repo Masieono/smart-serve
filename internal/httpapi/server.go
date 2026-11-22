@@ -172,6 +172,7 @@ func New(st *store.Store, sc *scan.Manager, hub *events.Hub, opts Options) *Serv
 			}
 		}
 		s.auth = &authGate{
+			base:  s.basePath,
 			creds: opts.Auth,
 			store: auth.New(idle, auth.DefaultMax),
 			idle:  func() time.Duration { return s.auth.store.Idle() },
@@ -188,13 +189,17 @@ func New(st *store.Store, sc *scan.Manager, hub *events.Hub, opts Options) *Serv
 
 	var h http.Handler = mux
 	h = sameOriginMiddleware(h)
-	if bp := strings.TrimRight(opts.BasePath, "/"); bp != "" {
-		h = http.StripPrefix(bp, h)
-	}
-	// Auth sits inside the security headers (a 401 has to be as constrained as a 200) and outside
-	// the CSRF guard (an unauthenticated request is answered 401 before the origin is considered).
+	// Auth sits inside the security headers (a 401 has to be as constrained as a 200), outside the
+	// CSRF guard (an unauthenticated request is answered before the origin is considered), and
+	// **inside StripPrefix**, so the paths it judges are the ones the mux serves: `/healthz`,
+	// `/login`, `/api/...` rather than `/smartserve/healthz`. Built the other way round the exempt
+	// list matches nothing under a subpath, so the healthcheck is redirected, the assets are gated,
+	// an API call answers 303 instead of 401, and the login page redirects to itself forever.
 	if s.authEnabled() {
 		h = s.auth.middleware(h)
+	}
+	if bp := strings.TrimRight(opts.BasePath, "/"); bp != "" {
+		h = http.StripPrefix(bp, h)
 	}
 	// Outermost first: recovery has to catch a panic from any layer below it, the
 	// security headers have to be set before the CSRF guard can reject a request, so

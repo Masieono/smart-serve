@@ -1582,8 +1582,16 @@ come from a file; the credential is compared in constant time on both halves; `/
 assets stay open; a browser without a session is redirected to the login page, an API call gets 401
 with a challenge; Basic is accepted everywhere; the login form issues an HttpOnly, SameSite=Strict
 cookie; logout revokes the token server-side; the idle window is honoured and is a setting; the
-absolute cap ends a session that never goes idle; `next` cannot point off-site. The manual pass for
-all of this is `TESTING.md` Pass 7.
+absolute cap ends a session that never goes idle; `next` cannot point off-site; and under a base path
+the gate judges stripped paths, so `/healthz`, the login page and the static assets stay exempt and
+every redirect it builds carries the prefix. The manual pass for all of this is `TESTING.md` Pass 9.
+
+**The chain order is load-bearing, and the first build had it wrong.** The ADR says
+`… → StripPrefix(basePath) → auth → sameOrigin → mux`, and applying `auth` outside the prefix instead
+made every exempt path stop matching in a subpath deployment: the healthcheck was redirected, the
+assets were gated, an API call answered 303 instead of 401, and the login page redirected to itself,
+so a browser could not sign in at all while `curl` kept working. `TestBasePathDeploymentKeepsTheGateOnStrippedPaths`
+pins the order now, because nothing else would notice if it moved.
 
 
 
