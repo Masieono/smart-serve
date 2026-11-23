@@ -6,6 +6,7 @@
 // a separate ring said it twice and cost a column to do it.
 import { el, clear, append, fmtBytes, fmtAgo, fmtInt, fmtTemp } from '../dom.js';
 import { api, appPath } from '../api.js';
+import { confirmDialog } from '../components.js';
 
 // The order a fleet is worth reading in: what is failing, then what is worrying, then what we could
 // not read, then the healthy drives. Sorting by name would bury the one row that matters.
@@ -22,6 +23,12 @@ let lastPayload = null;
 let lastCtx = null;
 let filter = null;
 let query = '';
+// Which column the table is ordered by, and which way. Null means the reading order, which is the
+// same thing as Health ascending: failing first, then caution, then what we could not read.
+let sort = null;
+// Whether the table is showing the fleet or the drives taken out of it. Hidden drives are not a
+// second list somewhere below; they are the same table with the other half in it.
+let showHidden = false;
 
 /** Reset the view's memory. Called when the app mounts, so a reload starts clean. */
 export function reset() {
@@ -29,6 +36,8 @@ export function reset() {
   lastCtx = null;
   filter = null;
   query = '';
+  sort = null;
+  showHidden = false;
 }
 
 export async function render(content, ctx) {
@@ -50,9 +59,14 @@ export async function render(content, ctx) {
 
 function draw(content, ctx, payload) {
   lastCtx = ctx;
-  const devices = (payload.devices || []).filter((d) => !d.hidden);
-  const counts = countStates(devices);
-  const rows = sortForReading(devices.filter(matchesFilter));
+  lastPayload = payload;
+  const all = payload.devices || [];
+  const hiddenCount = all.filter((d) => d.hidden).length;
+  // One table with two halves. Showing the fleet and the hidden drives at once would make the counts
+  // above it describe neither, and a hidden drive in the middle of the fleet is not hidden.
+  const pool = all.filter((d) => Boolean(d.hidden) === showHidden);
+  const counts = countStates(pool);
+  const rows = orderRows(pool.filter(matchesFilter));
 
   clear(content);
   append(content, [
@@ -84,10 +98,13 @@ function draw(content, ctx, payload) {
       el('span', { class: 'when', text: whenText(payload.last_scan_ts) }),
     ]),
 
-    rows.length ? table(rows, ctx) : emptyState(devices.length),
+    rows.length ? table(rows, ctx) : emptyState(all.length, pool.length),
 
     el('div', { class: 'fleet-below' }, [
-      el('div', { text: `${devices.length} drive${devices.length === 1 ? '' : 's'}` }),
+      el('div', {}, [
+        el('span', { text: `${pool.length} drive${pool.length === 1 ? '' : 's'}` }),
+        hiddenCount || showHidden ? hiddenToggle(hiddenCount) : null,
+      ].filter(Boolean)),
       el('div', { class: 'links' }, [
         el('a', { href: appPath('/schedules'), text: 'Schedules', onclick: nav(ctx, '/schedules') }),
         el('a', { href: appPath('/settings'), text: 'Settings', onclick: nav(ctx, '/settings') }),
@@ -199,26 +216,50 @@ function whenText(ts) {
   return `Checked ${fmtAgo(ts)}`;
 }
 
-function emptyState(total) {
-  return el('div', { class: 'fleet-empty' }, [
-    el('div', {
-      text: total === 0
-        ? 'No drives yet, press Scan to look for them.'
-        : 'No drives match.',
-    }),
-  ]);
+function emptyState(total, shown) {
+  const text = total === 0
+    ? 'No drives yet, press Scan to look for them.'
+    : shown === 0 && showHidden
+      ? 'Nothing is hidden.'
+      : showHidden ? 'No hidden drives match.' : 'No drives match.';
+  return el('div', { class: 'fleet-empty' }, [el('div', { text })]);
 }
 
+/**
+ * The way into and out of the hidden half, and back again.
+ *
+ * A number rather than an icon: "3 hidden" says both that something is out of sight and how much,
+ * and a reader who has just hidden a drive needs to see it land somewhere.
+ */
+function hiddenToggle(count) {
+  const label = showHidden ? 'Back to the fleet' : `${count} hidden`;
+  return el('button', {
+    class: 'fleet-hidden-toggle',
+    type: 'button',
+    'aria-pressed': showHidden ? 'true' : 'false',
+    text: label,
+    onclick: () => {
+      showHidden = !showHidden;
+      draw(document.getElementById('content'), lastCtx, lastPayload);
+    },
+  });
+}
+
+// Every column is sortable, including the two that are not numbers. `col` is the width class the
+// colgroup uses; `key` is what the comparator switches on.
+const COLUMNS = [
+  { key: 'drive', label: 'Drive', className: '', col: 'drive' },
+  { key: 'health', label: 'Health', className: '', col: 'health' },
+  { key: 'usage', label: 'Usage', className: 'usage-cell', col: 'usage' },
+  { key: 'temp', label: 'Temp', className: 'r temp-cell', col: 'temp' },
+  { key: 'hours', label: 'Powered on', className: 'r age-cell', col: 'age' },
+];
+
 function table(devices, ctx) {
-  const head = el('thead', {}, [
-    el('tr', {}, [
-      el('th', { text: 'Drive' }),
-      el('th', { text: 'Health' }),
-      el('th', { class: 'usage-cell', text: 'Usage' }),
-      el('th', { class: 'r temp-cell', text: 'Temp' }),
-      el('th', { class: 'r age-cell', text: 'Powered on' }),
-    ]),
-  ]);
+  const head = el('thead', {}, [el('tr', {}, [
+      ...COLUMNS.map(sortHeader),
+      el('th', { class: 'actions-cell' }, [el('span', { class: 'visually-hidden', text: 'Actions' })]),
+    ])]);
 
   const body = el('tbody', {});
   for (const d of devices) {
@@ -227,15 +268,97 @@ function table(devices, ctx) {
 
   return el('table', { class: 'fleet-table' }, [
     el('colgroup', {}, [
-      el('col', { class: 'drive' }),
-      el('col', { class: 'health' }),
-      el('col', { class: 'usage' }),
-      el('col', { class: 'temp' }),
-      el('col', { class: 'age' }),
+      ...COLUMNS.map((c) => el('col', { class: c.col })),
+      el('col', { class: 'actions' }),
     ]),
     head,
     body,
   ]);
+}
+
+/**
+ * A header that sorts, and says which way it is sorting.
+ *
+ * `aria-sort` is on the `th` and the caret is on the button, which is the arrangement a screen reader
+ * reads as "Health, column, sorted descending": the button is the control, the header cell is the
+ * thing that carries the state.
+ */
+function sortHeader(col) {
+  const current = sortedBy(col.key);
+  const aria = current === null ? 'none' : current.dir === 1 ? 'ascending' : 'descending';
+  return el('th', { class: col.className, 'aria-sort': aria }, [
+    el('button', {
+      class: 'fleet-sort',
+      type: 'button',
+      title: sortTitle(col.label, current),
+      onclick: () => {
+        sort = current && current.dir === 1 ? { key: col.key, dir: -1 } : { key: col.key, dir: 1 };
+        draw(document.getElementById('content'), lastCtx, lastPayload);
+      },
+    }, [
+      el('span', { text: col.label }),
+      el('i', { class: current ? `caret ${current.dir === 1 ? 'asc' : 'desc'}` : 'caret', 'aria-hidden': 'true' }),
+    ]),
+  ]);
+}
+
+/** The sort in force for one column: the pending sort when it names this one, else the reading order. */
+function sortedBy(key) {
+  if (sort === null) return key === 'health' ? { key: 'health', dir: 1 } : null;
+  return sort.key === key ? sort : null;
+}
+
+function sortTitle(label, current) {
+  if (current === null) return `Sort by ${label}`;
+  return current.dir === 1 ? `Sort by ${label}, descending` : `Sort by ${label}, ascending`;
+}
+
+/**
+ * The rows, in the order asked for.
+ *
+ * The reading order is the base, so ties fall back to "what is worst first" rather than to whatever
+ * the API happened to send. A drive with no value for the sorted column goes last in **both**
+ * directions: sorting by temperature descending is a question about temperatures, and a drive that
+ * does not report one is not the warmest drive in the fleet.
+ */
+export function orderRows(devices, sortSpec = sort) {
+  const base = sortForReading(devices);
+  if (sortSpec === null) return base;
+  const { key, dir } = sortSpec;
+
+  return base.sort((a, b) => {
+    if (key === 'health') {
+      const byState = RANK[stateOf(a)] - RANK[stateOf(b)];
+      if (byState !== 0) return dir * byState;
+      return dir * (scoreOf(a) - scoreOf(b));
+    }
+    const va = columnValue(key, a);
+    const vb = columnValue(key, b);
+    const na = va === null;
+    const nb = vb === null;
+    if (na || nb) return na && nb ? 0 : na ? 1 : -1;
+    if (typeof va === 'number' && typeof vb === 'number') return dir * (va - vb);
+    return dir * String(va).localeCompare(String(vb), undefined, { numeric: true });
+  });
+}
+
+function scoreOf(d) {
+  return typeof d.score === 'number' && d.score >= 0 ? d.score : 101;
+}
+
+function columnValue(key, d) {
+  switch (key) {
+    case 'drive':
+      return displayName(d);
+    case 'usage':
+      return typeof d.used_pct === 'number' ? d.used_pct : null;
+    case 'temp':
+      return typeof d.temperature_c === 'number' ? d.temperature_c : null;
+    case 'hours':
+      return typeof d.power_on_hours === 'number' ? d.power_on_hours : null;
+    default:
+      return null;
+  }
 }
 
 function row(d, ctx) {
@@ -243,6 +366,7 @@ function row(d, ctx) {
   const classes = [];
   if (state === 'bad' || state === 'caution' || d.is_missing) classes.push('attention');
   if (d.is_missing) classes.push('missing');
+  if (d.hidden) classes.push('is-hidden');
 
   const sub = [];
   if (d.name) sub.push(d.model || '');
@@ -281,7 +405,80 @@ function row(d, ctx) {
           : `${fmtInt(d.power_on_hours)} h`,
       }),
     ]),
+    el('td', { class: 'actions-cell' }, rowActions(d, ctx)),
   ]);
+}
+
+/**
+ * Hide, unhide, and forget.
+ *
+ * Hiding is the answer to clutter: a drive that is out of the fleet for a while, a spare, a card
+ * reader. Forgetting is the answer to a drive that was never in it: somebody plugging in a run of
+ * drives to pull their S.M.A.R.T. and not wanting twelve rows of it afterwards. Forgetting is only
+ * offered for a drive that is not connected, because for a connected one the next scan would undo it
+ * and the button would look broken; the dialog says as much.
+ */
+function rowActions(d, ctx) {
+  const buttons = [
+    el('button', {
+      class: 'row-action',
+      type: 'button',
+      text: showHidden ? 'Unhide' : 'Hide',
+      'aria-label': `${showHidden ? 'Show' : 'Hide'} ${displayName(d)}${showHidden ? ' in the fleet again' : ' in the fleet'}`,
+      onclick: (event) => {
+        event.stopPropagation();
+        setHidden(d, !showHidden, ctx);
+      },
+    }),
+  ];
+  if (d.is_missing) {
+    buttons.push(el('button', {
+      class: 'row-action danger',
+      type: 'button',
+      text: 'Forget',
+      'aria-label': `Forget ${displayName(d)} and everything recorded about it`,
+      onclick: (event) => {
+        event.stopPropagation();
+        forget(d, ctx);
+      },
+    }));
+  }
+  return buttons;
+}
+
+async function setHidden(d, hidden, ctx) {
+  try {
+    await api.setNotes(d.serial, { hidden });
+    await reload(ctx);
+  } catch (err) {
+    toast(err.message);
+  }
+}
+
+async function forget(d, ctx) {
+  const ok = await confirmDialog(
+    'Forget this drive?',
+    `${displayName(d)} and every scan recorded for it will be removed. It is not connected now; if it ` +
+    'comes back, the next scan will find it again as a new drive.',
+    'Forget',
+  );
+  if (!ok) return;
+  try {
+    await api.forgetDevice(d.serial);
+    await reload(ctx);
+  } catch (err) {
+    toast(err.message);
+  }
+}
+
+/** Re-read the fleet and redraw, so the counts and the table agree after a hide or a forget. */
+async function reload(ctx) {
+  try {
+    lastPayload = await api.devices();
+    draw(document.getElementById('content'), ctx, lastPayload);
+  } catch (err) {
+    toast(err.message);
+  }
 }
 
 /**

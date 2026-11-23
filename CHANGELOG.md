@@ -15,6 +15,12 @@ discarding silently is not. See `ADR-028`.
 
 ### Added
 
+- **The fleet table sorts.** Click any column header, click again to reverse; `aria-sort` and a caret
+  carry the state, and the default stays the reading order (failing first). A drive with no value for
+  the sorted column goes last either way, so a USB reader is never reported as the coldest drive.
+- **Hide and forget drives** (`D12`). `Hide` takes a drive out of the fleet and puts it behind the
+  `N hidden` toggle, which shows the same table dimmed with `Unhide`. `Forget` removes a drive and its
+  history and is offered only for a disconnected drive, where the next scan would not simply undo it.
 - **Optional single-user sign-in** (`ADR-033`). Off unless `SMARTSERVE_AUTH_USER` and a password are
   set. A browser gets a sign-in page, a session cookie, a **Sign out** control and a configurable idle
   timeout (default 30 minutes, capped at 24 hours); `curl`, Prometheus and scripts keep sending HTTP

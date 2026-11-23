@@ -91,7 +91,14 @@ export class StubNode {
   }
 
   setAttribute(key, value) {
+    // Event handlers are properties on a real element, so a test can call them. Without this a view's
+    // `onclick:` became an attribute string and no interaction could be exercised.
+    if (key.startsWith('on') && typeof value === 'function') {
+      this[key] = value;
+      return;
+    }
     this.attrs[key] = value;
+    if (key === 'id') byId.set(String(value), this);
   }
 
   getAttribute(key) {
@@ -285,6 +292,9 @@ class StubText extends StubNode {
   }
 }
 
+/** Every element whose `id` attribute has been set, so `getElementById` can find it. */
+const byId = new Map();
+
 /** Install the stub as the global DOM. Call before importing view modules. */
 export function installStubDom() {
   globalThis.Node = StubNode;
@@ -295,7 +305,7 @@ export function installStubDom() {
     baseURI: 'http://localhost/',
     createElement: (tag) => new StubNode(tag),
     createTextNode: (text) => new StubText(text),
-    getElementById: () => null,
+    getElementById: (id) => byId.get(String(id)) || null,
   };
   return globalThis.document;
 }
