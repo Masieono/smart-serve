@@ -1,10 +1,10 @@
 # Smart-Serve — Internal API Specification
 
 All endpoints JSON unless noted. **Authentication is optional and off by default** (`ADR-033`): when
-`SMARTSERVE_AUTH_USER` and a password are set, every endpoint except `/healthz` requires either a
-session cookie or HTTP Basic. Paths are relative to `SMARTSERVE_BASE_PATH` (default `/`,
-`ADR-015`). State-changing requests (POST/PUT/DELETE) require a same-origin/CSRF
-check. Error envelope: `{ "error": "message" }` with an appropriate HTTP status.
+`SMARTSERVE_AUTH_USER` and a password are set, every endpoint except `/healthz`, `/login` and the
+static assets requires either a session cookie or HTTP Basic. Paths are relative to
+`SMARTSERVE_BASE_PATH` (default `/`, `ADR-015`). State-changing requests (POST/PUT/DELETE) require a
+same-origin/CSRF check. Error envelope: `{ "error": "message" }` with an appropriate HTTP status.
 A `500` never carries the underlying error: the API answers with a reference
 (`something went wrong (ref 3f2a91c4)`) that appears on the same line of the server log as
 the error itself (`ADR-031`). Messages describing the *hardware* — `smartctl`'s own reason
@@ -69,9 +69,10 @@ per-device payload because a table that draws every drive would otherwise need a
 }
 ```
 
-`ranking` is the replace-first shortlist (`FEATURES.md` A24), and `bench_tag` names the tag this
-app treats as "on the bench" (`D11`). Both are sent rather than derived by the client, so the UI
-cannot disagree with the server about which drive to buy or which drive is being tested.
+`ranking` is the replacement order (`FEATURES.md` A24), and `bench_tag` names the tag this app
+treats as "on the bench" (`D11`). Both are sent rather than derived by the client. The fleet export
+reads `ranking` for its row order and its Replace column, so the file and the server cannot disagree
+about which drive needs replacing first or which drive is being tested.
 
 `correlation` is the group-heat finding (`A25`): the tag groups whose drives all rose together,
 which points at what they share rather than at the drives. It is computed from the store's own two
@@ -96,8 +97,8 @@ batch of them on one bench would fire it on every scan.
 `on_bench` is the server's reading of that tag for one drive, so a client never has to know the
 tag's name or split a tag string the way the grouping does. It is derived from `tags` on every
 request rather than stored, because the tag is the source of truth and a second column could
-disagree with it. A bench drive is left out of `ranking` and out of the health counts the UI
-derives; it is **never** left out of this list or of an export.
+disagree with it. A bench drive is left out of `ranking`. It is not left out of the fleet counts,
+this list or an export.
 
 `mountpoints` / `fstype` are aggregated from the disk **and its partitions**: on Linux a
 whole-disk node (`/dev/nvme0n1`) is never itself mounted, so a disk whose partitions are
@@ -126,14 +127,14 @@ was simply not allowed to be read sends them looking in the wrong place.
 
 `worsening` appears on the **list** endpoint only, and only when it is non-zero: it is
 the number of bad sectors that appeared over the recent window, computed for every drive
-in one query so the dashboard can flag a drive that is going bad without the user having
+in one query so the fleet can flag a drive that is going bad without the user having
 to open each one. A drive with fewer than two snapshots in the window is absent rather
 than reported as flat — no history is not the same finding as a clean bill of health.
 
-`ranking` is the **"replace first"** order (`FEATURES.md` A24), served alongside `devices` so the
-shortlist and the cards cannot disagree about a drive. It answers a different question from the
-dashboard's own sort: "which one do I buy this month?" is about direction and remaining life as much
-as about today's verdict.
+`ranking` is the **replacement** order (`FEATURES.md` A24), served alongside `devices` so the
+fleet export's order and Replace column cannot disagree with the list. It answers a different
+question from the fleet table's own sort: "which one do I buy this month?" is about direction and
+remaining life as much as about today's verdict.
 
 ```json
 "ranking": [
@@ -149,13 +150,12 @@ ones, so the caller decides how much to show. A **disconnected** drive is not in
 verdict is the last one ever *seen* rather than a reading anyone just took, and ranking it would put
 a backup drive someone unplugged on purpose above a drive that is actually failing.
 
-
-drive's newest snapshot. They live on snapshots rather than on `devices` because they are
-readings rather than current state, and they are on the list so the dense fleet table
-(`FEATURES.md` D8) can show a drive's age per row without opening every drive to find it.
-One query for the whole list, keyed on the highest snapshot id rather than the highest
-timestamp — two snapshots can share a millisecond when a partial rescan follows a full
-one, and "the latest" has to be one row.
+`power_on_hours` and `wear_pct` also appear on the **list** endpoint, taken from each drive's newest
+snapshot. They live on snapshots rather than on `devices` because they are readings rather than
+current state, and they are on the list so the fleet table (`FEATURES.md` D8) can show a drive's age
+per row without opening every drive to find it. One query for the whole list, keyed on the highest
+snapshot id rather than the highest timestamp: two snapshots can share a millisecond when a partial
+rescan follows a full one, and "the latest" has to be one row.
 
 ### `GET /api/devices/{serial}` — full device detail
 
@@ -207,7 +207,7 @@ the drive does not report them; a drive with no S.M.A.R.T. data yields `{}`, and
 verdict stays `unknown`.
 
 `device.logs` summarises the drive's **own** logs (`FEATURES.md` A20). It appears only on this
-endpoint — the list response omits it, so a dashboard refresh does not parse every drive's
+endpoint: the list response omits it, so a fleet refresh does not parse every drive's
 stored document — and only when the drive reported something. An **absent** field means the
 drive said nothing, which is a different finding from an empty log:
 
@@ -328,8 +328,8 @@ Creates the note row if absent (device may currently be unplugged). Response: th
 stored record. Unset fields are `null`, not omitted — full replace semantics.
 
 `bay` is free text: where the drive physically is. It is user metadata rather than
-something read from the drive, so it survives an unplug, and it is what the dashboard
-card leads with when it is set (`FEATURES.md` D10).
+something read from the drive, so it survives an unplug, and it is what the fleet search matches
+on and what the drive page's facts list shows (`FEATURES.md` D10).
 
 ## Authentication (optional, `ADR-033`)
 
@@ -341,7 +341,9 @@ Two ways to present that one credential, and a client may use either:
   healthchecks use. It has no session and no logout: each request carries the credential.
 - **A session cookie** for a browser: `POST /api/session` sets an `HttpOnly`, `SameSite=Strict`
   cookie, and `POST /api/logout` revokes the token server-side. The idle window is
-  `auth_idle_minutes` (default 30); an absolute cap of 24 hours ends a session however active.
+  `auth_idle_minutes` (default 30, read per request, so a change applies at once); an absolute cap
+  of 24 hours ends a session
+  however active.
 
 | Endpoint | Auth | Purpose |
 |---|---|---|
@@ -556,11 +558,12 @@ stop demanding a value that is never going to be typed into the form (`ADR-022`)
 
 ## Settings
 
-- `GET /api/settings` / `PUT /api/settings` — key/value map. The full default key
-  list (thresholds, retention, squelch, maintenance windows, theme) is in
+- `GET /api/settings` / `PUT /api/settings` return a key/value map. The response is
+  `{ "settings": { key: value } }` and carries **only the keys that have been written**; the
+  documented defaults live in `DATA_MODEL.md` and the client supplies them for keys absent from the
+  map. The full default key list (thresholds, retention, squelch, maintenance windows, theme) is in
   `DATA_MODEL.md`; every interpretation threshold is edited here, never via env vars
-  (`ADR-009`). The response includes each setting's effective value, its default,
-  and its source (`env` or `db`). Appearance keys: `theme`, `theme_base`,
+  (`ADR-009`). Appearance keys: `theme`, `theme_base`,
   `theme_accent`, `theme_surface_tint` (`UI.md` §5). `maintenance_windows` is the
   JSON list described in `NOTIFICATIONS.md`; it has no endpoint of its own.
   `model_thresholds` is the other structured value — a JSON object of model → the
@@ -596,31 +599,31 @@ stop demanding a value that is never going to be typed into the form (`ADR-022`)
   `part_uuid`, and `top_level` — true for a direct child of the disk, false for anything nested inside
   another partition. The disk map reads `top_level` to know which nodes are laid out side by side;
   the table draws every row either way. `disk_layout` also carries `size_bytes`, the disk's own
-  capacity, which is the map's denominator.
+  capacity, which is the map's denominator. Usage (`use_percent`, `used_bytes`, `fs_size_bytes`,
+  `avail_bytes`) is present **only where the container can see the mountpoint**, because `lsblk`
+  reads it with `statvfs` on the mount path: absent is the honest answer and a zero would read as an
+  empty filesystem. Detail endpoint only, and the field is absent rather than null for a drive whose
+  layout was never read. When the disk holds **no partition table**, `disk_layout` also carries
+  `whole_disk_fstype`, the disk node's own `FSTYPE`, which is what says a pulled-from-an-array disk
+  is `linux_raid_member` rather than "unpartitioned", and `whole_disk_name`, the plain-language name
+  for it ("a Linux md array", "a ZFS pool"). `whole_disk_name` is empty for a plain filesystem
+  written straight to the device, where the token is already the answer.
 - `GET /api/devices` and `GET /api/devices/{serial}` carry `selftest` when a self-test is **running**
   as of the last scan (`FEATURES.md` A20): `{kind, pct}`. `kind` is the drive's own words for the test
   ("Extended offline"); `pct` is absent when the drive reports no progress while testing, which many
   do not — they write a log entry only when a test *finishes*. It is on the **list** endpoint because
   that is the point: the fleet badges the drive that is busy rather than making you visit each page to
   find out. The state is **overwritten** by each scan, not merged, so a finished test stops showing as
-  running. The device page's own card still reads the drive live; this is what the list has, and a
-  badge one scan old is worth having where a page visit per drive is not. The state is refreshed
-  between scans by a server-side watcher while any drive is testing, which publishes
+  running. The device page's own self-test section still reads the drive live; this is what the
+  list has, and a badge one scan old is worth having where a page visit per drive is not. The state
+  is refreshed between scans by a server-side watcher while any drive is testing, which publishes
   `selftest_progress` (`{serial, running, pct, kind}`) over SSE when something actually changed.
 - `POST /api/devices/{serial}/selftest/abort` returns `{status, note}` and, when the drive could be
-  read back, `stopped` — false when the drive accepted the abort but still reports a test in progress.
-  Some USB bridges do not pass the abort through, and "the abort was sent" is not "the test stopped". Usage (`use_percent`, `used_bytes`, `fs_size_bytes`, `avail_bytes`) is present **only
-  where the container can see the mountpoint**, because `lsblk` reads it with `statvfs` on the mount
-  path — absent is the honest answer and a zero would read as an empty filesystem. Detail endpoint
-  only, and the field is absent rather than null for a drive whose layout was never read. When the
-  disk holds **no partition table**, `disk_layout` also carries `whole_disk_fstype` — the disk node's
-  own `FSTYPE`, which is what says a pulled-from-an-array disk is `linux_raid_member` rather than
-  "unpartitioned" — and `whole_disk_name`, the plain-language name for it ("a Linux md array",
-  "a ZFS pool"). `whole_disk_name` is empty for a plain filesystem written straight to the device,
-  where the token is already the answer.
+  read back, `stopped`, false when the drive accepted the abort but still reports a test in progress.
+  Some USB bridges do not pass the abort through, and "the abort was sent" is not "the test stopped".
 - `GET /api/devices` and `GET /api/devices/{serial}` both carry `storage` when a filesystem on the
   drive has a readable usage figure (`FEATURES.md` A28): `{mount, used_pct, used_bytes, total_bytes}`
-  for the **fullest** filesystem. One implementation, server-side, so the fleet card and the device
+  for the **fullest** filesystem. One implementation, server-side, so the fleet row and the device
   page cannot disagree about which filesystem is fullest — and the list gets four fields rather than a
   whole partition schema. Absent entirely when nothing was measurable, which is not the same as a
   drive measured at `0`.
@@ -641,9 +644,9 @@ stop demanding a value that is never going to be typed into the form (`ADR-022`)
   `400`: the value reaches `smartctl` as an argument and is stored, so it is not a free-text field.
 - `POST /api/devices/{serial}/scan` — rescan **only this drive**, synchronously.
   Returns `{ "scan_id": 2, "status": "completed", "serial": "…", "devices_total": 1 }`.
-  A `404` means the drive is not connected any more. This is what makes the
-  per-card Scan button honest: it used to run a full scan, so pressing it on one
-  card re-read every drive.
+  A `404` means the drive is not connected any more. This is what makes the drive page's
+  **Scan this drive** button honest: it used to run a full scan, so pressing it on one
+  drive re-read every drive.
   A single-drive scan deliberately does **not** mark the drives it did not look at
   as disconnected (`DATA_MODEL.md`); they were never checked.
 - `DELETE /api/devices/{serial}` — **forget** a drive: the device row, its snapshots
@@ -681,7 +684,7 @@ stop demanding a value that is never going to be typed into the form (`ADR-022`)
   (`FEATURES.md` A23), served as a download named `smart-serve-fleet[-<tag>]-<date>.<ext>`.
   **One row per drive, not one row per attribute**: a spreadsheet's job here is to compare
   drives with each other, and the per-attribute sheet is the report above. Both formats
-  render from the same column list and the same rows the dashboard shows, through the same
+  render from the same column list and the same rows the fleet table shows, through the same
   ranking (`A24`), so the export cannot disagree with the screen.
 
   `csv` (default) carries a short preamble above the header — a title and what the file is —
@@ -694,7 +697,7 @@ stop demanding a value that is never going to be typed into the form (`ADR-022`)
 
   Three rules are worth knowing before parsing it. **An absent reading is an empty cell, never
   a zero** — a blank is what a spreadsheet's `AVERAGE` skips, while a `0` drags every average
-  down and reads as a measurement. **The export is never filtered**: not by the dashboard's
+  down and reads as a measurement. **The export is never filtered**: not by the fleet table's
   filter, not by `hidden`, because a wrong number gets noticed and a missing row does not;
   `Hidden` and `Connected` are columns so the reader can see why a drive was not on screen.
   And **the rows are in the ranking's own order** (`A24`), because that is the one thing a
@@ -740,14 +743,6 @@ stop demanding a value that is never going to be typed into the form (`ADR-022`)
   command failure would report a self-test that ran perfectly as broken, on exactly the
   drives that most need one.
 
-## Phase 2 endpoints (specified now to freeze direction)
-
-- `POST /api/acknowledge` — `{ "event_key": "health_change:<serial>:caution" }`
-  mutes that event without changing the verdict (`FEATURES.md` B7).
-
-Maintenance windows deliberately get **no endpoints**: they are a `maintenance_windows`
-setting (`DATA_MODEL.md`) edited from the Notifications page, because a window is a
-configuration value rather than a resource with its own lifecycle.
 ## Events (SSE)
 
 ### `GET /api/events` — text/event-stream, long-lived

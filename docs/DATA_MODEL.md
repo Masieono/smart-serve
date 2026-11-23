@@ -13,42 +13,46 @@ history — is one file that can be backed up with `cp` while the app is stopped
 
 | Column | Type | Notes |
 |---|---|---|
-| `id` | INTEGER PK | internal |
-| `serial` | TEXT UNIQUE | primary identity; `__nomodel:<model>` fallback when serial is empty |
+| `serial` | TEXT PK | primary identity; `__nomodel:<model>` fallback when serial is empty |
 | `model` | TEXT | e.g. `Samsung SSD 870 EVO 1TB` |
-| `model_family` | TEXT NULL | |
-| `firmware` | TEXT NULL | firmware revision (migration 0003); useful for spotting known-bad firmware. Falls back to lsblk's `REV` when smartctl cannot be read — the only value a drive with no S.M.A.R.T. has |
+| `model_family` | TEXT DEFAULT `''` | |
+| `firmware` | TEXT DEFAULT `''` | firmware revision (migration 0003); useful for spotting known-bad firmware. Falls back to lsblk's `REV` when smartctl cannot be read: the only value a drive with no S.M.A.R.T. has |
 | `device_path` | TEXT | last-seen path, e.g. `/dev/sda` — informational only, never identity |
 | `transport` | TEXT | `sata`, `nvme`, `usb`, `sas`… |
 | `smart_bus` | TEXT | `ata`, `nvme`, `scsi` |
-| `interface_speed` | TEXT NULL | negotiated link speed, e.g. `6.0 Gb/s` |
+| `interface_speed` | TEXT DEFAULT `''` | negotiated link speed, e.g. `6.0 Gb/s` |
 | `rotation` | INTEGER NULL | RPM (0 or NULL ⇒ likely SSD) |
 | `capacity_bytes` | INTEGER NULL | |
-| `wwn` | TEXT NULL | |
+| `wwn` | TEXT DEFAULT `''` | |
 | `mountpoints` | TEXT | JSON array, aggregated from the disk **and its partitions** — a whole-disk node is never mounted itself, so partitions are the only source of this |
-| `fstype` | TEXT NULL | comma-separated filesystem types, aggregated the same way |
-| `fs_version` | TEXT NULL | filesystem versions (`1.0`, `FAT32`…), aggregated the same way (migration 0004) |
+| `fstype` | TEXT DEFAULT `''` | comma-separated filesystem types, aggregated the same way |
+| `fs_version` | TEXT DEFAULT `''` | filesystem versions (`1.0`, `FAT32`…), aggregated the same way (migration 0004) |
 | `disk_layout` | TEXT DEFAULT `''` | JSON: the partition schema and the storage facts that come from the same `lsblk` call (`FEATURES.md` A28) — partitions with sizes, filesystems, labels, mountpoints, usage, read-only and UUIDs, plus the partition table type, sector sizes and discard support. One blob rather than eight columns: read whole, never queried by, every field from the same single call |
 | `removable` | INTEGER NULL | lsblk's `rm` (migration 0004). **Nullable on purpose**: `0` is "fixed media" and `NULL` is "nobody said", and a flash drive is a different thing from a fixed disk |
 | `smart_available` | INTEGER | 0 when device present in lsblk but SMART unreadable |
 | `raw_output` | TEXT | verbatim `smartctl --json` output from the last scan (migration 0005). On `devices` (latest only) rather than per-snapshot, so it cannot grow without bound. It lives here and not in the scanner's memory because the raw view has to survive a restart and a single-drive rescan of a *different* drive |
-| `smart_error` | TEXT NULL | capture failure reason |
+| `smart_error` | TEXT DEFAULT `''` | capture failure reason |
 | `health` | TEXT | `good` / `caution` / `bad` / `unknown` (see SMART_INTERPRETATION.md) |
 | `health_rationale` | TEXT | human-readable why (e.g. "5 pending sectors") |
+| `score` | INTEGER DEFAULT -1 | 0–100 health score, or -1 when the drive could not be scored |
+| `penalties` | TEXT DEFAULT `''` | JSON array explaining the current score, one reason and its points per entry, with an optional `attribute_id` for the row the verdict read (migration 0014, `FEATURES.md` A12). Empty means no breakdown was computed; read whole, never queried by |
 | `temperature_c` | INTEGER NULL | |
 | `first_seen` / `last_seen` | INTEGER (unix ms) | |
 | `last_scan` | INTEGER (unix ms) | last successful SMART read |
-| `is_missing` | INTEGER | 1 after a scan where device absent → triggers "removed" event once. The dashboard hides these by default (they are kept so notes and history survive) |
+| `is_missing` | INTEGER | 1 after a scan where the device was absent, which triggers one "removed" event. The fleet lists these as **Not connected** rather than hiding them, because notes and history survive an unplug |
 | `selftest_type` / `selftest_hours` / `selftest_passed` / `selftest_status` | TEXT / INTEGER / INTEGER / TEXT, all NULL | the newest **finished** self-test in the drive's log (migration 0007), kept so `B9` can tell a new result from one already reported. **NULL means "never recorded"**; `''` means "the log was read and holds nothing". Only the second is a baseline a new result can differ from, which is what stops an upgrade announcing every drive's existing results. A read that failed leaves all four untouched (`NOTIFICATIONS.md`) |
+| `selftest_running` | INTEGER DEFAULT 0 | 1 when the drive was testing itself at the last scan (migration 0017, `FEATURES.md` A19/A20). **Overwritten** by every scan rather than merged, so a finished test stops showing as running |
+| `selftest_pct` | INTEGER NULL | how far along, 0–100. NULL when the drive reports no progress while testing, which many do not. Overwritten by every scan for the same reason as `selftest_running` |
+| `selftest_kind` | TEXT DEFAULT `''` | the drive's own words for the running test ("Extended offline") |
 
 ### `device_notes` — user-entered metadata (1:1 with devices, editable in UI)
 
 | Column | Type | Notes |
 |---|---|---|
 | `serial` | TEXT PK | logical reference to devices.serial (no FK, so notes can exist for a device that is currently unplugged) |
-| `name` | TEXT NULL | e.g. "boot", "backup pool" |
-| `notes` | TEXT NULL | free-form |
-| `tags` | TEXT NULL | comma-separated (Phase 2: table) |
+| `name` | TEXT DEFAULT `''` | e.g. "boot", "backup pool" |
+| `notes` | TEXT DEFAULT `''` | free-form |
+| `tags` | TEXT DEFAULT `''` | comma-separated (Phase 2: table) |
 | `hidden` | INTEGER DEFAULT 0 | user can hide devices they don't care about |
 | `bay` | TEXT NOT NULL DEFAULT '' | where the drive physically is — "bay 4", "front top", "USB port 2" (migration 0008). Free text, because a bay is whatever the enclosure calls it. **Not nullable**, unlike the self-test columns: nothing about a bay is inferred from the drive, so "no bay recorded" and "the field is empty" are the same finding. It lives with the notes rather than on `devices` because it is something a person assigned, so it survives an unplug for the same reason a name does (`FEATURES.md` D10) |
 | `ack_health` | TEXT NOT NULL DEFAULT '' | the verdict the user acknowledged (migration 0009, `FEATURES.md` B7). **Empty means "not acknowledged"**, so there is no third state to represent. It is what makes the ack expire: the ack covers the drive only while its verdict is still this one, so it can never hide a drive getting worse |
@@ -118,10 +122,10 @@ history — is one file that can be backed up with `cp` while the app is stopped
 | `key` | TEXT PK | e.g. `temperature_threshold_c`, `retention_days` |
 | `value` | TEXT | JSON-encoded value |
 
-**Default settings keys.** Every key below is editable in the UI (`ADR-009`);
-environment variables only *seed* the operational ones (`DEPLOYMENT.md`). "Read by"
-records where a value actually takes effect, because a setting that nothing reads is
-worse than no setting at all.
+**Default settings keys.** Every key below is settable through `PUT /api/settings`; the
+ones with a control are edited in the UI (`ADR-009`), and environment variables only *seed*
+the operational ones (`DEPLOYMENT.md`). "Read by" records where a value actually takes effect,
+because a setting that nothing reads is worse than no setting at all.
 
 | Key | Default | Meaning | Read by |
 |---|---|---|---|
@@ -135,15 +139,14 @@ worse than no setting at all.
 | `show_partitions` | `true` | show the partition schema on the device page (`FEATURES.md` A28). A display preference, so nothing the scan reads | `webui` |
 | `show_usage` | `true` | show how full each filesystem is. Off drops the column rather than emptying it; the figures themselves need the host's mount roots bind-mounted read-only, or `lsblk` has nothing to `statvfs` | `webui` |
 | `storage_warn_pct` | `90` | the level at which a usage bar turns amber (`FEATURES.md` A28). A **display** threshold: read by the browser and nothing else, so it does not touch the verdict. It is not in the per-model seed for the same reason — that list is the interpreter's numbers | `webui` |
-| `selftest_running` | `0` | whether the drive was testing itself at the last scan (`FEATURES.md` A20, migration `0017`). The scan already parses the self-test log for the finished result; a test in progress is the same log's entry carrying a percentage remaining | `scan`, `httpapi` |
-| `selftest_pct` | NULL | how far along, 0–100. NULL when the drive reports no progress while testing, which many do not. **Overwritten** by every scan rather than COALESCEd like `selftest_status`: a finished test must stop showing as running | `scan`, `httpapi` |
-| `selftest_kind` | `''` | the drive's own words for the running test ("Extended offline") | `scan`, `httpapi` |
 | `retention_days` | `180` | snapshot retention window. **Also bounds the projection, the worsening flag and the trend adjustment** — there is one window, not two, so raising it gives a longer view as well as a longer memory (`FEATURES.md` A26) | `scan` (pruning) |
 | `notification_log_retention_days` | `30` | notification-log retention | `scan` (pruning) |
 | `squelch_seconds` | `3600` | re-alert window for persistent conditions | `notify` |
 | `correlation_min_drives` | `4` | how many drives in one tag group must heat up together before `A25` reports it as one finding about the group. Raise it for a big enclosure: 4 is a sixth of a 24-bay NAS and nearly all of a workstation | `interp` |
 | `correlation_delta_c` | `8` | the temperature **rise** between two readings that counts as a drive having moved. A stopped fan moves a whole chassis well past this; a warm afternoon usually does not | `interp` |
 | `public_url` | `""` | where this app is reachable from outside the host, used for the "Open drive" action button on a notification (`FEATURES.md` B10). Empty means no button — the app cannot know its own external address, and a wrong link is worse than none | `notify` |
+| `knowledge_url` | `""` | where to fetch the knowledge base from. Empty uses the published table, which is the file the build already ships. Fetched only when somebody presses Refresh, never on a timer (`FEATURES.md` A21) | `httpapi` |
+| `auth_idle_minutes` | `30` | how long a browser session survives without activity (`ADR-033`). An absolute 24-hour cap ends a session however active. Read per request, so a change applies at once. Set from Settings, Data, Sign-in (`PUT /api/settings`) | `httpapi` |
 | `prometheus_enabled` | `false` | serve `GET /metrics` (`FEATURES.md` C6). Off by default: the endpoint costs nothing itself, but enabling it invites another service to poll this app, and that is the operator's decision | `httpapi` |
 | `command_timeout_seconds` | `15` | per-`smartctl`/`lsblk` timeout | `scan` (env-seeded) |
 | `missed_run_policy` | `"skip"` | `skip` \| `run_once` | `sched` (env-seeded) |
@@ -153,9 +156,8 @@ worse than no setting at all.
 | `theme_base` | `"dark"` | base for `custom`: `light` \| `dark` | `webui` |
 | `theme_accent` | `"#3b82f6"` | accent colour, read **only** when `theme` is `custom` | `webui` |
 | `theme_surface_tint` | `"neutral"` | `neutral` \| `slate` \| `warm` \| `cool`; remixes any theme's palette | `webui` |
-| `selftest_poll_seconds` | `15` | how often a drive mid-test is re-read, 2–30 (`FEATURES.md` A19, A20). **One setting, two readers**: the browser, which re-reads the drive whose card is on screen, and the server-side watcher, which re-reads every drive that is testing so the fleet badge is current too. Splitting it in two would be two knobs for one idea | `webui`, `scan` |
+| `selftest_poll_seconds` | `15` | how often a drive mid-test is re-read, 2–30 (`FEATURES.md` A19, A20). **One setting, two readers**: the browser, which re-reads the drive whose page is on screen, and the server-side watcher, which re-reads every drive that is testing so the fleet badge is current too. Splitting it in two would be two knobs for one idea | `webui`, `scan` |
 | `device_refresh_minutes` | `15` | how stale a drive's data may be before opening its page re-reads it (`FEATURES.md` A28 follow-up). **0 means never.** The only setting in this app that causes a drive to be read without anybody asking, which is why it is a setting and why the page says when it is doing it. On a machine that parks its disks this is the number to turn down — a scan cannot wear a drive, but it can wake one | `webui` |
-| `dashboard_view` | `"cards"` | `cards` \| `table` — the shape of the fleet list (`FEATURES.md` D8). A display preference like the theme and the temperature unit rather than view state like the filter and the sort, so it survives a reload and travels in the config export | `webui` |
 | `maintenance_windows` | `[]` | JSON list of windows — see `NOTIFICATIONS.md` for the shape. One-off (`starts_at`/`ends_at`) or recurring (`daily`/`weekly` with a time of day), optionally scoped to serials | `notify` |
 
 Thresholds are read **per scan** (`interp.FromSettings`) rather than captured at
@@ -174,7 +176,7 @@ than in the table above, so "what does this setting do" never has two answers.
 |---|---|---|---|
 | `health_score_enabled` | `true` | show the 0–100 score/grade (D13) | not implemented — the score is always computed and displayed |
 | `selftest_enabled` | `false` | allow self-test triggering — opt-in, hardware-affecting (D10) | not implemented — the opt-in is the button itself, so there is nothing to switch |
-| `selftest_default_kind` | `"short"` | `short` \| `long` (D10) | not implemented — the card offers both |
+| `selftest_default_kind` | `"short"` | `short` \| `long` (D10) | not implemented; the self-test section offers both |
 | `report_export_formats` | `["txt"]` | enabled export formats (D11) | not implemented — all four formats are always offered |
 
 ### `scan_history` — one row per scan run (MVP: scan-history log, FEATURES A13)

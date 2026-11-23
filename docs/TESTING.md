@@ -10,7 +10,7 @@ all, whether it says the right thing, and whether it is where you would look for
 match is a finding — quote its number, and the procedure is the bug report.
 
 The passes build on each other, so **run Pass 0 first**. A large part of this UI is *conditional*, and
-a card that is correctly absent looks exactly like a card that is broken; Pass 0 makes the conditions
+a section that is correctly absent looks exactly like one that is broken; Pass 0 makes the conditions
 true so the rest of the plan has something to look at.
 
 ## Pass 0 — build the test data
@@ -93,7 +93,7 @@ Three conditions Pass 0 cannot create, and the passes that need them say so: a *
 | 2.33 | Look at an unmounted partition. | Used reads `n/a` |
 | 2.34 | Press **UUID** on a row. | `UUID copied`, and it pastes as what `blkid` reports |
 | 2.35 | Press **UUID** on a partition holding a volume group. | It copies the partition's UUID — that partition has no filesystem of its own |
-| 2.36 | Set Thresholds → **Storage warning level** to 50, save, reopen the drive. | Used bars at or above 50% are amber |
+| 2.36 | Set Thresholds → **Storage warning level** to 50, save, reopen the drive. | The **Used** bars in the partition table at or above 50% are amber |
 | 2.37 | Check a 95%-full drive's verdict. | Unchanged — the level colours a bar, it does not move the verdict |
 | 2.38 | Turn **Storage usage** off in Appearance. | The Used column is gone — not blank — and the usage line and the map stay |
 | 2.39 | Add `- /mnt:/mnt:ro` to the compose file and restart. | Used fills in for filesystems under `/mnt` |
@@ -195,10 +195,11 @@ pass on a spare drive if you have one.
 | 6.12 | Press **Reset to recommended**. | The controls move to the shipped values, the bar says unsaved, and nothing is written until Save |
 | 6.13 | Press **Scan now and re-check**. | A toast `Scan started, verdicts update as each drive is read` |
 | 6.14 | Press **Load the fleet's models**. | One entry per model at the values above, and `N models in the fleet` |
-| 6.15 | Change one number in one entry and Save, then reload. | The change is still there |
-| 6.16 | Press **Load the fleet's models** again. | The entry just edited is kept, not overwritten |
-| 6.17 | Paste `{"870 EVO": {"reallocated_bad": "1"}}` into the per-model editor and Save. | An error beside the box naming the unknown threshold and the keys it accepts; nothing saved |
-| 6.18 | Paste `{"nope": 1}` and Save. | An error beside the box saying it must be a JSON object of model name → thresholds; nothing saved |
+| 6.15 | Change one number in one model's row, leave another cell in that row blank, and Save; reload. | The number is still there, the row reads **overridden**, and the blank cell shows the value from above as its placeholder rather than 0 |
+| 6.16 | Press **Load the fleet's models** again. | The row just edited is kept, not overwritten |
+| 6.16a | Press **Reset** on that row. | The row reads **same as above** and its cells empty, falling back to the values above |
+| 6.17 | Open **Advanced (JSON)**, paste `{"870 EVO": {"reallocated_bad": "1"}}`, and Save. | An error beside the section naming the unknown threshold and the keys it accepts; nothing saved |
+| 6.18 | In Advanced, paste `{"nope": 1}` and Save. | An error beside the section saying it must be a JSON object of model name → thresholds; nothing saved |
 | 6.19 | Click a theme swatch. | The app recolours at once and the swatch is marked; Save, reload, and it is still that theme |
 | 6.20 | Pick **Custom**. | **Custom base** and **Accent colour** appear; a named palette hides them |
 | 6.20a | On `/settings/appearance`, turn **Partitions on the drive page** off and save, then open a drive that has a partition table. | The usage figure stays; the disk map and the partition table are gone |
@@ -215,17 +216,18 @@ pass on a spare drive if you have one.
 
 ## Pass 8 — arm64 (Raspberry Pi)
 
-**Status: both defects found here are fixed and retested; idle acceptance and stability remain open.
-Updated 2026-11-11.** Smart-Serve runs on a Raspberry Pi 5 with DietPi, and the SSH outputs and operator
-reports confirm native arm64 execution, HTTP health, device-access configuration, USB SAT discovery, a
+**Status: both defects found here are fixed and retested; the idle budget is measured, while stability,
+NVMe and restart persistence remain open. Updated 2026-11-18.** Smart-Serve runs on a Raspberry Pi 5
+with DietPi, and the SSH outputs and operator reports confirm native arm64 execution, HTTP health,
+device-access configuration, USB SAT discovery, a
 full container smartctl read of the attached WDC disk, and the app's displayed identity, attribute count
 and raw values. The 2026-11-08 session then turned up two defects — a short test whose progress never
 cleared, and an SD-card page that re-read itself in a loop — both diagnosed from that session's own
 captures and fixed (8.8, 8.9). **Both were retested on 2026-11-11 against `v1.1.0-28-g6fee3dc` and
-passed**, on this Pi *and* on the amd64 host, together with the dashboard and disconnected-device checks.
-The idle budget is the one ARM criterion still unsettled: CPU is confirmed near zero, but this host
-reports no usable Docker memory figure, so the under-20-MB claim cannot be measured here with the same
-metric the reference host used (8.5).
+passed**, on this Pi *and* on the amd64 host, together with the fleet and disconnected-device checks.
+The idle budget was sampled for ten minutes on 2026-11-18 and passes on RSS and PSS (8.5): about
+20 MiB, 11 file descriptors and 11 threads flat, with CPU near zero. Overnight stability, NVMe and
+restart/reboot persistence are still open.
 CI builds both architectures but does not run the application against ARM hardware.
 
 This section is the ARM verification record; setup is in
@@ -273,9 +275,9 @@ Existing test numbers are retained so subsequent results can refer to them.
 | 8.5 | Ten-minute idle CPU/RSS measurement with no browser, scan or self-test active. | **Passed on both halves, 2026-11-18.** Eleven samples over ten minutes on `v1.1.0-33-ga7e6449`, nothing else running: **RSS 20,000-20,032 kB (19.5 MiB)** and **PSS 19,984-20,016 kB (19.5 MiB)**, both flat to within 48 kB; **11 file descriptors and 11 threads**, constant; **14 CPU ticks in 600 s**, 0.14 CPU-seconds, **0.023%** of one core. The two memory figures agreeing to within 48 kB is what a single-process container looks like: almost nothing is shared, so RSS is not inflated by another process's pages. The cgroup figure still cannot be read on this host (no memory controller, `docker stats` reports `0B / 0B`), so the criterion is met on **PSS**, which is the better number anyway because it does not double-count shared pages. The amd64 host reads **18.9 MiB** by the cgroup and agrees. |
 | 8.6 | NVMe temperature, health fields and comparison with amd64. | **Not tested.** No NVMe device appears in this capture. |
 | 8.7 | Overnight scheduled scans and stable memory/file-descriptor usage. | **Not tested.** Startup and later log timestamps alone do not establish a controlled stability run. |
-| 8.8 | App-triggered short self-test: start, progress, completion and result after page reload. | **Drive completion passed; UI running-state check failed, and the cause is now fixed — retest needed.** Direct smartctl output shows execution status 0 and the newest short test `Completed without error` at 45,446 hours. The operator confirmed the app continues showing `90% left` and only **Stop test** after extended waiting and manual reload. The live API confirmed completion (`passed: true`, no `running`) but also set `self_test_log_unread` for the selective-test log; the saved record from 16:02:49 UTC (scan 18) carried that flag and `remaining: 90`. **Fixed:** the flag was raised for a log the app reads (see the 8.8 fix note below), and the card no longer skips its live read on mount. **Manual recovery and completed-log visibility passed:** after **Scan now**, the progress bar disappeared, short/long buttons returned and the successful short offline entry was visible; these results survived a page reload. **Retested 2026-11-11 on `v1.1.0-28-g6fee3dc` — passed**, on this Pi and on the amd64 host, in both variants: staying on the page, the progress cleared **on its own** when the drive finished, the buttons returned and the log gained the completed entry; leaving the page and watching the fleet, the testing badge tracked the run and cleared with it. No unread-log notice appeared. Exact duration remains unverified. |
-| 8.9 | SD-card discovery in the app, unsupported-SMART notice and absence of repeated automatic scans. | **App visibility verified; no-repeat-scan check failed, and the cause is now fixed — retest needed.** The API reports `last_scan: null`, `smart_available: false`, health/cause `unknown`, and `Unable to detect device type`. Scan IDs 175–179 each record one failed device read at 22:09:03 UTC. The operator confirms the repeated scans occur on the SD-card page and stop on returning to the dashboard. **Fixed:** the staleness re-read is now bounded to one attempt per refresh window, per drive. **Retested 2026-11-11 on `v1.1.0-28-g6fee3dc` — passed:** leaving the SD card's page open produced no flicker and no toast storm. The per-window read count was not re-measured in this retest, and the detail-page notice remains unverified. |
-| 8.10 | Disconnected-device inventory and dashboard filter. | **Passed 2026-11-11.** With filters clear the SD card reads **Unknown** and the tested 2 TB WDC disk reads **Good**, and **Show 3 disconnected** lists the three historical records. This verifies rendering of the saved API state, not physical hotplug detection. |
+| 8.8 | App-triggered short self-test: start, progress, completion and result after page reload. | **Drive completion passed; UI running-state check failed, the cause is fixed, and the fix passed on retest.** Direct smartctl output shows execution status 0 and the newest short test `Completed without error` at 45,446 hours. The operator confirmed the app continues showing `90% left` and only **Stop test** after extended waiting and manual reload. The live API confirmed completion (`passed: true`, no `running`) but also set `self_test_log_unread` for the selective-test log; the saved record from 16:02:49 UTC (scan 18) carried that flag and `remaining: 90`. **Fixed:** the flag was raised for a log the app reads (see the 8.8 fix note below), and the self-test section no longer skips its live read on mount. **Manual recovery and completed-log visibility passed:** after **Scan now**, the progress bar disappeared, short/long buttons returned and the successful short offline entry was visible; these results survived a page reload. **Retested 2026-11-11 on `v1.1.0-28-g6fee3dc`, passed**, on this Pi and on the amd64 host, in both variants: staying on the page, the progress cleared **on its own** when the drive finished, the buttons returned and the log gained the completed entry; leaving the page and watching the fleet, the testing badge tracked the run and cleared with it. No unread-log notice appeared. Exact duration remains unverified. |
+| 8.9 | SD-card discovery in the app, unsupported-SMART notice and absence of repeated automatic scans. | **App visibility verified; no-repeat-scan check failed, the cause is fixed, and the fix passed on retest.** The API reports `last_scan: null`, `smart_available: false`, health/cause `unknown`, and `Unable to detect device type`. Scan IDs 175–179 each record one failed device read at 22:09:03 UTC. The operator confirms the repeated scans occur on the SD-card page and stop on returning to the fleet. **Fixed:** the staleness re-read is now bounded to one attempt per refresh window, per drive. **Retested 2026-11-11 on `v1.1.0-28-g6fee3dc`, passed:** leaving the SD card's page open produced no flicker and no toast storm. The per-window read count was not re-measured in this retest, and the detail-page notice remains unverified. |
+| 8.10 | Disconnected-device inventory in the fleet. | **Passed 2026-11-11; expectation reworded for the current fleet.** With the filters clear the SD card reads **No reading** and the tested 2 TB WDC disk reads **Healthy**, and the three historical records appear as **Not connected**. This verifies rendering of the saved API state, not physical hotplug detection. |
 
 **Observations to retain for follow-up:**
 
@@ -351,12 +353,12 @@ and 10% remaining) — the 10% one being a test the operator had stopped by hand
    includes `ata_smart_selective_self_test_log` — the ranges a selective test covers, which most
    modern ATA drives report. So the notice appeared on drives whose self-test log was being read
    correctly.
-2. The card **skipped its live read** whenever that flag was set, on the reasoning that the read
+2. The self-test section **skipped its live read** whenever that flag was set, on the reasoning that the read
    "could only fail". The live read is the only thing that corrects a progress bar painted from a
    stale scan, so the saved record's stale `remaining: 90` stayed on screen across reloads.
 
 **Fixed** (`FEATURES.md` A20): the flag is raised only when the drive offered **no** self-test log this
-app reads, and the card always reads the drive on mount. A third defect in the same area is fixed too:
+app reads, and the self-test section always reads the drive on mount. A third defect in the same area is fixed too:
 every re-render armed a fresh poll interval, so a page re-rendering more often than the interval never
 reached a read at all. The deadline is now carried across the re-render.
 
@@ -388,7 +390,7 @@ same displayed second, each `devices_ok: 0` / `devices_failed: 1`. The SD card's
 **Cause:** `startFreshness` re-reads whenever `last_scan` is absent, and `last_scan` is advanced only
 by a read that *succeeded* — so an unreadable drive is stale permanently and the age can never be the
 guard. The re-read redraws the page, the redrawn page re-reads, and only data arriving ends that.
-Returning to the dashboard stops it, which was the workaround.
+Returning to the fleet stops it, which was the workaround.
 
 **Fixed** (`FEATURES.md` A28 follow-up): one attempt per refresh window, per drive.
 `device_refresh_minutes` = 0 keeps its meaning, and a drive with no data is still read once.
@@ -407,7 +409,7 @@ fixes — on this Pi **and** on the amd64 host. Same actions that failed on 2026
 | 8.8 short test, staying on the page | **Passed, both hosts.** Progress cleared on its own when the drive finished; the short/long buttons returned; the log gained the completed entry. No **Scan now** needed, and no unread-log notice. |
 | 8.8 short test, leaving for the fleet | **Passed, both hosts.** The testing badge tracked the running test and cleared when it finished. |
 | 8.9 SD-card page left open | **Passed.** No flicker, no `0/1 readable` toast storm. |
-| 8.10 dashboard health and disconnected display | **Passed.** SD card **Unknown**, WDC disk **Good**; **Show 3 disconnected** lists the three historical records. |
+| 8.10 fleet health and disconnected display | **Passed.** SD card **No reading**, WDC disk **Healthy**; the three historical records appear as **Not connected**. |
 
 The retest was against a **local build**, not the published image — the source is identical and CI
 builds the same Dockerfile, but the record should say so. Re-running the 8.8 check against the
@@ -445,7 +447,7 @@ and the app has no login at all. Restart the container between steps that change
 
 | # | Do | Expect |
 |---|---|---|
-| 9.1 | With neither variable set, open the app and the sidebar. | No login page, no **Sign out**, and `GET /api/session` answers `{"enabled":false}` |
+| 9.1 | With neither variable set, open the app and the sidebar. | No login page, no **Sign out**, and `GET /api/session` answers with `enabled: false` |
 | 9.2 | Set only `SMARTSERVE_AUTH_USER` and start the container. | It **refuses to start** and names the missing password variable |
 | 9.3 | Set both, then open `/`. | The sign-in page, not the app: username, password, **Sign in** |
 | 9.4 | Enter the wrong password. | The same sign-in page with one vague message; nothing says which half was wrong |
@@ -455,7 +457,7 @@ and the app has no login at all. Restart the container between steps that change
 | 9.8 | `curl -u user:pass http://host:port/api/devices`. | `200` with the JSON — Basic works without any session |
 | 9.9 | `curl http://host:port/api/devices` (no credential). | `401` with `WWW-Authenticate: Basic` and `{"error":"authentication required"}` |
 | 9.10 | `curl http://host:port/healthz` and scrape `/metrics` with Basic. | Both answer without a session: a probe cannot sign in, and the scraper sends the credential |
-| 9.11 | Set **Settings → Data → Sign-in → Idle timeout** to 1, save, sign in and wait two minutes. | The next page load returns to the sign-in page |
+| 9.11 | Settings, Data, **Sign-in → Idle timeout (minutes)**: set 1, save, sign in, wait two minutes without touching the page. | The next page load returns to the sign-in page, with no restart needed: the window is read per request |
 | 9.12 | With the layer on, also set `SMARTSERVE_BASE_PATH=/smartserve` and open `/smartserve/healthz`, `/smartserve/login` and the app. | Healthcheck `200`, login page `200` (no redirect loop), the app asks for a password, and a container healthcheck passes |
 | 9.13 | Set `SMARTSERVE_AUTH_PASSWORD_FILE` to a file holding the password, remove the inline variable, restart. | Sign-in works with the file's contents (one trailing newline is not part of the password) |
 

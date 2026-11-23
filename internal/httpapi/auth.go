@@ -76,7 +76,7 @@ func (g *authGate) middleware(next http.Handler) http.Handler {
 			return
 		}
 
-		if c, err := r.Cookie(sessionCookie); err == nil && g.store.Touch(c.Value) {
+		if c, err := r.Cookie(sessionCookie); err == nil && g.touch(c.Value) {
 			next.ServeHTTP(w, r)
 			return
 		}
@@ -98,6 +98,17 @@ func (g *authGate) middleware(next http.Handler) http.Handler {
 		}
 		http.Redirect(w, r, target, http.StatusSeeOther)
 	})
+}
+
+// touch refreshes a session against the window the settings currently hold.
+//
+// `idle` is a function, not a value: the operator can shorten or lengthen the timeout from the
+// settings page, and a store built with a fixed duration would keep the old one until a restart.
+func (g *authGate) touch(token string) bool {
+	if want := g.idle(); want > 0 && want != g.store.Idle() {
+		g.store.SetIdle(want)
+	}
+	return g.store.Touch(token)
 }
 
 // handleSessionInfo tells the shell whether the layer is on and who is asking.

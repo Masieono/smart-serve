@@ -165,17 +165,21 @@ func New(st *store.Store, sc *scan.Manager, hub *events.Hub, opts Options) *Serv
 
 	s.basePath = strings.TrimRight(opts.BasePath, "/")
 	if opts.Auth.Enabled() {
-		idle := auth.DefaultIdle
-		if opts.AuthIdleMinutes != nil {
-			if mins := opts.AuthIdleMinutes(context.Background()); mins > 0 {
-				idle = time.Duration(mins) * time.Minute
+		// The window is read per request rather than fixed at start-up, so the settings page's idle
+		// timeout takes effect on the next page load instead of needing a restart.
+		idle := func() time.Duration {
+			if opts.AuthIdleMinutes != nil {
+				if mins := opts.AuthIdleMinutes(context.Background()); mins > 0 {
+					return time.Duration(mins) * time.Minute
+				}
 			}
+			return auth.DefaultIdle
 		}
 		s.auth = &authGate{
 			base:  s.basePath,
 			creds: opts.Auth,
-			store: auth.New(idle, auth.DefaultMax),
-			idle:  func() time.Duration { return s.auth.store.Idle() },
+			store: auth.New(idle(), auth.DefaultMax),
+			idle:  idle,
 			log:   logger,
 		}
 	}

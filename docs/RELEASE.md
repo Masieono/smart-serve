@@ -1,7 +1,7 @@
 # Releasing Smart-Serve
 
 The checklist for cutting a release, and the record of what is deliberately left undone at
-each one. Written for v1.0.0; reusable afterwards.
+each one. Written for v1.2.0; reusable afterwards.
 
 ## Cutting a release
 
@@ -9,8 +9,8 @@ each one. Written for v1.0.0; reusable afterwards.
    locally (see the README's Development section).
 2. **Update `CHANGELOG.md`** — move entries out of "unreleased" and date them. The same text
    is the GitHub Release body.
-3. **Tag it:** `git tag -a v1.0.0 -m "v1.0.0"` then `git push origin v1.0.0`. CI builds amd64
-   and arm64, pushes `1.0.0` and `latest`, and stamps the version into the binary.
+3. **Tag it:** `git tag -a v1.2.0 -m "v1.2.0"` then `git push origin v1.2.0`. CI builds amd64
+   and arm64, pushes `1.2.0` and `latest`, and stamps the version into the binary.
    **A tag containing a hyphen is treated as a pre-release and does not move `latest`** —
    `v1.1.0-rc1` publishes `1.1.0-rc1` only.
 4. **Create the GitHub Release** from the tag, pasting the changelog section as the body.
@@ -51,18 +51,18 @@ side-by-side comparison. `SCOPE.md` Phase 4 is complete and `FEATURES.md` §H ha
   project has ever logged an error, so the *populated* shape has never been observed. Guessing it
   would produce a panel that renders nothing precisely when a drive has something to say. The raw
   document is stored verbatim and the panel says so, so nothing is lost; rendering lands when a
-  populated log is captured (`FEATURES.md` A20).
+  populated log is captured (`FEATURES.md` A20). **Built at v1.2.0, against a fixture; see below.**
 - **An attribute row cannot be marked "the verdict blamed this".** `interp.Penalty` carries a
   free-text reason but no attribute id, so the attribute table can only mark rows the *drive itself*
   flags. Adding an optional id would make it exact and retire the last UI-side judgement
-  (`FEATURES.md` A12).
+  (`FEATURES.md` A12). **Built at v1.2.0; see below.**
 - **arm64 hardware verification was outstanding at this release.** Updated 2026-11-08: a Pi 5 /
   DietPi deployment confirms native execution, startup health, a full container SMART read through
   USB SAT, and the app's identity and attribute-table checks for the tested disk. That session
   surfaced two defects — a self-test progress bar stuck at a percentage the drive's own log had
   moved past, and an SD-card page that re-read itself in a loop — **both fixed, both awaiting a
   retest on the Pi**. Controlled idle measurements, stability and broader parity remain open; see
-  [the current test record](TESTING.md#pass-8--arm64-raspberry-pi).
+  [the current test record](TESTING.md#pass-8--arm64-raspberry-pi). **Idle was measured at v1.2.0.**
 - **No tag-size re-measurement.** v1.1.0 adds no runtime dependency and does not change the base
   image, so the v1.0.0 figures still hold. The rule stands: re-measure for any release that changes
   either.
@@ -73,46 +73,54 @@ thing a tag proves — that the published image reports *that tag's version* in 
 
 ## At v1.2.0
 
-The audit round. A question about reporting partition sizes turned into an audit of what the app
+The interface round. A question about reporting partition sizes turned into an audit of what the app
 fetches and then discards, and three things that were being paid for on every scan and never shown are
 now shown (`A28` partition schema and storage usage, `A12` score breakdown, `in_smartctl_database`).
-The ARM pass then turned up two long-standing defects — a self-test progress bar stuck on a stale
-percentage, and a drive page that re-read an unreadable drive forever — both fixed here. Three additive
-migrations (`0015`–`0017`); no schema rewrite, so the v1.1.0 rollback note still holds.
+The same release rebuilt the front end as one shell over five pages (fleet, device, schedules,
+notifications, settings): the card grid, the replace-first shortlist and the separate page bodies are
+gone, and the fleet is a table with a search box. Optional single-user sign-in arrives with sessions,
+a logout and an idle timeout (`ADR-033`), per-model thresholds become a table, and a drive's own error
+log is rendered. The ARM pass turned up two long-standing defects, a self-test progress bar stuck on a
+stale percentage and a drive page that re-read an unreadable drive forever, both fixed here. Three
+additive migrations (`0015`-`0017`); no schema rewrite, so the v1.1.0 rollback note still holds.
 
 **Deliberately left undone, and where each is recorded:**
 
 - **`D7` localization.** Unchanged from v1.1.0: deferred, not dropped, and still waiting on a
   translator who will maintain the result (`ADR-023`, `SCOPE.md`).
-- **Optional single-user auth is built** (`ADR-033`): one user from the environment, a sign-in page
-  with a logout and a configurable idle timeout for browsers, and Basic kept for `curl`, Prometheus
-  and scripts. Off unless both halves of the credential are set. No lockout, and no TLS of its own.
-- **Error-log entry *lists* are still not rendered.** Unchanged, and still blocked on the same thing —
-  smartctl emits no entry list for an empty log, and no drive available to this project has ever logged
-  an error, so the populated shape has never been observed (`FEATURES.md` A20).
+- **Error-log entries other than the fixture have never been seen.** The panel and the parser are
+  built and checked against `internal/smart/testdata/ata-error-log-entries.json`, reconstructed from
+  smartctl's documented shape because no drive available to this project has ever logged an error. The
+  panel is fixture-verified: it renders what that shape says it will, and a drive with real errors is
+  the confirmation still owed (`FEATURES.md` A20).
 - **RAID / LVM / ZFS member naming is built and unit-tested but never exercised on real hardware.** The
-  no-partition-table path names a disk by its `blkid` signature — `linux_raid_member`, and so on — and
+  no-partition-table path names a disk by its `blkid` signature (`linux_raid_member` and so on), and
   the fixtures prove the naming, but nothing has pulled a disk from an array and opened its page
-  (listed under "Not covered here" in `TESTING.md`, `FEATURES.md` A28). This is the weakest claim in the release.
+  (listed under "Not covered here" in `TESTING.md`, `FEATURES.md` A28). This is the weakest claim in
+  the release.
+- **NVMe remains unverified on hardware.** No NVMe device is attached to the ARM host, so its
+  temperature, health fields and amd64 parity rest on the parser and its fixtures (`TESTING.md` 8.6).
 - **arm64 idle budget: measured, 2026-11-18.** Ten minutes of samples with nothing else running give
-  **19.5 MiB** both as RSS and as PSS, 11 file descriptors and 11 threads flat, and 0.023% CPU. The
-  cgroup cannot account memory on that host (no memory controller; `docker stats` reads `0B / 0B`),
-  so the criterion is stated against **PSS**, which is the better figure anyway: it does not
-  double-count shared pages. The amd64 host reads 18.9 MiB by the cgroup and agrees. `TESTING.md`
-  8.5 carries the samples.
+  about **20 MiB** both as RSS and as PSS, 11 file descriptors and 11 threads flat, and roughly **0.04%
+  CPU** on a Pi 5. The cgroup cannot account memory on that host (no memory controller; `docker stats`
+  reads `0B / 0B`), so the criterion is stated against **PSS**, which is the better figure anyway: it
+  does not double-count shared pages. The amd64 host reads 18.9 MiB by the cgroup and agrees.
+  `TESTING.md` 8.5 carries the samples.
   The two defects this host found are fixed and **retested on 2026-11-11**, on both architectures.
-- **The image size was last measured at v1.0.0** (14.8 MB content / 53.5 MB on disk, 2026-10-17). This
-  release changes no base image and adds no runtime dependency, so those figures should still hold —
-  but `Dockerfile` installs `smartmontools` and `util-linux` **unpinned**, so the base is not actually
-  frozen. Re-measure before publishing the figures again.
+- **The image size has not been re-measured for v1.2.0.** The published figures are still v1.0.0's
+  (14.8 MB content / 53.5 MB on disk, 2026-10-17). This release changes no base image and adds no
+  runtime dependency, so those figures should hold, but `Dockerfile` installs `smartmontools` and
+  `util-linux` **unpinned**, so the base is not actually frozen. Re-measure before publishing the
+  figures again.
 
-**Closed at this release:** an attribute row can now be marked as one the verdict *read*, via the score
-breakdown's `attribute_id` — the v1.1.0 note asking for it is done (`FEATURES.md` A12).
+**Closed at this release:** an attribute row can be marked as one the verdict *read*, via the score
+breakdown's `attribute_id` (the v1.1.0 note asking for it is done, `FEATURES.md` A12); optional
+single-user sign-in (`ADR-033`; no lockout, and no TLS of its own); per-model thresholds as a table
+(`FEATURES.md` A3); the drive error-log panel (`A20`); and the single interface over five pages.
 
 **Consider a release candidate first.** `v1.2.0-rc1` publishes `1.2.0-rc1` without moving `latest`
-(step 3 above), which is the only way to have the Pi retest the two fixes against a *published*
-artifact rather than a local build — and every ARM check so far has been against a local development
-image. Tag `v1.2.0` once that retest passes.
+(step 3 above), which is how the Pi can retest the two fixes against a *published* artifact rather
+than the local build used on 2026-11-11. Tag `v1.2.0` once that retest passes.
 
 ## Screenshots
 
@@ -124,7 +132,7 @@ The README's set, cropped to the app viewport and committed to `docs/images/`:
 | `device-page.png` | A drive page: verdict, facts, disk space, trends, attributes, self-test |
 | `partitions.png` | Disk space: the usage line, the disk map and the partition table, linked both ways |
 | `attribute-explanation.png` | A `?` explanation open over the attribute table |
-| ~~`dashboard.png`~~, ~~`selftest-card.png`~~ | **Removed with the interface they showed.** The card grid and the self-test card are gone; the shots above replace them. |
+| ~~`dashboard.png`~~, ~~`selftest-card.png`~~ | **Removed with the interface they showed.** Both were parts of the dashboard that no longer exists; the shots above replace them. |
 
 **Take them as viewport captures, not full screens**, so no cropping is needed — Firefox's right-click
 *Take Screenshot* → *Save visible*, or Chrome DevTools → `Ctrl+Shift+P` → *Capture screenshot*. Keep
@@ -135,7 +143,9 @@ shows the palettes off best. Full-screen captures with browser chrome in them go
 ## Image size
 
 Measured for v1.0.0: **14.8 MB content, 53.5 MB on disk** (`docker image ls` on a homelab
-host). Published in `README.md`, `DEPLOYMENT.md` and `ADR-020`.
+host). Published in `README.md`, `DEPLOYMENT.md` and `ADR-020`. **Not re-measured for v1.2.0**; the
+figures above are the last measurement, and the v1.2.0 section says why they should still hold and why
+that is not the same as having checked.
 
 Re-measure for any release that changes the base image or adds a runtime dependency:
 
@@ -162,20 +172,22 @@ three device-access gates is closed if it cannot (`DEPLOYMENT.md`).
 
 ## arm64 verification (Raspberry Pi)
 
-**Current status (2026-11-11): verified in part on Raspberry Pi 5 / DietPi.** Native `linux/arm64`
+**Current status (2026-11-18): verified in part on Raspberry Pi 5 / DietPi.** Native `linux/arm64`
 execution, the reference device-access configuration, startup probe, HTTP health, USB SAT
 auto-detection and a full container SMART read of the attached WDC disk are confirmed, as are the app's
 model, serial, 17 attributes and selected raw values after a completed scan. This is not verification of
 the published GHCR image, nor full amd64 parity.
 
-The 2026-11-08 session on this host (then `v1.1.0-23-g949fbd6`) turned up two defects — a short test
-whose progress never cleared, and an SD-card page that re-read itself in a loop. Both were diagnosed
+The 2026-11-08 session on this host (then `v1.1.0-23-g949fbd6`) turned up two defects, a short test
+whose progress never cleared and an SD-card page that re-read itself in a loop. Both were diagnosed
 from that session's own captures, fixed, and **retested on 2026-11-11 against `v1.1.0-28-g6fee3dc`, on
-this Pi and on amd64 — both pass.** The retest ran against a local build of the fixes rather than the
+this Pi and on amd64, and both pass.** The retest ran against a local build of the fixes rather than the
 published image.
 
-**Still open:** the idle *memory* figure, which this host cannot report at all (CPU is confirmed near
-zero), overnight stability, NVMe, and restart/reboot persistence.
+**Still open:** overnight stability, NVMe, restart/reboot persistence, and identity across a different
+enclosure bay. The idle budget is no longer open: ten minutes of samples on 2026-11-18 give about 20 MiB
+RSS and PSS, 11 file descriptors and 11 threads flat, and roughly 0.04% CPU (8.5). This host still
+cannot report a cgroup memory figure, so the criterion is stated against PSS.
 
 [TESTING.md Pass 8](TESTING.md#pass-8--arm64-raspberry-pi) holds the dated evidence, image IDs and
 per-check statuses. Keep that record authoritative rather than duplicating the checklist here.

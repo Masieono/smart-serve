@@ -751,6 +751,19 @@ function draw(container, ctx, data, page, { carried = {}, unit: unitOverride } =
             prometheus),
         ]),
       ]),
+      // The one part of the sign-in layer that is a preference rather than a deployment fact. The
+      // credential itself is environment-only, so it has no control here: a password field on a page
+      // that anyone with a session can open would be a worse idea than a compose file.
+      el('section', { class: 'settings-section' }, [
+        el('h2', { text: 'Sign-in' }),
+        el('div', { class: 'settings-rows' }, [
+          settingRow('Idle timeout (minutes)',
+            'How long a browser session survives without activity, before the next page load asks for ' +
+            'the password again. Only matters when the optional sign-in layer is on, and the layer ' +
+            'itself is set from the environment.',
+            authIdle),
+        ]),
+      ]),
       // Read from `data`, not from the local `settings` map, that one is the stored settings, and the
       // knowledge status is its own payload.
       knowledgeSection(data.knowledge, ctx, knowledgeUrl),
