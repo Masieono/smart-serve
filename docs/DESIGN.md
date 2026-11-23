@@ -1,184 +1,140 @@
-# Smart-Serve — Architecture & Design
+# Smart-Serve: Architecture & Design
 
 ## 1. Overview
 
-Smart-Serve is a single Go binary packaged with `smartmontools` into a small Docker
-image. It discovers storage devices, queries their S.M.A.R.T. data, interprets it into
-human-friendly health verdicts, persists snapshots and user notes, and can notify
-external services when drive health changes.
+Smart-Serve is a single Go binary packaged with `smartmontools` into a small Docker image. It
+discovers storage devices, reads their S.M.A.R.T. data, interprets it into health verdicts, keeps
+snapshots and user notes, and notifies external services when a drive's health changes.
 
 Design goals, in priority order:
 
-1. **Coverage** — every device in `lsblk` appears in the UI, including USB drives.
-2. **Idle frugality** — ~0% CPU and <20 MB RAM when not scanning or serving a page.
-3. **Self-containment** — one container, one port, one data volume; zero host setup.
-4. **Clarity** — CrystalDiskInfo-grade readable health reporting, not raw SMART dumps.
+1. **Coverage.** Every disk in `lsblk` appears in the UI, including USB drives.
+2. **Idle frugality.** ~0% CPU and a few MB of RAM when not scanning or serving a page.
+3. **Self-containment.** One container, one port, one data volume, no host setup.
+4. **Clarity.** CrystalDiskInfo-grade readable reporting, not raw S.M.A.R.T. dumps.
 
-Non-goals (explicitly out of scope): writing to drives, triggering self-tests (until
-Phase 2), RAID-controller SMART pass-through, multi-tenant auth (reverse-proxy pattern
-in the interim).
+Non-goals: RAID-controller S.M.A.R.T. pass-through, multi-user accounts, and any write to a drive
+other than starting a self-test the user asked for (Section 7).
 
 ## 2. Process model
 
-One process, one binary, four internal components:
+One process, one binary, with the work in packages under `internal/`: `scan`, `smart`, `interp`,
+`store`, `sched`, `selftest`, `notify`, `events`, `httpapi`, `webui`, `auth`, `knowledge`, `model`.
 
 ```
-┌───────────────────────────────────────────────────────────┐
-│                    smart-serve (Go)                        │
-│                                                           │
-│  HTTP server ──► handlers ──► scan executor ──► smartctl   │
-│      │                        │       lsblk                │
-│      │                        ▼                           │
-│      │                   SQLite (/data/smartserve.db)      │
-│      │                        ▲                            │
-│      ├──► scheduler (sleeps until next due scan) ─────────┤
-│      │                        │                            │
-│      └──► SSE hub ◄──────────  │                            │
-│                               ▼                            │
-│                        notifier bus ──► ntfy / webhook      │
-└───────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────┐
+│                    smart-serve (Go)                      │
+│  HTTP server ──► handlers ──► scan executor ──► smartctl │
+│      │                        │       lsblk              │
+│      │                   SQLite (/data/smartserve.db)    │
+│      ├──► scheduler (sleeps until the next due scan)     │
+│      └──► SSE hub ◄────────────┘                         │
+│                        notifier bus ──► ntfy / webhook   │
+└──────────────────────────────────────────────────────────┘
 ```
 
-- **HTTP server** (stdlib `net/http`): serves the embedded frontend and the JSON API.
-  With no requests in flight it consumes no CPU.
-- **Scan executor**: runs the discovery + SMART query pipeline (Section 3).
-  Serializes scans behind a mutex — only one scan runs at a time; concurrent scan
-  requests join the in-flight scan rather than launching another.
-- **Scheduler**: a single goroutine that sleeps until the next due scheduled scan,
-  then invokes the scan executor. Between scans it does nothing. Schedules are
-  interval-based (`every N hours`) or cron-style (`daily at 03:00`) as defined in
-  `docs/DATA_MODEL.md`.
-- **Notifier bus**: publishes scan events to configured channels after each scan; no
-  timers, no loops. SSE scan-progress events are pushed to connected browsers only.
+- **HTTP server** (stdlib `net/http`): the embedded UI and the JSON API on one port.
+- **Scan executor:** discovery plus the S.M.A.R.T. pipeline (Section 3), serialized behind a mutex;
+  a second request joins the running scan. **Scheduler:** one goroutine sleeping until the next due
+  schedule, which runs a scan, a digest or a self-test pass (`docs/DATA_MODEL.md`).
+- **Notifier bus:** publishes scan events to configured channels after each scan, with no timers and
+  no loops; SSE progress goes only to connected browsers.
 
 ### 2.1 Idle-resource budget (a design invariant)
 
 | Condition | CPU | RAM |
 |---|---|---|
-| Idle, no browser connected | ~0% | ~8–12 MB (binary + SQLite page cache) |
-| Idle, browser tab open | ~0% (SSE connection is epoll-driven) | +~1 MB per connection |
-| Active scan (N devices) | one `smartctl` child at a time, sequential | +~5 MB per child process |
+| Idle, no browser connected | ~0% | ~8-12 MB (binary plus SQLite page cache) |
+| Idle, browser tab open | ~0% (SSE is epoll-driven) | +~1 MB per connection |
+| Active scan (N devices) | one `smartctl` child at a time, sequential | +~5 MB per child |
 
-Enforcement rules: no background device polling of any kind; no per-second timers
-anywhere in the code; the only goroutines that exist between events are the
-scheduler's single `time.Sleep` and the HTTP accept loop. Device discovery happens
-**only** inside an explicit or scheduled scan — page loads read from the SQLite
-snapshot, never spawn `smartctl`.
+Enforcement: no background device polling, no per-second timers, and the only goroutines between
+events are the scheduler's `time.Sleep` and the HTTP accept loop. Discovery happens **only** inside an
+explicit or scheduled scan; a page load reads the snapshot and never spawns `smartctl`. The one poll
+in the product is the browser watching a running self-test, and it stops when the test ends.
 
 ## 3. Scan pipeline
 
-A scan is a three-stage pipeline. All external commands are executed with a hard
-timeout (default 15 s per invocation).
+Three stages. Every external command runs with a hard timeout (15 s by default).
 
-### Stage 1 — Discovery
+### Stage 1: discovery
 
-1. `smartctl --scan-open --json` — returns devices smartmontools can open, including
-   the transport hint needed for some USB bridges (e.g. `-d sat`, `-d usbjmicron`).
-2. `lsblk --json --paths --output NAME,KNAME,MODEL,SERIAL,SIZE,TYPE,TRAN,MOUNTPOINTS,FSTYPE,ROTA,RM,WWN`
-   — the authoritative list of what the *host* sees.
+1. `smartctl --scan-open --json`, which returns the devices smartmontools can open and the transport
+   hint some USB bridges need.
+2. `lsblk --json --paths` for what the host sees: name, model, serial, size, transport, mountpoints,
+   filesystem and WWN.
 
-The **lsblk list is the source of truth** for UI coverage ("if it's in lsblk, it's in
-the UI"). The lsblk tree is flattened: block devices of `TYPE == "disk"` are
-candidates (loop devices and partitions excluded). Devices present in lsblk but
-**absent** from smartctl's scan are still listed, marked `smart_available: false`
-with the capture error (common for some USB bridge chips — see Section 5).
+The **lsblk list is the source of truth** for coverage: if a disk is in lsblk, it is in the UI. Loop
+devices and partitions are filtered out, and a disk absent from smartctl's scan is still listed, with
+the error that explains it (Section 5).
 
-### Stage 2 — Per-device SMART query
+### Stage 2: per-device query
 
-For each discovered device, in sequence (never parallel — avoids I/O contention):
+Each device in sequence, never in parallel, to avoid I/O contention. `-x` rather than `-a`, because it
+carries the vendor and NVMe log pages the interpreter needs.
 
-- ATA/SATA/USB: `smartctl -x --json <dev>` (with the transport hint from Stage 1
-  when present; fallback chain in Section 5).
-- NVMe: `smartctl -x --json /dev/nvme0` (controller) with per-namespace data as
-  reported by smartctl.
+- ATA/SATA/USB: `smartctl -x --json <dev>`, with the transport hint when one was discovered.
+- NVMe: `smartctl -x --json /dev/nvme0`, with the per-namespace data smartctl reports.
 
-`-x` (all) is preferred over `-a` because it includes vendor-specific and NVMe log
-pages needed for wear estimation.
+### Stage 3: interpret and persist
 
-### Stage 3 — Interpret & persist
+1. Normalize the raw JSON into a device record (attribute table, NVMe health block, temperature,
+   overall health) and compute the verdict per `docs/SMART_INTERPRETATION.md`.
+2. Write a snapshot row (normalized data plus JSON) and upsert the device, pruning per retention.
+3. Publish events to the notifier bus (`docs/NOTIFICATIONS.md`) and emit SSE progress throughout, so
+   the UI's scan button has live feedback.
 
-1. Normalize the raw smartctl JSON into an internal device record (ATA attribute
-   table, NVMe health block, temperature, overall health string) — normalization
-   rules live in `docs/SMART_INTERPRETATION.md`.
-2. Compute the verdict (Good / Caution / Bad) per that document's algorithm.
-3. Write a **snapshot** row (full normalized SMART data, JSON blob) plus upsert the
-   device row; apply retention pruning.
-4. Publish scan events to the notifier bus (health transitions, temperature
-   breaches, device appearance/disappearance) per `docs/NOTIFICATIONS.md`.
-5. Emit SSE progress events throughout (per-device started/finished, scan complete)
-   so the UI's Scan button gives live feedback.
+### 3.1 Single flight
 
-### 3.1 Single-flight behavior
-
-The scan executor exposes `Scan(ctx) (ScanResult, error)` internally. A mutex +
-condition variable means: pressing Scan while a scheduled scan is running joins it;
-pressing Scan twice returns the same in-flight result; the UI shows one "scanning…"
-state globally.
+The executor exposes one entry point guarded by a mutex and a condition variable: pressing Scan while
+a scheduled scan runs joins it, pressing twice returns the same in-flight result, and the UI shows one
+scanning state.
 
 ## 4. Frontend
 
-Embedded via `embed.FS` — no CDN dependencies, no Node build tooling required.
+Embedded with `embed.FS`, so there is no CDN, no Node build step and no framework.
 
-- **Stack**: server-rendered HTML shell + vanilla JS (ES modules, no framework) +
-  minimal hand-written CSS. Deliberately chosen over React/Vue to keep the binary
-  small and the attack surface minimal. JS talks to the backend exclusively via the
-  JSON API + one SSE connection (`GET /api/events`).
-- **Views**:
-  - **Dashboard**: device cards — verdict badge (Good/Caution/Bad color-coded),
-    temperature, model, user-assigned name, mountpoint(s), last-scan timestamp —
-    and the global **Scan** button.
-  - **Device detail**: CrystalDiskInfo-style attribute table (ID, name,
-    value/worst/threshold, interpreted raw value), temperature, capacity,
-    power-on hours, power cycles, health verdict with rationale, and the
-    edit form for name/notes/tags.
-  - **Settings**: scan schedules, notification channels, scan options.
-- **Rendering**: page loads never trigger scans. The dashboard renders the last
-  snapshot from SQLite with a visible "last scanned: …" timestamp; freshness is a
-  user action (the Scan button), matching the on-demand philosophy.
+- **Stack:** a server-rendered HTML shell (`index.html`, carrying the theme attributes), vanilla ES
+  modules under `assets/js`, and three stylesheets. JavaScript talks to the backend through the JSON
+  API and one SSE connection (`GET /api/events`).
+- **One UI, five pages:** Fleet (`/`), Device (`/device/<serial>`), Schedules, Notifications and
+  Settings with its four sub-pages, in a sidebar shell with a global scan and, when the optional
+  sign-in layer is on, a sign-out control (`docs/UI.md`).
+- **State:** no client-side store. Each view fetches its own payload, renders from it and re-renders
+  on an SSE event, holding its container's height so the scroll position survives.
+- **Freshness:** a page load never triggers a scan, views render the last snapshot, and opening a
+  drive re-reads it only when its data is older than `device_refresh_minutes`.
 
-## 5. USB & bridge strategy
+## 5. USB and bridge strategy
 
-USB drives are a first-class concern (the original motivation for this project):
+- USB drives are the original motivation for the project, and `smartctl --scan-open` already tries the
+  common SAT path, which covers most USB-SATA and USB-NVMe bridges; its hint is used for the read.
+- There is no probing chain. When a bridge needs a `-d` value smartmontools did not guess, the user
+  sets a **transport override** on the device page, remembered per serial and used on later reads and
+  self-tests. It is validated against a character set, not a list, so bridge variants need no code.
+- If the read fails, the drive stays visible with a notice naming the closed access gate: the
+  container's device permissions, AppArmor, or a missing read of the drive. Silent omission is not an
+  option, per the lsblk-parity rule.
+- Hot-plug: no udev watching, because that would mean constant monitoring, so a newly plugged drive
+  appears on the next scan, on demand or scheduled. This is the deliberate trade for zero idle cost.
 
-- `smartctl --scan-open` already tries the common SAT (SCSI-ATA-Translation) path,
-  which covers most modern USB-SATA/USB-NVMe bridges.
-- For devices where the default open fails, Smart-Serve retries a **fallback chain**
-  of `-d` transports: `sat` → `sat,12` → `scsi` → `usbjmicron` → `usbcypress`.
-  Only invoked for devices whose first capture failed; the first working transport
-  is remembered per device (in `device_notes`-like internal state) and reused first
-  next time to avoid repeated probing.
-- If the entire chain fails, the device remains visible in the UI as
-  `SMART unavailable` with the error message — never silently dropped, per the
-  "lsblk parity" rule. A per-device "hide" flag (user metadata) is the escape hatch.
-- Device hot-plug: Smart-Serve does **not** watch udev (that would require constant
-  monitoring). A hot-plugged drive appears on the next scan — on-demand or
-  scheduled. This is the intended trade for zero idle cost; the docs call it out
-  honestly.
+## 6. Packaging and configuration
 
-## 6. Packaging & configuration
-
-- **Image**: multi-stage build — a Go build stage, then an `alpine` runtime with
-  `smartmontools` and `util-linux` installed from apk (`ADR-020`). The Alpine tag is
-  deliberately not named here: Dependabot bumps it, and a version written into prose goes stale
-  on the next bump. Alpine rather than `distroless/static` because both tools are packaged and
-  maintained there, whereas a distroless base would mean statically compiling them and copying
-  them in — and `smartctl`'s vendor quirk database is the product's core (`ADR-002`), so it is
-  worth taking the maintained package.
-- **Config**: everything through the web UI (persisted in SQLite) plus a small set
-  of environment variables for bootstrapping (`SMARTSERVE_ADDR` default
-  `:8080`, `SMARTSERVE_DB` default `/data/smartserve.db`).
-- **Data volume**: `/data` holds only the SQLite file (and its WAL siblings).
+- **Image:** a Go build stage and an Alpine runtime with `smartmontools` and `util-linux` from apk
+  (`ADR-020`). The Alpine tag is not pinned in prose because Dependabot bumps it. Alpine rather than a
+  distroless base because both tools are packaged there, and `smartctl`'s vendor quirk database is the
+  product's core (`ADR-002`).
+- **Configuration:** everything through the UI, persisted in SQLite, plus environment variables for
+  bootstrapping: `SMARTSERVE_ADDR` (`:8080`), `SMARTSERVE_DB`, and the optional `SMARTSERVE_AUTH_USER`
+  with `SMARTSERVE_AUTH_PASSWORD` (or `_FILE`).
+- **Data volume:** `/data` holds the SQLite file and its WAL siblings.
 
 ## 7. Security posture
 
-- The app performs **read-only** raw-device access via `smartctl`. It exposes no
-  endpoint that writes to or configures a drive. No `smartctl` invocation in the
-  codebase may use write-capable commands (e.g. `-s`, offline tests) — enforced by
-  an allow-list of arguments, not a deny-list.
-- The web UI is unauthenticated at MVP by design (LAN tool, like most Docker
-  monitoring apps). `docs/DEPLOYMENT.md` documents the reverse-proxy + basic-auth
-  interim pattern and a Phase 2 built-in auth option.
-- Container privilege is the user's choice (least-privilege options in
-  `docs/DEPLOYMENT.md`); the docs are explicit that any process able to read raw
-  disk devices can read all data on those disks.
-
+- Device access is **read-only** except for self-tests: the only invocation that touches a drive's
+  state is `smartctl -t short|long`, and those two values are its entire allow-list (`A19`).
+- The UI is open by default. Optional single-user basic auth (`ADR-033`) is enabled by setting a
+  username and password in the environment: no user table, no registration, sessions in memory only,
+  so a restart signs everyone out. `docs/DEPLOYMENT.md` covers the reverse-proxy alternative.
+- Container privilege is the operator's choice (least-privilege options in `docs/DEPLOYMENT.md`); any
+  process that can read raw disk devices can read all data on those disks, and the docs say so.

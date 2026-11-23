@@ -1,12 +1,14 @@
 package httpapi
 
 import (
+	"context"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/masieono/smart-serve/internal/auth"
 )
@@ -288,5 +290,42 @@ func TestSubpathSignInRoundTrip(t *testing.T) {
 	s.ServeHTTP(rec, req)
 	if got := rec.Header().Get("Location"); got != "/smartserve/login" {
 		t.Errorf("logout Location = %q, want /smartserve/login", got)
+	}
+}
+
+// The idle window is a setting, so it has to be read while the app runs rather than frozen when the
+// gate was built. Otherwise the page could change it and nothing would happen until a restart, which
+// is not what "configurable" means.
+func TestIdleWindowFollowsTheSetting(t *testing.T) {
+	mins := 60
+	s, _, _, _ := newTestServer(t, Options{
+		Auth:            auth.Credentials{User: "admin", Password: "s3cret"},
+		AuthIdleMinutes: func(context.Context) int { return mins },
+		UI:              http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { io.WriteString(w, "app") }),
+	})
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/session",
+		strings.NewReader("user=admin&password=s3cret"))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	s.ServeHTTP(rec, req)
+	cookies := rec.Result().Cookies()
+	if len(cookies) == 0 {
+		t.Fatal("no session cookie")
+	}
+	if got := s.auth.store.Idle(); got != 60*time.Minute {
+		t.Fatalf("idle at start = %v, want 60m", got)
+	}
+
+	mins = 1
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodGet, "/schedules", nil)
+	req.AddCookie(cookies[0])
+	s.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("page = %d, want 200", rec.Code)
+	}
+	if got := s.auth.store.Idle(); got != time.Minute {
+		t.Errorf("idle after the setting changed = %v, want 1m: the window is fixed at start-up", got)
 	}
 }

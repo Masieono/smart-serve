@@ -636,3 +636,22 @@ test('editing a cell writes the value the page saves', async () => {
   const editor = container.querySelectorAll('textarea').filter((n) => n.className === 'settings-editor')[0];
   assert.deepEqual(JSON.parse(editor.value), { '870 EVO': { temperature_threshold_c: '42' } });
 });
+
+// The auto-logout window is a setting the operator asked for by name, and it was built, saved and
+// never mounted: `fieldsFor('data')` wrote `auth_idle_minutes` from an input that no section
+// contained, so the value could not be changed in the UI at all. This is the assertion that would
+// have caught it.
+test('the sign-in idle timeout has a control on the data page', async () => {
+  installStubDom();
+  stubFetch({ settings: { auth_idle_minutes: '45' }, knowledge: KNOWLEDGE });
+  const container = document.createElement('div');
+  await settings.render(container, ctx, 'data');
+
+  // The stub DOM has no attribute selectors, so the input is found by its label.
+  const input = container
+    .querySelectorAll('input')
+    .find((node) => node.getAttribute('aria-label') === 'Sign-in idle timeout in minutes');
+  assert.ok(input, 'no control: the setting saves from an input that is never mounted');
+  assert.equal(input.value, '45', 'the control does not show the stored value');
+  assert.ok(rowLabels(container).includes('Idle timeout (minutes)'));
+});
