@@ -32,6 +32,18 @@ const sidebar = el('aside', { class: 'sidebar', id: 'sidebar' });
 const content = el('main', { class: 'content', id: 'content' });
 
 let scanning = false;
+// The last path rendered, so `route` can tell whether the view actually changed.
+let rendered = null;
+
+/** Which view a path belongs to, for the reset above. */
+function viewOf(path) {
+  if (!path) return null;
+  if (path.startsWith('/device/')) return 'device';
+  if (path === '/settings' || path.startsWith('/settings/')) return 'settings';
+  if (path === '/schedules') return 'schedules';
+  if (path === '/notifications') return 'notifications';
+  return 'fleet';
+}
 // Set by a view that must be asked before it is left. The settings pages use it for unsaved edits;
 // every other view leaves it null. Cleared on each route, so a guard cannot outlive its view.
 let navGuard = null;
@@ -127,7 +139,17 @@ async function route({ keepScroll = false } = {}) {
   const path = currentPath();
   // Cleared before the view renders: a guard belongs to the view that set it, and a view that wants
   // one sets it again on the way in.
+  // A guard belongs to the view that set it; the incoming view sets its own. The modules that keep
+  // state to redraw later are reset here for the same reason: a fleet that finished fetching after
+  // the reader moved to a drive page used to draw its table over that page, with the previous
+  // context, because nothing told it it was no longer the current view.
   navGuard = null;
+  const leaving = viewOf(rendered);
+  rendered = path;
+  if (leaving !== viewOf(path)) {
+    if (leaving === 'fleet') fleet.reset();
+    if (leaving === 'device') device.reset();
+  }
   renderSidebar(path);
   renderSignOut();
   // A navigation starts at the top; a re-render keeps the reader where they were. Nothing else does
@@ -268,6 +290,18 @@ function buildShell() {
 
 // --- SSE (docs/API.md) --------------------------------------------------------
 
+/**
+ * Re-render the current view because something happened elsewhere.
+ *
+ * A background event is not a navigation: the settings pages hold unsaved edits and ask before they
+ * are left, and a scan finishing used to re-render underneath them without a word, discarding the
+ * form. The guard is the same one a click uses.
+ */
+async function refreshInPlace() {
+  if (navGuard && !(await navGuard())) return;
+  route({ keepScroll: true });
+}
+
 function connectEvents() {
   const source = new EventSource(api.eventsUrl());
   source.addEventListener('scan_started', () => {
@@ -287,14 +321,15 @@ function connectEvents() {
       toast(`Scan complete: ${data.devices_ok}/${data.devices_total} readable`, 'good');
     }
     // A scan finishing is news about the fleet, not a navigation: the reader was doing something
-    // else, and yanking them to the top of the page to tell them is the wrong interruption.
-    route({ keepScroll: true });
+    // else, and yanking them to the top of the page to tell them is the wrong interruption. It also
+    // must not throw away a form somebody is filling in, so the view is asked first.
+    refreshInPlace();
   });
   // A drive's self-test progress changed (`FEATURES.md` A20). The watcher re-reads only drives that
   // are mid-test, and publishes this when something actually moved, so the badge tracks a running
   // test instead of freezing at whatever the last scan caught.
   source.addEventListener('selftest_progress', () => {
-    route({ keepScroll: true });
+    refreshInPlace();
   });
   // EventSource reconnects automatically; nothing to do on error.
 }
