@@ -10,6 +10,10 @@
 // traffic that is never a notification or a knowledge document: the link-local range, where cloud
 // metadata services live, and redirects, which turn one configured destination into whatever the
 // remote server chooses to send this app to next.
+//
+// It judges the URL, not what DNS answers: a hostname that resolves to a link-local address is not
+// caught here. That is a narrower hole than an open redirect — it needs control of a name the
+// operator configured — but it is why this is a guard and not a sandbox.
 package urlguard
 
 import (
