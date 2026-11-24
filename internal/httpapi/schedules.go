@@ -213,8 +213,13 @@ func (s *Server) handleUpdateSchedule(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.wakeScheduler()
-	sched, _ := s.store.GetSchedule(r.Context(), id)
-	writeJSON(w, http.StatusOK, map[string]any{"schedule": toScheduleJSON(*sched)})
+	// The write has landed. A failed read-back is not a reason to answer 500 and invite a retry of
+	// something that already happened, so the response falls back to what was just written.
+	after, err := s.store.GetSchedule(r.Context(), id)
+	if err != nil || after == nil {
+		after = existing
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"schedule": toScheduleJSON(*after)})
 }
 
 func (s *Server) handleDeleteSchedule(w http.ResponseWriter, r *http.Request) {

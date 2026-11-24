@@ -11,6 +11,11 @@ the error itself (`ADR-031`). Messages describing the *hardware* — `smartctl`'
 strings, a drive that will not answer — are part of the product and are returned unchanged.
 Timestamps are Unix milliseconds.
 
+**Request bodies must be JSON.** An empty body, a body of `null`, or anything after the first JSON
+value is a `400` rather than a silent partial read. Decoding `null` into a struct used to leave every
+field at zero, which on a full-replace endpoint (`PUT .../notes`) erased the drive's name, notes, tags
+and bay.
+
 ## Scan & devices
 
 ### `POST /api/scan` — trigger an on-demand scan

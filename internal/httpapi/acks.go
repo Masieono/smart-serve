@@ -70,6 +70,9 @@ func (s *Server) handleAckDevice(w http.ResponseWriter, r *http.Request) {
 // handleUnackDevice removes an acknowledgement, so the drive alerts again on the next scan.
 func (s *Server) handleUnackDevice(w http.ResponseWriter, r *http.Request) {
 	serial := r.PathValue("serial")
+	if !s.requireDevice(w, r, serial) {
+		return
+	}
 	if err := s.store.ClearAck(r.Context(), serial); err != nil {
 		s.fail(w, "unack device", err)
 		return

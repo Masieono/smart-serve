@@ -4,8 +4,10 @@
 package httpapi
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"io"
 	"log/slog"
 	"net/http"
 	"net/url"
@@ -360,8 +362,28 @@ func writeError(w http.ResponseWriter, status int, msg string) {
 }
 
 func decodeJSON(w http.ResponseWriter, r *http.Request, v any) bool {
-	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20))
-	if err := dec.Decode(v); err != nil {
+	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, 1<<20))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "could not read the body: "+err.Error())
+		return false
+	}
+	trimmed := bytes.TrimSpace(body)
+	if len(trimmed) == 0 {
+		writeError(w, http.StatusBadRequest, "empty body: send a JSON object")
+		return false
+	}
+	// Decoding into a struct accepts `null` and leaves every field at zero, which for a full-replace
+	// endpoint means "clear everything": `PUT .../notes` with a body of `null` erased a drive's
+	// name, notes, tags and bay. A body has to be the shape the handlers describe.
+	switch trimmed[0] {
+	case '{', '[':
+	default:
+		writeError(w, http.StatusBadRequest, "body must be a JSON object")
+		return false
+	}
+	// Unmarshal rather than a Decoder, so trailing data after the first value is an error instead of
+	// being silently ignored.
+	if err := json.Unmarshal(trimmed, v); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid JSON body: "+err.Error())
 		return false
 	}

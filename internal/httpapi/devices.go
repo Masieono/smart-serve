@@ -529,8 +529,30 @@ func snapshotMetrics(snap *store.Snapshot, modelFamily string) interp.Metrics {
 	})
 }
 
+// requireDevice answers 404 when the serial names no stored drive.
+//
+// Notes and transport are written with `INSERT ... ON CONFLICT`, so an unknown serial used to answer
+// 200 and create a row attached to nothing: a drive forgotten in another tab came back hidden, with
+// the name and the `-d` override it had before the forget, and the fleet's hidden count never
+// accounted for it.
+func (s *Server) requireDevice(w http.ResponseWriter, r *http.Request, serial string) bool {
+	rec, err := s.store.GetDevice(r.Context(), serial)
+	if err != nil {
+		s.fail(w, "read device", err)
+		return false
+	}
+	if rec == nil {
+		writeError(w, http.StatusNotFound, "unknown device")
+		return false
+	}
+	return true
+}
+
 func (s *Server) handleSetNotes(w http.ResponseWriter, r *http.Request) {
 	serial := r.PathValue("serial")
+	if !s.requireDevice(w, r, serial) {
+		return
+	}
 	var body struct {
 		Name   *string `json:"name"`
 		Notes  *string `json:"notes"`
@@ -600,6 +622,9 @@ func validateSmartD(v string) error {
 
 func (s *Server) handleSetTransport(w http.ResponseWriter, r *http.Request) {
 	serial := r.PathValue("serial")
+	if !s.requireDevice(w, r, serial) {
+		return
+	}
 	var body struct {
 		SmartD string `json:"smart_d"`
 	}
