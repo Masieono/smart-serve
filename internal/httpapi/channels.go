@@ -162,8 +162,13 @@ func (s *Server) handleUpdateChannel(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, "update channel", err)
 		return
 	}
-	ch, _ := s.store.GetChannel(r.Context(), id)
-	writeJSON(w, http.StatusOK, map[string]any{"channel": toChannelJSON(*ch)})
+	// Same as the schedule update: the save succeeded, so a failed read-back answers with what was
+	// written rather than a 500.
+	after, err := s.store.GetChannel(r.Context(), id)
+	if err != nil || after == nil {
+		after = &merged
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"channel": toChannelJSON(*after)})
 }
 
 func (s *Server) handleDeleteChannel(w http.ResponseWriter, r *http.Request) {

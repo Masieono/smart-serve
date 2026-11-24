@@ -16,14 +16,14 @@ func TestCSRFGuard(t *testing.T) {
 	srv, _, _, _ := newTestServer(t, Options{})
 
 	// A same-origin browser request is allowed (httptest sets Host: example.com).
-	rec := do(t, srv, http.MethodPut, "/api/devices/S1/notes", `{"name":"x"}`,
+	rec := do(t, srv, http.MethodPut, "/api/settings", `{"temperature_unit":"c"}`,
 		map[string]string{"Origin": "http://example.com"})
 	if rec.Code != http.StatusOK {
 		t.Errorf("same-origin status = %d, want 200 (%s)", rec.Code, rec.Body.String())
 	}
 
 	// A cross-origin browser request is rejected.
-	rec = do(t, srv, http.MethodPut, "/api/devices/S1/notes", `{"name":"x"}`,
+	rec = do(t, srv, http.MethodPut, "/api/settings", `{"temperature_unit":"c"}`,
 		map[string]string{"Origin": "http://evil.example"})
 	if rec.Code != http.StatusForbidden {
 		t.Errorf("cross-origin status = %d, want 403", rec.Code)
@@ -37,7 +37,7 @@ func TestCSRFGuard(t *testing.T) {
 	}
 
 	// Non-browser clients send no Origin header, so curl and scripts keep working.
-	rec = do(t, srv, http.MethodPut, "/api/devices/S1/notes", `{"name":"cli"}`, nil)
+	rec = do(t, srv, http.MethodPut, "/api/settings", `{"temperature_unit":"c"}`, nil)
 	if rec.Code != http.StatusOK {
 		t.Errorf("cli status = %d, want 200", rec.Code)
 	}
