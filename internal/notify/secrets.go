@@ -104,6 +104,16 @@ func Resolve(label, key, stored string) (string, SecretSource, error) {
 	return "", SourceNone, nil
 }
 
+// Overridden reports whether the environment supplies this config key for this label.
+//
+// The API needs it to decide whether a request-supplied config may be sent at all: a secret the
+// environment holds must never travel to a destination the request chose, or one unauthenticated
+// POST would hand the deployment's SMTP password to whoever asked.
+func Overridden(label, key string) bool {
+	_, source, err := Resolve(label, key, "")
+	return err == nil && (source == SourceEnv || source == SourceFile)
+}
+
 // ApplyOverrides replaces each string value in a decoded channel config with its effective
 // one, in place.
 //

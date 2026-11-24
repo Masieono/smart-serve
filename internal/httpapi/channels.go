@@ -1,9 +1,11 @@
 package httpapi
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/masieono/smart-serve/internal/notify"
 	"github.com/masieono/smart-serve/internal/store"
@@ -49,6 +51,10 @@ func toChannelJSON(c store.Channel) channelJSON {
 }
 
 type channelBody struct {
+	// ID is the stored channel this draft was loaded from, or 0 for a new one. The test endpoint
+	// needs it: a draft may only receive the environment's credentials when it is that channel,
+	// unchanged in every field the environment does not supply.
+	ID      int64           `json:"id"`
 	Type    string          `json:"type"`
 	Label   string          `json:"label"`
 	Config  json.RawMessage `json:"config"`
@@ -102,8 +108,12 @@ func (s *Server) handleCreateChannel(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "type is required")
 		return
 	}
-	if msg := s.validateChannelConfig(body.Type, body.Label, body.Config); msg != "" {
+	if msg := s.validateChannelConfig(body.Type, body.Label, body.Config, true); msg != "" {
 		writeError(w, http.StatusBadRequest, msg)
+		return
+	}
+	if refusal := s.refuseDuplicateLabel(r.Context(), body.Label, 0); refusal != "" {
+		writeError(w, http.StatusConflict, refusal)
 		return
 	}
 	id, err := s.store.CreateChannel(r.Context(), body.toStore(0))
@@ -154,8 +164,12 @@ func (s *Server) handleUpdateChannel(w http.ResponseWriter, r *http.Request) {
 	if body.Enabled == nil {
 		merged.Enabled = existing.Enabled
 	}
-	if msg := s.validateChannelConfig(merged.Type, merged.Label, json.RawMessage(merged.Config)); msg != "" {
+	if msg := s.validateChannelConfig(merged.Type, merged.Label, json.RawMessage(merged.Config), true); msg != "" {
 		writeError(w, http.StatusBadRequest, msg)
+		return
+	}
+	if refusal := s.refuseDuplicateLabel(r.Context(), merged.Label, id); refusal != "" {
+		writeError(w, http.StatusConflict, refusal)
 		return
 	}
 	if err := s.store.UpdateChannel(r.Context(), merged); err != nil {
@@ -210,11 +224,114 @@ func (s *Server) handleTestChannel(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// refuseDuplicateLabel keeps two channels from sharing a label.
+//
+// A label names the environment variables that hold a channel's credentials, so two channels with one
+// label share them: the second could be pointed at a different destination and would then be sent the
+// first one's secret. Returns the message to show, or "" when the label is free.
+func (s *Server) refuseDuplicateLabel(ctx context.Context, label string, exceptID int64) string {
+	if strings.TrimSpace(label) == "" {
+		return ""
+	}
+	taken, err := s.store.ChannelLabelExists(ctx, label, exceptID)
+	if err != nil {
+		return "" // the save itself will report a real store failure
+	}
+	if taken {
+		return "another channel already uses this label, and the label names the environment " +
+			"variables that hold its credentials. Pick a different one."
+	}
+	return ""
+}
+
+// draftOverridesAllowed decides whether a config that came from the request may be merged with the
+// credentials the environment supplies for that label, and returns the message to show when it may not.
+//
+// The rule: only when the draft is a saved channel, unchanged in every field the environment does not
+// supply. Then the destination is the one the operator configured, and the secret goes where it was
+// already going. A new channel, an unknown id, or a draft whose destination differs gets no overrides
+// at all, and is told why rather than quietly failing to authenticate.
+func (s *Server) draftOverridesAllowed(ctx context.Context, body channelBody) (bool, string) {
+	draft := map[string]any{}
+	if len(body.Config) > 0 {
+		if err := json.Unmarshal(body.Config, &draft); err != nil {
+			return false, "" // the caller reports the malformed config
+		}
+	}
+
+	// Only string keys can carry an override (`ApplyOverrides` skips the rest).
+	carriesSecret := false
+	for key, value := range draft {
+		if _, isString := value.(string); !isString {
+			continue
+		}
+		if notify.Overridden(body.Label, key) {
+			carriesSecret = true
+			break
+		}
+	}
+	if !carriesSecret {
+		return true, "" // nothing to protect: the draft brings its own credential
+	}
+
+	const refusal = "this channel's credentials come from the environment, so a test can only be " +
+		"sent to the destination already saved. Save it first, then test."
+	if body.ID == 0 {
+		return false, refusal
+	}
+	stored, err := s.store.GetChannel(ctx, body.ID)
+	if err != nil || stored == nil || stored.Label != body.Label {
+		return false, refusal
+	}
+	storedCfg := map[string]any{}
+	if err := json.Unmarshal([]byte(stored.Config), &storedCfg); err != nil {
+		return false, refusal
+	}
+	for _, key := range unionKeys(storedCfg, draft) {
+		if notify.Overridden(body.Label, key) {
+			continue // the environment supplies this one, so the draft's value is ignored anyway
+		}
+		if asString(storedCfg[key]) != asString(draft[key]) {
+			return false, refusal
+		}
+	}
+	return true, ""
+}
+
+func unionKeys(a, b map[string]any) []string {
+	seen := make(map[string]struct{}, len(a)+len(b))
+	out := make([]string, 0, len(a)+len(b))
+	for _, m := range []map[string]any{a, b} {
+		for k := range m {
+			if _, ok := seen[k]; ok {
+				continue
+			}
+			seen[k] = struct{}{}
+			out = append(out, k)
+		}
+	}
+	return out
+}
+
+func asString(v any) string {
+	if s, ok := v.(string); ok {
+		return s
+	}
+	if v == nil {
+		return ""
+	}
+	b, err := json.Marshal(v)
+	if err != nil {
+		return ""
+	}
+	return string(b)
+}
+
 // validateChannelConfig checks a config before it is saved, so a missing topic
 // or a malformed URL is rejected at the point of editing rather than at 3 a.m.
 // It returns a message, or "" when the config is acceptable (or unverifiable
 // because notification delivery is not wired in).
-func (s *Server) validateChannelConfig(typ, label string, raw json.RawMessage) string {
+func (s *Server) validateChannelConfig(typ, label string, raw json.RawMessage, applyOverrides bool) string {
 	if s.notifier == nil || len(raw) == 0 {
 		return ""
 	}
@@ -225,8 +342,10 @@ func (s *Server) validateChannelConfig(typ, label string, raw json.RawMessage) s
 	// Validate what will actually be *sent*, not what is on screen. A token supplied by the
 	// environment or a mounted file is absent from the editor's form, so validating the form
 	// alone would reject the very save that makes the override usable.
-	if err := notify.ApplyOverrides(label, cfg); err != nil {
-		return err.Error()
+	if applyOverrides {
+		if err := notify.ApplyOverrides(label, cfg); err != nil {
+			return err.Error()
+		}
 	}
 	if err := s.notifier.ValidateConfig(typ, cfg); err != nil {
 		return err.Error()
@@ -252,7 +371,15 @@ func (s *Server) handleTestChannelConfig(w http.ResponseWriter, r *http.Request)
 		writeError(w, http.StatusBadRequest, "type is required")
 		return
 	}
-	if msg := s.validateChannelConfig(body.Type, body.Label, body.Config); msg != "" {
+	// The config came from the request, so it may not be merged with a credential the environment
+	// holds: whoever sent the request chose where the secret would go. This is the difference
+	// between "one unauthenticated POST" and "the deployment's SMTP password is at my server".
+	allowOverrides, refusal := s.draftOverridesAllowed(r.Context(), body)
+	if refusal != "" {
+		writeError(w, http.StatusConflict, refusal)
+		return
+	}
+	if msg := s.validateChannelConfig(body.Type, body.Label, body.Config, allowOverrides); msg != "" {
 		writeError(w, http.StatusBadRequest, msg)
 		return
 	}

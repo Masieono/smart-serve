@@ -12,6 +12,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/masieono/smart-serve/internal/urlguard"
 )
 
 // Delivery tuning from docs/NOTIFICATIONS.md: a 10 s timeout and two retries
@@ -39,8 +41,9 @@ func isTransient(err error) bool {
 	return errors.As(err, &t)
 }
 
-// newHTTPClient returns the client the senders share.
-func newHTTPClient() *http.Client { return &http.Client{Timeout: requestTimeout} }
+// newHTTPClient returns the client the senders share: a timeout, and no redirects
+// (`internal/urlguard` explains why).
+func newHTTPClient() *http.Client { return urlguard.Client(requestTimeout) }
 
 // doRequest sends a request built fresh for each attempt (so a retry always has
 // a full body) and classifies the response.
@@ -48,6 +51,9 @@ func doRequest(ctx context.Context, client *http.Client, build func() (*http.Req
 	return retry(ctx, sendAttempts, retryBackoff, func() error {
 		req, err := build()
 		if err != nil {
+			return err
+		}
+		if err := urlguard.Check(req.URL); err != nil {
 			return err
 		}
 		resp, err := client.Do(req)

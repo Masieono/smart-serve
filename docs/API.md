@@ -485,6 +485,9 @@ takes effect immediately instead of at the next sleep boundary.
 
 - `GET /api/channels`
 - `POST /api/channels` — `{ "type": "ntfy", "label": "alerts", "config": { "server": "https://ntfy.sh", "topic": "my-smart-alerts" }, "events": ["health_change", "temperature_high", "device_disappeared"], "scope_groups": ["tank"] }`.
+  The **label is unique**: it names the environment variables that hold the channel's credentials
+  (`SMARTSERVE_CHANNEL_<LABEL>_<KEY>`), so a second channel with the same label would be offered the
+  first one's secret. A duplicate is a `409`.
   An empty or absent `events` array means "every event", and an empty or absent `scope_groups` array
   means **every group** — the two filters are independent, and both have to admit an event for it to
   be sent (`FEATURES.md` B12, `NOTIFICATIONS.md`). `scope_groups` is stored normalised: trimmed,
@@ -500,12 +503,18 @@ takes effect immediately instead of at the next sleep boundary.
   the destination's own error, which is the only way to tell a bad token from a
   bad URL. Without notification support wired in, it returns `501`.
 - `POST /api/channels/test` — the same, for a channel described in the body rather than
-  a stored one (`{ "type": ..., "config": ... }`, same shape and validation as
-  `POST /api/channels`). The editor uses it so **Test** proves what is on screen,
-  including edits that have not been saved, and so a failed test can be corrected and
-  retried without the dialog closing. Returns `{ "status": "sent" }`; nothing is
-  persisted, and because the draft has no id it is not written to the delivery log
-  either.
+  a stored one (`{ "id"?: ..., "type": ..., "label": ..., "config": ... }`, same shape and
+  validation as `POST /api/channels`). The editor uses it so **Test** proves what is on screen,
+  including edits that have not been saved, and so a failed test can be corrected and retried
+  without the dialog closing. Returns `{ "status": "sent" }`; nothing is persisted, and because
+  the draft is not a stored channel it is not written to the delivery log either.
+
+  **A draft never receives a credential the environment supplies unless it is the saved channel,
+  unchanged in every field the environment does not supply.** `id` is how the endpoint knows which
+  channel a draft came from. Without it, or with a changed destination, a draft that would need such
+  a credential is refused with **`409`** and the message says to save first. The reason is that the
+  config came from the request and the secret came from the deployment: allowing both in one call
+  let any caller send the operator's SMTP password or bot token to a server of their choosing.
 
 ### Channel objects and environment overrides
 
