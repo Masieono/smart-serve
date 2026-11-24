@@ -681,17 +681,6 @@ That is the whole of Phase 4, and with it the last tabled item: the batch self-t
 
 ### Fixed
 
-- **The drive page has its controls back.** The rebuilt page never mounted them, so five things the
-  app supports were unreachable: the **Edit** dialog (name, bay, tags, notes, bench flag, hidden),
-  **Acknowledge**, the **`-d` transport override**, the **score breakdown** under the verdict, and the
-  **"since the last scan"** diff. The components all existed and were tested; the page simply did not
-  call them, which is the same regression as the self-test card.
-- **Compare is reachable.** `GET /api/compare` and its view have existed with nothing opening them.
-  The fleet's **Compare** button opens a picker for two to six drives.
-- **The blamed-attribute marking works.** `penalties` is a JSON array and `parsePenalties` called
-  `JSON.parse` on it, which throws, so the reason list and the "counted" badges were never drawn while
-  every test fed it a string.
-
 - **The JS test DOM stub had no `querySelector`, so the channel editor's whole save path was
   untestable.** The editor reads its own checkbox state back out of the DOM to build a save payload,
   which threw a `TypeError` under the stub — and the editor's own `catch` turned that into a "Save
@@ -834,17 +823,6 @@ Four fixes found by using the first release in anger, plus the documentation cor
 came out of deploying it.
 
 ### Fixed
-
-- **The drive page has its controls back.** The rebuilt page never mounted them, so five things the
-  app supports were unreachable: the **Edit** dialog (name, bay, tags, notes, bench flag, hidden),
-  **Acknowledge**, the **`-d` transport override**, the **score breakdown** under the verdict, and the
-  **"since the last scan"** diff. The components all existed and were tested; the page simply did not
-  call them, which is the same regression as the self-test card.
-- **Compare is reachable.** `GET /api/compare` and its view have existed with nothing opening them.
-  The fleet's **Compare** button opens a picker for two to six drives.
-- **The blamed-attribute marking works.** `penalties` is a JSON array and `parsePenalties` called
-  `JSON.parse` on it, which throws, so the reason list and the "counted" badges were never drawn while
-  every test fed it a string.
 
 - **The attribute `?` dialog rendered the literal word "null"** on every field with no "how to
   read it" line. The native `Element.append` stringifies a `null` argument into a text node, and
