@@ -3,8 +3,10 @@
 package smart
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/masieono/smart-serve/internal/model"
@@ -103,7 +105,26 @@ type rawWWN struct {
 func ParseSMART(data []byte) (*model.SmartData, error) {
 	var r rawRoot
 	if err := json.Unmarshal(data, &r); err != nil {
-		return nil, fmt.Errorf("parse smartctl json: %w", err)
+		// One field whose type changed must not cost the whole drive. smartctl's JSON is assembled
+		// from firmware reports, and a leaf that arrives as a string where an integer is expected
+		// (`"current": "40"`) used to fail the entire document: the verdict became "no reading", the
+		// attribute table disappeared, and every number the drive *did* report went with it. The
+		// retry coerces numeric strings and tries again; if the second pass fails too, the original
+		// error is what the caller sees, because that one describes the real problem.
+		if ee, ok := err.(*json.UnmarshalTypeError); ok {
+			if repaired, rerr := coerceNumericStrings(data); rerr == nil {
+				var retry rawRoot
+				if json.Unmarshal(repaired, &retry) == nil {
+					r = retry
+					err = nil
+				} else {
+					err = ee
+				}
+			}
+		}
+		if err != nil {
+			return nil, fmt.Errorf("parse smartctl json: %w", err)
+		}
 	}
 
 	sd := &model.SmartData{
@@ -222,4 +243,77 @@ func derefInt(p *int) int {
 		return 0
 	}
 	return *p
+}
+
+// coerceNumericStrings rewrites a document whose numbers arrived as strings.
+//
+// It is only reached after a strict parse has already failed, so it cannot change how a healthy
+// document is read. A value that looks like an integer but is meant to be text (a serial of digits,
+// say) would be coerced too, and the retry then fails on that field and the original error stands.
+func coerceNumericStrings(data []byte) ([]byte, error) {
+	var doc any
+	dec := json.NewDecoder(bytes.NewReader(data))
+	dec.UseNumber()
+	if err := dec.Decode(&doc); err != nil {
+		return nil, err
+	}
+	return json.Marshal(coerceLeaves(doc))
+}
+
+// textKeys are the fields smartctl uses for text that can look like a number: a raw value's printed
+// form ("string": "0"), and the identity of the drive (a serial of digits is still a serial).
+// Coercing those would break the retry on exactly the documents it is meant to rescue.
+var textKeys = map[string]bool{
+	"string": true, "name": true, "model_name": true, "model_family": true,
+	"serial_number": true, "firmware_version": true, "device": true, "message": true,
+}
+
+func coerceLeafNamed(key string, v any) any {
+	switch t := v.(type) {
+	case map[string]any:
+		return coerceLeaves(t)
+	case []any:
+		for i := range t {
+			t[i] = coerceLeaves(t[i])
+		}
+		return t
+	case string:
+		if textKeys[key] {
+			return t
+		}
+		if n, err := strconv.ParseInt(strings.TrimSpace(t), 10, 64); err == nil {
+			return json.Number(strconv.FormatInt(n, 10))
+		}
+		if f, err := strconv.ParseFloat(strings.TrimSpace(t), 64); err == nil {
+			return json.Number(strconv.FormatFloat(f, 'f', -1, 64))
+		}
+		return t
+	default:
+		return v
+	}
+}
+
+func coerceLeaves(v any) any {
+	switch t := v.(type) {
+	case map[string]any:
+		for k, child := range t {
+			t[k] = coerceLeafNamed(k, child)
+		}
+		return t
+	case []any:
+		for i := range t {
+			t[i] = coerceLeaves(t[i])
+		}
+		return t
+	case string:
+		if n, err := strconv.ParseInt(strings.TrimSpace(t), 10, 64); err == nil {
+			return json.Number(strconv.FormatInt(n, 10))
+		}
+		if f, err := strconv.ParseFloat(strings.TrimSpace(t), 64); err == nil {
+			return json.Number(strconv.FormatFloat(f, 'f', -1, 64))
+		}
+		return t
+	default:
+		return v
+	}
 }
