@@ -676,12 +676,6 @@ That is the whole of Phase 4, and with it the last tabled item: the batch self-t
 
 ### Fixed
 
-- **One badly-typed field no longer costs the whole drive.** smartctl's JSON is assembled from what
-  firmware reports, and a leaf like `"current": "40"` used to fail the entire document: the drive read
-  as "no reading", the attribute table vanished, and every number it did report went with it. A parse
-  failure now retries with numeric strings coerced, leaving smartctl's own text fields alone, and the
-  original error stands if that does not help.
-
 - **The JS test DOM stub had no `querySelector`, so the channel editor's whole save path was
   untestable.** The editor reads its own checkbox state back out of the DOM to build a save payload,
   which threw a `TypeError` under the stub — and the editor's own `catch` turned that into a "Save
@@ -824,12 +818,6 @@ Four fixes found by using the first release in anger, plus the documentation cor
 came out of deploying it.
 
 ### Fixed
-
-- **One badly-typed field no longer costs the whole drive.** smartctl's JSON is assembled from what
-  firmware reports, and a leaf like `"current": "40"` used to fail the entire document: the drive read
-  as "no reading", the attribute table vanished, and every number it did report went with it. A parse
-  failure now retries with numeric strings coerced, leaving smartctl's own text fields alone, and the
-  original error stands if that does not help.
 
 - **The attribute `?` dialog rendered the literal word "null"** on every field with no "how to
   read it" line. The native `Element.append` stringifies a `null` argument into a text node, and
