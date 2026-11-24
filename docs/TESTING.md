@@ -461,7 +461,7 @@ and the app has no login at all. Restart the container between steps that change
 | 9.6 | Reload, and open a second tab. | Still signed in, so the session is a cookie and not per-page state |
 | 9.7 | Click **Sign out**, then press Back. | The sign-in page: the token is revoked server-side, so a copied cookie is dead too |
 | 9.8 | `curl -u user:pass http://host:port/api/devices`. | `200` with the JSON — Basic works without any session |
-| 9.9 | `curl http://host:port/api/devices` (no credential). | `401` with `WWW-Authenticate: Basic` and `{"error":"authentication required"}` |
+| 9.9 | `curl http://host:port/api/devices` (no credential). | `401` with `{"error":"authentication required","login":true}` and **no** `WWW-Authenticate` header; in a browser tab with an expired session, the app redirects to the sign-in page instead of raising a Basic prompt |
 | 9.10 | `curl http://host:port/healthz` and scrape `/metrics` with Basic. | Both answer without a session: a probe cannot sign in, and the scraper sends the credential |
 | 9.11 | Settings, Data, **Sign-in → Idle timeout (minutes)**: set 1, save, sign in, wait two minutes without touching the page. | The next page load returns to the sign-in page, with no restart needed: the window is read per request |
 | 9.12 | With the layer on, also set `SMARTSERVE_BASE_PATH=/smartserve` and open `/smartserve/healthz`, `/smartserve/login` and the app. | Healthcheck `200`, login page `200` (no redirect loop), the app asks for a password, and a container healthcheck passes |

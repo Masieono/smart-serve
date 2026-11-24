@@ -240,7 +240,8 @@ func runServe() error {
 		// scans do rather than falling back to the default and ignoring the setting.
 		CommandTimeout: scanner.CommandTimeout,
 		// Optional single-user auth (ADR-033): off unless both variables are set.
-		Auth: auth.Credentials{User: cfg.AuthUser, Password: cfg.AuthPassword},
+		Auth:       auth.Credentials{User: cfg.AuthUser, Password: cfg.AuthPassword},
+		TrustProxy: cfg.TrustProxy,
 		AuthIdleMinutes: func(ctx context.Context) int {
 			settings, err := st.GetSettings(ctx)
 			if err != nil {

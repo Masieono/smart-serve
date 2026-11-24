@@ -30,6 +30,18 @@ async function request(method, path, body) {
     }
   }
   if (!res.ok) {
+    // A 401 means the session expired or was logged out elsewhere. Sending the browser to the login
+    // page is the only useful answer: an error toast would leave the reader staring at a page whose
+    // every control is about to fail the same way. `next` brings them back to where they were.
+    // The server marks it (rather than firing on any 401) so a future endpoint cannot pull this
+    // off by accident.
+    if (res.status === 401 && data && data.login && typeof location !== 'undefined') {
+      const here = location.pathname + location.search;
+      location.assign(appPath(`/login?next=${encodeURIComponent(here)}`));
+      // Still throw, so a caller that catches does not go on to render an empty page behind the
+      // redirect.
+      throw new Error('signed out');
+    }
     throw new Error((data && data.error) || `${res.status} ${res.statusText}`);
   }
   return data;

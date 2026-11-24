@@ -363,7 +363,9 @@ sits inside the prefix, so the exempt list is exactly `/healthz` and `/login`, a
 builds carry the prefix (`/smartserve/login?next=%2Fschedules`).
 
 Unauthenticated failures depend on what asked: an API request gets `401` with
-`WWW-Authenticate: Basic realm="Smart-Serve"` and `{"error":"authentication required"}`; a page
+`{"error":"authentication required","login":true}` and **no** `WWW-Authenticate` header, because a
+browser raises its own credential dialog for any 401 that carries one, and the app has a login page
+instead. The client sends the browser there on `login: true`. A page
 request gets `303` to `/login?next=…`. `/healthz`, `/icon.svg` and `/styles/`, `/js/` are exempt so a
 container probe and the login page itself work without a session. `/metrics` is **not** exempt:
 Prometheus is expected to send Basic, which keeps the fleet's health off an open port.

@@ -231,6 +231,7 @@ partition card, which is the honest state: the app has not read it yet.
 | `SMARTSERVE_COMMAND_TIMEOUT` | `15` | per-command timeout (s) |
 | `SMARTSERVE_LOG_LEVEL` | `info` | `debug` \| `info` \| `warn` \| `error` |
 | `SMARTSERVE_BASE_PATH` | `/` | URL subpath when hosted behind a proxy at e.g. `/smartserve/` (`ADR-015`) |
+| `SMARTSERVE_TRUST_PROXY` | unset | set when a reverse proxy terminates TLS in front of this app, so the session cookie is marked `Secure`. Off by default: an `X-Forwarded-Proto` header from anyone is not evidence |
 | `SMARTSERVE_AUTH_USER` | unset | the single login username; set with one of the password variables (`ADR-033`) |
 | `SMARTSERVE_AUTH_PASSWORD_FILE` | unset | path to a file holding the password; the documented form, so the secret can come from a Docker secret |
 | `SMARTSERVE_AUTH_PASSWORD` | unset | the password inline. Inline wins over the file if both are set |
@@ -260,7 +261,11 @@ secrets:
 A browser gets a sign-in page and a session cookie; `curl`, Prometheus and scripts keep sending HTTP
 Basic and never see a login. Sessions live in memory, so **a restart signs everyone out**, and
 Settings → Data → Sign-in → **Idle timeout** (default 30 minutes, capped at 24 hours) ends a session
-that goes quiet. There is no lockout after repeated failures. Basic is base64, not encryption: this
+that goes quiet. Behind the reverse proxy that terminates TLS, set **`SMARTSERVE_TRUST_PROXY=1`**: the process only sees
+plain HTTP there, so without it the session cookie is issued without `Secure`. With it set, the
+proxy's `X-Forwarded-Proto` is believed and the cookie is marked accordingly.
+
+There is no lockout after repeated failures. Basic is base64, not encryption: this
 protects a trusted LAN and is no substitute for TLS on a port the internet can reach.
 
 It combines with `SMARTSERVE_BASE_PATH`: the gate works in stripped paths, so the healthcheck, the

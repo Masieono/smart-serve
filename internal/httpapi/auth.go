@@ -26,9 +26,12 @@ const (
 
 // authGate is the middleware and the handlers that go with it.
 type authGate struct {
-	base  string // the deployment's base path, for Location headers the browser will follow
-	creds auth.Credentials
-	store *auth.Store
+	base string // the deployment's base path, for Location headers the browser will follow
+	// trustProxy is SMARTSERVE_TRUST_PROXY: believe the reverse proxy's X-Forwarded-Proto when
+	// deciding whether the session cookie is Secure.
+	trustProxy bool
+	creds      auth.Credentials
+	store      *auth.Store
 	// idle is read from the settings on demand, because the idle window is a setting and a session
 	// issued before it changed has to be judged by the new value.
 	idle func() time.Duration
@@ -82,8 +85,13 @@ func (g *authGate) middleware(next http.Handler) http.Handler {
 		}
 
 		if isAPIPath(r.URL.Path) || strings.Contains(r.Header.Get("Accept"), "application/json") {
-			w.Header().Set("WWW-Authenticate", `Basic realm="Smart-Serve", charset="UTF-8"`)
-			writeJSON(w, http.StatusUnauthorized, map[string]any{"error": "authentication required"})
+			// No `WWW-Authenticate` on purpose. The browser raises its own credential dialog for any
+			// 401 that carries it, and a fetch from the app's own page is exactly that: an expired
+			// session showed a Basic prompt for a server that has a login page. Scripts are unaffected
+			// because they send the credential with the request rather than waiting to be asked.
+			writeJSON(w, http.StatusUnauthorized, map[string]any{
+				"error": "authentication required", "login": true,
+			})
 			return
 		}
 
@@ -104,6 +112,21 @@ func (g *authGate) middleware(next http.Handler) http.Handler {
 //
 // `idle` is a function, not a value: the operator can shorten or lengthen the timeout from the
 // settings page, and a store built with a fixed duration would keep the old one until a restart.
+// secureRequest reports whether this request arrived over TLS, which decides whether the session
+// cookie may be marked Secure.
+//
+// Behind a reverse proxy that terminates TLS the process only ever sees plain HTTP, so `r.TLS` is nil
+// and the cookie would be issued without `Secure` in exactly the deployment the docs recommend. That
+// is why `SMARTSERVE_TRUST_PROXY` exists: with it on, the proxy's `X-Forwarded-Proto` is believed.
+// With it off nothing changes, because an unauthenticated header is not evidence.
+func (s *Server) secureRequest(r *http.Request) bool {
+	if r.TLS != nil {
+		return true
+	}
+	return s.auth != nil && s.auth.trustProxy &&
+		strings.EqualFold(strings.TrimSpace(r.Header.Get("X-Forwarded-Proto")), "https")
+}
+
 func (g *authGate) touch(token string) bool {
 	if want := g.idle(); want > 0 && want != g.store.Idle() {
 		g.store.SetIdle(want)
@@ -156,7 +179,7 @@ func (s *Server) handleLoginPost(w http.ResponseWriter, r *http.Request) {
 		Path:     s.basePathOrRoot(),
 		HttpOnly: true,
 		SameSite: http.SameSiteStrictMode,
-		Secure:   r.TLS != nil,
+		Secure:   s.secureRequest(r),
 	})
 	if next == "" {
 		next = "/"
@@ -178,7 +201,7 @@ func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
 		Path:     s.basePathOrRoot(),
 		HttpOnly: true,
 		SameSite: http.SameSiteStrictMode,
-		Secure:   r.TLS != nil,
+		Secure:   s.secureRequest(r),
 		MaxAge:   -1,
 	})
 	http.Redirect(w, r, s.link(loginPath), http.StatusSeeOther)
