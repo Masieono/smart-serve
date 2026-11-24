@@ -6,7 +6,8 @@
 // a separate ring said it twice and cost a column to do it.
 import { el, clear, append, fmtBytes, fmtAgo, fmtInt, fmtTemp } from '../dom.js';
 import { api, appPath } from '../api.js';
-import { confirmDialog } from '../components.js';
+import { confirmDialog, openDialog } from '../components.js';
+import { COMPARE_MAX_DRIVES, openCompare } from './compare.js';
 
 // The order a fleet is worth reading in: what is failing, then what is worrying, then what we could
 // not read, then the healthy drives. Sorting by name would bury the one row that matters.
@@ -76,6 +77,7 @@ function draw(content, ctx, payload, at = here()) {
     el('div', { class: 'fleet-head' }, [
       el('h1', { text: 'Fleet' }),
       searchBox(),
+      compareEntry(ctx, rows),
       el('button', {
         class: 'fleet-scan',
         type: 'button',
@@ -127,6 +129,77 @@ function draw(content, ctx, payload, at = here()) {
  */
 function here() {
   return (typeof location !== 'undefined' && location.pathname) || '';
+}
+
+/**
+ * Compare two to six drives, attribute by attribute (`FEATURES.md` D6).
+ *
+ * The view and the endpoint have existed all along with nothing reaching them: no button, no picker,
+ * no route. A picker rather than a checkbox column, because the table was just made clean and a
+ * permanent column of ticks for a once-a-month action is clutter.
+ */
+function compareEntry(ctx, rows) {
+  return el('button', {
+    class: 'fleet-compare',
+    type: 'button',
+    text: 'Compare',
+    title: 'Pick two to six drives to line up attribute by attribute',
+    disabled: rows.length < 2,
+    onclick: () => pickForComparison(rows, ctx),
+  });
+}
+
+function pickForComparison(rows, ctx) {
+  const chosen = new Set();
+  openDialog('Compare drives', (body, close, foot) => {
+    body.append(el('p', { class: 'muted', text:
+      `Pick two to ${COMPARE_MAX_DRIVES} drives. Attributes are lined up by id, so a count that ` +
+      'only one drive has still gets its own row.' }));
+
+    const go = el('button', {
+      class: 'btn btn-primary',
+      type: 'button',
+      text: 'Compare',
+      disabled: true,
+      onclick: () => {
+        const serials = [...chosen];
+        close();
+        openCompare(ctx, serials);
+      },
+    });
+
+    const sync = () => {
+      go.disabled = chosen.size < 2;
+      go.textContent = chosen.size ? `Compare ${chosen.size}` : 'Compare';
+    };
+
+    body.append(el('div', { class: 'compare-picker' }, rows.map((d) => {
+      const box = el('input', { type: 'checkbox', value: d.serial });
+      box.addEventListener('change', () => {
+        if (box.checked) {
+          if (chosen.size >= COMPARE_MAX_DRIVES) {
+            box.checked = false;
+            toast(`At most ${COMPARE_MAX_DRIVES} drives can be compared at once`, 'error');
+            return;
+          }
+          chosen.add(d.serial);
+        } else {
+          chosen.delete(d.serial);
+        }
+        sync();
+      });
+      return el('label', { class: 'compare-pick' }, [
+        box,
+        el('span', { class: 'name', text: displayName(d) }),
+        el('span', { class: 'muted', text: [d.bay, d.model].filter(Boolean).join(' · ') }),
+      ]);
+    })));
+
+    foot.append(
+      el('button', { class: 'btn', type: 'button', text: 'Cancel', onclick: close }),
+      go,
+    );
+  }, { dismissOnBackdrop: false });
 }
 
 function nav(ctx, path) {

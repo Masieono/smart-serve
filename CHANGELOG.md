@@ -179,6 +179,16 @@ discarding silently is not. See `ADR-028`.
 
 ### Fixed
 
+- **The drive page has its controls back.** The rebuilt page never mounted them, so five things the
+  app supports were unreachable: the **Edit** dialog (name, bay, tags, notes, bench flag, hidden),
+  **Acknowledge**, the **`-d` transport override**, the **score breakdown** under the verdict, and the
+  **"since the last scan"** diff. The components all existed and were tested; the page simply did not
+  call them, which is the same regression as the self-test card.
+- **Compare is reachable.** `GET /api/compare` and its view have existed with nothing opening them.
+  The fleet's **Compare** button opens a picker for two to six drives.
+- **The blamed-attribute marking works.** `penalties` is a JSON array and `parsePenalties` called
+  `JSON.parse` on it, which throws, so the reason list and the "counted" badges were never drawn while
+  every test fed it a string.
 - **The history range called "All" stopped at 180 days.** The endpoint defaulted `from` to a fixed
   six months, so raising `retention_days` kept the data and never showed it. The default is the
   retention window now.

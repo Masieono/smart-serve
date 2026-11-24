@@ -334,3 +334,52 @@ test('a drive with no errors still says so', async () => {
   const text = textOf(await renderDevice(device));
   assert.match(text, /Drive logs/, 'an empty log is an answer, not an absence');
 });
+
+// The rebuilt page lost four controls and two explanations, and nothing failed: the components were
+// still there, still tested, simply never mounted. These are the page-level assertions that catch
+// that shape, one per thing that has to be on the page.
+test('the page offers the drive editor and acknowledgement', async () => {
+  const device = devicePayload({ health: 'caution', score: 70 });
+  const page = await renderDevice(device);
+  const labels = page.querySelectorAll('button').map((b) => b.textContent.trim());
+
+  assert.ok(labels.includes('Edit'), 'no way to set a drive\'s name, bay, tags or bench flag');
+  assert.ok(labels.includes('Acknowledge'), 'a caution drive cannot be silenced');
+});
+
+test('an acknowledged drive shows the notice and offers to undo it', async () => {
+  const device = devicePayload({
+    health: 'caution',
+    score: 70,
+    ack: { health: 'caution', note: 'RMA raised', at: new Date().toISOString() },
+  });
+  const text = textOf(await renderDevice(device));
+
+  assert.match(text, /Acknowledged/);
+  assert.match(text, /Alerts silenced/, 'the control does not show that it is already acknowledged');
+});
+
+test('what changed since the last scan is drawn', async () => {
+  const device = devicePayload({
+    changes: { temperature_c: { from: 30, to: 41 }, score: { from: 100, to: 70 } },
+  });
+  const text = textOf(await renderDevice(device));
+
+  assert.match(text, /SINCE THE LAST SCAN/i, 'the diff is computed and sent, and never drawn');
+  assert.match(text, /Temperature/);
+});
+
+test('the reasons behind the score are drawn, from an array', async () => {
+  // The API sends `penalties` as a JSON array. `parsePenalties` used to call JSON.parse on it, throw
+  // on "[object Object]", and return []: the marking and the reasons were dead in the live app while
+  // every test fed it a string.
+  const device = devicePayload({
+    health: 'caution',
+    score: 70,
+    penalties: [{ reason: 'temperature (61°C)', points: 6, attribute_id: 194 }],
+  });
+  const text = textOf(await renderDevice(device));
+
+  assert.match(text, /1 reason/, 'the score has no explanation on the page');
+  assert.match(text, /temperature \(61/);
+});

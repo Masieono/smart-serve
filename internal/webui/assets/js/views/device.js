@@ -17,6 +17,9 @@ import {
   TREND_METRICS, seriesFor, trendWindow, setTrendRange, currentTrendRange, trendFrom,
   currentDisplayOptions, nvmeSections, parsePenalties, startFreshness,
   highlightPartitionRow, highlightSegment, selfTestLogSection, logSummary,
+  // The four controls the rebuilt page lost: the drive editor, acknowledgement, the transport
+  // override, and the two explanations (what changed, and why the score is what it is).
+  ackNotice, acknowledge, unack, editNotes, smartProblemNotice, scoreBreakdown, changesCard,
 } from './device-parts.js';
 import { selfTestCard } from './selftest.js';
 
@@ -89,7 +92,13 @@ export async function render(content, ctx, serial, opts = {}) {
     backLink(ctx),
     head(ctx, content, d),
     freshness,
+    // When the drive cannot be read, the notice says why and carries the transport override, which is
+    // the control that fixes it. When it has been acknowledged, the notice says that too, so nobody
+    // wonders why the alerts stopped.
+    smartProblemNotice(ctx, d),
+    ackNotice(d),
     facts(d, snapshot),
+    changesSection(d),
     diskSection(d),
     trendSection(serial),
     attributeSection(d, payload),
@@ -128,6 +137,53 @@ function backLink(ctx) {
   });
 }
 
+/** What moved since the previous scan (`FEATURES.md` A18), when the server found something. */
+function changesSection(d) {
+  const card = changesCard(d.changes);
+  return card ? el('div', { class: 'v2-changes' }, [card]) : null;
+}
+
+/**
+ * The two controls that act on the drive itself, beside the ones that act on the file.
+ *
+ * Edit is where the name, bay, tags, bench flag and hidden flag live: the rebuilt page lost the
+ * editor, which left the bay field, whose whole purpose is finding a drive at 3am, unsettable from
+ * the app. Acknowledge is the answer to "I know, stop telling me", and it reads as a state rather
+ * than a button when it is already set.
+ */
+function driveActions(ctx, d) {
+  return [
+    el('button', {
+      class: 'v2-btn',
+      type: 'button',
+      text: 'Edit',
+      title: 'Name, bay, tags, notes and whether it is in the fleet',
+      onclick: () => editNotes(ctx, d, d.bench_tag),
+    }),
+    ackAction(ctx, d),
+  ].filter(Boolean);
+}
+
+function ackAction(ctx, d) {
+  if (d.ack) {
+    return el('button', {
+      class: 'v2-btn',
+      type: 'button',
+      text: 'Alerts silenced',
+      title: 'Remove the acknowledgement, so this drive alerts again',
+      onclick: (event) => unack(ctx, d, event.currentTarget),
+    });
+  }
+  if (stateOf(d) === 'good') return null;
+  return el('button', {
+    class: 'v2-btn',
+    type: 'button',
+    text: 'Acknowledge',
+    title: 'Silence alerts for the current condition, with a note saying why',
+    onclick: (event) => acknowledge(ctx, d, event.currentTarget),
+  });
+}
+
 function head(ctx, content, d) {
   const state = stateOf(d);
   const name = d.name || d.model || d.serial;
@@ -145,8 +201,12 @@ function head(ctx, content, d) {
         d.score >= 0 ? el('span', { text: `score ${d.score} of 100` }) : null,
         d.health_rationale ? el('span', { class: 'why', text: clean(d.health_rationale) }) : null,
       ].filter(Boolean)),
+      // Why the score is what it is. A number nobody can account for is one nobody argues with
+      // either, and the reasons are already computed and stored: they were simply never drawn.
+      scoreBreakdown(parsePenalties(d.penalties)),
     ]),
     el('div', { class: 'v2-actions' }, [
+      ...driveActions(ctx, d),
       el('button', {
         class: 'v2-btn',
         type: 'button',
