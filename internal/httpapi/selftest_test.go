@@ -21,6 +21,11 @@ type fakeCommands struct {
 	readFn  func() (smart.Result, error)
 	startFn func() (smart.Result, error)
 	abortFn func() (smart.Result, error)
+	// identifyFn reports the serial the drive at the path claims. Nil means "same drive", which is
+	// what most of these tests are about; a test that swaps drives sets it.
+	identifyFn func() (string, error)
+	// identified is how many times the identity was read, so "the check happened" is assertable.
+	identified int
 
 	readCalls   int
 	startCalls  int
@@ -37,6 +42,15 @@ func (f *fakeCommands) Read(_ context.Context, timeout time.Duration, path, tran
 		return smart.Result{}, nil
 	}
 	return f.readFn()
+}
+
+func (f *fakeCommands) Identify(_ context.Context, timeout time.Duration, path, transport string) (string, error) {
+	f.identified++
+	f.lastTimeout, f.lastPath = timeout, path
+	if f.identifyFn == nil {
+		return "", nil
+	}
+	return f.identifyFn()
 }
 
 func (f *fakeCommands) Start(_ context.Context, timeout time.Duration, path, transport string, kind smart.SelfTestKind) (smart.Result, error) {
@@ -273,5 +287,50 @@ func TestSelfTestReadFailureCarriesTheDrivesWords(t *testing.T) {
 	}
 	if !strings.Contains(body["error"], "timed out") {
 		t.Errorf("body = %q, want the drive's own reason", body["error"])
+	}
+}
+
+// A device path is not an identity. Unplug drive A without rescanning, plug in B, and `/dev/sda` is
+// B: starting a test then wrote it onto the wrong disk while the toast named the drive that was
+// gone. The start endpoint now asks the drive at that path who it is first.
+func TestSelfTestRefusesToStartOnADifferentDrive(t *testing.T) {
+	cmds := &fakeCommands{identifyFn: func() (string, error) { return "SOMEONE-ELSE", nil }}
+	srv := selfTestServer(t, cmds, Options{})
+
+	rec := do(t, srv, http.MethodPost, "/api/devices/S1/selftest", `{"kind":"short"}`, nil)
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("status = %d, want 409, body = %s", rec.Code, rec.Body.String())
+	}
+	if cmds.startCalls != 0 {
+		t.Fatal("a self-test was started on a drive that is not the one asked for")
+	}
+	if cmds.identified != 1 {
+		t.Errorf("identity reads = %d, want 1", cmds.identified)
+	}
+}
+
+// The drive that is there, and says so, still starts.
+func TestSelfTestStartsWhenTheIdentityMatches(t *testing.T) {
+	cmds := &fakeCommands{identifyFn: func() (string, error) { return "S1", nil }}
+	srv := selfTestServer(t, cmds, Options{})
+
+	rec := do(t, srv, http.MethodPost, "/api/devices/S1/selftest", `{"kind":"short"}`, nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200, body = %s", rec.Code, rec.Body.String())
+	}
+	if cmds.startCalls != 1 {
+		t.Errorf("start calls = %d, want 1", cmds.startCalls)
+	}
+}
+
+// A drive that reports no serial cannot be checked against, and refusing those would take the
+// feature away from every bridge that hides one. The check is for a *different* serial.
+func TestSelfTestStartsWhenTheDriveReportsNoSerial(t *testing.T) {
+	cmds := &fakeCommands{identifyFn: func() (string, error) { return "", nil }}
+	srv := selfTestServer(t, cmds, Options{})
+
+	rec := do(t, srv, http.MethodPost, "/api/devices/S1/selftest", `{"kind":"short"}`, nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200, body = %s", rec.Code, rec.Body.String())
 	}
 }

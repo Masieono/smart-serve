@@ -96,6 +96,9 @@ type SelfTestCommands interface {
 	Read(ctx context.Context, timeout time.Duration, path, transport string) (smart.Result, error)
 	Start(ctx context.Context, timeout time.Duration, path, transport string, kind smart.SelfTestKind) (smart.Result, error)
 	Abort(ctx context.Context, timeout time.Duration, path, transport string) (smart.Result, error)
+	// Identify reports the serial the drive at a path calls itself. A path is reused when drives are
+	// swapped, so it is not an identity.
+	Identify(ctx context.Context, timeout time.Duration, path, transport string) (string, error)
 }
 
 // smartCommands is the production reading of SelfTestCommands: smartctl, through the wrappers whose
@@ -112,6 +115,10 @@ func (smartCommands) Start(ctx context.Context, timeout time.Duration, path, tra
 
 func (smartCommands) Abort(ctx context.Context, timeout time.Duration, path, transport string) (smart.Result, error) {
 	return smart.AbortSelfTest(ctx, timeout, path, transport)
+}
+
+func (smartCommands) Identify(ctx context.Context, timeout time.Duration, path, transport string) (string, error) {
+	return smart.ReadSerial(ctx, timeout, path, transport)
 }
 
 // Server is the HTTP API.

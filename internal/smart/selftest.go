@@ -2,6 +2,7 @@ package smart
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -134,4 +135,28 @@ func exitMeaning(bits int) string {
 // anything this app would write in its place.
 func Messages(stdout, stderr []byte) string {
 	return messagesFrom(stdout, stderr)
+}
+
+// ReadSerial asks the drive at a path who it is.
+//
+// A device path is not an identity: unplug a drive, plug another in, and `/dev/sdb` is now the new
+// one. Reading the serial first is what lets a caller refuse to run a self-test, the only command
+// this app sends that changes a drive, against hardware nobody asked about.
+func ReadSerial(ctx context.Context, timeout time.Duration, path, transport string) (string, error) {
+	args := []string{"-j", "-i"}
+	if transport != "" {
+		args = append(args, "-d", transport)
+	}
+	args = append(args, path)
+	res, err := Run(ctx, timeout, "smartctl", args...)
+	if err != nil {
+		return "", err
+	}
+	var doc struct {
+		Serial string `json:"serial_number"`
+	}
+	if err := json.Unmarshal(res.Stdout, &doc); err != nil {
+		return "", fmt.Errorf("could not read the drive's identity: %w", err)
+	}
+	return strings.TrimSpace(doc.Serial), nil
 }
