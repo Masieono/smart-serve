@@ -35,6 +35,10 @@ func Run(ctx context.Context, timeout time.Duration, name string, args ...string
 	defer cancel()
 
 	cmd := exec.CommandContext(ctx, name, args...)
+	// Wait gives up on the output pipes after the deadline, rather than waiting for every process
+	// that inherited them. The timeout above is only a promise if something keeps it: a child that
+	// forked, or one that ignores the signal, otherwise holds `Run` open past it.
+	cmd.WaitDelay = 2 * time.Second
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
@@ -42,18 +46,28 @@ func Run(ctx context.Context, timeout time.Duration, name string, args ...string
 	err := cmd.Run()
 	res := Result{Stdout: stdout.Bytes(), Stderr: stderr.Bytes()}
 
-	var ee *exec.ExitError
-	switch {
-	case err == nil:
-		res.ExitCode = 0
-	case errors.As(err, &ee):
-		res.ExitCode = ee.ExitCode()
-	case errors.Is(err, exec.ErrNotFound):
-		return res, ErrToolMissing
-	case errors.Is(ctx.Err(), context.DeadlineExceeded):
-		return res, fmt.Errorf("%s: timed out after %s", name, timeout)
-	default:
+	// The context is checked first, and the order is the whole point: a process killed by the
+	// deadline reports an *exec.ExitError like any other non-zero exit, so testing that first turned
+	// every timeout into "exited with -1" and returned no error at all. A hung smartctl then looked
+	// like a smartctl that ran and said nothing, and every caller's error branch stayed dead: a scan
+	// blamed the truncated JSON, the self-test watcher cleared the fleet badge mid-test, and the
+	// self-test runner started the next drive on top of one that was still testing.
+	if err != nil {
+		switch {
+		case errors.Is(ctx.Err(), context.DeadlineExceeded):
+			return res, fmt.Errorf("%s: timed out after %s", name, timeout)
+		case errors.Is(ctx.Err(), context.Canceled):
+			return res, fmt.Errorf("%s: cancelled", name)
+		case errors.Is(err, exec.ErrNotFound):
+			return res, ErrToolMissing
+		}
+		var ee *exec.ExitError
+		if errors.As(err, &ee) {
+			res.ExitCode = ee.ExitCode()
+			return res, nil
+		}
 		return res, err
 	}
+	res.ExitCode = 0
 	return res, nil
 }

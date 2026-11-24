@@ -3,6 +3,7 @@ package scan
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -96,8 +97,11 @@ type Manager struct {
 
 	mu      sync.Mutex
 	running bool
-	done    chan struct{}
-	last    Result
+	// runningTarget is what the in-flight scan is actually reading: the zero value means the whole
+	// fleet. Joining is only allowed when it answers the new request (see only.covers).
+	runningTarget only
+	done          chan struct{}
+	last          Result
 }
 
 // NewManager wires a scan runner to persistence and the event hub.
@@ -137,6 +141,22 @@ func (m *Manager) commandTimeout(ctx context.Context) time.Duration {
 // single-flight lock, so a slow hook delays only its own scan's completion.
 func (m *Manager) OnPostScan(fn PostScanFunc) { m.postScan = fn }
 
+// ErrBusy means the scan in flight cannot answer this request: it is reading a different drive, or
+// it is a single-drive scan and a full one was asked for. The caller sees it rather than a result
+// from somebody else's scan.
+var ErrBusy = errors.New("another scan is already running")
+
+// Busy reports whether a scan is in flight, and whether it would answer a request for a full scan.
+//
+// The HTTP handler needs this before it answers: a full scan requested while a single drive is being
+// read cannot join it, and returning 202 "started" for a scan that will never run is the same lie in
+// a different place.
+func (m *Manager) Busy() (running, coversFull bool) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.running, m.running && m.runningTarget.full()
+}
+
 // Scan runs a full scan, or joins the one already in flight. The joined return value
 // reports whether the caller waited on an existing scan rather than starting one.
 func (m *Manager) Scan(ctx context.Context, t Trigger) (res Result, joined bool, err error) {
@@ -160,9 +180,21 @@ type only struct {
 
 func (o only) full() bool { return o.serial == "" }
 
+// covers reports whether a scan of o answers a request for other. A full scan reads every drive, so
+// it covers anything; a single-drive scan covers only itself.
+func (o only) covers(other only) bool { return o.full() || o.serial == other.serial }
+
 func (m *Manager) start(ctx context.Context, t Trigger, o only) (res Result, joined bool, err error) {
 	m.mu.Lock()
 	if m.running {
+		// Joining is a promise that the scan already running answers this request. It did not
+		// before: a per-drive rescan asked for while any other scan was in flight returned that
+		// scan's result with no error, so the caller reported "Drive rescanned" for a drive nobody
+		// had read, a full scan could be silently skipped, and a self-test result could be dropped.
+		if !m.runningTarget.covers(o) {
+			m.mu.Unlock()
+			return Result{}, false, ErrBusy
+		}
 		done := m.done
 		m.mu.Unlock()
 		select {
@@ -176,6 +208,7 @@ func (m *Manager) start(ctx context.Context, t Trigger, o only) (res Result, joi
 		}
 	}
 	m.running = true
+	m.runningTarget = o
 	m.done = make(chan struct{})
 	done := m.done
 	m.mu.Unlock()
@@ -185,6 +218,7 @@ func (m *Manager) start(ctx context.Context, t Trigger, o only) (res Result, joi
 	m.mu.Lock()
 	m.last = res
 	m.running = false
+	m.runningTarget = only{}
 	m.mu.Unlock()
 	close(done)
 	return res, false, err
