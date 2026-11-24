@@ -785,9 +785,16 @@ Event types pushed to connected browsers:
 | `schedule_ran` | `{ schedule_id, scan_id, ok, next_run }` — it finished and the schedule advanced |
 | `notify_error` | `{ error }` — the post-scan hook panicked; the scan itself is unaffected |
 
-SSE is the only push mechanism; no WebSocket (see ADR-006). Reconnect handling is
-native (browser `EventSource` auto-retry with `Last-Event-ID` cursor for missed
-`scan_complete`s; the server keeps a small ring buffer of recent events).
+SSE is the only push mechanism; no WebSocket (see ADR-006). Reconnect handling is native: the
+browser's `EventSource` retries on its own and sends `Last-Event-ID`, and the server keeps a ring
+buffer of the last 64 events for the replay.
+
+Two details that matter when something goes wrong. The stream **subscribes before it replays**, and
+never writes an id twice, so an event published in the moment between the two is delivered once
+rather than lost. And a client that falls further behind than its channel allows is **disconnected**
+rather than silently skipped: it reconnects, sends `Last-Event-ID`, and catches up from the ring. A
+dropped `scan_complete` used to leave the fleet showing a scan in progress until the next event
+arrived.
 
 ## History (implemented)
 

@@ -66,13 +66,39 @@ func (h *Hub) Publish(eventType string, data any) Event {
 	if len(h.ring) > ringSize {
 		h.ring = h.ring[len(h.ring)-ringSize:]
 	}
-	for _, ch := range h.subs {
+	// A subscriber that cannot keep up is disconnected rather than silently skipped. Its channel
+	// closes, the handler returns, and `EventSource` reconnects with `Last-Event-ID`, which replays
+	// from the ring: a gap becomes a short reconnect instead of a view that never learns the scan
+	// finished. Dropping the event and keeping the stream was the worse of both.
+	var stuck []int
+	for id, ch := range h.subs {
 		select {
 		case ch <- ev:
-		default: // subscriber is not keeping up; drop for that subscriber
+		default:
+			stuck = append(stuck, id)
+		}
+	}
+	for _, id := range stuck {
+		if ch, ok := h.subs[id]; ok {
+			delete(h.subs, id)
+			close(ch)
 		}
 	}
 	return ev
+}
+
+// Close disconnects every subscriber and is called on shutdown.
+//
+// `http.Server.Shutdown` waits for handlers to return, and an SSE handler waits on its request
+// context, which Shutdown does not cancel: every clean stop waited the full timeout and exited
+// non-zero. Closing the subscribers is what ends those handlers.
+func (h *Hub) Close() {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	for id, ch := range h.subs {
+		delete(h.subs, id)
+		close(ch)
+	}
 }
 
 // Since returns buffered events with an id greater than lastID, for Last-Event-ID

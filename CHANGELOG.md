@@ -87,6 +87,14 @@ discarding silently is not. See `ADR-028`.
 
 ### Fixed
 
+- **A clean stop finishes in milliseconds instead of hitting the ten-second timeout.** The server's
+  own stop waits for handlers to return and does not cancel their request contexts, and the SSE
+  handler never returns by itself, so every stop while a browser was open ran the full budget and
+  exited non-zero. Closing the hub ends those handlers.
+- **An SSE client that falls behind is reconnected rather than skipped.** The stream now subscribes
+  before it replays and never writes an id twice, so the gap between the two is closed, and a
+  subscriber whose channel is full is disconnected so `EventSource` reconnects with `Last-Event-ID`
+  and catches up from the ring.
 - **A scheduler wake-up no longer fires a schedule early.** `sleepUntil` returns for either the
   deadline or a wake, and the loop treated both as "it is time": creating, editing or deleting a
   schedule nudged the loop, which then ran whichever schedule happened to be selected at that moment.
