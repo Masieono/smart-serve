@@ -77,6 +77,8 @@ Documented but unverified on hardware:
 
 The core loop is verified on real hardware: native NVMe, USB-attached NVMe, USB-attached SATA, a
 native SATA controller, and a USB flash drive with no S.M.A.R.T. at all, which is reported as such
-rather than as a failure. Idle cost measures 0.00% CPU and 13.36 MiB RSS on amd64 (`RELEASE.md`);
-arm64 is verified in part (native execution, startup health, a full SMART read, self-test progress),
-with overnight stability and idle memory still open (`TESTING.md` Pass 8).
+rather than as a failure. Idle cost, sampled 2026-11-18 (`TESTING.md` 8.5): **18.9 MiB** on amd64 by
+the cgroup, **19.5 MiB** on the Pi 5 as RSS and PSS (that host's cgroup cannot account memory, so PSS
+is the figure the budget is stated against), 11 file descriptors and 11 threads flat, CPU near zero.
+arm64 is verified in part (native execution, startup health, a full SMART read, self-test progress);
+overnight stability and broader parity remain open.
