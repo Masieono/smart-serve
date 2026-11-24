@@ -57,7 +57,10 @@ export async function render(content, ctx) {
   draw(content, ctx, payload);
 }
 
-function draw(content, ctx, payload) {
+function draw(content, ctx, payload, at = here()) {
+  // A redraw belongs to the page it started on. Without this, pressing Hide and then opening a drive
+  // let the fleet's own fetch finish and draw its table over the drive page.
+  if (at !== here()) return;
   lastCtx = ctx;
   lastPayload = payload;
   const all = payload.devices || [];
@@ -115,6 +118,16 @@ function draw(content, ctx, payload) {
 }
 
 // --- pieces -----------------------------------------------------------------
+
+ /**
+ * The path this page is on, without assuming a browser.
+ *
+ * The jsdom-less test harness has no `location`, and a view that throws while looking for one would
+ * fail every test for a reason that has nothing to do with the view.
+ */
+function here() {
+  return (typeof location !== 'undefined' && location.pathname) || '';
+}
 
 function nav(ctx, path) {
   return (event) => {
@@ -492,8 +505,10 @@ async function forget(d, ctx) {
 
 /** Re-read the fleet and redraw, so the counts and the table agree after a hide or a forget. */
 async function reload(ctx) {
+  const at = here();
   try {
     lastPayload = await api.devices();
+    if (at !== here()) return;
     // Unhiding the last hidden drive leaves an empty half and a toggle that leads nowhere. The reader
     // wanted the drive back in the fleet, so go there rather than to "Nothing is hidden."
     if (showHidden && !(lastPayload.devices || []).some((d) => d.hidden)) showHidden = false;

@@ -65,9 +65,13 @@ export async function render(content, ctx, serial, opts = {}) {
     mount(content, el('div', { class: 'skeleton', style: 'width:40%;height:24px' }));
   }
 
+  const at = here();
   let data;
   try {
     data = await api.device(serial);
+    // The reader may have navigated while this was in flight; the page they are on now is not this
+    // one, and drawing here would put a drive page's content behind their new address.
+    if (at !== here()) return;
   } catch (err) {
     clear(content);
     append(content, [el('div', { class: 'fleet-empty', text: `Could not read this drive: ${err.message}` })]);
@@ -104,6 +108,13 @@ export async function render(content, ctx, serial, opts = {}) {
 }
 
 // --- head -------------------------------------------------------------------
+
+ /**
+ * The path this page is on, tolerating a test harness with no `location`.
+ */
+function here() {
+  return (typeof location !== 'undefined' && location.pathname) || '';
+}
 
 function backLink(ctx) {
   return el('a', {
