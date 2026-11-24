@@ -200,6 +200,11 @@ discarding silently is not. See `ADR-028`.
   before it replays and never writes an id twice, so the gap between the two is closed, and a
   subscriber whose channel is full is disconnected so `EventSource` reconnects with `Last-Event-ID`
   and catches up from the ring.
+- **One badly-typed field no longer costs the whole drive.** smartctl's JSON is assembled from what
+  firmware reports, and a leaf like `"current": "40"` used to fail the entire document: the drive read
+  as "no reading", the attribute table vanished, and every number it did report went with it. A parse
+  failure now retries with numeric strings coerced, leaving smartctl's own text fields alone, and the
+  original error stands if that does not help.
 - **A scheduler wake-up no longer fires a schedule early.** `sleepUntil` returns for either the
   deadline or a wake, and the loop treated both as "it is time": creating, editing or deleting a
   schedule nudged the loop, which then ran whichever schedule happened to be selected at that moment.

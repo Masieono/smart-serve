@@ -105,3 +105,42 @@ func TestParseSMARTInvalid(t *testing.T) {
 		t.Fatal("expected an error for invalid JSON")
 	}
 }
+
+// A field whose type changed must not cost the drive.
+//
+// `"current": "40"` is the shape a firmware with an opinion produces, and one such leaf used to fail
+// the whole document: the verdict became "no reading" and the attribute table, which had parsed
+// perfectly, disappeared with it.
+func TestANumericStringDoesNotDiscardTheDocument(t *testing.T) {
+	raw := []byte(`{
+	  "model_name": "Samsung SSD 870 EVO",
+	  "serial_number": "S1234",
+	  "temperature": {"current": "40"},
+	  "smart_status": {"passed": true},
+	  "ata_smart_attributes": {"table": [
+	    {"id": 5, "name": "Reallocated_Sector_Ct", "value": 100, "worst": 100, "thresh": 10,
+	     "raw": {"value": 0, "string": "0"}}
+	  ]}
+	}`)
+
+	sd, err := ParseSMART(raw)
+	if err != nil {
+		t.Fatalf("ParseSMART: %v", err)
+	}
+	if sd.Serial != "S1234" {
+		t.Errorf("serial = %q, the identity went with the bad field", sd.Serial)
+	}
+	if len(sd.Attributes) != 1 {
+		t.Errorf("attributes = %d, want the table that parsed perfectly", len(sd.Attributes))
+	}
+	if sd.TemperatureC == nil || *sd.TemperatureC != 40 {
+		t.Errorf("temperature = %v, want 40 read from the string", sd.TemperatureC)
+	}
+}
+
+// A document that is genuinely malformed still fails, and says so.
+func TestMalformedJSONStillFails(t *testing.T) {
+	if _, err := ParseSMART([]byte(`{"model_name": `)); err == nil {
+		t.Fatal("truncated JSON parsed as if it were fine")
+	}
+}
