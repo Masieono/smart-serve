@@ -119,12 +119,21 @@ func (s *Scheduler) Wake() {
 	}
 }
 
+// ErrNotRunnable means the schedule cannot be run now, which in practice means it is paused.
+var ErrNotRunnable = errors.New("this schedule is paused")
+
 // RunNow makes a schedule due immediately and wakes the loop. This is how "run
 // now" works: the run is recorded by the same path as any other fire, so
 // last-run and next-run stay honest.
+// A paused schedule is not brought forward: `ErrNotRunnable` says so rather than reporting a run
+// that will not happen.
 func (s *Scheduler) RunNow(ctx context.Context, scheduleID int64) error {
-	if err := s.store.MakeScheduleDue(ctx, scheduleID, s.now()); err != nil {
+	due, err := s.store.MakeScheduleDue(ctx, scheduleID, s.now())
+	if err != nil {
 		return err
+	}
+	if !due {
+		return ErrNotRunnable
 	}
 	s.Wake()
 	return nil
