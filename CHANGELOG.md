@@ -13,6 +13,17 @@ walked on every scan for two strings; the score breakdown was computed on every 
 the list of what is deliberately *not* captured, each with its reason — discarding is allowed,
 discarding silently is not. See `ADR-028`.
 
+### Security
+
+- **A draft channel test can no longer be used to send a deployment secret to a caller-chosen
+  server.** `POST /api/channels/test` applies the environment overrides (`SMARTSERVE_CHANNEL_*`) only
+  when the draft names the saved channel it came from and keeps every field the environment does not
+  supply; otherwise it answers `409`. Channel labels are unique for the same reason, since the label
+  names those variables.
+- **Notification and knowledge fetches do not follow redirects**, and refuse link-local addresses and
+  metadata hostnames. Loopback and private addresses stay allowed: a self-hosted ntfy on the same
+  host is the normal case.
+
 ### Added
 
 - **The fleet table sorts.** Click any column header, click again to reverse; `aria-sort` and a caret
@@ -158,6 +169,17 @@ discarding silently is not. See `ADR-028`.
   `device.js` imports is a hard failure. Assets now carry a content-hash `ETag` with
   `Cache-Control: no-cache`, so a current copy is revalidated for one cheap 304 and a stale one is
   replaced.
+
+### Security
+
+- **A draft channel test can no longer be used to send a deployment secret to a caller-chosen
+  server.** `POST /api/channels/test` applies the environment overrides (`SMARTSERVE_CHANNEL_*`) only
+  when the draft names the saved channel it came from and keeps every field the environment does not
+  supply; otherwise it answers `409`. Channel labels are unique for the same reason, since the label
+  names those variables.
+- **Notification and knowledge fetches do not follow redirects**, and refuse link-local addresses and
+  metadata hostnames. Loopback and private addresses stay allowed: a self-hosted ntfy on the same
+  host is the normal case.
 
 ### Added
 
@@ -316,6 +338,17 @@ compared **side by side**, attribute by attribute.
 
 That is the whole of Phase 4, and with it the last tabled item: the batch self-test recorded in
 `FEATURES.md` §H is what the scheduled pass does.
+
+### Security
+
+- **A draft channel test can no longer be used to send a deployment secret to a caller-chosen
+  server.** `POST /api/channels/test` applies the environment overrides (`SMARTSERVE_CHANNEL_*`) only
+  when the draft names the saved channel it came from and keeps every field the environment does not
+  supply; otherwise it answers `409`. Channel labels are unique for the same reason, since the label
+  names those variables.
+- **Notification and knowledge fetches do not follow redirects**, and refuse link-local addresses and
+  metadata hostnames. Loopback and private addresses stay allowed: a self-hosted ntfy on the same
+  host is the normal case.
 
 ### Added
 
@@ -796,6 +829,17 @@ came out of deploying it.
 ## [1.0.0] — 2026-10-17
 
 First public release.
+
+### Security
+
+- **A draft channel test can no longer be used to send a deployment secret to a caller-chosen
+  server.** `POST /api/channels/test` applies the environment overrides (`SMARTSERVE_CHANNEL_*`) only
+  when the draft names the saved channel it came from and keeps every field the environment does not
+  supply; otherwise it answers `409`. Channel labels are unique for the same reason, since the label
+  names those variables.
+- **Notification and knowledge fetches do not follow redirects**, and refuse link-local addresses and
+  metadata hostnames. Loopback and private addresses stay allowed: a self-hosted ntfy on the same
+  host is the normal case.
 
 ### Added
 

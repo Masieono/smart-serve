@@ -160,6 +160,13 @@ location /smartserve/ {
 }
 ```
 
+Channel credentials supplied by the environment are the one thing here that is worth a thought on an
+open LAN. The API refuses to combine a request-supplied config with an environment-supplied
+credential (a draft test must name the saved channel and keep its destination), and a channel label
+is unique so no second channel can claim the same variables. What is left is the deployment's own
+trust model: with **no sign-in layer**, anyone who can reach the port can operate the app, including
+renaming a channel. If a channel's credential lives in the environment, turn the sign-in layer on.
+
 SSE requires `proxy_buffering off` and HTTP/1.1 — noted here because it is the
 most common reverse-proxy misconfiguration.
 

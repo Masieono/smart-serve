@@ -10,6 +10,7 @@ import (
 
 	"github.com/masieono/smart-serve/internal/knowledge"
 	"github.com/masieono/smart-serve/internal/store"
+	"github.com/masieono/smart-serve/internal/urlguard"
 )
 
 // DefaultKnowledgeURL is where a fresh install looks for an updated table.
@@ -167,7 +168,12 @@ func (s *Server) handleRefreshKnowledge(w http.ResponseWriter, r *http.Request) 
 	req.Header.Set("User-Agent", "smart-serve/"+s.version)
 	req.Header.Set("Accept", "application/json")
 
-	resp, err := http.DefaultClient.Do(req)
+	// One rule for every URL this app fetches: no redirects, no link-local, no metadata host.
+	if err := urlguard.Check(req.URL); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	resp, err := urlguard.Client(knowledgeFetchTimeout).Do(req)
 	if err != nil {
 		writeError(w, http.StatusBadGateway, "could not fetch "+url+": "+err.Error())
 		return

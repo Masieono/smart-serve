@@ -23,6 +23,11 @@ rota, so expect an acknowledgement within a few days.
 Three things are deliberate decisions rather than defects, and reports about them will be
 closed with a pointer here:
 
+- **Environment-supplied channel credentials never travel to a request-chosen destination.** A
+  draft test is refused (`409`) unless it names the saved channel and leaves every field the
+  environment does not supply exactly as stored, and a channel label must be unique so no second
+  channel can claim the same variables. Channel and knowledge URLs are fetched without following
+  redirects, and link-local addresses and metadata hostnames are refused.
 - **No authentication, by default.** Smart-Serve ships no login and no user management; access control
   is delegated to a reverse proxy (`ADR-016`). An optional built-in **single-user** login is built
   (`ADR-033`): it is off unless both `SMARTSERVE_AUTH_USER` and a password are set, it has no lockout,

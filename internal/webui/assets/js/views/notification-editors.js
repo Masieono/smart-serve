@@ -736,6 +736,9 @@ export function editChannel(ctx, existing, catalog = {}) {
 
     function payloadFromForm() {
       return {
+        // The test endpoint needs to know which saved channel a draft came from: it only lets the
+        // draft use a credential from the environment when the draft is that channel, unchanged.
+        ...(existing ? { id: existing.id } : {}),
         type: type.value,
         label: label.value.trim(),
         config: buildConfig(),

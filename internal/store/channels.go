@@ -50,6 +50,23 @@ func (s *Store) ListChannels(ctx context.Context) ([]Channel, error) {
 }
 
 // GetChannel returns one channel, or nil when it does not exist.
+// ChannelLabelExists reports whether another channel already carries this label.
+//
+// Labels are not decoration: they name the environment variables that supply a channel's
+// credentials (`notify.EnvVar`). Two channels with one label would therefore share those variables,
+// and a second channel pointed somewhere else would receive the first one's secret. Uniqueness is
+// enforced here rather than by a unique index because an existing install may already hold a
+// duplicate, and a migration that refuses to run is worse than a 409 on the next save.
+func (s *Store) ChannelLabelExists(ctx context.Context, label string, exceptID int64) (bool, error) {
+	var n int
+	err := s.db.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM notification_channels WHERE label = ? AND id <> ?`, label, exceptID).Scan(&n)
+	if err != nil {
+		return false, err
+	}
+	return n > 0, nil
+}
+
 func (s *Store) GetChannel(ctx context.Context, id int64) (*Channel, error) {
 	c, err := scanChannel(s.db.QueryRowContext(ctx, `
 		SELECT id, type, label, config, enabled, events, scope_groups

