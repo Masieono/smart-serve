@@ -135,7 +135,10 @@ function scheduleTable(schedules, ctx) {
           class: 'v2-btn',
           type: 'button',
           text: 'Run now',
-          title: 'Run this schedule once, now',
+          // A paused schedule has nothing to bring forward, so the button says so rather than
+          // offering a click the server will refuse.
+          disabled: !s.enabled,
+          title: s.enabled ? 'Run this schedule once, now' : 'Enable this schedule to run it',
           onclick: async (event) => {
             const b = event.currentTarget;
             b.disabled = true;

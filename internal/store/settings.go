@@ -301,13 +301,22 @@ func (s *Store) MarkScheduleRun(ctx context.Context, id int64, lastRun, nextRun 
 	return err
 }
 
-// MakeScheduleDue brings a schedule's next run forward to now so the scheduler
-// picks it up on its next wake, the mechanism behind "run now".
-func (s *Store) MakeScheduleDue(ctx context.Context, id int64, now time.Time) error {
-	_, err := s.db.ExecContext(ctx,
+// MakeScheduleDue brings a schedule's next run forward to now so the scheduler picks it up on its
+// next wake, the mechanism behind "run now". It reports whether a row was actually brought forward:
+// a paused schedule matches nothing, and answering "started" for a run that will never happen is
+// worse than refusing.
+func (s *Store) MakeScheduleDue(ctx context.Context, id int64, now time.Time) (bool, error) {
+	res, err := s.db.ExecContext(ctx,
 		`UPDATE scan_schedules SET next_run = ? WHERE id = ? AND enabled = 1`,
 		now.UnixMilli(), id)
-	return err
+	if err != nil {
+		return false, err
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return false, err
+	}
+	return n > 0, nil
 }
 
 // ReplaceSchedules replaces every schedule with the given set, in one transaction.

@@ -470,13 +470,16 @@ saves. The bundle says so in its own `note`, so a file found later explains itse
 - `GET /api/schedules` — list (includes `last_run` and `next_run`).
 - `POST /api/schedules` — create: `{ "kind": "interval", "every_seconds": 21600, "label": "every 6h" }`
   or `{ "kind": "cron", "cron": "0 3 * * *", "label": "nightly" }`. Cron is evaluated
-  in the container's local timezone.
-- `PUT /api/schedules/{id}` — update fields / `enabled` toggle.
+  in the container's local timezone, and **parsed at save time**: an expression that cannot be read is
+  a `400`, where it used to save and then never fire. `enabled` is optional on create and means on.
+- `PUT /api/schedules/{id}` — update fields / `enabled` toggle. A field that is **absent is left as it
+  is**, including `enabled`: a PUT that only renames a schedule no longer pauses it.
 - `DELETE /api/schedules/{id}` — remove.
 - `POST /api/schedules/{id}/run` — fire once now. The in-process scheduler owns
   scan timing, so this brings the schedule's next run forward and wakes it rather
   than scanning inline; the run is recorded by the same path as a timed fire, so
-  `last_run`/`next_run` stay honest. Returns `202 Accepted`.
+  `last_run`/`next_run` stay honest. Returns `202 Accepted`, or `409` when the schedule is paused:
+  a paused schedule has nothing to bring forward, and it used to answer `202` and do nothing.
 
 Every schedule change (create, update, delete, run-now) wakes the scheduler, so it
 takes effect immediately instead of at the next sleep boundary.

@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"strconv"
 	"strings"
@@ -9,6 +10,7 @@ import (
 
 	"github.com/masieono/smart-serve/internal/interp"
 	"github.com/masieono/smart-serve/internal/scan"
+	"github.com/masieono/smart-serve/internal/sched"
 	"github.com/masieono/smart-serve/internal/store"
 )
 
@@ -65,8 +67,11 @@ func (s *Server) handlePutSettings(w http.ResponseWriter, r *http.Request) {
 // --- schedules ----------------------------------------------------------------
 
 type scheduleJSON struct {
-	ID      int64  `json:"id"`
-	Enabled bool   `json:"enabled"`
+	ID int64 `json:"id"`
+	// Enabled is optional on the way in: absent means "leave it as it is" on an update and "on" for
+	// a new schedule, which is what somebody writing a schedule by hand means. It is always present
+	// on the way out.
+	Enabled *bool  `json:"enabled"`
 	Kind    string `json:"kind"`
 	// Action is what happens when the schedule fires (`FEATURES.md` B13, A19): "scan", "digest" or
 	// "selftest". Sent and accepted rather than implied, because they produce completely different
@@ -85,7 +90,7 @@ type scheduleJSON struct {
 
 func toScheduleJSON(sched store.Schedule) scheduleJSON {
 	out := scheduleJSON{
-		ID: sched.ID, Enabled: sched.Enabled, Kind: sched.Kind, Action: sched.Action,
+		ID: sched.ID, Enabled: boolPtr(sched.Enabled), Kind: sched.Kind, Action: sched.Action,
 		SelfTestKind: sched.SelfTestKind,
 		EverySeconds: sched.EverySeconds, Cron: sched.Cron, Label: sched.Label,
 		CreatedAt: rfc3339(sched.CreatedAt),
@@ -134,7 +139,7 @@ func (s *Server) handleCreateSchedule(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	id, err := s.store.CreateSchedule(r.Context(), store.Schedule{
-		Enabled: body.Enabled, Kind: body.Kind, Action: body.Action,
+		Enabled: enabledOrDefault(body.Enabled), Kind: body.Kind, Action: body.Action,
 		SelfTestKind: body.SelfTestKind,
 		EverySeconds: body.EverySeconds,
 		Cron:         body.Cron, Label: body.Label,
@@ -171,7 +176,12 @@ func (s *Server) handleUpdateSchedule(w http.ResponseWriter, r *http.Request) {
 	if !decodeJSON(w, r, &body) {
 		return
 	}
-	existing.Enabled = body.Enabled
+	// Only when it was sent. A PUT that renames a schedule used to disable it, because a missing
+	// bool decodes to false and the assignment was unconditional; the failure direction is the worst
+	// one there is, since the schedule then quietly stops monitoring.
+	if body.Enabled != nil {
+		existing.Enabled = *body.Enabled
+	}
 	if msg := validateScheduleAction(body.Action); msg != "" {
 		writeError(w, http.StatusBadRequest, msg)
 		return
@@ -236,18 +246,30 @@ func (s *Server) handleRunSchedule(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	sched, err := s.store.GetSchedule(r.Context(), id)
+	existing, err := s.store.GetSchedule(r.Context(), id)
 	if err != nil {
 		s.fail(w, "run schedule", err)
 		return
 	}
-	if sched == nil {
+	if existing == nil {
 		writeError(w, http.StatusNotFound, "unknown schedule")
+		return
+	}
+	// Refused here as well as in the scheduler, because this handler has a second path for builds
+	// without one, and a paused schedule must not run down either of them.
+	if !existing.Enabled {
+		writeError(w, http.StatusConflict,
+			"this schedule is paused, so there is nothing to bring forward. Enable it first.")
 		return
 	}
 
 	if s.scheduler != nil {
 		if err := s.scheduler.RunNow(r.Context(), id); err != nil {
+			if errors.Is(err, sched.ErrNotRunnable) {
+				writeError(w, http.StatusConflict,
+					"this schedule is paused, so there is nothing to bring forward. Enable it first.")
+				return
+			}
 			s.fail(w, "run schedule", err)
 			return
 		}
@@ -288,11 +310,28 @@ func validateSchedule(kind string, every *int64, cron string) string {
 			return "every_seconds is required for interval schedules"
 		}
 	case "cron":
-		if strings.TrimSpace(cron) == "" {
+		expr := strings.TrimSpace(cron)
+		if expr == "" {
 			return "cron is required for cron schedules"
+		}
+		// Parsed here, not first at fire time. Before this, a typo saved with 201 and then never
+		// ran: the scheduler logged a failed Next on every wake, next_run stayed empty, and the page
+		// showed an enabled schedule with "n/a" beside it and nothing to say why.
+		if _, err := sched.Next(expr, time.Now(), time.Local); err != nil {
+			return "that cron expression cannot be read: " + err.Error()
 		}
 	default:
 		return "kind must be interval or cron"
 	}
 	return ""
 }
+
+// enabledOrDefault reads the optional switch: absent means on, for a schedule being created.
+func enabledOrDefault(v *bool) bool {
+	if v == nil {
+		return true
+	}
+	return *v
+}
+
+func boolPtr(v bool) *bool { return &v }
