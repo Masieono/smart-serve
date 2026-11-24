@@ -157,7 +157,7 @@ function stateOf(d) {
 function matchesFilter(d) {
   if (filter !== null && stateOf(d) !== filter) return false;
   if (!query) return true;
-  const haystack = [d.name, d.bay, d.serial, d.model, d.tags, d.fs_type, d.mountpoints]
+  const haystack = [d.name, d.bay, d.serial, d.model, d.tags, d.fstype, d.mountpoints]
     .filter(Boolean)
     .join(' ')
     .toLowerCase();

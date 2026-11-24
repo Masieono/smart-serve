@@ -76,6 +76,20 @@ discarding silently is not. See `ADR-028`.
 
 ### Fixed
 
+- **The history range called "All" stopped at 180 days.** The endpoint defaulted `from` to a fixed
+  six months, so raising `retention_days` kept the data and never showed it. The default is the
+  retention window now.
+- **One dead notification destination no longer indicts the rest.** Channels the pass never reached
+  were recorded as `failed` with a context error; they are `skipped`, and the delivery log stops
+  blaming them.
+- **Two identical drives with no serial no longer collapse into one.** The `__nomodel:<model>`
+  fallback was the same string for both, so the second upserted over the first and their histories
+  interleaved. Discovery order disambiguates them.
+- **An unmatched `/api/...` path is a 404, not the interface with a 200.** The SPA fallback answered
+  every unknown API path with the shell, so a typo'd endpoint looked like success to every caller.
+- **CSV exports neutralise spreadsheet formulas.** A model string beginning `=`, `+`, `-` or `@` is
+  written with a leading apostrophe, because these files exist to be opened in a spreadsheet.
+
 - **A scheduler wake-up no longer fires a schedule early.** `sleepUntil` returns for either the
   deadline or a wake, and the loop treated both as "it is time": creating, editing or deleting a
   schedule nudged the loop, which then ran whichever schedule happened to be selected at that moment.
@@ -617,6 +631,20 @@ That is the whole of Phase 4, and with it the last tabled item: the batch self-t
 
 ### Fixed
 
+- **The history range called "All" stopped at 180 days.** The endpoint defaulted `from` to a fixed
+  six months, so raising `retention_days` kept the data and never showed it. The default is the
+  retention window now.
+- **One dead notification destination no longer indicts the rest.** Channels the pass never reached
+  were recorded as `failed` with a context error; they are `skipped`, and the delivery log stops
+  blaming them.
+- **Two identical drives with no serial no longer collapse into one.** The `__nomodel:<model>`
+  fallback was the same string for both, so the second upserted over the first and their histories
+  interleaved. Discovery order disambiguates them.
+- **An unmatched `/api/...` path is a 404, not the interface with a 200.** The SPA fallback answered
+  every unknown API path with the shell, so a typo'd endpoint looked like success to every caller.
+- **CSV exports neutralise spreadsheet formulas.** A model string beginning `=`, `+`, `-` or `@` is
+  written with a leading apostrophe, because these files exist to be opened in a spreadsheet.
+
 - **The JS test DOM stub had no `querySelector`, so the channel editor's whole save path was
   untestable.** The editor reads its own checkbox state back out of the DOM to build a save payload,
   which threw a `TypeError` under the stub — and the editor's own `catch` turned that into a "Save
@@ -759,6 +787,20 @@ Four fixes found by using the first release in anger, plus the documentation cor
 came out of deploying it.
 
 ### Fixed
+
+- **The history range called "All" stopped at 180 days.** The endpoint defaulted `from` to a fixed
+  six months, so raising `retention_days` kept the data and never showed it. The default is the
+  retention window now.
+- **One dead notification destination no longer indicts the rest.** Channels the pass never reached
+  were recorded as `failed` with a context error; they are `skipped`, and the delivery log stops
+  blaming them.
+- **Two identical drives with no serial no longer collapse into one.** The `__nomodel:<model>`
+  fallback was the same string for both, so the second upserted over the first and their histories
+  interleaved. Discovery order disambiguates them.
+- **An unmatched `/api/...` path is a 404, not the interface with a 200.** The SPA fallback answered
+  every unknown API path with the shell, so a typo'd endpoint looked like success to every caller.
+- **CSV exports neutralise spreadsheet formulas.** A model string beginning `=`, `+`, `-` or `@` is
+  written with a leading apostrophe, because these files exist to be opened in a spreadsheet.
 
 - **The attribute `?` dialog rendered the literal word "null"** on every field with no "how to
   read it" line. The native `Element.append` stringifies a `null` argument into a text node, and

@@ -216,6 +216,10 @@ func (m *Manager) run(ctx context.Context, t Trigger, o only) (Result, error) {
 	} else {
 		devices = []Device{one}
 	}
+	// Before anything is stored: two drives that report no serial are one key until they are told
+	// apart, and the store would otherwise upsert the second over the first.
+	devices = uniqueModelLessSerials(devices)
+
 	ended := time.Now().UTC()
 	res := Result{Started: started, Ended: ended, Devices: devices}
 
@@ -562,6 +566,34 @@ func (m *Manager) Running() bool {
 // Serial returns the stable identity for the device (ADR-005): the S.M.A.R.T.
 // serial number, falling back to the lsblk serial and then to a model key.
 func (d Device) Serial() string { return serialFor(d) }
+
+// uniqueModelLessSerials separates drives that report no serial at all.
+//
+// Two identical USB enclosures report the same model and nothing else, so the fallback identity
+// `__nomodel:<model>` is one string for both: the second upserted the first one's row and their
+// history interleaved, which is how a pair of docks silently becomes one drive. Discovery order is
+// the disk order, stable for a given set of devices, so an index is enough.
+func uniqueModelLessSerials(devices []Device) []Device {
+	seen := map[string]int{}
+	for i := range devices {
+		d := &devices[i]
+		if strings.TrimSpace(d.Discovered.Serial) != "" {
+			continue
+		}
+		if d.Data != nil && strings.TrimSpace(d.Data.Serial) != "" {
+			continue
+		}
+		key := serialFor(*d)
+		seen[key]++
+		if seen[key] == 1 {
+			continue
+		}
+		// Written into the discovery record so every later call to serialFor agrees with the value
+		// the store now holds.
+		d.Discovered.Serial = strings.TrimPrefix(key, "__nomodel:") + fmt.Sprintf(" #%d", seen[key])
+	}
+	return devices
+}
 
 // serialFor implements the identity rule from ADR-005.
 func serialFor(d Device) string {

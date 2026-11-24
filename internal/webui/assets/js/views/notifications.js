@@ -150,7 +150,7 @@ function eventTypesCount(channels) {
  * records the failure in a log nobody opens is a page that reports success by omission.
  */
 function failureBanner(entries, channels) {
-  const failed = entries.filter((e) => e.status !== 'sent' && e.status !== 'squelched');
+  const failed = entries.filter((e) => e.status !== 'sent' && e.status !== 'squelched' && e.status !== 'skipped');
   if (!failed.length) return null;
 
   const names = [...new Set(failed.map((e) => labelFor(e.channel_id, channels)))];
@@ -286,7 +286,7 @@ function deliveryFeed(entries, channels) {
 
 function statusTone(status) {
   if (status === 'sent') return 'good';
-  if (status === 'squelched') return 'muted';
+  if (status === 'squelched' || status === 'skipped') return 'muted';
   return 'bad';
 }
 

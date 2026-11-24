@@ -42,7 +42,10 @@ func (s *Server) handleRaw(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleHistory(w http.ResponseWriter, r *http.Request) {
 	serial := r.PathValue("serial")
-	from := parseTimeQuery(r, "from", time.Now().AddDate(0, 0, -180))
+	// The default window is what this install keeps, not a constant: `retention_days` exists so that
+	// "keep more history" means something, and the endpoint reading the history was ignoring it, so a
+	// 365-day retention showed six months behind a range picker that said "All".
+	from := parseTimeQuery(r, "from", time.Now().Add(-s.store.RetentionWindow(r.Context())))
 	to := parseTimeQuery(r, "to", time.Now().Add(time.Hour))
 
 	series, err := s.store.SnapshotSeries(r.Context(), serial, from, to)
@@ -535,7 +538,7 @@ func renderCSVReport(d store.DeviceRecord, snap *store.Snapshot) string {
 		if strings.TrimSpace(value) == "" {
 			return
 		}
-		_ = w.Write([]string{field, value})
+		_ = w.Write([]string{csvSafe(field), csvSafe(value)})
 	}
 
 	_ = w.Write([]string{"field", "value"})

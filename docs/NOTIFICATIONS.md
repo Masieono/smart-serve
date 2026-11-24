@@ -622,6 +622,7 @@ pipeline.
 | `sent` | the destination returned 2xx |
 | `failed` | it returned 4xx (permanent — a config problem, so no retry) or 5xx/network after two retries |
 | `squelched` | inside a squelch window, or inside a maintenance window; recorded so the log explains the silence |
+| `skipped` | the pass ran out of its time budget before this channel was tried. Not a failure: one dead destination used to indict every channel behind it |
 
 A maintenance-window suppression names the window (`maintenance window: array
 rebuild`), so an operator can tell a deliberate silence from a squelch timer or a

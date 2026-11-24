@@ -368,7 +368,7 @@ function deliveryLog(log, channels) {
           el('td', { text: labelFor(e.channel_id) }),
           el('td', { text: e.event_type }),
           el('td', {}, [el('span', {
-            class: `badge badge-${e.status === 'sent' ? 'good' : e.status === 'squelched' ? 'unknown' : 'bad'}`,
+            class: `badge badge-${e.status === 'sent' ? 'good' : (e.status === 'squelched' || e.status === 'skipped') ? 'unknown' : 'bad'}`,
             text: e.status,
           })]),
           el('td', { class: 'muted', text: e.detail || 'n/a' }),
