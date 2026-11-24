@@ -446,9 +446,28 @@ function rowActions(d, ctx) {
   return buttons;
 }
 
+/**
+ * The whole notes object, not just the field being changed.
+ *
+ * `PUT /api/devices/{serial}/notes` replaces the lot: an omitted field is cleared, which is what the
+ * endpoint documents and what the device page's editor relies on. Sending `{ hidden }` on its own
+ * therefore wiped the drive's name, notes, tags and bay the first time anybody pressed Hide. Every
+ * value the endpoint owns is carried back from the row, and `bay` defaults to '' because the list
+ * omits it when it is empty.
+ */
+function notesBody(d, hidden) {
+  return {
+    name: d.name ?? '',
+    notes: d.notes ?? '',
+    tags: d.tags ?? '',
+    bay: d.bay ?? '',
+    hidden,
+  };
+}
+
 async function setHidden(d, hidden, ctx) {
   try {
-    await api.setNotes(d.serial, { hidden });
+    await api.setNotes(d.serial, notesBody(d, hidden));
     await reload(ctx);
   } catch (err) {
     toast(err.message);
@@ -475,6 +494,9 @@ async function forget(d, ctx) {
 async function reload(ctx) {
   try {
     lastPayload = await api.devices();
+    // Unhiding the last hidden drive leaves an empty half and a toggle that leads nowhere. The reader
+    // wanted the drive back in the fleet, so go there rather than to "Nothing is hidden."
+    if (showHidden && !(lastPayload.devices || []).some((d) => d.hidden)) showHidden = false;
     draw(document.getElementById('content'), ctx, lastPayload);
   } catch (err) {
     toast(err.message);

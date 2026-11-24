@@ -110,9 +110,15 @@ test('the hidden half is one click away, and comes back the same way', async () 
   assert.doesNotMatch(textOf(container), /bravo/);
 });
 
-test('hiding a drive writes the flag the notes endpoint owns', async () => {
+// The notes endpoint is a full replace, so a body carrying only `hidden` would clear the rest. This
+// is the assertion that makes the guard worth having: the request has to carry every field the
+// endpoint owns, with the row's own values in them.
+test('hiding a drive sends the whole notes object, not just the flag', async () => {
   const requests = [];
-  stubFetch({ devices: [drive({ serial: 'A', name: 'alpha' })], last_scan_ts: 0 }, requests);
+  const row = drive({
+    serial: 'A', name: 'alpha', notes: 'pulled for RMA', tags: 'media,archive', bay: 'bay 3',
+  });
+  stubFetch({ devices: [row], last_scan_ts: 0 }, requests);
   fleet.reset();
   const container = document.createElement('div');
   container.setAttribute('id', 'content');
@@ -124,7 +130,30 @@ test('hiding a drive writes the flag the notes endpoint owns', async () => {
 
   const put = requests.find((r) => r.method === 'PUT' && r.url.includes('/notes'));
   assert.ok(put, 'nothing was sent');
-  assert.equal(put.body.hidden, true);
+  assert.deepEqual(put.body, {
+    name: 'alpha',
+    notes: 'pulled for RMA',
+    tags: 'media,archive',
+    bay: 'bay 3',
+    hidden: true,
+  });
+});
+
+// A drive whose optional fields are absent must still send them as empty strings rather than leaving
+// them out, which the endpoint would read as "clear this one" only because it was omitted at all.
+test('a drive with nothing but the flag still sends every field', async () => {
+  const requests = [];
+  stubFetch({ devices: [drive({ serial: 'A', name: 'alpha' })], last_scan_ts: 0 }, requests);
+  fleet.reset();
+  const container = document.createElement('div');
+  container.setAttribute('id', 'content');
+  await fleet.render(container, { navigate() {}, refresh() {} });
+
+  buttons(container, 'row-action')[0].onclick({ stopPropagation() {} });
+  await new Promise((resolve) => setTimeout(resolve, 0));
+
+  const put = requests.find((r) => r.method === 'PUT' && r.url.includes('/notes'));
+  assert.deepEqual(Object.keys(put.body).sort(), ['bay', 'hidden', 'name', 'notes', 'tags']);
 });
 
 // Forgetting only makes sense for a drive that is not connected: for a connected one the next scan
@@ -142,4 +171,36 @@ test('a disconnected drive offers Forget, a connected one does not', async () =>
 
   assert.deepEqual(actionsIn(rowFor('alpha')), ['Hide'], 'a connected drive must not offer Forget');
   assert.deepEqual(actionsIn(rowFor('bravo')), ['Hide', 'Forget']);
+});
+
+// Unhiding the last one: the reader got what they came for, so the table goes back rather than
+// leaving an empty hidden half behind a toggle that now says "Back to the fleet" for nothing.
+test('unhiding the last hidden drive returns to the fleet', async () => {
+  let payload = {
+    devices: [drive({ serial: 'A', name: 'alpha' }), drive({ serial: 'B', name: 'bravo', hidden: true })],
+    last_scan_ts: 0,
+  };
+  // A stub that behaves like the endpoint: the PUT flips the flag, the next GET sees it.
+  globalThis.fetch = async (url, init = {}) => {
+    if (init.method === 'PUT' && String(url).includes('/notes')) {
+      const body = JSON.parse(init.body);
+      payload.devices = payload.devices.map((d) => (d.serial === 'B' ? { ...d, hidden: body.hidden } : d));
+    }
+    return { ok: true, status: 200, statusText: 'OK', text: async () => JSON.stringify(payload) };
+  };
+
+  fleet.reset();
+  const container = document.createElement('div');
+  container.setAttribute('id', 'content');
+  await fleet.render(container, { navigate() {}, refresh() {} });
+
+  buttons(container, 'fleet-hidden-toggle')[0].onclick();
+  await new Promise((resolve) => setTimeout(resolve, 0));
+
+  buttons(container, 'row-action')[0].onclick({ stopPropagation() {} });
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  await new Promise((resolve) => setTimeout(resolve, 0));
+
+  assert.match(textOf(container), /alpha/, 'the fleet did not come back');
+  assert.doesNotMatch(textOf(container), /hidden/, 'still offering a way into an empty half');
 });

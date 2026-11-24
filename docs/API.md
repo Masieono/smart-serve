@@ -302,6 +302,12 @@ sector basis. A drive with less than a day of history gets `basis: "none"` and
 { "name": "boot", "bay": "bay 4", "notes": "bought 2024-03, under warranty until 2029", "tags": "critical,os", "hidden": false }
 ```
 
+**Full replace: an omitted field is cleared to its zero value.** A client that wants to change one
+field must send all five, carrying the current values back. `GET /api/devices` returns them on every
+row for exactly this reason. The fleet's **Hide** needs no more than the flag, and it still sends the
+whole object, because sending `{ "hidden": true }` on its own erased that drive's name, notes, tags
+and bay.
+
 - `PUT /api/devices/{serial}/ack` — **acknowledge the drive's current condition** (`FEATURES.md` B7),
   body `{ "note": "RMA raised" }`. Returns `{ "serial": "…", "ack": { "health": "caution", "note": "…",
   "at": "…" } }`.
