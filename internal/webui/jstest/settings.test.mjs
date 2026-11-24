@@ -34,6 +34,17 @@ function textsFor(container, tag, className) {
     .map((node) => node.textContent);
 }
 
+/** Routes by endpoint, for a page that reads more than one and needs different answers from each. */
+function stubRoutes(routes) {
+  globalThis.fetch = async (url) => {
+    const u = String(url);
+    const payload = u.includes('/api/session') ? routes.session
+      : u.includes('/api/knowledge') ? routes.knowledge
+        : routes.settings;
+    return { ok: true, status: 200, statusText: 'OK', text: async () => JSON.stringify(payload ?? {}) };
+  };
+}
+
 // The knowledge card has to say where the table came from and how old it is, because the whole reason
 // the refresh is a button is that the user decides when it is worth pressing, and they cannot decide
 // that without seeing the age.
@@ -643,7 +654,11 @@ test('editing a cell writes the value the page saves', async () => {
 // have caught it.
 test('the sign-in idle timeout has a control on the data page', async () => {
   installStubDom();
-  stubFetch({ settings: { auth_idle_minutes: '45' }, knowledge: KNOWLEDGE });
+  stubRoutes({
+    settings: { settings: { auth_idle_minutes: '45' } },
+    knowledge: KNOWLEDGE,
+    session: { enabled: true, authenticated: true },
+  });
   const container = document.createElement('div');
   await settings.render(container, ctx, 'data');
 
@@ -654,4 +669,21 @@ test('the sign-in idle timeout has a control on the data page', async () => {
   assert.ok(input, 'no control: the setting saves from an input that is never mounted');
   assert.equal(input.value, '45', 'the control does not show the stored value');
   assert.ok(rowLabels(container).includes('Idle timeout (minutes)'));
+});
+
+// The other half of that: a deployment with the layer off has no sessions, so a session timeout is a
+// control that changes nothing. It is not drawn, and the page does not pretend otherwise.
+test('the sign-in section is not drawn when the layer is off', async () => {
+  installStubDom();
+  stubRoutes({
+    settings: { settings: {} },
+    knowledge: KNOWLEDGE,
+    session: { enabled: false, authenticated: true },
+  });
+  const container = document.createElement('div');
+  await settings.render(container, ctx, 'data');
+
+  assert.ok(!rowLabels(container).includes('Idle timeout (minutes)'), 'a timeout for sessions that cannot exist');
+  const labels = container.querySelectorAll('h2').map((n) => n.textContent);
+  assert.ok(!labels.includes('Sign-in'), 'the section is empty and still drawn');
 });

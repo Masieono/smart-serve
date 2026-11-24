@@ -102,7 +102,7 @@ or spacing value, which is what makes theming a token swap.
 | Component | Notes |
 |---|---|
 | **Verdict** | Dot, word and colour: `Healthy`, `Caution`, `Failing`, `No reading`, plus `score N of 100` on the device page. |
-| **Fleet table** | Drive (name, then model · transport · capacity · first mountpoint), Health, Usage, Temp, Powered on. Fixed sort, no sortable headers. |
+| **Fleet table** | Drive (name, then model · transport · capacity · first mountpoint), Health, Usage, Temp, Powered on, then the row's own actions. Every column sorts from its header; the caret and `aria-sort` say which one and which way, and the default is the reading order. Hidden drives come back through the `N hidden` toggle as the same table, dimmed, with **Unhide**. |
 | **Glance line** | Counts first, then the next thing a reader wants. On the fleet the counts are `aria-pressed` filters: click to narrow, click again to clear. |
 | **Save bar** | Settings only, sticky to the window bottom, shown only while dirty, carrying state text, Revert and Save. Opaque. |
 | **Theme swatches** | Nineteen chips in a `radiogroup`, each carrying its own `data-theme` so the palette resolves inside it. They never read the semantic tokens, which are computed at `:root`. |

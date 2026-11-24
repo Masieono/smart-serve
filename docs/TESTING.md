@@ -47,6 +47,12 @@ Three conditions Pass 0 cannot create, and the passes that need them say so: a *
 | 1.9 | Read the order with a mix of states. | Failing, caution, no reading, healthy — and within a state the lower score first, the name breaking a tie |
 | 1.10 | Look at the left edge of a caution or failing row, then of a healthy one. | An amber edge on the first cell; nothing on the healthy row |
 | 1.11 | Unplug a drive and scan. | Its row stays, Health reads **Not connected**, and it counts under no reading |
+| 1.12 | Click **Temp**. Then click it again. | The warmest drive is last, then first; a caret marks the column and the other headers lose theirs |
+| 1.13 | Sort by a column while a drive reports no value for it (a USB reader has no temperature). | That drive stays last in both directions, rather than reading as the coldest |
+| 1.14 | Click **Hide** on a row. | The row leaves the table, the count becomes `N-1 drives`, and `1 hidden` appears beside it |
+| 1.15 | Click `1 hidden`. | The same table, showing the hidden drive dimmed, **Unhide** in its row, and **Back to the fleet** where the count was |
+| 1.16 | Click **Unhide**, then **Back to the fleet**. | The drive is back in the fleet and `N hidden` is gone |
+| 1.17 | Choose **Forget** on a **Not connected** row, then confirm. | The row disappears and `N-1 drives`; a connected row offers no **Forget** at all |
 | 1.12 | Hover a row, then click it. | The name underlines and the drive page opens |
 | 1.13 | Tab to a row and press Enter; press Space on another. | Both open the drive page |
 | 1.14 | Read the Usage cell of a drive whose filesystem the container can see, then open that drive. | The bar and percentage on the row match the **Disk space** figure on its page |

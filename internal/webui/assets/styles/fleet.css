@@ -1855,3 +1855,120 @@ dialog .btn-primary {
 .v2-logs .table-wrap {
   margin-top: var(--space-2);
 }
+
+/* --- sorting and the hidden half ------------------------------------------------ */
+
+/* A header is a button so it can be reached and pressed from the keyboard; it keeps the look of a
+   header, because a table of buttons reads as a toolbar rather than a table. */
+.fleet-sort {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+}
+
+.fleet-sort:hover {
+  color: var(--foreground);
+}
+
+.fleet-sort:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.fleet-sort .caret {
+  width: 0;
+  height: 0;
+  border-left: 3px solid transparent;
+  border-right: 3px solid transparent;
+  opacity: 0;
+}
+
+.fleet-sort .caret.asc {
+  border-bottom: 4px solid currentColor;
+  opacity: 1;
+}
+
+.fleet-sort .caret.desc {
+  border-top: 4px solid currentColor;
+  opacity: 1;
+}
+
+.fleet-table th[aria-sort='ascending'],
+.fleet-table th[aria-sort='descending'] {
+  color: var(--foreground);
+}
+
+/* Width only: the buttons inside carry the alignment. */
+.fleet-table col.actions {
+  width: 1%;
+}
+
+.fleet-table th.actions-cell {
+  padding-right: 0;
+}
+
+.fleet-table td.actions-cell {
+  padding-right: 0;
+  text-align: right;
+}
+
+/* Plus what this row's actions are: it is not a filter, so it does not look like the count chips. */
+.row-action {
+  padding: 2px var(--space-2);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  font: inherit;
+  font-size: var(--text-xs);
+  color: var(--muted);
+  cursor: pointer;
+  opacity: 0.55;
+  transition: opacity 120ms ease, color 120ms ease;
+}
+
+.fleet-table tbody tr:hover .row-action,
+.row-action:focus-visible {
+  opacity: 1;
+}
+
+.row-action:hover {
+  color: var(--foreground);
+}
+
+.row-action.danger:hover {
+  color: var(--bad);
+}
+
+.row-action:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+/* The hidden half is still a table of real drives, so it is dimmed rather than greyed out. */
+.fleet-table tbody tr.is-hidden td {
+  opacity: 0.62;
+}
+
+.fleet-hidden-toggle {
+  margin-left: var(--space-2);
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: var(--text-xs);
+  color: var(--muted);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.fleet-hidden-toggle:hover {
+  color: var(--foreground);
+}
