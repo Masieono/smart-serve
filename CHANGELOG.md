@@ -179,6 +179,35 @@ discarding silently is not. See `ADR-028`.
 
 ### Fixed
 
+- **A process killed by its timeout is no longer reported as success, and a rescan cannot join
+  another drive's scan.** The runner tested the exit code before the context, so a deadline kill
+  returned exit -1 and a nil error: a scan blamed the truncated JSON, the self-test watcher cleared
+  the badge mid-test, and the runner started the next drive on top of a running one. The context is
+  checked first now (a timeout and a cancellation are errors, a non-zero exit is data), and
+  `WaitDelay` bounds a child that holds the output pipes. The scan manager records what it is
+  reading and joins only a scan that answers the request (the same drive, or a full scan); anything
+  else is `409` with `ErrBusy`.
+- **A missing NVMe spare figure no longer reads as a failing drive, and an all-ones counter no
+  longer wraps negative.** `available_spare` and `available_spare_threshold` are optional and both
+  parsed to zero, so `0 <= 0` read a healthy drive as bad; a `spare_reported` flag gates the
+  comparison. A raw attribute is unsigned 64-bit and firmware writes all-ones for "not reported",
+  which converted to -1: every conversion clamps, `SectorIssues` saturates, and the store clamps on
+  write, so such a drive reads as failing with a positive count.
+- **A schedule can no longer be paused by a rename, saved with a cron typo, or "run now" while
+  paused.** `enabled` was an unconditional bool, so a PUT that only renamed a schedule paused it;
+  it is optional now (absent leaves it alone). A cron expression is parsed at save time, so a typo
+  is a `400` rather than a schedule that silently never fires. "Run now" on a paused schedule
+  answers `409` instead of `202` and nothing, and the button is disabled while paused.
+- **A `null` body no longer clears a drive's notes, and writing to an unknown serial is a `404`.**
+  A request body must now be JSON (an empty body, `null`, or trailing data is a `400`), because
+  decoding `null` into a struct left every field at zero and cleared the full-replace notes on a
+  drive. Notes, transport and the acknowledgement clear answer `404` for a serial that is not
+  stored, rather than creating an orphan row. A read-back after a committed write falls back to
+  what was written instead of a `500`.
+- **A self-test confirms the drive before it writes.** It was sent to the stored device path with
+  no identity check, and a path is reused when drives are swapped, so the test could land on
+  hardware nobody asked about. The serial at the path is read first and a different one is a `409`;
+  a drive that reports no serial is allowed through.
 - **The drive page has its controls back.** The rebuilt page never mounted them, so five things the
   app supports were unreachable: the **Edit** dialog (name, bay, tags, notes, bench flag, hidden),
   **Acknowledge**, the **`-d` transport override**, the **score breakdown** under the verdict, and the
@@ -300,6 +329,13 @@ discarding silently is not. See `ADR-028`.
 
 ### Security
 
+- **The session cookie is `Secure` behind a TLS-terminating proxy, and a 401 no longer raises a
+  browser Basic prompt.** `Secure: r.TLS != nil` was false when a reverse proxy terminated TLS and
+  forwarded over plain HTTP, so the cookie travelled without the flag in the deployment
+  `DEPLOYMENT.md` recommends; `SMARTSERVE_TRUST_PROXY` (off by default) makes `X-Forwarded-Proto:
+  https` count. An API `401` carried `WWW-Authenticate: Basic`, so an expired session raised the
+  browser's own credential dialog and the login page was never reached; the header is gone, the body
+  says `login: true`, and the client redirects to the sign-in page.
 - **A draft channel test can no longer be used to send a deployment secret to a caller-chosen
   server.** `POST /api/channels/test` applies the environment overrides (`SMARTSERVE_CHANNEL_*`) only
   when the draft names the saved channel it came from and keeps every field the environment does not
