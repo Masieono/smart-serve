@@ -40,8 +40,17 @@ func (s *Server) handleScan(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// A full scan can only join a full scan. Saying "started" and spawning a goroutine that will
+	// come straight back with ErrBusy is the same lie as reporting another drive's scan as this one.
+	running, coversFull := s.scanner.Busy()
+	if running && !coversFull {
+		writeError(w, http.StatusConflict,
+			"another scan is in progress and it is reading a single drive; a full scan cannot join it. "+
+				"Try again when it finishes.")
+		return
+	}
 	status := "started"
-	if s.scanner.Running() {
+	if running {
 		status = "joined"
 	}
 	go func() {
@@ -74,6 +83,12 @@ func (s *Server) handleScanDevice(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		if errors.Is(err, scan.ErrDeviceNotConnected) {
 			writeError(w, http.StatusNotFound, err.Error())
+			return
+		}
+		if errors.Is(err, scan.ErrBusy) {
+			// The honest answer: nothing was read, and the UI must not say it was.
+			writeError(w, http.StatusConflict,
+				"another scan is in progress; try again when it finishes.")
 			return
 		}
 		// The failure itself is not always about the drive: it can come from the store
