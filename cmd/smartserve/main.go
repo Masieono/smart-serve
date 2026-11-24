@@ -259,6 +259,10 @@ func runServe() error {
 		Handler:           api,
 		ReadHeaderTimeout: 10 * time.Second,
 	}
+	// The server's own stop waits for handlers to return and does not cancel their request
+	// contexts, and an SSE handler is one that never returns by itself. Closing the hub ends them,
+	// so a clean stop is quick and exits 0 instead of after the full timeout with a deadline error.
+	srv.RegisterOnShutdown(hub.Close)
 
 	serveErr := make(chan error, 1)
 	go func() {

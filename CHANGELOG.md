@@ -44,6 +44,17 @@ discarding silently is not. See `ADR-028`.
 - **Em dashes are gone from the app's own text**, in the interface, in Go strings that reach a
   person and in code comments. The glyph for a value that was never reported is `n/a`.
 
+### Fixed
+
+- **A clean stop finishes in milliseconds instead of hitting the ten-second timeout.** The server's
+  own stop waits for handlers to return and does not cancel their request contexts, and the SSE
+  handler never returns by itself, so every stop while a browser was open ran the full budget and
+  exited non-zero. Closing the hub ends those handlers.
+- **An SSE client that falls behind is reconnected rather than skipped.** The stream now subscribes
+  before it replays and never writes an id twice, so the gap between the two is closed, and a
+  subscriber whose channel is full is disconnected so `EventSource` reconnects with `Last-Event-ID`
+  and catches up from the ring.
+
 ### Security
 
 - **A 500 no longer quotes the database.** Every failed request used to answer `err.Error()` verbatim,
@@ -829,6 +840,17 @@ First public release.
   a responsive layout, and a health summary that doubles as a filter.
 - **Deployment** — multi-arch image (amd64 / arm64), `/healthz` for Docker `HEALTHCHECK`,
   and `SMARTSERVE_BASE_PATH` for subpath hosting behind a reverse proxy.
+
+### Fixed
+
+- **A clean stop finishes in milliseconds instead of hitting the ten-second timeout.** The server's
+  own stop waits for handlers to return and does not cancel their request contexts, and the SSE
+  handler never returns by itself, so every stop while a browser was open ran the full budget and
+  exited non-zero. Closing the hub ends those handlers.
+- **An SSE client that falls behind is reconnected rather than skipped.** The stream now subscribes
+  before it replays and never writes an id twice, so the gap between the two is closed, and a
+  subscriber whose channel is full is disconnected so `EventSource` reconnects with `Last-Event-ID`
+  and catches up from the ring.
 
 ### Security
 

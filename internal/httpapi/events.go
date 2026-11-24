@@ -162,18 +162,33 @@ func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	flusher.Flush()
 
-	// Replay anything the client missed, then follow live.
-	if last := r.Header.Get("Last-Event-ID"); last != "" {
-		if id, err := strconv.ParseInt(last, 10, 64); err == nil {
-			for _, ev := range s.hub.Since(id) {
-				writeSSE(w, ev)
-			}
-			flusher.Flush()
-		}
-	}
-
+	// Subscribe *first*, then replay.
+	//
+	// The other order had a hole: anything published between reading the ring and subscribing was in
+	// neither, and the client's Last-Event-ID had already moved past it. A lost `scan_complete` left
+	// the fleet showing a scan in progress forever.
 	id, ch := s.hub.Subscribe()
 	defer s.hub.Unsubscribe(id)
+
+	// One writer, and it drops an id it has already sent, so an event that was published in the
+	// moment between subscribing and replaying is written once rather than twice.
+	var highest int64
+	if last := r.Header.Get("Last-Event-ID"); last != "" {
+		if n, err := strconv.ParseInt(last, 10, 64); err == nil {
+			highest = n
+		}
+	}
+	send := func(ev events.Event) {
+		if ev.ID <= highest {
+			return
+		}
+		writeSSE(w, ev)
+		highest = ev.ID
+	}
+	for _, ev := range s.hub.Since(highest) {
+		send(ev)
+	}
+	flusher.Flush()
 
 	ticker := time.NewTicker(25 * time.Second)
 	defer ticker.Stop()
@@ -188,9 +203,11 @@ func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
 			flusher.Flush()
 		case ev, open := <-ch:
 			if !open {
+				// The hub closed the channel: shutdown, or this subscriber fell too far behind. The
+				// browser reconnects on its own and replays from `Last-Event-ID`.
 				return
 			}
-			writeSSE(w, ev)
+			send(ev)
 			flusher.Flush()
 		}
 	}
