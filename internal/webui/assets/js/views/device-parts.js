@@ -1,7 +1,7 @@
 // Device detail (docs/UI.md §7.2).
 import {
-  el, mount, clear, fmtBytes, fmtDateTime, fmtAgo, fmtStamp, fmtTemp, fmtHours, fmtInt, fmtScore, fmtCell,
-  fmtMinutes, scoreGrade, convertTemp, convertTempDelta, temperatureUnitName,
+  el, mount, clear, append, fmtBytes, fmtDateTime, fmtAgo, fmtStamp, fmtTemp, fmtHours, fmtInt, fmtScore,
+  fmtCell, fmtMinutes, scoreGrade, convertTemp, convertTempDelta, temperatureUnitName,
 } from '../dom.js';
 import { api } from '../api.js';
 import { verdictBadge, healthGauge, attributeTable, errorBox, openDialog, toast, transportLabel, trendRow, dateAxis, helpButton, partitionTable, sectorLabel, outsideContainerNote, setStorageWarnPct, diskMap } from '../components.js';
@@ -284,7 +284,7 @@ const BLOCKED_FIXES = {
  * Showing "this drive does not report S.M.A.R.T." for a permissions failure sends the
  * reader looking at the hardware instead of at the compose file.
  */
-function smartProblemNotice(ctx, d) {
+export function smartProblemNotice(ctx, d) {
   const blocked = BLOCKED_FIXES[d.smart_cause];
   if (blocked) {
     return el('div', { class: 'notice' }, [
@@ -552,7 +552,11 @@ export function scoreBreakdown(penalties) {
  */
 export function parsePenalties(raw) {
   try {
-    const list = JSON.parse(raw || '[]');
+    // The API sends `penalties` as a JSON *array* (it is a stored JSON document, served as-is), so
+    // `JSON.parse` receives an array and throws on "[object Object]", and the catch returned [].
+    // That is why no attribute row was ever marked as one the verdict read: the marking was fed
+    // from this, and this always said "no reasons".
+    const list = typeof raw === 'string' ? JSON.parse(raw || '[]') : (raw || []);
     return Array.isArray(list) ? list.filter((p) => p && p.reason) : [];
   } catch {
     return [];
@@ -1049,7 +1053,7 @@ function selectText(node) {
  * It says what the ack is *for* as well as that it exists, because "acknowledged" on its own does not
  * tell you whether the note still applies.
  */
-function ackNotice(d) {
+export function ackNotice(d) {
   if (!d.ack) return null;
   const when = d.ack.at ? ` · ${fmtAgo(d.ack.at)}` : '';
   return el('div', { class: 'ack-notice' }, [
@@ -1071,7 +1075,7 @@ function ackNotice(d) {
  * act on later, including the person who set it, and the whole value of the record is that it says
  * *why* the alert is being ignored.
  */
-function acknowledge(ctx, device, button) {
+export function acknowledge(ctx, device, button) {
   openDialog('Acknowledge this condition', (body, close, foot) => {
     const note = el('textarea', {
       value: device.ack ? device.ack.note || '' : '',
@@ -1109,7 +1113,7 @@ function acknowledge(ctx, device, button) {
 }
 
 /** Remove an acknowledgement, so the drive alerts again on the next scan. */
-async function unack(ctx, device, button) {
+export async function unack(ctx, device, button) {
   button.disabled = true;
   try {
     await api.unackDevice(device.serial);
@@ -1137,7 +1141,7 @@ function withTag(raw, tag, present) {
   return [...rest, tag].join(',');
 }
 
-function editNotes(ctx, device, benchTag) {
+export function editNotes(ctx, device, benchTag) {
   openDialog('Device notes', (body, close, foot) => {
     const name = el('input', { type: 'text', value: device.name || '', placeholder: 'e.g. boot, backup pool' });
     const bay = el('input', { type: 'text', value: device.bay || '', placeholder: 'e.g. bay 4, front top, USB port 2' });
@@ -1160,7 +1164,10 @@ function editNotes(ctx, device, benchTag) {
       bench.checked = hasTag(tags.value, benchTag);
     });
 
-    body.append(
+    // `append`, not `body.append`: the bench row is absent when the server sent no bench tag, and
+    // the DOM's own append stringifies the `null` that used to stand in its place, which drew the
+    // word "null" between two fields.
+    append(body, [
       el('div', { class: 'field' }, [el('label', { text: 'Name' }), name]),
       el('div', { class: 'field' }, [el('label', { text: 'Bay' }), bay,
         el('p', { class: 'muted field-hint', text: 'Where the drive physically is. A serial ' +
@@ -1171,8 +1178,8 @@ function editNotes(ctx, device, benchTag) {
             el('span', { text: 'Being tested, left out of the fleet counts' })])
         : null,
       el('div', { class: 'field' }, [el('label', { text: 'Notes' }), notes]),
-      el('label', { class: 'field-row' }, [hidden, el('span', { text: 'Hide from the dashboard' })]),
-    );
+      el('label', { class: 'field-row' }, [hidden, el('span', { text: 'Hide from the fleet' })]),
+    ]);
 
     foot.append(
       el('button', { class: 'btn', type: 'button', text: 'Cancel', onclick: close }),

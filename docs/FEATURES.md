@@ -16,11 +16,15 @@ testing-session card and the "remind me later" snooze are retired; they are not 
 described below. The ranking the shortlist used survives as the digest's drive order
 (`internal/notify/digest_sender.go`).
 
-Some long-standing facts are served by the API but are not drawn by the rebuilt pages: notes, tags and
-bay (`PUT /api/devices/{serial}/notes` and `GET /api/devices/{serial}`), acknowledgement
-(`PUT /api/devices/{serial}/ack`), the `-d` transport override, the score breakdown, the longevity
-projection, knowledge ratings and advisories, and the "since the last scan" diff. Their entries say
-which surface carries them.
+Two facts are served by the API and still not drawn: the longevity projection in detail, and the
+knowledge base's rated endurance and advisories on a drive page (managed under Settings → Data).
+Their entries say so.
+
+The rest of what the first cut of the rebuilt device page lost is back, and each of these is a
+control or an explanation on that page rather than a route: **Edit** (name, bay, tags, notes, bench,
+hidden), **Acknowledge** (`B7`), the **`-d` transport override** inside the notice that appears when
+the drive cannot be read, the **score breakdown** under the verdict, and the **"since the last scan"**
+diff. **Compare** is reachable from the fleet table (`D6`).
 
 ## What is left
 
@@ -372,7 +376,7 @@ bundle's own `note` says so. Knowledge overrides travel (`A21`); the fetched cac
 | D3 | Responsive mobile layout | MVP | 💤 | Sidebar becomes a drawer; the topbar exists only for the toggle |
 | D4 | Hide a drive, or forget one entirely | MVP | 💤 | Hidden drives are left out of the fleet; forgetting removes the drive, its history and its notes, and is not undoable. Both are API only today |
 | D5 | Sort, filter and search the fleet | P2 | 💤 | Every column sorts: click the header, click it again to reverse, `aria-sort` carries the state. The default is the reading order (failing, caution, no reading, healthy, then lower score, then name). A drive with no value for the sorted column goes last in both directions. The glance counts filter by state, and search covers name, bay, serial, model, tags, filesystem and mountpoint |
-| D6 | Side-by-side comparison | P3 | 💤 | `GET /api/compare?serials=` aligns two to six drives by attribute id server-side, marking rows that differ and cells a drive flagged (`ADR-027`). The fleet-table picker that opened the dialog is not in the rebuilt fleet view |
+| D6 | Side-by-side comparison | P3 | 💤 | The fleet's **Compare** opens a picker, then the table; `GET /api/compare?serials=` aligns two to six drives by attribute id server-side, marking rows that differ and cells a drive flagged (`ADR-027`). The fleet-table picker that opened the dialog is not in the rebuilt fleet view |
 | D7 | Localization | P3 | 💤 | **Not built, and deferred**: the cost is extracting every string and keeping every locale in step, which is only worth it for a translator who maintains the result (`ADR-023`) |
 | D8 | Dense fleet table | P2 | 💤 | The fleet page itself: one row per drive with health word and score in one cell, usage, temperature, powered-on hours, and the row's own actions in a trailing column |
 | D9 | Tags and group scope | P2 | 💤 | Tags are stored per drive and used for notification group scope and correlated heat (`A25`). The fleet's "group by tag" toggle did not survive the rebuild |
