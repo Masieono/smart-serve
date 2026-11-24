@@ -29,6 +29,11 @@ type Config struct {
 	// AuthIssue is the reason the auth environment cannot be used, or empty. It is checked at
 	// start-up and refuses to run: half a credential must never quietly mean "no password".
 	AuthIssue string
+	// TrustProxy is SMARTSERVE_TRUST_PROXY: honour `X-Forwarded-Proto` from the thing in front of
+	// this app. Off by default, because a header anyone can send is not evidence; on in the
+	// deployment the docs recommend, where a reverse proxy terminates TLS and forwards to this
+	// process over plain HTTP, and the session cookie would otherwise never be marked Secure.
+	TrustProxy bool
 }
 
 // Load reads configuration from the environment, applying documented defaults.
@@ -42,6 +47,7 @@ func Load() Config {
 		LogLevel:        env("SMARTSERVE_LOG_LEVEL", "info"),
 		AuthUser:        strings.TrimSpace(os.Getenv("SMARTSERVE_AUTH_USER")),
 		AuthPassword:    os.Getenv("SMARTSERVE_AUTH_PASSWORD"),
+		TrustProxy:      envBool("SMARTSERVE_TRUST_PROXY"),
 	}
 	c.AuthPassword, c.AuthIssue = resolvePassword(c.AuthPassword, os.Getenv("SMARTSERVE_AUTH_PASSWORD_FILE"))
 	if c.AuthIssue == "" {
@@ -135,4 +141,14 @@ func timeoutFromSeconds(n int) time.Duration {
 		return def
 	}
 	return time.Duration(n) * time.Second
+}
+
+// envBool reads a switch that is off unless it says otherwise. Anything unrecognised is off: a typo
+// in a security switch must not turn it on.
+func envBool(key string) bool {
+	switch strings.ToLower(strings.TrimSpace(os.Getenv(key))) {
+	case "1", "true", "yes", "on":
+		return true
+	}
+	return false
 }

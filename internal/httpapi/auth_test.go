@@ -42,8 +42,11 @@ func TestAPIIs401WithoutACredential(t *testing.T) {
 	if !strings.Contains(rec.Body.String(), "authentication required") {
 		t.Errorf("body = %q, want a JSON error", rec.Body.String())
 	}
-	if got := rec.Header().Get("WWW-Authenticate"); !strings.Contains(got, "Basic") {
-		t.Errorf("WWW-Authenticate = %q, want a Basic challenge for scripts", got)
+	// Deliberately absent: the browser raises its own credential dialog for any 401 that carries a
+	// challenge, and an expired session in a tab is exactly that. Scripts send the credential
+	// themselves, so they never needed to be asked.
+	if got := rec.Header().Get("WWW-Authenticate"); got != "" {
+		t.Errorf("WWW-Authenticate = %q, want none: it makes the browser prompt instead of the login page", got)
 	}
 }
 
@@ -327,5 +330,47 @@ func TestIdleWindowFollowsTheSetting(t *testing.T) {
 	}
 	if got := s.auth.store.Idle(); got != time.Minute {
 		t.Errorf("idle after the setting changed = %v, want 1m: the window is fixed at start-up", got)
+	}
+}
+
+// Behind a reverse proxy the process sees plain HTTP, so `r.TLS` is nil and the cookie used to be
+// issued without `Secure` in the deployment the docs recommend. The proxy's own header is believed
+// only when the operator says the proxy is there.
+func TestCookieIsSecureBehindATrustedProxy(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		trustProxy bool
+		forwarded  string
+		wantSecure bool
+	}{
+		{name: "no proxy configured", trustProxy: false, forwarded: "https", wantSecure: false},
+		{name: "trusted proxy, https", trustProxy: true, forwarded: "https", wantSecure: true},
+		{name: "trusted proxy, plain", trustProxy: true, forwarded: "http", wantSecure: false},
+		{name: "trusted proxy, no header", trustProxy: true, forwarded: "", wantSecure: false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			s, _, _, _ := newTestServer(t, Options{
+				Auth:       auth.Credentials{User: "admin", Password: "s3cret"},
+				TrustProxy: tc.trustProxy,
+				UI:         http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { io.WriteString(w, "app") }),
+			})
+
+			rec := httptest.NewRecorder()
+			req := httptest.NewRequest(http.MethodPost, "/api/session",
+				strings.NewReader("user=admin&password=s3cret"))
+			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+			if tc.forwarded != "" {
+				req.Header.Set("X-Forwarded-Proto", tc.forwarded)
+			}
+			s.ServeHTTP(rec, req)
+
+			cookies := rec.Result().Cookies()
+			if len(cookies) == 0 {
+				t.Fatal("no session cookie")
+			}
+			if cookies[0].Secure != tc.wantSecure {
+				t.Errorf("Secure = %v, want %v", cookies[0].Secure, tc.wantSecure)
+			}
+		})
 	}
 }

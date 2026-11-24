@@ -47,7 +47,10 @@ type Options struct {
 	// AuthIdleMinutes reports the idle window from the settings, so the login layer honours the
 	// number the operator set rather than a constant.
 	AuthIdleMinutes func(ctx context.Context) int
-	Logger          *slog.Logger
+	// TrustProxy honours `X-Forwarded-Proto` for the session cookie's Secure flag
+	// (`SMARTSERVE_TRUST_PROXY`). Off unless the operator says the proxy is there.
+	TrustProxy bool
+	Logger     *slog.Logger
 	// UI, when set, serves the web interface at every path the API does not
 	// claim (including SPA deep links).
 	UI http.Handler
@@ -176,11 +179,12 @@ func New(st *store.Store, sc *scan.Manager, hub *events.Hub, opts Options) *Serv
 			return auth.DefaultIdle
 		}
 		s.auth = &authGate{
-			base:  s.basePath,
-			creds: opts.Auth,
-			store: auth.New(idle(), auth.DefaultMax),
-			idle:  idle,
-			log:   logger,
+			base:       s.basePath,
+			trustProxy: opts.TrustProxy,
+			creds:      opts.Auth,
+			store:      auth.New(idle(), auth.DefaultMax),
+			idle:       idle,
+			log:        logger,
 		}
 	}
 

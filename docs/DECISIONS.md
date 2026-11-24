@@ -1544,8 +1544,11 @@ multi-user, and this is the one exception.
 
 1. With both variables unset, every request behaves exactly as it does today — no 401, no
    `WWW-Authenticate` header, nothing to notice.
-2. With both set, a request to any path other than `/healthz` without credentials answers `401` and
-   carries `WWW-Authenticate: Basic realm="Smart-Serve"`.
+2. With both set, a request to any path other than `/healthz` without credentials answers `401` with
+   `{"error":"authentication required","login":true}`. No `WWW-Authenticate` header: it makes a
+   browser raise its own credential dialog, and the app has a login page. Scripts are unaffected
+   because they send the credential rather than waiting to be asked. The session cookie is `Secure`
+   when the request arrived over TLS, or when `SMARTSERVE_TRUST_PROXY` is set and the proxy says so.
 3. With correct credentials, the request is served normally — including `GET /api/events`, which
    streams rather than completing.
 4. `GET /healthz` answers `200 ok` with no credentials at all, with auth enabled.
