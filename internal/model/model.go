@@ -41,19 +41,23 @@ type NVMeHealth struct {
 	TemperatureSensors   []int `json:"temperature_sensors,omitempty"`
 	AvailableSpare       int   `json:"available_spare"`
 	AvailableSpareThresh int   `json:"available_spare_threshold"`
-	PercentageUsed       int   `json:"percentage_used"`
-	DataUnitsRead        int64 `json:"data_units_read"`
-	DataUnitsWritten     int64 `json:"data_units_written"`
-	HostReads            int64 `json:"host_reads"`
-	HostWrites           int64 `json:"host_writes"`
-	ControllerBusyTime   int64 `json:"controller_busy_time"`
-	PowerCycles          int64 `json:"power_cycles"`
-	PowerOnHours         int64 `json:"power_on_hours"`
-	UnsafeShutdowns      int64 `json:"unsafe_shutdowns"`
-	MediaErrors          int64 `json:"media_errors"`
-	ErrorLogEntries      int64 `json:"num_err_log_entries"`
-	WarningTempTime      int64 `json:"warning_temp_time"`
-	CriticalCompTime     int64 `json:"critical_comp_time"`
+	// SpareReported says the log carried both spare figures. Without it, an omitted pair is
+	// indistinguishable from 0% spare left, which is the difference between a healthy drive and a
+	// failing one.
+	SpareReported      bool  `json:"spare_reported,omitempty"`
+	PercentageUsed     int   `json:"percentage_used"`
+	DataUnitsRead      int64 `json:"data_units_read"`
+	DataUnitsWritten   int64 `json:"data_units_written"`
+	HostReads          int64 `json:"host_reads"`
+	HostWrites         int64 `json:"host_writes"`
+	ControllerBusyTime int64 `json:"controller_busy_time"`
+	PowerCycles        int64 `json:"power_cycles"`
+	PowerOnHours       int64 `json:"power_on_hours"`
+	UnsafeShutdowns    int64 `json:"unsafe_shutdowns"`
+	MediaErrors        int64 `json:"media_errors"`
+	ErrorLogEntries    int64 `json:"num_err_log_entries"`
+	WarningTempTime    int64 `json:"warning_temp_time"`
+	CriticalCompTime   int64 `json:"critical_comp_time"`
 }
 
 // SmartData is the normalized S.M.A.R.T. payload for a single device.

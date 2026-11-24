@@ -10,6 +10,7 @@ import (
 	"embed"
 	"fmt"
 	"io/fs"
+	"math"
 	"sort"
 	"strconv"
 	"strings"
@@ -166,6 +167,11 @@ func nullInt64(p *int64) any {
 func nullUint(p *uint64) any {
 	if p == nil {
 		return nil
+	}
+	// SQLite stores this as a signed integer, and all-ones from a drive would wrap negative on the
+	// way in. Clamp rather than write a number that reads as a decrease.
+	if *p > math.MaxInt64 {
+		return int64(math.MaxInt64)
 	}
 	return int64(*p)
 }

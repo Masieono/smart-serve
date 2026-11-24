@@ -2,6 +2,7 @@ package interp
 
 import (
 	"fmt"
+	"math"
 	"time"
 
 	"github.com/masieono/smart-serve/internal/model"
@@ -34,7 +35,7 @@ func SectorIssues(attrs []model.Attribute) int64 {
 	for _, id := range sectorAttributeIDs {
 		for i := range attrs {
 			if attrs[i].ID == id {
-				total += int64(effectiveCount(attrs[i].RawValue))
+				total = satAdd(total, satInt64(effectiveCount(attrs[i].RawValue)))
 				break
 			}
 		}
@@ -321,4 +322,14 @@ func pct(v float64) string {
 		return fmt.Sprintf("%.0f%%", v)
 	}
 	return fmt.Sprintf("%.1f%%", v)
+}
+
+// satAdd adds without wrapping. Two attributes each clamped to the int64 maximum would otherwise sum
+// to a negative number, which is how a drive that reported all-ones for every counter ended up with
+// a negative sector total and a worsening flag that could never fire.
+func satAdd(a, b int64) int64 {
+	if b > 0 && a > math.MaxInt64-b {
+		return math.MaxInt64
+	}
+	return a + b
 }
