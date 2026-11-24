@@ -277,6 +277,9 @@ and `routine` counts the rest rather than dropping them, because a silent filter
 omission. `appeared` marks a counter the drive has just started reporting. `note` is present when
 there is no diff to make at all, which is a different finding from an empty one.
 
+`GET /api/devices/{serial}/history` takes `from` and `to`; without them the window is
+**`retention_days`**, not a fixed number, so "All" in the interface means everything this install kept.
+
 `projection` is what the drive's **history** says about where it is heading, over a window that is
 the user's own `retention_days` setting (`internal/store/settings.go`, `FEATURES.md` A26). It used
 to be fixed at 180 days, which meant an owner who raised retention to watch a slow trend had that
@@ -573,7 +576,9 @@ from the environment can be saved with the token field left blank.
 }
 ```
 
-`status` is `sent`, `failed` or `squelched`. The log is the only record of an alert
+`status` is `sent`, `failed`, `squelched` or `skipped`. **`skipped` means the pass ran out of its
+time budget before reaching that channel**, which is not the channel's failure: a single black-holed
+destination used to record `failed` against every channel queued behind it. The log is the only record of an alert
 that fired while a channel was down, so it is the recovery path described in
 ADR-008. `event_types` and `channel_types` are served here so the UI's subscription
 checkboxes and type picker cannot drift from the server. `channel_env_vars` lists the names of

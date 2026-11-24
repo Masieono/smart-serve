@@ -87,6 +87,19 @@ discarding silently is not. See `ADR-028`.
 
 ### Fixed
 
+- **The history range called "All" stopped at 180 days.** The endpoint defaulted `from` to a fixed
+  six months, so raising `retention_days` kept the data and never showed it. The default is the
+  retention window now.
+- **One dead notification destination no longer indicts the rest.** Channels the pass never reached
+  were recorded as `failed` with a context error; they are `skipped`, and the delivery log stops
+  blaming them.
+- **Two identical drives with no serial no longer collapse into one.** The `__nomodel:<model>`
+  fallback was the same string for both, so the second upserted over the first and their histories
+  interleaved. Discovery order disambiguates them.
+- **An unmatched `/api/...` path is a 404, not the interface with a 200.** The SPA fallback answered
+  every unknown API path with the shell, so a typo'd endpoint looked like success to every caller.
+- **CSV exports neutralise spreadsheet formulas.** A model string beginning `=`, `+`, `-` or `@` is
+  written with a leading apostrophe, because these files exist to be opened in a spreadsheet.
 - **A clean stop finishes in milliseconds instead of hitting the ten-second timeout.** The server's
   own stop waits for handlers to return and does not cancel their request contexts, and the SSE
   handler never returns by itself, so every stop while a browser was open ran the full budget and

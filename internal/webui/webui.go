@@ -110,6 +110,17 @@ func New(themeFn ThemeFunc, opts Options) (http.Handler, error) {
 			}
 		}
 
+		// An API path that reached this fallback matched no route: a typo, a wrong method, or a
+		// client pointed at the wrong base. Rendering the SPA with a 200 told every caller the
+		// request had worked, and the client's `res.ok` check then parsed the shell as null and left
+		// the page blank with no message.
+		if strings.HasPrefix(r.URL.Path, "/api/") {
+			w.Header().Set("Content-Type", "application/json; charset=utf-8")
+			w.WriteHeader(http.StatusNotFound)
+			_, _ = w.Write([]byte(`{"error":"no such endpoint"}`))
+			return
+		}
+
 		theme := DefaultTheme
 		if themeFn != nil {
 			theme = themeFn(r.Context())

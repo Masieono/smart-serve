@@ -270,7 +270,7 @@ func renderFleetCSV(rows []fleetRow) string {
 		for i, c := range cols {
 			record[i] = c.value(row)
 		}
-		_ = w.Write(record)
+		_ = w.Write(csvRow(record))
 	}
 	w.Flush()
 	return b.String()

@@ -349,6 +349,10 @@ const (
 	OutcomeSent      Outcome = "sent"
 	OutcomeFailed    Outcome = "failed"
 	OutcomeSquelched Outcome = "squelched"
+	// OutcomeSkipped is a channel the pass never got to, which is not the channel's fault. It used to
+	// be recorded as `failed` with a context error, so one black-holed destination indicted every
+	// channel queued behind it, and the delivery log is the only evidence an operator has.
+	OutcomeSkipped Outcome = "skipped"
 )
 
 // Sender delivers one event to one destination of a particular channel type.
@@ -590,6 +594,12 @@ func (d *Dispatcher) ValidateConfig(typ string, cfg map[string]any) error {
 func (d *Dispatcher) Types() []string { return d.reg.Types() }
 
 func (d *Dispatcher) deliver(ctx context.Context, ch store.Channel, sender Sender, cfg map[string]any, ev Event, p pass) {
+	// The pass has a budget, and an earlier channel can use all of it. Nothing is attempted here, so
+	// nothing failed here.
+	if ctx.Err() != nil {
+		d.record(ctx, ch.ID, ev, OutcomeSkipped, "the pass ran out of time before this channel was tried")
+		return
+	}
 	// A maintenance window silences everything for the drives it covers. It is
 	// checked before squelching because it is a deliberate operator action, and the
 	// delivery log should say so rather than blaming a squelch timer.
