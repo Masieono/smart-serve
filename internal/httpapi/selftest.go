@@ -64,6 +64,25 @@ func (s *Server) handleStartSelfTest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// The only command in this app that changes a drive, so the identity is confirmed first. A path
+	// is not an identity: unplug drive A without rescanning, plug in B, and `/dev/sdb` is B. Starting
+	// the test then wrote it onto the wrong disk and the toast named the drive that was gone.
+	present, err := s.selfTestCmd.Identify(r.Context(), s.commandTimeout(r.Context()),
+		rec.DevicePath, rec.TransportOverride)
+	if err != nil {
+		writeError(w, http.StatusBadGateway,
+			"could not read the drive at "+rec.DevicePath+": "+err.Error())
+		return
+	}
+	// A drive that reports no serial cannot be checked against; one that reports a different serial
+	// is a different drive, which is exactly what this is here to catch.
+	if present != "" && rec.Serial != "" && present != rec.Serial {
+		writeError(w, http.StatusConflict,
+			"the drive at "+rec.DevicePath+" reports serial "+present+", not "+rec.Serial+
+				". Scan first, so the test starts on the right drive.")
+		return
+	}
+
 	res, err := s.selfTestCmd.Start(r.Context(), s.commandTimeout(r.Context()),
 		rec.DevicePath, rec.TransportOverride, kind)
 	if err != nil {

@@ -231,8 +231,12 @@ export function selfTestCard(ctx, device, logs, onLogs = null, renderHistory = n
 
   function runButton(label, kind, minutes, detail) {
     const cost = fmtShort(minutes);
+    // A drive that is not connected cannot be tested, and offering the button only produces a
+    // refusal from the server (which checks the identity at the path before it starts anything).
+    const absent = Boolean(device && device.is_missing);
     return el('button', {
-      class: 'btn', type: 'button', title: detail,
+      class: 'btn', type: 'button', disabled: absent,
+      title: absent ? 'This drive is not connected' : detail,
       onclick: async (event) => {
         // First statement, deliberately: the confirmation below is an `await`, and
         // `event.currentTarget` is null by the time it resolves.

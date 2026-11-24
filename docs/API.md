@@ -735,8 +735,10 @@ stop demanding a value that is never going to be typed into the form (`ADR-022`)
   scan (`FEATURES.md` §E).
 - `POST /api/devices/{serial}/selftest` — body `{ "kind": "short" | "long" }`. Starts a
   test, and is **the only request in this API that changes a drive.** A `400` for a
-  `kind` that is neither of the two, a `409` when no device path is recorded, and a
-  `502` carrying smartctl's own words when the drive refuses. The response quotes the
+  `kind` that is neither of the two, a `409` when no device path is recorded **or when the drive at
+  that path reports a different serial** (a path is reused when drives are swapped, and a test must
+  never land on hardware nobody asked about), and a `502` carrying smartctl's own words when the
+  drive refuses. The response quotes the
   drive's acknowledgement in `note` rather than paraphrasing it.
 - `POST /api/devices/{serial}/selftest/abort` — stops whichever test is running
   (`smartctl -X`). A long test runs for hours, so this is a first-class action rather
