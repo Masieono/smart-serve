@@ -1,6 +1,8 @@
 package interp
 
 import (
+	"math"
+	"strings"
 	"testing"
 
 	"github.com/masieono/smart-serve/internal/model"
@@ -85,31 +87,31 @@ func TestEvaluateNVMe(t *testing.T) {
 	}{
 		{
 			name:    "healthy",
-			log:     &model.NVMeHealth{AvailableSpare: 100, AvailableSpareThresh: 10, PercentageUsed: 4},
+			log:     &model.NVMeHealth{AvailableSpare: 100, AvailableSpareThresh: 10, SpareReported: true, PercentageUsed: 4},
 			verdict: model.Good,
 			score:   100,
 		},
 		{
 			name:    "worn but within limits",
-			log:     &model.NVMeHealth{AvailableSpare: 100, AvailableSpareThresh: 10, PercentageUsed: 60},
+			log:     &model.NVMeHealth{AvailableSpare: 100, AvailableSpareThresh: 10, SpareReported: true, PercentageUsed: 60},
 			verdict: model.Good,
 			score:   78,
 		},
 		{
 			name:    "nearly worn out is caution",
-			log:     &model.NVMeHealth{AvailableSpare: 100, AvailableSpareThresh: 10, PercentageUsed: 92},
+			log:     &model.NVMeHealth{AvailableSpare: 100, AvailableSpareThresh: 10, SpareReported: true, PercentageUsed: 92},
 			verdict: model.Caution,
 			score:   65,
 		},
 		{
 			name:    "critical warning is bad",
-			log:     &model.NVMeHealth{CriticalWarning: 1, AvailableSpare: 100, AvailableSpareThresh: 10},
+			log:     &model.NVMeHealth{CriticalWarning: 1, AvailableSpare: 100, AvailableSpareThresh: 10, SpareReported: true},
 			verdict: model.Bad,
 			score:   39,
 		},
 		{
 			name:    "spare below threshold is bad",
-			log:     &model.NVMeHealth{AvailableSpare: 5, AvailableSpareThresh: 10, PercentageUsed: 20},
+			log:     &model.NVMeHealth{AvailableSpare: 5, AvailableSpareThresh: 10, SpareReported: true, PercentageUsed: 20},
 			verdict: model.Bad,
 			score:   39,
 		},
@@ -394,5 +396,61 @@ func TestEvaluateNoDataIsUnknown(t *testing.T) {
 	}
 	if got.Rationale != "error: device open failed" {
 		t.Errorf("rationale = %q", got.Rationale)
+	}
+}
+
+// A health log that omits the spare fields is not a drive with no spare blocks.
+//
+// Both fields parsed to zero, so `0 <= 0` produced a failing verdict with "spare blocks below
+// threshold (0%)" on a healthy drive: absence read as a reading, which is the one output this app
+// must never invent. The fields are optional in smartctl's JSON and a legacy or partial log omits
+// them.
+func TestNVMeWithoutSpareFieldsIsNotFailing(t *testing.T) {
+	res := Evaluate(&model.SmartData{NVMe: &model.NVMeHealth{
+		PercentageUsed: 3,
+	}}, Thresholds{})
+
+	if res.Verdict == model.Bad {
+		t.Fatalf("verdict = bad (%q), want anything but a verdict invented from missing fields", res.Rationale)
+	}
+	if strings.Contains(res.Rationale, "spare") {
+		t.Errorf("rationale = %q, want no mention of spare blocks", res.Rationale)
+	}
+}
+
+// When the drive does report them, the comparison is the drive's: at the threshold is failing.
+func TestNVMeSpareBelowThresholdIsFailing(t *testing.T) {
+	res := Evaluate(&model.SmartData{NVMe: &model.NVMeHealth{
+		AvailableSpare: 0, AvailableSpareThresh: 10, SpareReported: true,
+	}}, Thresholds{})
+
+	if res.Verdict != model.Bad {
+		t.Fatalf("verdict = %v, want bad", res.Verdict)
+	}
+	if !strings.Contains(res.Rationale, "spare blocks below threshold") {
+		t.Errorf("rationale = %q, want it to name the spare blocks", res.Rationale)
+	}
+}
+
+// Firmware writes all-ones for "not reported". Converted unchecked that is -1, and a drive that has
+// lost every sector read as caution with a negative sector count.
+func TestAnAllOnesCounterDoesNotWrap(t *testing.T) {
+	sd := &model.SmartData{Attributes: []model.Attribute{
+		attr(5, math.MaxUint64),   // reallocated
+		attr(197, math.MaxUint64), // pending
+		attr(9, math.MaxUint64),   // power-on hours
+	}}
+
+	res := Evaluate(sd, Thresholds{ReallocatedBad: 1, PendingBad: 1, UncorrectableBad: 1, TemperatureC: 55})
+	if res.Verdict != model.Bad {
+		t.Errorf("verdict = %v, want bad: the threshold is 1 and the drive reported a huge number", res.Verdict)
+	}
+	if n := SectorIssues(sd.Attributes); n <= 0 {
+		t.Errorf("SectorIssues = %d, want a positive count rather than a wrapped one", n)
+	}
+	for _, p := range res.Penalties {
+		if strings.Contains(p.Reason, "-1") {
+			t.Errorf("penalty = %q, a negative count reached the reasons", p.Reason)
+		}
 	}
 }

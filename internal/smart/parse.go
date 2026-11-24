@@ -72,11 +72,12 @@ type rawAttribute struct {
 }
 
 type rawNVMe struct {
-	CriticalWarning         int   `json:"critical_warning"`
-	Temperature             int   `json:"temperature"` // Kelvin
-	TemperatureSensors      []int `json:"temperature_sensors"`
-	AvailableSpare          int   `json:"available_spare"`
-	AvailableSpareThreshold int   `json:"available_spare_threshold"`
+	CriticalWarning    int   `json:"critical_warning"`
+	Temperature        int   `json:"temperature"` // Kelvin
+	TemperatureSensors []int `json:"temperature_sensors"`
+	// Pointers: a health log that omits the spare fields must not read as "0% spare left".
+	AvailableSpare          *int  `json:"available_spare"`
+	AvailableSpareThreshold *int  `json:"available_spare_threshold"`
 	PercentageUsed          int   `json:"percentage_used"`
 	DataUnitsRead           int64 `json:"data_units_read"`
 	DataUnitsWritten        int64 `json:"data_units_written"`
@@ -153,8 +154,9 @@ func ParseSMART(data []byte) (*model.SmartData, error) {
 		sd.NVMe = &model.NVMeHealth{
 			CriticalWarning:      r.NVMe.CriticalWarning,
 			TemperatureSensors:   r.NVMe.TemperatureSensors,
-			AvailableSpare:       r.NVMe.AvailableSpare,
-			AvailableSpareThresh: r.NVMe.AvailableSpareThreshold,
+			AvailableSpare:       derefInt(r.NVMe.AvailableSpare),
+			AvailableSpareThresh: derefInt(r.NVMe.AvailableSpareThreshold),
+			SpareReported:        r.NVMe.AvailableSpare != nil && r.NVMe.AvailableSpareThreshold != nil,
 			PercentageUsed:       r.NVMe.PercentageUsed,
 			DataUnitsRead:        r.NVMe.DataUnitsRead,
 			DataUnitsWritten:     r.NVMe.DataUnitsWritten,
@@ -212,4 +214,12 @@ func busFromType(t string) model.Bus {
 	default:
 		return ""
 	}
+}
+
+// derefInt unwraps an optional integer from smartctl's JSON, where absence is meaningful.
+func derefInt(p *int) int {
+	if p == nil {
+		return 0
+	}
+	return *p
 }

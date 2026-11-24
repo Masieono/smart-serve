@@ -191,16 +191,19 @@ func evaluateATA(sd *model.SmartData, t Thresholds) Result {
 	verdict := model.Good
 	var why []string
 
+	// Clamped before the comparison, not after: firmware writes all-ones for "not reported", and a
+	// plain conversion makes that -1, so the worst reading a drive can give compared as healthy.
+	reallocated, pending, uncorrectable := satInt(count(5)), satInt(count(197)), satInt(count(198))
 	switch {
-	case int(count(5)) >= t.ReallocatedBad:
+	case reallocated >= t.ReallocatedBad:
 		verdict = model.Bad
-		why = append(why, fmt.Sprintf("%d reallocated sectors", count(5)))
-	case int(count(197)) >= t.PendingBad:
+		why = append(why, fmt.Sprintf("%d reallocated sectors", reallocated))
+	case pending >= t.PendingBad:
 		verdict = model.Bad
-		why = append(why, fmt.Sprintf("%d pending sectors", count(197)))
-	case int(count(198)) >= t.UncorrectableBad:
+		why = append(why, fmt.Sprintf("%d pending sectors", pending))
+	case uncorrectable >= t.UncorrectableBad:
 		verdict = model.Bad
-		why = append(why, fmt.Sprintf("%d uncorrectable sectors", count(198)))
+		why = append(why, fmt.Sprintf("%d uncorrectable sectors", uncorrectable))
 	}
 
 	if verdict != model.Bad {
@@ -280,7 +283,10 @@ func evaluateNVMe(sd *model.SmartData, t Thresholds) Result {
 			Points: math.Min(40, float64(bits.OnesCount(uint(n.CriticalWarning)))*10),
 		})
 	}
-	if n.AvailableSpare <= n.AvailableSpareThresh {
+	// Only when the drive reported both figures: an omitted pair parses as 0 <= 0, which read as a
+	// failing drive. Absence is not a reading, and inventing a verdict is the one thing a health
+	// monitor must never do.
+	if n.SpareReported && n.AvailableSpare <= n.AvailableSpareThresh {
 		verdict = model.Bad
 		why = append(why, fmt.Sprintf("spare blocks below threshold (%d%%)", n.AvailableSpare))
 	}
@@ -453,13 +459,13 @@ func DeriveMetrics(sd *model.SmartData) Metrics {
 	}
 	if m.PowerOnHours == nil {
 		if v, ok := count(9); ok {
-			h := int64(v)
+			h := satInt64(v)
 			m.PowerOnHours = &h
 		}
 	}
 	if m.PowerCycles == nil {
 		if v, ok := count(12); ok {
-			c := int64(v)
+			c := satInt64(v)
 			m.PowerCycles = &c
 		}
 	}
@@ -495,4 +501,25 @@ func effectiveCount(raw uint64) uint64 {
 		}
 	}
 	return raw
+}
+
+// satInt64 and satInt clamp a counter to the range the type can hold.
+//
+// smartctl reports a raw attribute value as unsigned 64-bit, and firmware does write all-ones there
+// to mean "not reported". Converting that unchecked wraps it to -1, and everything downstream then
+// lies in the same direction: the reallocated-sector threshold is never reached, the drive reads as
+// caution rather than failing, the stored sector count goes backwards, and the worsening flag can
+// never fire because no later reading is higher than a negative one.
+func satInt64(v uint64) int64 {
+	if v > math.MaxInt64 {
+		return math.MaxInt64
+	}
+	return int64(v)
+}
+
+func satInt(v uint64) int {
+	if v > uint64(math.MaxInt) {
+		return math.MaxInt
+	}
+	return int(v)
 }
