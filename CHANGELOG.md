@@ -179,6 +179,14 @@ discarding silently is not. See `ADR-028`.
 
 ### Fixed
 
+- **The schedules table's action column no longer covers its switch.** The schedules table shares the
+  fleet table's class, and the fleet's own `col.actions { width: 1% }` came later in the stylesheet at
+  equal specificity, so the schedules action column was 11px wide and its right-aligned buttons spilled
+  leftward across the On switch as the window narrowed. The switch and the buttons now have the width
+  they need, the table scrolls below 900px instead of overlapping, and the buttons wrap inside their own
+  cell if anything squeezes them again.
+- **An untitled schedule has one name.** The row said "Schedule 5" and the confirm that deletes it said
+  "Delete #5", so the irreversible action used a name the reader had never seen.
 <<<<<<< HEAD
 - **Three things the audit found built and unreachable are on the page.** The export chooser now opens
   from Export… with all four formats the API renders, so text, spreadsheet and JSON are a press rather
