@@ -110,7 +110,8 @@ additive migrations (`0015`-`0017`); no schema rewrite, so the v1.1.0 rollback n
 - **Image size: re-measured for v1.2.0.** **14.7 MB content, 53.6 MB on disk** on amd64, and **60.7 MB
   on disk** on arm64, on 2026-11-25 from images built at `41a45b0`. That is within rounding of v1.0.0's
   14.8 / 53.5, which is what "no base change and no new runtime dependency" was supposed to mean, so the
-  figures in `README.md` and `DEPLOYMENT.md` (about 15 MB compressed, 54 MB on disk) still hold.
+  figures in `README.md` and `DEPLOYMENT.md` (about 15 MB compressed, 54 MB on disk on amd64 and 61 MB
+  on arm64) still hold.
   `Dockerfile` still installs `smartmontools` and `util-linux` **unpinned**, so this is a measurement to
   repeat, not a guarantee.
 
@@ -150,9 +151,9 @@ Measured for v1.2.0 on 2026-11-25, built at `41a45b0`:
 | amd64 | **14.7 MB** | **53.6 MB** |
 | arm64 | measured at rc1 from the published manifest | **60.7 MB** |
 
-The two architectures differ by 7 MB on disk because the arm64 base layers are larger, and the figures
-published for v1.0.0 (14.8 / 53.5) were amd64 only. `README.md` and `DEPLOYMENT.md` say "about 15 MB
-compressed, 54 MB on disk", which is right for amd64 and understates arm64's disk usage.
+The two architectures differ by 7 MB on disk because the arm64 base layers are larger. The figures
+published for v1.0.0 (14.8 / 53.5) were amd64 only; `README.md` and `DEPLOYMENT.md` now publish the
+rounded pair for both architectures.
 Measured for v1.0.0: **14.8 MB content, 53.5 MB on disk** (2026-10-17), recorded in `ADR-020`.
 `README.md` and `DEPLOYMENT.md` publish the rounded form of both figures. The number changes when the
 base image or a runtime dependency changes, and `Dockerfile` pins neither `smartmontools` nor
