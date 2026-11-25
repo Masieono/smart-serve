@@ -179,6 +179,13 @@ discarding silently is not. See `ADR-028`.
 
 ### Fixed
 
+- **Signing in works in a browser.** The page was served with `Referrer-Policy: no-referrer`, and a
+  browser with that policy serialises the `Origin` of a form POST as `null` (Fetch spec), so the app's
+  own login form was rejected as cross-origin: every browser sign-in failed with a 403 while curl kept
+  working, because curl sends no `Origin`. The policy is now `same-origin`, which still sends no referer
+  to a third party, and the guard accepts a `null` origin when the browser's own `Sec-Fetch-Site` says
+  `same-origin` or `none`, which a page cannot forge.
+- **The sign-in page's heading is centred** over the fields rather than left-aligned against them.
 - **Dialog height caps use the visible viewport too.** `86vh` and `85vh` have the same nominal-height
   problem as the shell: on a phone a dialog could be capped at more than the area it sits in. `dvh`
   first, `vh` as the fallback.

@@ -47,9 +47,13 @@ func securityHeadersMiddleware(next http.Handler) http.Handler {
 		h.Set("Content-Security-Policy", contentSecurityPolicy)
 		// A browser that sniffs a JSON error body as HTML turns a message into a page.
 		h.Set("X-Content-Type-Options", "nosniff")
-		// Drive serials and mount points are in these paths, and this app is reached
-		// from machines whose network a referer would leak them to.
-		h.Set("Referrer-Policy", "no-referrer")
+		// Drive serials and mount points are in these paths, and this app is reached from machines
+		// whose network a referer would leak them to. `same-origin` sends a referer only within this
+		// origin and none to a third party, which is the property that mattered, without the
+		// side effect `no-referrer` has: a browser whose referrer policy is `no-referrer` serialises
+		// the Origin of a form POST as `null` (Fetch spec, "append a request Origin header"), and the
+		// CSRF guard then rejects the app's own login form.
+		h.Set("Referrer-Policy", "same-origin")
 		// `frame-ancestors` above is the modern spelling; this is the one older
 		// browsers honour, and being framed is never a thing this UI needs.
 		h.Set("X-Frame-Options", "DENY")
