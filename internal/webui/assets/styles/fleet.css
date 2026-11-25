@@ -1131,7 +1131,10 @@ dialog {
      shared rule clamps the width, so setting only `width` changed nothing. */
   width: min(680px, 94vw);
   max-width: min(680px, 94vw);
+  /* The visible height, for the same reason the shell uses it: `vh` counts chrome the dialog cannot
+     occupy, so a dialog capped at 86vh can be taller than the area it sits in. */
   max-height: 86vh;
+  max-height: 86dvh;
   padding: 0;
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
@@ -1159,6 +1162,7 @@ dialog {
   padding: var(--space-5);
   overflow-y: auto;
   max-height: calc(86vh - 132px);
+  max-height: calc(86dvh - 132px);
 }
 
 .dialog-foot {

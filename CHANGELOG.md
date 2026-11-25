@@ -179,6 +179,9 @@ discarding silently is not. See `ADR-028`.
 
 ### Fixed
 
+- **Dialog height caps use the visible viewport too.** `86vh` and `85vh` have the same nominal-height
+  problem as the shell: on a phone a dialog could be capped at more than the area it sits in. `dvh`
+  first, `vh` as the fallback.
 - **The shell is as tall as the visible viewport, not as tall as the window's nominal height.** `100vh`
   includes browser chrome, so on a phone or a tablet every page ended up one address-bar taller than
   what you can see and scrolled that far into empty space. The shell and the sidebar use `100dvh` with
