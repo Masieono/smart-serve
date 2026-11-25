@@ -179,6 +179,19 @@ discarding silently is not. See `ADR-028`.
 
 ### Fixed
 
+- **Three things the audit found built and unreachable are on the page.** The export chooser now opens
+  from Export… with all four formats the API renders, so text, spreadsheet and JSON are a press rather
+  than a URL nobody knows. The longevity outlook is drawn under the facts it extrapolates from, with
+  its confidence and caveat inline. Firmware advisories from the knowledge base are drawn under the
+  verdict, where a known bug changes how the rest of the page reads. All three existed with tests of
+  their own and no call site.
+- **Twelve settings controls had no accessible name.** The row label was plain text in a sibling
+  `div`, so a screen reader announced "checkbox" and nothing else, including for both switches in
+  "What the pages show" and the sector-problem switch. The controls now take the row's words as their
+  accessible name, and a test fails if any control on any settings page is unnamed again.
+- **A one-day window read "in 1 days"** in the outlook, which is the sentence that asks the reader to
+  trust a span of time.
+
 - **A process killed by its timeout is no longer reported as success, and a rescan cannot join
   another drive's scan.** The runner tested the exit code before the context, so a deadline kill
   returned exit -1 and a nil error: a scan blamed the truncated JSON, the self-test watcher cleared

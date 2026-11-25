@@ -58,7 +58,7 @@ function historyFrom() {
  * the caveat is shown inline rather than hidden behind a tooltip, because a caveat nobody
  * reads is not a caveat.
  */
-function projectionBlock(p) {
+export function projectionBlock(p) {
   if (!p || !p.summary) return null;
   return el('div', { class: 'projection' }, [
     el('div', { class: 'row' }, [
@@ -385,7 +385,7 @@ const SEVERITY_TONE = { critical: 'bad', warning: 'caution', info: 'unknown' };
  * what to do about it" is worse than saying nothing. The link is for the vendor's own page, which is
  * where the instruction will actually be.
  */
-function advisoryCard(known) {
+export function advisoryCard(known) {
   const plural = known.advisories.length > 1;
   return el('div', { class: 'card stack advisory' }, [
     el('h2', { text: plural ? 'Known issues' : 'Known issue' }),
@@ -661,7 +661,7 @@ const EXPORT_FORMATS = [
   ['json', 'JSON', 'The full structure, for scripting.'],
 ];
 
-function exportDialog(device) {
+export function exportDialog(device) {
   openDialog('Export report', (body, close, foot) => {
     body.append(el('p', { class: 'muted',
       text: `Download ${device.name || device.model || device.serial} as:` }));

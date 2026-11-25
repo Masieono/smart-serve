@@ -302,3 +302,20 @@ func TestAnyGrowthCostsSomething(t *testing.T) {
 		t.Error("TrendPenalty(1) = 0, but one reallocated sector is a finding")
 	}
 }
+
+// A one-day window used to read "in 1 days" in the outlook, which is the sentence that asks the
+// reader to trust a span of time.
+func TestAOneDayWindowIsSingular(t *testing.T) {
+	if got := humanDays(1); got != "1 day" {
+		t.Errorf("humanDays(1) = %q, want %q", got, "1 day")
+	}
+	if got := humanDays(0.5); got != "less than a day" {
+		t.Errorf("humanDays(0.5) = %q", got)
+	}
+	if got := humanDays(30); got != "30 days" {
+		t.Errorf("humanDays(30) = %q", got)
+	}
+	if got := humanDays(400); got != "1.1 years" {
+		t.Errorf("humanDays(400) = %q", got)
+	}
+}

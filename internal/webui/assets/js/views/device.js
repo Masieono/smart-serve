@@ -20,6 +20,9 @@ import {
   // The four controls the rebuilt page lost: the drive editor, acknowledgement, the transport
   // override, and the two explanations (what changed, and why the score is what it is).
   ackNotice, acknowledge, unack, editNotes, smartProblemNotice, scoreBreakdown, changesCard,
+  // Built and never mounted: the export chooser, the longevity outlook and the knowledge-base
+  // advisories. The audit found them by asking what the page renders, not what exists.
+  exportDialog, projectionBlock, advisoryCard,
 } from './device-parts.js';
 import { selfTestCard } from './selftest.js';
 
@@ -97,7 +100,9 @@ export async function render(content, ctx, serial, opts = {}) {
     // wonders why the alerts stopped.
     smartProblemNotice(ctx, d),
     ackNotice(d),
+    advisorySection(d),
     facts(d, snapshot),
+    outlookSection(data.projection),
     changesSection(d),
     diskSection(d),
     trendSection(serial),
@@ -135,6 +140,30 @@ function backLink(ctx) {
       ctx.navigate('/');
     },
   });
+}
+
+/**
+ * What the knowledge base knows about this drive's firmware (`FEATURES.md` A21).
+ *
+ * Placed under the verdict rather than at the foot of the page: a known firmware bug is a reason to
+ * read the rest of the page differently, and an advisory that arrives after six screens of charts is
+ * an advisory nobody reads.
+ */
+function advisorySection(d) {
+  const known = d.knowledge;
+  if (!known || !(known.advisories || []).length) return null;
+  return advisoryCard(known);
+}
+
+/**
+ * The longevity estimate, which is an interpretation of the history rather than a reading.
+ *
+ * It sits under the facts it extrapolates from, and says its own confidence and caveat inline. No
+ * projection means no block: "we cannot say" is conveyed by silence, not by a card saying so.
+ */
+function outlookSection(projection) {
+  const block = projectionBlock(projection);
+  return block ? el('div', { class: 'v2-outlook' }, [block]) : null;
 }
 
 /** What moved since the previous scan (`FEATURES.md` A18), when the server found something. */
@@ -223,12 +252,14 @@ function head(ctx, content, d) {
           await render(content, ctx, d.serial, { keepScroll: true });
         },
       }),
-      el('a', {
+      // A chooser rather than a link, because the API renders four formats and a single link
+      // silently picked one of them. The dialog offers text, web page, spreadsheet and JSON.
+      el('button', {
         class: 'v2-btn',
-        href: api.reportUrl(d.serial, 'html'),
-        target: '_blank',
-        rel: 'noopener',
+        type: 'button',
         text: 'Export…',
+        title: 'Download this drive as text, a web page, a spreadsheet or JSON',
+        onclick: () => exportDialog(d),
       }),
     ]),
   ]);

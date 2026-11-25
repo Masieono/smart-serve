@@ -16,9 +16,10 @@ testing-session card and the "remind me later" snooze are retired; they are not 
 described below. The ranking the shortlist used survives as the digest's drive order
 (`internal/notify/digest_sender.go`).
 
-Two facts are served by the API and still not drawn: the longevity projection in detail, and the
-knowledge base's rated endurance and advisories on a drive page (managed under Settings → Data).
-Their entries say so.
+The longevity projection and the knowledge base's firmware advisories are now drawn on the drive
+page: the outlook sits under the facts it extrapolates from, and an advisory sits under the verdict,
+because a known firmware bug is a reason to read the rest of the page differently. Rated endurance is
+still served and not drawn; its entry says so.
 
 The rest of what the first cut of the rebuilt device page lost is back, and each of these is a
 control or an explanation on that page rather than a route: **Edit** (name, bay, tags, notes, bench,
@@ -107,7 +108,8 @@ future.
   confidence (`low` under a month of history, `medium` beyond) and its caveat inline. A window
   shorter than a day produces no rate at all. Sector growth is reported as a rate and a window
   ("7 new sector problems in 60 days"), never a date, and ATA wear counters are not extrapolated:
-  an ATA drive falls back to the sector rate. Served as `projection`; not drawn.
+  an ATA drive falls back to the sector rate. Served as `projection`, and drawn on the drive page
+  under the facts, with its confidence and caveat inline.
 - **A17, the score.** 0-100. A drive whose bad sectors climb loses 3 points for the first new
   sector, then one more per doubling, capped at 10. The penalty is applied in the scan, outside
   `interp.Evaluate`, because a trend is a question about history and `Evaluate` is a pure function

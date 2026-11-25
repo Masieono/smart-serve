@@ -308,6 +308,10 @@ func humanDays(days float64) string {
 	switch {
 	case days < 1:
 		return "less than a day"
+	case days < 1.5:
+		// "in 1 days" is what a rounded window reads like, and the outlook is the one place a reader
+		// is asked to trust a span of time.
+		return "1 day"
 	case days < 365:
 		return fmt.Sprintf("%.0f days", days)
 	case days < 3650:

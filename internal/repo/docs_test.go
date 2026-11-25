@@ -70,6 +70,22 @@ func TestTheChangelogCheckCatchesWhatItIsFor(t *testing.T) {
 		t.Error("the same bullet twice in one release passed the check")
 	}
 
+	staleCopy := `## [Unreleased]
+
+### Fixed
+
+- **A fix that belongs to the unreleased work.**
+
+## [1.0.0] — 2026-10-17
+
+### Fixed
+
+- **A fix that belongs to the unreleased work.**
+`
+	if err := checkChangelog(staleCopy); err == nil {
+		t.Error("an entry copied into a released section passed the check")
+	}
+
 	fine := `## [Unreleased]
 
 ### Added
@@ -95,6 +111,10 @@ func checkChangelog(text string) error {
 	release := "(preamble)"
 	headings := map[string]bool{}
 	entries := map[string]bool{}
+	// An entry may appear once in the whole file: the accident this catches is a replacement that
+	// lands in every release heading rather than the one it was aimed at, which leaves each release
+	// with a single copy and so is invisible to the per-release check above.
+	where := map[string]string{}
 	reset := func() {
 		headings = map[string]bool{}
 		entries = map[string]bool{}
@@ -120,6 +140,10 @@ func checkChangelog(text string) error {
 				return &changelogError{"release " + release + " lists the same entry twice: " + key}
 			}
 			entries[key] = true
+			if other, ok := where[key]; ok {
+				return &changelogError{"the same entry appears in " + other + " and " + release + ": " + key}
+			}
+			where[key] = release
 		}
 	}
 	return nil
