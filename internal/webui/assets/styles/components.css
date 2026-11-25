@@ -116,7 +116,12 @@ a:hover {
 .app {
   display: grid;
   grid-template-columns: var(--sidebar-w) 1fr;
+  /* `vh` is the viewport *including* whatever browser chrome is showing, so on a phone or a tablet
+     every page ends up one address-bar taller than the visible area and scrolls that far into empty
+     space. `dvh` is the height you can actually see. The `vh` line stays first as the fallback for
+     engines without `dvh`. */
   min-height: 100vh;
+  min-height: 100dvh;
 }
 
 .sidebar {
@@ -129,6 +134,7 @@ a:hover {
   position: sticky;
   top: 0;
   height: 100vh;
+  height: 100dvh;
 }
 
 /* The wordmark doubles as the way home, so it is a button. Reset the button chrome rather

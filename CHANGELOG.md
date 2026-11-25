@@ -179,6 +179,10 @@ discarding silently is not. See `ADR-028`.
 
 ### Fixed
 
+- **The shell is as tall as the visible viewport, not as tall as the window's nominal height.** `100vh`
+  includes browser chrome, so on a phone or a tablet every page ended up one address-bar taller than
+  what you can see and scrolled that far into empty space. The shell and the sidebar use `100dvh` with
+  `100vh` as the fallback.
 - **The schedules table's action column no longer covers its switch.** The schedules table shares the
   fleet table's class, and the fleet's own `col.actions { width: 1% }` came later in the stylesheet at
   equal specificity, so the schedules action column was 11px wide and its right-aligned buttons spilled
