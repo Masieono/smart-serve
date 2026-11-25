@@ -107,11 +107,12 @@ additive migrations (`0015`-`0017`); no schema rewrite, so the v1.1.0 rollback n
   does not double-count shared pages. The amd64 host reads 18.9 MiB by the cgroup and agrees.
   `TESTING.md` 8.5 carries the samples.
   The two defects this host found are fixed and **retested on 2026-11-11**, on both architectures.
-- **The image size has not been re-measured for v1.2.0.** The published figures are still v1.0.0's
-  (14.8 MB content / 53.5 MB on disk, 2026-10-17). This release changes no base image and adds no
-  runtime dependency, so those figures should hold, but `Dockerfile` installs `smartmontools` and
-  `util-linux` **unpinned**, so the base is not actually frozen. Re-measure before publishing the
-  figures again.
+- **Image size: re-measured for v1.2.0.** **14.7 MB content, 53.6 MB on disk**, on the homelab host
+  on 2026-11-25, from an image built at `41a45b0` (amd64). That is within rounding of v1.0.0's
+  14.8 / 53.5, which is what "no base change and no new runtime dependency" was supposed to mean, so the
+  figures in `README.md` and `DEPLOYMENT.md` (about 15 MB compressed, 54 MB on disk) still hold.
+  `Dockerfile` still installs `smartmontools` and `util-linux` **unpinned**, so this is a measurement to
+  repeat, not a guarantee.
 
 **Closed at this release:** an attribute row can be marked as one the verdict *read*, via the score
 breakdown's `attribute_id` (the v1.1.0 note asking for it is done, `FEATURES.md` A12); optional
@@ -142,17 +143,23 @@ shows the palettes off best. Full-screen captures with browser chrome in them go
 
 ## Image size
 
-Measured for v1.0.0: **14.8 MB content, 53.5 MB on disk** (`docker image ls` on a homelab
-host). Published in `README.md`, `DEPLOYMENT.md` and `ADR-020`. **Not re-measured for v1.2.0**; the
-figures above are the last measurement, and the v1.2.0 section says why they should still hold and why
-that is not the same as having checked.
+Measured for v1.2.0: **14.7 MB content, 53.6 MB on disk** (2026-11-25, amd64, built at `41a45b0`).
+Measured for v1.0.0: **14.8 MB content, 53.5 MB on disk** (2026-10-17), recorded in `ADR-020`.
+`README.md` and `DEPLOYMENT.md` publish the rounded form of both figures. The number changes when the
+base image or a runtime dependency changes, and `Dockerfile` pins neither `smartmontools` nor
+`util-linux`, so every release measures rather than assumes.
 
 Re-measure for any release that changes the base image or adds a runtime dependency:
 
 ```sh
-docker compose pull
-docker image ls ghcr.io/masieono/smart-serve
+docker build -q --build-arg VERSION=v1.2.0 -t smart-serve:sizecheck .
+docker image ls smart-serve:sizecheck --format '{{.Size}}'            # on disk
+docker image inspect smart-serve:sizecheck --format '{{.Size}}'       # content, in bytes
 ```
+
+Building locally is enough for both figures and does not need the release to be published: the
+inspect size is the compressed content size recorded in the image config, and the `ls` size is the
+extracted size on disk. Taking both from the same build is what keeps the pair comparable.
 
 Publish **both** figures and say which is which: the compressed one is what a user downloads,
 the on-disk one is what their server stores. They differ by more than a factor of three, which
