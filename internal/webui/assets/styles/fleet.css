@@ -1262,13 +1262,11 @@ dialog .btn-primary {
 .v2-schedules col.cadence { width: 18%; }
 .v2-schedules col.next { width: 17%; }
 .v2-schedules col.last { width: 12%; }
-/* The switch and the three buttons get the width they need rather than a share of the row: at 11% the
-   action column could not hold Run now, Edit and Delete, and because the group is right-aligned its
-   overflow went leftward, over the toggle. */
-/* Both classes, because the fleet's own table sets `col.actions { width: 1% }` for a cell that is
-   sized by its content, and the schedules table shares the `fleet-table` class: at equal specificity
-   that rule won (it comes later), so the action column was 11px wide and its right-aligned buttons
-   overflowed leftward across the switch beside them. */
+/* The switch and the buttons get the width they need rather than a share of the row, and both classes
+   are on the selector because this table carries `fleet-table` too: the fleet's own
+   `col.actions { width: 1% }`, right for a cell sized by its content, comes later in this file at equal
+   specificity, so it won and left the action column 11px wide. A right-aligned group in an 11px cell
+   overflows to the left, which is how the buttons ended up over the switch. */
 .fleet-table.v2-schedules col.on { width: 64px; }
 .fleet-table.v2-schedules col.actions { width: 250px; }
 
