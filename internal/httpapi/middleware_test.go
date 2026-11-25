@@ -36,6 +36,31 @@ func TestCSRFGuard(t *testing.T) {
 		t.Errorf("cross-site status = %d, want 403", rec.Code)
 	}
 
+	// A browser whose referrer policy is `no-referrer` serialises the Origin of a form POST as
+	// `null`, and that is what made signing in impossible: the app's own login form was rejected as
+	// cross-origin. The fetch metadata is the evidence in that case, because a page cannot forge it.
+	for _, site := range []string{"same-origin", "none"} {
+		rec = do(t, srv, http.MethodPost, "/api/session", "user=admin&password=x",
+			map[string]string{"Origin": "null", "Sec-Fetch-Site": site})
+		// Any status but 403 means the guard let it through to the mux; this server has no sign-in
+		// configured, so the handler's own answer is a 405 rather than a 401.
+		if rec.Code == http.StatusForbidden {
+			t.Errorf("null origin with Sec-Fetch-Site %q was refused by the guard", site)
+		}
+	}
+
+	// A `null` origin that does not claim to be same-origin is still refused, and so is one that
+	// arrives with no fetch metadata at all: those are the shapes an injected form takes.
+	for _, hdr := range []map[string]string{
+		{"Origin": "null", "Sec-Fetch-Site": "cross-site"},
+		{"Origin": "null"},
+	} {
+		rec = do(t, srv, http.MethodPost, "/api/session", "user=admin&password=x", hdr)
+		if rec.Code != http.StatusForbidden {
+			t.Errorf("null origin with %v = %d, want 403", hdr, rec.Code)
+		}
+	}
+
 	// Non-browser clients send no Origin header, so curl and scripts keep working.
 	rec = do(t, srv, http.MethodPut, "/api/settings", `{"temperature_unit":"c"}`, nil)
 	if rec.Code != http.StatusOK {
@@ -83,7 +108,7 @@ func TestSecurityHeaders(t *testing.T) {
 			}
 			for header, want := range map[string]string{
 				"X-Content-Type-Options": "nosniff",
-				"Referrer-Policy":        "no-referrer",
+				"Referrer-Policy":        "same-origin",
 				"X-Frame-Options":        "DENY",
 			} {
 				if got := rec.Header().Get(header); got != want {

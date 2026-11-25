@@ -325,8 +325,21 @@ func sameOriginMiddleware(next http.Handler) http.Handler {
 				return
 			}
 			if origin := r.Header.Get("Origin"); origin != "" {
-				u, err := url.Parse(origin)
-				if err != nil || u.Host != r.Host {
+				// `null` is what a browser serialises when the document's referrer policy is
+				// `no-referrer`, which this server no longer sets but a proxy, an extension or a
+				// user preference can impose. In that case the fetch metadata above is the evidence:
+				// `Sec-Fetch-Site` is set by the browser itself and cannot be forged by a page, so
+				// `same-origin` there means this request came from this origin. A `null` origin from
+				// anything that does not claim to be same-origin is still refused, and so is one that
+				// arrives with no fetch metadata at all.
+				allowed := false
+				if origin == "null" {
+					site := r.Header.Get("Sec-Fetch-Site")
+					allowed = site == "same-origin" || site == "none"
+				} else if u, err := url.Parse(origin); err == nil {
+					allowed = u.Host == r.Host
+				}
+				if !allowed {
 					writeError(w, http.StatusForbidden, "cross-origin request rejected")
 					return
 				}

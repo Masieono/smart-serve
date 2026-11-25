@@ -301,7 +301,7 @@ var loginTemplate = template.Must(template.New("login").Parse(`<!doctype html>
          background: #0d1117; color: #e6edf3; }
   @media (prefers-color-scheme: light) { body { background: #f6f8fa; color: #1f2328; } }
   form { width: min(360px, 90vw); display: flex; flex-direction: column; gap: 14px; }
-  h1 { margin: 0 0 4px; font-size: 18px; font-weight: 600; }
+  h1 { margin: 0 0 4px; font-size: 18px; font-weight: 600; text-align: center; }
   label { display: flex; flex-direction: column; gap: 6px; font-size: 12px; opacity: 0.75; }
   input { height: 38px; padding: 0 12px; font-size: 14px; border-radius: 6px;
           border: 1px solid #30363d; background: #161b22; color: inherit; }
