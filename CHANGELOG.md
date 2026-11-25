@@ -710,7 +710,6 @@ That is the whole of Phase 4, and with it the last tabled item: the batch self-t
 
 ### Fixed
 
-
 - **The JS test DOM stub had no `querySelector`, so the channel editor's whole save path was
   untestable.** The editor reads its own checkbox state back out of the DOM to build a save payload,
   which threw a `TypeError` under the stub — and the editor's own `catch` turned that into a "Save
@@ -853,7 +852,6 @@ Four fixes found by using the first release in anger, plus the documentation cor
 came out of deploying it.
 
 ### Fixed
-
 
 - **The attribute `?` dialog rendered the literal word "null"** on every field with no "how to
   read it" line. The native `Element.append` stringifies a `null` argument into a text node, and
