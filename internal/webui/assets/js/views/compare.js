@@ -65,7 +65,7 @@ export function interestingRows(rows) {
  * comparison whose columns reshuffle between openings is one nobody can learn to read.
  */
 export function openCompare(ctx, serials) {
-  openDialog(`Comparing ${serials.length} drives`, (body, close) => {
+  openDialog(`Comparing ${serials.length} drives`, (body, close, foot) => {
     const table = el('div', { class: 'compare-body' });
     body.append(table);
 
@@ -132,6 +132,11 @@ export function openCompare(ctx, serials) {
           'log rather than ATA attributes.' }));
       }
     };
+
+    // A way out that is visible. Escape has always closed it, and the backdrop deliberately does not
+    // (the table is wide and full of text to select), which left the only discoverable exit as a key
+    // nobody was told about.
+    foot.append(el('button', { class: 'btn', type: 'button', text: 'Close', onclick: close }));
 
     render({ drives: [], rows: [] });
     api.compare(serials)

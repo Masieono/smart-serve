@@ -179,6 +179,21 @@ discarding silently is not. See `ADR-028`.
 
 ### Fixed
 
+- **The transport notice only appears for a drive that cannot be read.** It was drawn on every
+  device page, so the owner of a healthy drive that reports everything was told it "does not report
+  S.M.A.R.T." and offered a `-d` override that would have broken the read that worked. A drive that
+  reports is now silent; a blocked one gets the permission notice and its compose fix; a drive that
+  genuinely cannot be read keeps the transport picker.
+- **The comparison can be closed by pressing something.** It disabled backdrop dismissal on purpose
+  (the table is wide and covered in text worth selecting), which left Escape as the only way out and
+  told nobody. There is a Close button now.
+- **Hovering a partition row highlights it on the disk bar**, which is the direction that had never
+  worked: the class was set and the CSS rule also required `:hover` on the segment, so it could never
+  match. Only the bar-to-row direction did anything.
+- **The fleet's footer no longer repeats the shell navigation.** Schedules and Settings were linked
+  there as well as in the nav on every page; the count and the hidden toggle remain.
+- **Row actions stack in the fleet table**, so Hide and Forget no longer set the width of the last
+  column at the drive name's expense.
 - **A process killed by its timeout is no longer reported as success, and a rescan cannot join
   another drive's scan.** The runner tested the exit code before the context, so a deadline kill
   returned exit -1 and a nil error: a scan blamed the truncated JSON, the self-test watcher cleared

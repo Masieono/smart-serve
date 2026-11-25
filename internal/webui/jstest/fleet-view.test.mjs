@@ -204,3 +204,19 @@ test('unhiding the last hidden drive returns to the fleet', async () => {
   assert.match(textOf(container), /alpha/, 'the fleet did not come back');
   assert.doesNotMatch(textOf(container), /hidden/, 'still offering a way into an empty half');
 });
+
+// One set of navigation per page.
+//
+// The fleet's footer carried Schedules and Settings links beside the count. The shell already has both
+// in its nav on every page, so the footer offered a second copy of the same two destinations and
+// competed with the count for the corner. They are gone; this keeps them gone.
+test('the fleet does not repeat the shell navigation in its footer', async () => {
+  const container = await renderFleet([
+    { serial: 'SN-1', model: 'X', health: 'good', score: 96, smart_available: true },
+  ]);
+
+  const hrefs = container.querySelectorAll('a').map((a) => a.getAttribute('href') || '');
+  const duplicates = hrefs.filter((h) => /\/schedules$|\/settings$/.test(h));
+  assert.deepEqual(duplicates, [],
+    'the shell nav already goes to both of these on every page');
+});

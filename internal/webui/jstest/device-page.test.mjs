@@ -383,3 +383,33 @@ test('the reasons behind the score are drawn, from an array', async () => {
   assert.match(text, /1 reason/, 'the score has no explanation on the page');
   assert.match(text, /temperature \(61/);
 });
+
+// The transport notice belongs to a drive that cannot be read.
+//
+// It was drawn on every device page, telling the owner of a healthy reporting drive that it "does not
+// report S.M.A.R.T." and offering a transport override that would only break the read that worked.
+test('a drive that reports S.M.A.R.T. gets no transport notice', async () => {
+  installStubDom();
+  const ctx = freshCtx();
+  stubRoutes();
+  const container = document.createElement('div');
+  await render(container, ctx, 'SN-1');
+
+  const page = textOf(container);
+  assert.doesNotMatch(page, /does not report S\.M\.A\.R\.T\./);
+  assert.equal(container.querySelectorAll('select').filter((s) => s.textContent.includes('-d nvme')).length, 0,
+    'no transport picker should be offered for a drive that reads');
+});
+
+test('a drive that cannot be read still gets it, with the override', async () => {
+  const payload = devicePayload({ smart_available: false, smart_cause: 'usb_bridge' });
+  installStubDom();
+  const ctx = freshCtx();
+  stubRoutes({ device: payload });
+  const container = document.createElement('div');
+  await render(container, ctx, 'SN-1');
+
+  const page = textOf(container);
+  assert.match(page, /does not report S\.M\.A\.R\.T\./);
+  assert.match(page, /Apply & rescan/, 'the notice has to carry the control that fixes it');
+});

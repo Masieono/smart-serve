@@ -191,3 +191,28 @@ test('a failed comparison explains itself', async () => {
   const dialog = document.body.querySelectorAll('dialog').pop();
   assert.match(textOf(dialog), /Could not compare/, 'the dialog should say the comparison failed');
 });
+
+// A dialog with no exit is a trap, however good the table is.
+//
+// The comparison disabled backdrop dismissal on purpose (the table is wide and covered in text worth
+// selecting), which left Escape as the only way out and told nobody. A visible Close is the fix, and
+// this is the assertion that keeps it there.
+test('the comparison offers a way out that is visible', async () => {
+  installStubDom();
+  globalThis.fetch = async () => ({
+    ok: true, status: 200, statusText: 'OK',
+    text: async () => JSON.stringify({ drives: [], rows: [] }),
+  });
+
+  openCompare({ navigate() {} }, ['SN-1', 'SN-2']);
+  const dialog = document.body.firstElementChild;
+  assert.ok(dialog, 'the comparison should open');
+  assert.equal(dialog.open, true);
+
+  const close = dialog.querySelectorAll('button').find((b) => b.textContent === 'Close');
+  assert.ok(close, 'the comparison needs a Close button, not just the Escape key');
+
+  close.click();
+  assert.equal(dialog.open, false, 'pressing Close should close it');
+  await flush();
+});

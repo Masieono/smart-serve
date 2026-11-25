@@ -788,7 +788,10 @@ tr:hover .part-copy.part-copy:focus-visible {
   box-shadow: var(--shadow-md);
 }
 
-.disk-segment.is-hover.disk-segment:hover {
+/* Both directions of the table/map link, so `is-hover` alone. It used to require `:hover` on the
+   segment as well, which meant hovering a table row marked the segment and nothing showed: the class
+   was there, the rule could not match. */
+.disk-segment.is-hover {
   outline: 2px solid var(--accent);
   outline-offset: -2px;
 }
