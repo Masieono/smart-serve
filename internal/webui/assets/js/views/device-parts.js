@@ -285,6 +285,11 @@ const BLOCKED_FIXES = {
  * reader looking at the hardware instead of at the compose file.
  */
 export function smartProblemNotice(ctx, d) {
+  // Nothing to say about a drive that is reporting. Without this the notice appeared on every device
+  // page, telling readers of a healthy drive that it "does not report S.M.A.R.T." and offering them a
+  // transport override that would only break the read that was working.
+  if (d.smart_available || d.is_missing) return null;
+
   const blocked = BLOCKED_FIXES[d.smart_cause];
   if (blocked) {
     return el('div', { class: 'notice' }, [

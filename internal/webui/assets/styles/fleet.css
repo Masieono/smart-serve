@@ -1922,6 +1922,11 @@ dialog .btn-primary {
 /* Plus what this row's actions are: it is not a filter, so it does not look like the count chips. */
 .row-action {
   padding: 2px var(--space-2);
+  /* Stacked, not side by side: hover and forget are short words, and side by side they set the width
+     of the table's last column, which is space the drive name wanted. */
+  display: block;
+  margin-left: auto;
+  padding-right: 0;
   border: 0;
   border-radius: var(--radius-sm);
   background: none;

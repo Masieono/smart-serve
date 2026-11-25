@@ -5,7 +5,7 @@
 // because a verdict and a number about the same drive are one fact, a separate "healthy" column and
 // a separate ring said it twice and cost a column to do it.
 import { el, clear, append, fmtBytes, fmtAgo, fmtInt, fmtTemp } from '../dom.js';
-import { api, appPath } from '../api.js';
+import { api } from '../api.js';
 import { confirmDialog, openDialog } from '../components.js';
 import { COMPARE_MAX_DRIVES, openCompare } from './compare.js';
 
@@ -110,10 +110,9 @@ function draw(content, ctx, payload, at = here()) {
         el('span', { text: `${pool.length} drive${pool.length === 1 ? '' : 's'}` }),
         hiddenCount || showHidden ? hiddenToggle(hiddenCount) : null,
       ].filter(Boolean)),
-      el('div', { class: 'links' }, [
-        el('a', { href: appPath('/schedules'), text: 'Schedules', onclick: nav(ctx, '/schedules') }),
-        el('a', { href: appPath('/settings'), text: 'Settings', onclick: nav(ctx, '/settings') }),
-      ]),
+      // No links here. The shell has a nav with both of these in it, on every page, and two copies of
+      // the same destination in one view is clutter that teaches nothing. The count and the hidden
+      // toggle stay, because they are about this table rather than about getting somewhere.
     ]),
 
   ]);
@@ -200,13 +199,6 @@ function pickForComparison(rows, ctx) {
       go,
     );
   }, { dismissOnBackdrop: false });
-}
-
-function nav(ctx, path) {
-  return (event) => {
-    event.preventDefault();
-    ctx.navigate(path);
-  };
 }
 
 function countStates(devices) {
