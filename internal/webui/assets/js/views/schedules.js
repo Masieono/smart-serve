@@ -93,12 +93,24 @@ function passBanner(data) {
   ]);
 }
 
+/**
+ * What a schedule is called, everywhere it is named.
+ *
+ * The table invented "Schedule 5" for an untitled row while the delete confirms said "Delete #5", so a
+ * reader who had learned one name met a different one at the moment of an irreversible action. One
+ * function, three call sites, one name.
+ */
+function scheduleName(s) {
+  const label = String(s.label || '').trim();
+  return label || `Schedule ${s.id}`;
+}
+
 function scheduleTable(schedules, ctx) {
   const body = el('tbody', {});
   for (const s of schedules) {
     append(body, [el('tr', { class: s.enabled ? null : 'missing' }, [
       el('td', { class: 'drive' }, [
-        el('div', { class: 'name', text: s.label || `Schedule ${s.id}` }),
+        el('div', { class: 'name', text: scheduleName(s) }),
         el('div', { class: 'sub', text: describeAction(s) }),
       ]),
       el('td', {}, [el('div', { text: describe(s) })]),
@@ -117,7 +129,7 @@ function scheduleTable(schedules, ctx) {
         type: 'checkbox',
         class: 'v2-toggle',
         checked: s.enabled,
-        'aria-label': `Enabled: ${s.label || `schedule ${s.id}`}`,
+        'aria-label': `Enabled: ${scheduleName(s)}`,
         onchange: async (event) => {
           const box = event.target;
           try {
@@ -162,7 +174,7 @@ function scheduleTable(schedules, ctx) {
           type: 'button',
           text: 'Delete',
           onclick: async () => {
-            if (!(await confirmDialog('Delete schedule', `Delete "${s.label || `#${s.id}`}"?`, 'Delete'))) return;
+            if (!(await confirmDialog('Delete schedule', `Delete "${scheduleName(s)}"?`, 'Delete'))) return;
             try {
               await api.deleteSchedule(s.id);
               toast('Schedule deleted', 'good');

@@ -86,6 +86,20 @@ func TestTheChangelogCheckCatchesWhatItIsFor(t *testing.T) {
 		t.Error("an entry copied into a released section passed the check")
 	}
 
+	conflicted := `## [Unreleased]
+
+### Fixed
+
+<<<<<<< HEAD
+- **One side's entry.**
+=======
+- **The other side's entry.**
+>>>>>>> origin/some-branch
+`
+	if err := checkChangelog(conflicted); err == nil {
+		t.Error("an unresolved conflict marker passed the check")
+	}
+
 	fine := `## [Unreleased]
 
 ### Added
@@ -103,10 +117,12 @@ func TestTheChangelogCheckCatchesWhatItIsFor(t *testing.T) {
 	}
 }
 
-// checkChangelog reports a repeated section heading or a repeated entry within one release.
+// checkChangelog reports a repeated section heading, a repeated entry, or an unresolved conflict
+// marker.
 //
 // Across releases the same words may legitimately appear; inside one release they mean an edit landed
-// in more places than the author meant.
+// in more places than the author meant. A conflict marker means a merge was committed mid-conflict,
+// which is how an entry ends up wrapped in "<<<<<<< HEAD" and two copies of everything around it.
 func checkChangelog(text string) error {
 	release := "(preamble)"
 	headings := map[string]bool{}
@@ -122,6 +138,8 @@ func checkChangelog(text string) error {
 
 	for _, line := range strings.Split(text, "\n") {
 		switch {
+		case strings.HasPrefix(line, "<<<<<<< "), line == "=======", strings.HasPrefix(line, ">>>>>>> "):
+			return &changelogError{"unresolved merge conflict marker in release " + release + ": " + line}
 		case strings.HasPrefix(line, "## "):
 			release = strings.TrimSpace(strings.TrimPrefix(line, "## "))
 			reset()

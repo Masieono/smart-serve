@@ -1258,12 +1258,23 @@ dialog .btn-primary {
 
 /* --- schedules (v2) -------------------------------------------------------- */
 
-.v2-schedules col.drive { width: 27%; }
-.v2-schedules col.cadence { width: 19%; }
-.v2-schedules col.next { width: 21%; }
-.v2-schedules col.last { width: 14%; }
-.v2-schedules col.on { width: 8%; }
-.v2-schedules col.actions { width: 11%; }
+.v2-schedules col.drive { width: 24%; }
+.v2-schedules col.cadence { width: 18%; }
+.v2-schedules col.next { width: 17%; }
+.v2-schedules col.last { width: 12%; }
+/* The switch and the three buttons get the width they need rather than a share of the row: at 11% the
+   action column could not hold Run now, Edit and Delete, and because the group is right-aligned its
+   overflow went leftward, over the toggle. */
+/* Both classes, because the fleet's own table sets `col.actions { width: 1% }` for a cell that is
+   sized by its content, and the schedules table shares the `fleet-table` class: at equal specificity
+   that rule won (it comes later), so the action column was 11px wide and its right-aligned buttons
+   overflowed leftward across the switch beside them. */
+.fleet-table.v2-schedules col.on { width: 64px; }
+.fleet-table.v2-schedules col.actions { width: 250px; }
+
+/* Below this the six columns stop fitting. Scrolling is honest; overlapping is not. */
+.v2-table-wrap { overflow-x: auto; }
+.v2-schedules { min-width: 900px; }
 
 /* A paused schedule is not broken, it is off, muted, not red. */
 .v2-schedules tbody tr.missing .name.v2-schedules tbody tr.missing .sub {
@@ -1273,6 +1284,12 @@ dialog .btn-primary {
 .v2-schedules .v2-row-actions .v2-btn {
   padding: 4px 9px;
   font-size: 11.5px;
+}
+
+/* If a column is squeezed anyway, the buttons wrap inside their cell instead of spilling across the
+   switch beside them. */
+.v2-schedules .v2-row-actions {
+  flex-wrap: wrap;
 }
 
 .v2-toggle {
