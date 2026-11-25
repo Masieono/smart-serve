@@ -383,3 +383,89 @@ test('the reasons behind the score are drawn, from an array', async () => {
   assert.match(text, /1 reason/, 'the score has no explanation on the page');
   assert.match(text, /temperature \(61/);
 });
+
+// Three things that existed in code and reached no page at all.
+//
+// Found by an audit of what the *rendered* page contains against what the module exports, which is
+// the only kind of audit that catches this: every one of these had a passing test of its own.
+
+test('Export… offers every format the API renders', async () => {
+  installStubDom();
+  stubRoutes();
+  const container = document.createElement('div');
+  await render(container, freshCtx(), 'SN-1');
+
+  const button = container.querySelectorAll('button').find((b) => b.textContent === 'Export…');
+  assert.ok(button, 'the page should offer an export');
+  button.click();
+
+  const dialog = document.body.firstElementChild;
+  assert.ok(dialog, 'pressing Export should open a chooser');
+  const formats = dialog.querySelectorAll('a')
+    .map((a) => new URL(a.getAttribute('href'), 'http://host').searchParams.get('format'));
+  assert.deepEqual(formats, ['txt', 'html', 'csv', 'json'],
+    'a single link silently picked one of the four formats the API renders');
+});
+
+test('the outlook is drawn where the server sent one', async () => {
+  const payload = devicePayload();
+  payload.projection = {
+    basis: 'wear', confidence: 'medium',
+    summary: 'At this rate the drive has about 4 years left.',
+    caveat: 'Extrapolated from 9 readings over 30 days.',
+  };
+  installStubDom();
+  const ctx = freshCtx();          // installs a fetch stub of its own
+  stubRoutes({ device: payload }); // so the payload route comes second
+  const container = document.createElement('div');
+  await render(container, ctx, 'SN-1');
+
+  const page = textOf(container);
+  assert.match(page, /Outlook/);
+  assert.match(page, /about 4 years left/);
+  assert.match(page, /medium confidence/);
+  assert.match(page, /9 readings/, 'the caveat belongs inline, not behind a tooltip');
+});
+
+test('no projection, no outlook block', async () => {
+  installStubDom();
+  stubRoutes();
+  const container = document.createElement('div');
+  await render(container, freshCtx(), 'SN-1');
+
+  assert.doesNotMatch(textOf(container), /Outlook/,
+    'a drive with nothing to extrapolate from should say nothing rather than say "unknown"');
+});
+
+test('a firmware advisory is drawn under the verdict', async () => {
+  const payload = devicePayload({
+    knowledge: {
+      family: 'Samsung 870 EVO',
+      advisories: [{
+        severity: 'warn', firmware: 'SVT01B6Q',
+        title: 'Writes can be lost after an unclean power loss',
+        detail: 'Update to SVT02B6Q.',
+        url: 'https://example.test/adv',
+      }],
+    },
+  });
+  installStubDom();
+  const ctx = freshCtx();          // installs a fetch stub of its own
+  stubRoutes({ device: payload }); // so the payload route comes second
+  const container = document.createElement('div');
+  await render(container, ctx, 'SN-1');
+
+  const page = textOf(container);
+  assert.match(page, /Known issue/);
+  assert.match(page, /lost after an unclean power loss/);
+  assert.match(page, /SVT01B6Q/);
+});
+
+test('a drive the table knows nothing about says nothing', async () => {
+  installStubDom();
+  stubRoutes();
+  const container = document.createElement('div');
+  await render(container, freshCtx(), 'SN-1');
+
+  assert.doesNotMatch(textOf(container), /Known issue/);
+});

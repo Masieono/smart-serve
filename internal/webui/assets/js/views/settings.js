@@ -359,7 +359,8 @@ function draw(container, ctx, data, page, { carried = {}, unit: unitOverride } =
     draw(container, ctx, data, page, { carried: next, unit: unit.value });
   });
 
-  const theme = el('select', {}, THEMES.map(([value, text]) => el('option', { value, text })));
+  const theme = nameControl(el('select', {}, THEMES.map(([value, text]) => el('option', { value, text }))),
+    'Theme');
   theme.value = settings.theme;
   const themeBase = el('select', {}, ['dark', 'light'].map((v) => el('option', { value: v, text: v })));
   themeBase.value = settings.theme_base;
@@ -1261,6 +1262,7 @@ function shortLabel(spec) {
 }
 
 function settingRow(label, help, control) {
+  nameControl(control, label);
   return el('div', { class: 'setting-row' }, [
     el('div', { class: 'setting-text' }, [
       el('div', { class: 'setting-label', text: label }),
@@ -1268,6 +1270,30 @@ function settingRow(label, help, control) {
     ]),
     el('div', { class: 'setting-control' }, [control]),
   ]);
+}
+
+/**
+ * Gives a control the words that sit beside it.
+ *
+ * The row label was plain text in a sibling `div`, so every switch, slider and select built through
+ * `settingRow` was announced as "checkbox" or "popup button" with no idea which one. A `<label>`
+ * wrapper would be the tidier fix, but the rows are built before they are laid out, and wrapping
+ * would move the control inside the label's text flow, so the name is set here instead: the visible
+ * label is unchanged, and the control now answers to it.
+ *
+ * Returns the control, so a row can be written as `settingRow('Unit', help, nameControl(sel, 'Unit'))`
+ * where the value is needed before the row exists.
+ */
+function nameControl(control, label) {
+  if (!control || !control.tagName) return control;
+  const target = /^(INPUT|SELECT|TEXTAREA)$/.test(control.tagName)
+    ? control
+    : (control.querySelector && control.querySelector('input, select, textarea'));
+  if (!target) return control;
+  if (target.getAttribute('aria-label')) return control;
+  if (target.labels && target.labels.length) return control;
+  target.setAttribute('aria-label', label);
+  return control;
 }
 
 /**
