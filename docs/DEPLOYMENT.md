@@ -9,7 +9,8 @@
   ARM hardware verification is **partial**: Pi 5 / DietPi execution, a full container SMART read
   through USB SAT, and app identity/attribute checks are confirmed for the tested disk. See
   [the dated test record](TESTING.md#pass-8--arm64-raspberry-pi) for coverage.
-- **Image size**: about **15 MB compressed** to pull and **54 MB on disk** once extracted
+- **Image size**: about **15 MB compressed** to pull and **54 MB on disk** once extracted on
+  amd64 (61 MB on arm64, whose base layers are larger)
   (`docker image ls` reports both, as *content size* and *disk usage*). The bundled
   `smartmontools` and `util-linux` are most of it (`ADR-020`).
 - Host kernel with device nodes visible to the container (options below).
