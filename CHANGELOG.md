@@ -187,7 +187,6 @@ discarding silently is not. See `ADR-028`.
   cell if anything squeezes them again.
 - **An untitled schedule has one name.** The row said "Schedule 5" and the confirm that deletes it said
   "Delete #5", so the irreversible action used a name the reader had never seen.
-<<<<<<< HEAD
 - **Three things the audit found built and unreachable are on the page.** The export chooser now opens
   from Export… with all four formats the API renders, so text, spreadsheet and JSON are a press rather
   than a URL nobody knows. The longevity outlook is drawn under the facts it extrapolates from, with
@@ -201,7 +200,6 @@ discarding silently is not. See `ADR-028`.
 - **A one-day window read "in 1 days"** in the outlook, which is the sentence that asks the reader to
   trust a span of time.
 
-=======
 - **The transport notice only appears for a drive that cannot be read.** It was drawn on every
   device page, so the owner of a healthy drive that reports everything was told it "does not report
   S.M.A.R.T." and offered a `-d` override that would have broken the read that worked. A drive that
@@ -217,7 +215,6 @@ discarding silently is not. See `ADR-028`.
   there as well as in the nav on every page; the count and the hidden toggle remain.
 - **Row actions stack in the fleet table**, so Hide and Forget no longer set the width of the last
   column at the drive name's expense.
->>>>>>> origin/fix/what-the-checklist-found
 - **A process killed by its timeout is no longer reported as success, and a rescan cannot join
   another drive's scan.** The runner tested the exit code before the context, so a deadline kill
   returned exit -1 and a nil error: a scan blamed the truncated JSON, the self-test watcher cleared
