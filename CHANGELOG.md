@@ -426,6 +426,12 @@ discarding silently is not. See `ADR-028`.
 
 ### Documentation
 
+- **The arm64 overnight run is recorded as measured, not as outstanding.** Twelve hours on a Pi 5 with
+  the release build alone: 72 samples, none missed, zero restarts, 18.8-19.7 MiB for both RSS and PSS,
+  10 file descriptors flat, 0.024% of one core, and a scheduled scan whose transient allocation is the
+  only movement in the whole run and is released ten minutes later. The open lists in `TESTING.md`,
+  `SCOPE.md`, `FEATURES.md` and `RELEASE.md` said otherwise, and three of them were not updated when the
+  run was written up. Raw samples are committed under `docs/testdata/`.
 - **Five stale claims, in eight places — every one of them describing something as unbuilt that is
   built.** Scheduled self-tests (`FEATURES.md` A19 still said "not built yet"; `ADR-024` built them,
   and `SCOPE.md` already said so). Alert acknowledgement (`NOTIFICATIONS.md` and `REQUIREMENTS.md` D12
