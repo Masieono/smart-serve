@@ -426,6 +426,11 @@ discarding silently is not. See `ADR-028`.
 
 ### Documentation
 
+- **`v1.2.0-rc1` published and retested on the Pi.** The two ARM-era fixes were confirmed against the
+  published image rather than a local build: the SD-card page makes one re-read in 100 seconds instead
+  of looping, and a short self-test's running state clears itself when the drive finishes. The published
+  image reports `1.2.0-rc1` in its own sidebar. arm64's compressed size is measured from the published
+  manifest at **14.8 MB** (60.7 MB on disk).
 - **The arm64 overnight run is recorded as measured, not as outstanding.** Twelve hours on a Pi 5 with
   the release build alone: 72 samples, none missed, zero restarts, 18.8-19.7 MiB for both RSS and PSS,
   10 file descriptors flat, 0.024% of one core, and a scheduled scan whose transient allocation is the
