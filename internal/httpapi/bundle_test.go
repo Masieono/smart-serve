@@ -3,6 +3,7 @@ package httpapi
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -347,5 +348,46 @@ func TestAnEmptyScheduleListIsRespected(t *testing.T) {
 	}
 	if len(schedules) != 0 {
 		t.Errorf("got %d schedules, want none, the file said so", len(schedules))
+	}
+}
+
+// An imported schedule is held to the same rules as one created through the API.
+//
+// It went straight into the table, so `kind: "weekly"`, a cron typo or `action: "scann"` imported as
+// an enabled schedule that never ran, or that fired and quietly did nothing. The API refuses all
+// three; a file is not a better reason to accept them. And because validation happens before any
+// write, a bad file leaves the install exactly as it was.
+func TestAnImportedScheduleIsValidated(t *testing.T) {
+	cases := []struct {
+		name     string
+		schedule string
+		want     string
+	}{
+		{"unknown kind", `{"kind":"weekly","every_seconds":600,"enabled":true}`, "kind must be interval or cron"},
+		{"missing interval", `{"kind":"interval","enabled":true}`, "every_seconds is required"},
+		{"unreadable cron", `{"kind":"cron","cron":"0 25 * * *","enabled":true}`, "cannot be read"},
+		{"misspelled action", `{"kind":"interval","every_seconds":600,"action":"scann","enabled":true}`, "action must be"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			srv, st, _, _ := newTestServer(t, Options{})
+			body := fmt.Sprintf(`{"smartserve":%d,"schedules":[%s]}`, bundleVersion, tc.schedule)
+
+			rec := importBundle(t, srv, body)
+			if rec.Code != http.StatusBadRequest {
+				t.Fatalf("status = %d, want 400: %s", rec.Code, rec.Body.String())
+			}
+			if !strings.Contains(rec.Body.String(), tc.want) {
+				t.Errorf("body = %s, want it to mention %q", rec.Body.String(), tc.want)
+			}
+			list, err := st.ListSchedules(context.Background())
+			if err != nil {
+				t.Fatalf("ListSchedules: %v", err)
+			}
+			if len(list) != 0 {
+				t.Errorf("schedules = %d, want none: a refused import must not write", len(list))
+			}
+		})
 	}
 }

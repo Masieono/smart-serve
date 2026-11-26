@@ -195,6 +195,14 @@ discarding silently is not. See `ADR-028`.
   the placeholder is skipped rather than reported.
 - **Zero degrees is a temperature.** presence is decided by the parent object, not by the value, so a
   drive reporting exactly 0 in a cold rack shows 0 rather than no sensor.
+- **A refused notification no longer shows the destination's own words.** The status code and a short
+  fixed hint are the message now; the body is drained and dropped. The endpoint is operator-supplied,
+  so it can be a captive portal or a mistyped URL, and its HTML was landing in the notification dialog
+  and the logs, burying the one fact worth having.
+- **An imported schedule is validated like one created through the API.** `kind`, `cron`, the interval
+  and the action were written to the table unchecked, so a bundle with a cron typo imported as an
+  enabled schedule that never ran, and a misspelled action as one that quietly did nothing when it
+  fired. Validation happens before anything is written, so a refused file leaves the install untouched.
 - **Signing in works in a browser.** The page was served with `Referrer-Policy: no-referrer`, and a
   browser with that policy serialises the `Origin` of a form POST as `null` (Fetch spec), so the app's
   own login form was rejected as cross-origin: every browser sign-in failed with a 403 while curl kept

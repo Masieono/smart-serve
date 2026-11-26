@@ -452,3 +452,31 @@ func TestEmailSubjectIsEncoded(t *testing.T) {
 		t.Errorf("subject should be RFC 2047 encoded:\n%s", msg)
 	}
 }
+
+// A refused delivery reports the status, never the destination's words.
+//
+// The endpoint is operator-supplied, so it can be a captive portal, a mistyped URL or something
+// hostile. Its body was read and pasted into the error, which the notification dialog renders and the
+// logs keep: an HTML login page in the UI, or a wall of text burying the 403 that says what happened.
+func TestARefusedDeliveryDoesNotEchoTheDestinationBody(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusForbidden)
+		_, _ = io.WriteString(w, "<html><body>Sign in to the guest network to continue</body></html>")
+	}))
+	defer srv.Close()
+
+	sender := NewTelegram(srv.Client())
+	err := sender.Send(context.Background(), map[string]any{
+		"token": "t", "chat_id": "1", "api_base": srv.URL,
+	}, Event{Type: EventDeviceAppeared, DeviceName: "usb", Priority: PriorityLow})
+
+	if err == nil {
+		t.Fatal("a 403 was accepted as delivered")
+	}
+	if strings.Contains(err.Error(), "guest network") || strings.Contains(err.Error(), "<html>") {
+		t.Errorf("error %q echoes the destination's body", err)
+	}
+	if !strings.Contains(err.Error(), "403") {
+		t.Errorf("error %q does not say what the destination answered", err)
+	}
+}

@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strings"
 	"time"
@@ -144,6 +145,24 @@ func (s *Server) handleImportConfig(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest,
 			"this is not a smart-serve config export, or it is from a different version")
 		return
+	}
+
+	// Validate the schedules before anything is written.
+	//
+	// They went straight into the table, so a bundle with a cron typo or `kind: "weekly"` imported as
+	// an enabled schedule that never ran, and a misspelled action as one that quietly did nothing when
+	// it fired. The API refuses both on create; a file is not a better reason to accept them. Doing it
+	// first keeps the import all-or-nothing: labels and settings are applied below, and a schedule the
+	// file carries must not leave the install half-restored.
+	for i, sched := range bundle.Schedules {
+		if msg := validateSchedule(sched.Kind, sched.EverySeconds, sched.Cron); msg != "" {
+			writeError(w, http.StatusBadRequest, fmt.Sprintf("schedule %d: %s", i+1, msg))
+			return
+		}
+		if msg := validateScheduleAction(sched.Action); msg != "" {
+			writeError(w, http.StatusBadRequest, fmt.Sprintf("schedule %d: %s", i+1, msg))
+			return
+		}
 	}
 
 	applied := map[string]int{"devices": 0, "settings": 0, "schedules": 0, "knowledge": 0}
