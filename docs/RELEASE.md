@@ -101,16 +101,17 @@ additive migrations (`0015`-`0017`); no schema rewrite, so the v1.1.0 rollback n
 - **NVMe remains unverified on hardware.** No NVMe device is attached to the ARM host, so its
   temperature, health fields and amd64 parity rest on the parser and its fixtures (`TESTING.md` 8.6).
 - **arm64 stability: measured, 2026-11-25/26.** Twelve hours overnight on a Pi 5 with the release
-  build running alone: **72 samples, none missed, zero restarts**, RSS and PSS **18.8-19.7 MiB** and
-  moving by **+0.52 MiB** across the whole run with the peak in the middle rather than at the end,
-  **10 file descriptors** constant, 9-10 threads, and **0.024% of one core**. The 6-hourly schedule
-  fired three times during the window and each fire dispatched its notification within five seconds,
-  so the scheduler, the scan path and the digest were exercised unattended. `TESTING.md` 8.5 carries the figures and
-  `docs/testdata/arm64-overnight-2026-11-25.csv` the raw samples. The ten-minute figure this replaces (2026-11-18: about 20 MiB, 11 fds, 11 threads) still
-  holds as the shorter sample. The cgroup cannot account memory on that host (no memory controller;
-  `docker stats` reads `0B / 0B`), so the criterion is stated against **PSS**, which is the better
-  figure anyway: it does not double-count shared pages. The amd64 host reads 18.9 MiB by the cgroup
-  and agrees.
+  build running alone: **72 samples at ten-minute intervals over 11.85 h, none missed, zero restarts**,
+  RSS and PSS **18.8-19.7 MiB** (mean 19.2), **10 file descriptors** constant, 9-10 threads, and
+  **0.024% of one core**. Net movement across the run was **+0.52 MiB**, and the only bump is the
+  scheduled scan itself: **20,192 kB at 01:09:40, back to 19,310 kB ten minutes later**, a transient
+  working set released rather than growth. The schedule fired once inside the window and once nine
+  minutes after the last sample, with the container up throughout. `TESTING.md` 8.7 carries the
+  figures and `docs/testdata/arm64-overnight-2026-11-25.csv` the raw samples. The ten-minute figure this
+  joins (2026-11-18: about 20 MiB, 11 fds, 11 threads, 8.5) still holds as the shorter sample. The
+  cgroup cannot account memory on that host (no memory controller; `docker stats` reads `0B / 0B`), so
+  both criteria are stated against **PSS**, which is the better figure anyway: it does not double-count
+  shared pages. The amd64 host reads 18.9 MiB by the cgroup and agrees.
   The two defects this host found are fixed and **retested on 2026-11-11**, on both architectures,
   from a local build; the retest **from the published rc1 image** is still owed below.
 - **Image size: re-measured for v1.2.0.** **14.7 MB content, 53.6 MB on disk** on amd64, and **60.7 MB
@@ -207,10 +208,12 @@ from that session's own captures, fixed, and **retested on 2026-11-11 against `v
 this Pi and on amd64, and both pass.** The retest ran against a local build of the fixes rather than the
 published image.
 
-**Still open:** overnight stability, NVMe, restart/reboot persistence, and identity across a different
-enclosure bay. The idle budget is no longer open: ten minutes of samples on 2026-11-18 give about 20 MiB
-RSS and PSS, 11 file descriptors and 11 threads flat, and roughly 0.04% CPU (8.5). This host still
-cannot report a cgroup memory figure, so the criterion is stated against PSS.
+**Still open:** NVMe, restart/reboot persistence, and identity across a different enclosure bay.
+
+Closed since this was written: **overnight stability**, twelve hours on 2026-11-26 with zero restarts,
+18.8-19.7 MiB, 10 file descriptors and 0.024% of one core (`TESTING.md` 8.7); and the **idle budget**,
+about 20 MiB over ten minutes on 2026-11-18 (8.5). This host still cannot report a cgroup memory figure,
+so both criteria are stated against PSS.
 
 [TESTING.md Pass 8](TESTING.md#pass-8--arm64-raspberry-pi) holds the dated evidence, image IDs and
 per-check statuses. Keep that record authoritative rather than duplicating the checklist here.

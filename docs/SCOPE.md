@@ -81,4 +81,4 @@ rather than as a failure. Idle cost, sampled 2026-11-18 (`TESTING.md` 8.5): **18
 the cgroup, **19.5 MiB** on the Pi 5 as RSS and PSS (that host's cgroup cannot account memory, so PSS
 is the figure the budget is stated against), 11 file descriptors and 11 threads flat, CPU near zero.
 arm64 is verified in part (native execution, startup health, a full SMART read, self-test progress);
-overnight stability and broader parity remain open.
+twelve hours of overnight stability is measured (`TESTING.md` 8.7), and broader parity remains open.

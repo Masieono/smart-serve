@@ -233,9 +233,9 @@ captures and fixed (8.8, 8.9). **Both were retested on 2026-11-11 against `v1.1.
 passed**, on this Pi *and* on the amd64 host, together with the fleet and disconnected-device checks.
 The idle budget was sampled for ten minutes on 2026-11-18 and passes on RSS and PSS (8.5): about
 20 MiB, 11 file descriptors and 11 threads flat, with CPU near zero. **The twelve-hour overnight run
-followed on 2026-11-25/26 and also passes (8.5)**: memory flat within 0.9 MiB, zero restarts, zero
-missed samples, 0.024% of one core, and the scheduler firing on time three times. NVMe and
-restart/reboot persistence are still open.
+followed on 2026-11-25/26 and passes 8.7**: memory flat within 0.9 MiB, zero restarts, zero missed
+samples, 0.024% of one core, and a scheduled scan that ran and released its memory inside the window.
+NVMe and restart/reboot persistence are still open.
 CI builds both architectures but does not run the application against ARM hardware.
 
 This section is the ARM verification record; setup is in
@@ -280,9 +280,9 @@ Existing test numbers are retained so subsequent results can refer to them.
 | 8.2 | Device-access setup, startup probe and HTTP health. | **Verified for this setup.** Probe: `device access ok`, `devices=2`, `probed=/dev/sda`; server listening on `:8080`; Docker `healthy`. This probe alone does not verify full SMART reads or every drive. |
 | 8.3 | Container SMART read and app scan, identity and attribute-table checks. | **Passed for this disk/setup.** The container read returned exit 0. The operator completed an app scan and confirmed the WDC model, matching serial, 17 attributes and raw values 0 for IDs 5, 197 and 198, with no apparent errors or missing values. Other displayed fields were not individually compared. |
 | 8.4 | USB transport and any required override. | **SAT discovery, explicit SAT read and app scan verified for current settings.** `--scan-open` detected `sat` / `ATA`; the full read succeeded with `-d sat`. The app also reads the disk successfully. Its override setting was not reported, so automatic-vs-manual transport selection is not established. Override controls, bridge chipset and any second bay remain unverified. |
-| 8.5 | Ten-minute idle CPU/RSS measurement with no browser, scan or self-test active. | **Passed on both halves, 2026-11-18.** Eleven samples over ten minutes on `v1.1.0-33-ga7e6449`, nothing else running: **RSS 20,000-20,032 kB (19.5 MiB)** and **PSS 19,984-20,016 kB (19.5 MiB)**, both flat to within 48 kB; **11 file descriptors and 11 threads**, constant; **14 CPU ticks in 600 s**, 0.14 CPU-seconds, **0.023%** of one core. The two memory figures agreeing to within 48 kB is what a single-process container looks like: almost nothing is shared, so RSS is not inflated by another process's pages. The cgroup figure still cannot be read on this host (no memory controller, `docker stats` reports `0B / 0B`), so the criterion is met on **PSS**, which is the better number anyway because it does not double-count shared pages. The amd64 host reads **18.9 MiB** by the cgroup and agrees. **Twelve-hour run, 2026-11-25/26.** `smart-serve-overnight` on `:8081`, built at `41a45b0` plus the sign-in fix, own volume, a 6-hourly scan schedule, nothing else on the host: **72 samples at ten-minute intervals over 11.85 h, none missed, container never stopped, zero restarts.** RSS ranged **18.8-19.7 MiB** (mean 19.2) and PSS matched it to within 16 kB; the total movement across the run was **+0.52 MiB and it peaked mid-run (sample 37 of 72) rather than at the end**, which is the shape of a cache filling and being reclaimed, not of a leak. **10 file descriptors constant**, **9-10 threads**, and **10.3 CPU-seconds in 42,648 s, 0.024% of one core**. The schedule fired at 01:09, 07:09 and 13:09 UTC, each run followed within five seconds by a notification dispatch, so the scheduler, the scan path and the digest all ran unattended inside the same window. The 72 raw samples are committed as `docs/testdata/arm64-overnight-2026-11-25.csv`. |
+| 8.5 | Ten-minute idle CPU/RSS measurement with no browser, scan or self-test active. | **Passed on both halves, 2026-11-18.** Eleven samples over ten minutes on `v1.1.0-33-ga7e6449`, nothing else running: **RSS 20,000-20,032 kB (19.5 MiB)** and **PSS 19,984-20,016 kB (19.5 MiB)**, both flat to within 48 kB; **11 file descriptors and 11 threads**, constant; **14 CPU ticks in 600 s**, 0.14 CPU-seconds, **0.023%** of one core. The two memory figures agreeing to within 48 kB is what a single-process container looks like: almost nothing is shared, so RSS is not inflated by another process's pages. The cgroup figure still cannot be read on this host (no memory controller, `docker stats` reports `0B / 0B`), so the criterion is met on **PSS**, which is the better number anyway because it does not double-count shared pages. The amd64 host reads **18.9 MiB** by the cgroup and agrees. Superseded for the budget by 8.7, which measures the same thing over twelve hours; this stays as the short sample. |
 | 8.6 | NVMe temperature, health fields and comparison with amd64. | **Not tested.** No NVMe device appears in this capture. |
-| 8.7 | Overnight scheduled scans and stable memory/file-descriptor usage. | **Not tested.** Startup and later log timestamps alone do not establish a controlled stability run. |
+| 8.7 | Overnight scheduled scans and stable memory/file-descriptor usage. | **Passed, 2026-11-26.** `smart-serve-overnight` on `:8081`, built at `41a45b0` plus the sign-in fix, own volume, one 6-hourly scan schedule, nothing else on the host. **72 samples at ten-minute intervals over 11.85 h (19:09-07:00 UTC), none missed, container never stopped, zero restarts.** RSS and PSS **18.8-19.7 MiB** (mean 19.2), **10 file descriptors** constant, 9-10 threads, and **10.3 CPU-seconds in 42,648 s, 0.024% of one core**. Net movement across the run **+0.52 MiB** (19,232 to 19,760 kB). The one bump is the scheduled scan itself: **20,192 kB at 01:09:40, back to 19,310 kB by 01:19:40**, which is a scan's transient working set being released, not growth. The schedule fired once inside the window (01:09), again nine minutes after the last sample (07:09) with the container still up, and once more at 13:09 outside the run. Raw samples: `docs/testdata/arm64-overnight-2026-11-25.csv`. |
 | 8.8 | App-triggered short self-test: start, progress, completion and result after page reload. | **Drive completion passed; UI running-state check failed, the cause is fixed, and the fix passed on retest.** Direct smartctl output shows execution status 0 and the newest short test `Completed without error` at 45,446 hours. The operator confirmed the app continues showing `90% left` and only **Stop test** after extended waiting and manual reload. The live API confirmed completion (`passed: true`, no `running`) but also set `self_test_log_unread` for the selective-test log; the saved record from 16:02:49 UTC (scan 18) carried that flag and `remaining: 90`. **Fixed:** the flag was raised for a log the app reads (see the 8.8 fix note below), and the self-test section no longer skips its live read on mount. **Manual recovery and completed-log visibility passed:** after **Scan now**, the progress bar disappeared, short/long buttons returned and the successful short offline entry was visible; these results survived a page reload. **Retested 2026-11-11 on `v1.1.0-28-g6fee3dc`, passed**, on this Pi and on the amd64 host, in both variants: staying on the page, the progress cleared **on its own** when the drive finished, the buttons returned and the log gained the completed entry; leaving the page and watching the fleet, the testing badge tracked the run and cleared with it. No unread-log notice appeared. Exact duration remains unverified. |
 | 8.9 | SD-card discovery in the app, unsupported-SMART notice and absence of repeated automatic scans. | **App visibility verified; no-repeat-scan check failed, the cause is fixed, and the fix passed on retest.** The API reports `last_scan: null`, `smart_available: false`, health/cause `unknown`, and `Unable to detect device type`. Scan IDs 175–179 each record one failed device read at 22:09:03 UTC. The operator confirms the repeated scans occur on the SD-card page and stop on returning to the fleet. **Fixed:** the staleness re-read is now bounded to one attempt per refresh window, per drive. **Retested 2026-11-11 on `v1.1.0-28-g6fee3dc`, passed:** leaving the SD card's page open produced no flicker and no toast storm. The per-window read count was not re-measured in this retest, and the detail-page notice remains unverified. |
 | 8.10 | Disconnected-device inventory in the fleet. | **Passed 2026-11-11; expectation reworded for the current fleet.** With the filters clear the SD card reads **No reading** and the tested 2 TB WDC disk reads **Healthy**, and the three historical records appear as **Not connected**. This verifies rendering of the saved API state, not physical hotplug detection. |
@@ -425,14 +425,17 @@ published tag takes about four minutes and is worth doing if the release needs t
 
 ### Still open on this hardware
 
-1. **Idle budget (8.5) — closed on PSS, 2026-11-18.** The cgroup still cannot account memory on this
-   host (no memory controller; `docker stats` reads `0B / 0B`), and enabling it would mean adding
+1. **Idle budget (8.5, 8.7) — closed on PSS.** The cgroup still cannot account memory on this host (no
+   memory controller; `docker stats` reads `0B / 0B`), and enabling it would mean adding
    `cgroup_enable=memory cgroup_memory=1` to `/boot/firmware/cmdline.txt` and rebooting. Neither is
-   needed: RSS and PSS were sampled for ten minutes and agree at 19.5 MiB, inside the 20 MB budget,
-   with fds, threads and CPU flat. The criterion is therefore stated against PSS.
-2. **8.7 overnight stability** — scheduled scans and stable memory/file-descriptor use over a full night.
-3. **8.6 NVMe** — no NVMe device is attached to this host.
-4. **Restart/reboot persistence**, and identity across a different enclosure bay.
+   needed: RSS and PSS agree, at 19.5 MiB over ten minutes (8.5) and 18.8-19.7 MiB averaging 19.2 over
+   twelve hours (8.7), both inside the 20 MB budget, with file descriptors, threads and CPU flat. The
+   criterion is therefore stated against PSS.
+2. **8.6 NVMe** — no NVMe device is attached to this host.
+3. **Restart/reboot persistence**, and identity across a different enclosure bay.
+
+Closed since this list was written: **8.7 overnight stability** (2026-11-26, twelve hours, zero
+restarts, 0.024% of one core).
 
 ## Pass 7 — cross-cutting
 
@@ -492,6 +495,18 @@ Check this order before calling it a finding:
   on screen; every drive available here reports zero sector counts.
 - **RAID, LVM and ZFS member naming** — no hardware to test against. A drive with no readable table
   gets one generic note.
+
+## Investigated and not reproduced
+
+- **"A committed write followed by a read-back can nil-deref into a 500."** Reported by an external
+  review without a reproduction. The three paths where a write is followed by a re-read were checked by
+  hand: `Store.SetNotes` does not read back at all (it returns the `ExecContext` error); the
+  acknowledgement handler (`handleAckDevice`) fetches the record *before* writing and returns 404 when
+  it is nil; and `handleGetDevice`, the endpoint a page re-reads after saving, returns 404 on a nil
+  record rather than dereferencing it. No path was found where a nil record survives a write into a
+  dereference. Recorded here rather than dropped: "we could not reproduce it" is weaker than "these
+  are the paths, and this is what each does", and the next person to see the claim should not have to
+  redo the search. A reproduction, if one turns up, belongs beside this note.
 
 ## Reporting a finding
 
