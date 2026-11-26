@@ -112,8 +112,10 @@ additive migrations (`0015`-`0017`); no schema rewrite, so the v1.1.0 rollback n
   cgroup cannot account memory on that host (no memory controller; `docker stats` reads `0B / 0B`), so
   both criteria are stated against **PSS**, which is the better figure anyway: it does not double-count
   shared pages. The amd64 host reads 18.9 MiB by the cgroup and agrees.
-  The two defects this host found are fixed and **retested on 2026-11-11**, on both architectures,
-  from a local build; the retest **from the published rc1 image** is still owed below.
+  The two defects this host found are fixed and **retested on 2026-11-11** on both architectures from a
+  local build, and **again on 2026-11-26 against the published `1.2.0-rc1` image**: the SD-card page
+  produced one re-read in 100 seconds rather than a loop, and a short self-test's running state cleared
+  on its own when the drive finished.
 - **Image size: re-measured for v1.2.0.** **14.7 MB content, 53.6 MB on disk** on amd64, and **60.7 MB
   on disk** on arm64, on 2026-11-25 from images built at `41a45b0`. That is within rounding of v1.0.0's
   14.8 / 53.5, which is what "no base change and no new runtime dependency" was supposed to mean, so the
@@ -127,9 +129,10 @@ breakdown's `attribute_id` (the v1.1.0 note asking for it is done, `FEATURES.md`
 single-user sign-in (`ADR-033`; no lockout, and no TLS of its own); per-model thresholds as a table
 (`FEATURES.md` A3); the drive error-log panel (`A20`); and the single interface over five pages.
 
-**Consider a release candidate first.** `v1.2.0-rc1` publishes `1.2.0-rc1` without moving `latest`
-(step 3 above), which is how the Pi can retest the two fixes against a *published* artifact rather
-than the local build used on 2026-11-11. Tag `v1.2.0` once that retest passes.
+**The release candidate ran.** `v1.2.0-rc1` was published on 2026-11-26 without moving `latest`, and
+the Pi retested both ARM-era fixes against the *published* artifact rather than the local build used on
+2026-11-11: both pass, and the published image reports `1.2.0-rc1` in its own sidebar, which is what the
+tag exists to prove. Tag `v1.2.0` once the remaining checks are done.
 
 ## Screenshots
 
@@ -156,7 +159,7 @@ Measured for v1.2.0 on 2026-11-25, built at `41a45b0`:
 | | content (compressed) | on disk |
 |---|---|---|
 | amd64 | **14.7 MB** | **53.6 MB** |
-| arm64 | measured at rc1 from the published manifest | **60.7 MB** |
+| arm64 | **14.8 MB** | **60.7 MB** |
 
 The two architectures differ by 7 MB on disk because the arm64 base layers are larger. The figures
 published for v1.0.0 (14.8 / 53.5) were amd64 only; `README.md` and `DEPLOYMENT.md` now publish the
@@ -199,14 +202,15 @@ three device-access gates is closed if it cannot (`DEPLOYMENT.md`).
 **Current status (2026-11-18): verified in part on Raspberry Pi 5 / DietPi.** Native `linux/arm64`
 execution, the reference device-access configuration, startup probe, HTTP health, USB SAT
 auto-detection and a full container SMART read of the attached WDC disk are confirmed, as are the app's
-model, serial, 17 attributes and selected raw values after a completed scan. This is not verification of
-the published GHCR image, nor full amd64 parity.
+model, serial, 17 attributes and selected raw values after a completed scan. That session ran a local
+build: the published image was checked later, on 2026-11-26 against `1.2.0-rc1`, by the two-defect
+retest below. Full amd64 parity is still not claimed.
 
 The 2026-11-08 session on this host (then `v1.1.0-23-g949fbd6`) turned up two defects, a short test
 whose progress never cleared and an SD-card page that re-read itself in a loop. Both were diagnosed
 from that session's own captures, fixed, and **retested on 2026-11-11 against `v1.1.0-28-g6fee3dc`, on
-this Pi and on amd64, and both pass.** The retest ran against a local build of the fixes rather than the
-published image.
+this Pi and on amd64, and both pass.** That retest ran against a local build of the fixes; the published
+`1.2.0-rc1` image was tested separately on 2026-11-26 (see the v1.2.0 section above).
 
 **Still open:** NVMe, restart/reboot persistence, and identity across a different enclosure bay.
 
