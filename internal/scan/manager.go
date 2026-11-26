@@ -313,6 +313,32 @@ func (m *Manager) run(ctx context.Context, t Trigger, o only) (Result, error) {
 	}
 	if err != nil {
 		res.Error = err.Error()
+		// The drives were read; only the record of it failed. Returning silently leaves every SSE
+		// listener that saw `scan_started` waiting for a completion that never comes, skips the
+		// post-scan hook for a reading that really happened, and loses the work with no history row.
+		// The branch above does the same for a scan that failed earlier; this is the same shape.
+		if id, serr := m.store.SaveFailedScan(ctx, t.Kind, started, ended, err.Error()); serr == nil {
+			res.ScanID = id
+		}
+		okCount := 0
+		for _, d := range devices {
+			if d.Error == "" {
+				okCount++
+			}
+		}
+		m.hub.Publish("scan_complete", map[string]any{
+			"scan_id":        res.ScanID,
+			"ok":             false,
+			"error":          err.Error(),
+			"devices_total":  len(devices),
+			"devices_ok":     okCount,
+			"devices_failed": len(devices) - okCount,
+			"duration_ms":    ended.Sub(started).Milliseconds(),
+		})
+		m.notify(ctx, PostScan{
+			Trigger: t, ScanID: res.ScanID, Started: started, Ended: ended,
+			OK: false, Error: err.Error(), Previous: previous,
+		})
 		return res, err
 	}
 

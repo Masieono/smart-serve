@@ -307,6 +307,18 @@ func (r *Runner) wait(ctx context.Context, rec store.DeviceRecord, kind string, 
 	started := r.now()
 	floor := estimateFloor(before, kind)
 	reportedRunning := false
+	// How long a drive may keep failing to answer before this pass gives up on it.
+	//
+	// A drive unplugged mid-test, an enclosure switched off or a wedged bridge makes every poll fail,
+	// and this loop used to keep asking forever. `running` stayed true, so every later pass took the
+	// ErrAlreadyRunning skip and scheduled self-testing was dead until the process restarted: one
+	// unplug silently disabling the only feature that writes to a drive.
+	//
+	// Ending the wait is not a claim that the test finished. The drive's recorded state is left
+	// exactly as it is; this pass simply stops waiting for an answer that is not coming, and the next
+	// pass will see whatever the drive says when it comes back.
+	const unreadableLimit = 5 * time.Minute
+	var unreadableSince time.Time
 
 	for {
 		select {
@@ -320,11 +332,23 @@ func (r *Runner) wait(ctx context.Context, rec store.DeviceRecord, kind string, 
 
 		res, err := r.driver.Read(ctx, timeout, rec.DevicePath, rec.TransportOverride)
 		if err != nil {
-			// A read failure is not a finished test. Keep asking: the drive is mid-test, and
-			// treating this as "done" would start the next drive on top of it.
-			r.log.Warn("could not read self-test progress; still waiting", "serial", rec.Serial, "err", err)
+			// A read failure is not a finished test. Keep asking while there is reason to think the
+			// drive is still there: treating one failed read as "done" would start the next drive on
+			// top of a running test.
+			if unreadableSince.IsZero() {
+				unreadableSince = r.now()
+			}
+			waited := r.now().Sub(unreadableSince)
+			if waited >= unreadableLimit {
+				r.log.Warn("giving up on a drive that is not answering",
+					"serial", rec.Serial, "waited", waited.Round(time.Second), "err", err)
+				return
+			}
+			r.log.Warn("could not read self-test progress; still waiting",
+				"serial", rec.Serial, "waited", waited.Round(time.Second), "err", err)
 			continue
 		}
+		unreadableSince = time.Time{}
 		after := smart.ParseLogs(res.Stdout)
 		if running := after.Running(); running != nil {
 			reportedRunning = true
