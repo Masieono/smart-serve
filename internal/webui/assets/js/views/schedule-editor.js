@@ -27,23 +27,6 @@ function describeAction(s) {
   return 'Scan';
 }
 
-/**
- * What a running self-test pass is doing, or null.
- *
- * A pass takes hours and writes to every drive in the fleet, so the row's "last run" is not enough
- * for a reader to know what is happening: without this, a pass that has been running for six hours
- * looks exactly like one that finished six hours ago.
- */
-function passNotice(data) {
-  const pass = data.selftest_pass;
-  if (!pass || !pass.running) return null;
-  const on = pass.current ? ` Testing ${pass.current} now.` : '';
-  return el('div', { class: 'notice' }, [
-    el('div', { class: 'notice-title', text: `Self-tests running, ${pass.done} of ${pass.total} drives done` }),
-    el('div', { text: `One drive at a time, so a fleet does not start every test at once.${on}` }),
-  ]);
-}
-
 /** Human phrasing for an interval, used in the list and the live preview. */
 function humanInterval(seconds) {
   const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;

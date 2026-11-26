@@ -2,10 +2,10 @@
  *
  * Every value here comes from tokens.css, so this file inherits all nineteen palettes and the
  * surface tints without knowing they exist. Nothing in it is a colour, a radius or a spacing
- * value, the same rule the rest of the stylesheet follows, and the reason a redesign can be
- * compared against the incumbent in the same build.
+ * value, the same rule the rest of the stylesheet follows.
  *
- * Scoped to [data-ui="v2"] so the two views can coexist while the comparison is running.
+ * This is the fleet view, not a variant of it: the comparison against the card page ran on a
+ * `[data-ui="v2"]` attribute that no longer exists, and every rule below is now unconditional.
  */
 
 .content {
@@ -1119,11 +1119,12 @@
   .v2-feed-event.v2-feed-detail { display: none; }
 }
 
-/* --- dialogs in v2 ----------------------------------------------------------
-   The editor dialogs are the incumbent's, per-provider field specs, secret
-   handling, test-send against unsaved config. What was out of place was their
-   proportions: a narrow box with 12px of padding, where the page around it now
-   has rhythm. Scoped to [data-ui="v2"] so the card view keeps its own. */
+/* --- dialogs ---------------------------------------------------------------
+   The editor dialogs carry per-provider field specs, secret handling and a
+   test-send against unsaved config. What was out of place was their proportions:
+   a narrow box with 12px of padding, where the page around it has rhythm. The
+   `[data-ui="v2"]` scoping this once carried is gone with the variant; there is
+   one page now, so these rules are the page's own. */
 
 dialog {
   /* Wide enough that a two-column checkbox set stays on one line per item; the incumbent's dialog

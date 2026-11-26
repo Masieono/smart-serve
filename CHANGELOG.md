@@ -442,6 +442,12 @@ discarding silently is not. See `ADR-028`.
 
 ### Documentation
 
+- **Dead code from the one-UI rebuild is gone.** Three Go helpers nothing called (`csvText`,
+  `intField`, `anyRunning`), seven view functions with no call site (`currentScrollY`,
+  `restoreScrollY`, `yesNo`, `enduranceText`, `statGrid`, `storageText`, `lifeText`), the `trendCard`
+  export nothing imported, `maintenanceCard` and `deliveryLog` in the notification editors, and
+  `passNotice` in the schedule editor. Two `fleet.css` comments still described `[data-ui="v2"]`
+  scoping for a variant attribute that is set nowhere.
 - **`v1.2.0-rc1` published and retested on the Pi.** The two ARM-era fixes were confirmed against the
   published image rather than a local build: the SD-card page makes one re-read in 100 seconds instead
   of looping, and a short self-test's running state clears itself when the drive finishes. The published
