@@ -181,7 +181,7 @@ func weekdayAt(from time.Time, want time.Weekday) time.Time {
 }
 
 func TestRecurringDailyWindow(t *testing.T) {
-	// 02:00–04:00 every day.
+	// 02:00-04:00 every day.
 	w := ParseMaintenanceWindows("[" + recurring("nightly", "daily", 2*60, 4*60, nil) + "]")
 	utc := time.UTC
 
@@ -206,8 +206,8 @@ func TestRecurringDailyWindow(t *testing.T) {
 	}
 }
 
-// A window that crosses midnight has to cover both sides of it, or "23:00–02:00"
-// would only ever mean 23:00–00:00.
+// A window that crosses midnight has to cover both sides of it, or "23:00-02:00"
+// would only ever mean 23:00-00:00.
 func TestRecurringWindowAcrossMidnight(t *testing.T) {
 	w := ParseMaintenanceWindows("[" + recurring("overnight", "daily", 23*60, 2*60, nil) + "]")
 	utc := time.UTC
@@ -235,7 +235,7 @@ func TestRecurringWindowAcrossMidnight(t *testing.T) {
 }
 
 func TestRecurringWeeklyWindow(t *testing.T) {
-	// Monday and Friday, 02:00–04:00.
+	// Monday and Friday, 02:00-04:00.
 	w := ParseMaintenanceWindows("[" + recurring("mon & fri", "weekly", 2*60, 4*60, []int{1, 5}) + "]")
 	utc := time.UTC
 	monday := weekdayAt(at(utc, 3, 0), time.Monday)

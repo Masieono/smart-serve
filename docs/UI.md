@@ -134,18 +134,24 @@ or spacing value, which is what makes theming a token swap.
 1. **Identity and freshness:** name, model, transport, firmware, serial in mono, the verdict with its
    score and reason, `Scan this drive` and `Export...`, then how old the data is, or "reading the drive
    now..." while the page re-reads a drive older than `device_refresh_minutes` (15, or never at `0`).
-2. **Facts:** capacity, powered on, wear, temperature, mounted at, device node, bay, last scanned;
+2. **Advisories:** firmware advisories for this drive, drawn under the verdict and only when one
+   matches (the firmware list matches what the drive reports, or the advisory names no firmware).
+3. **Longevity outlook**, when the drive carries an endurance rating: how long the remaining rated
+   writes last at the measured rate, with the confidence and the caveat that make it a projection
+   rather than a promise.
+4. **Since the last scan:** what changed in the last scan, which is how a slow drift becomes visible.
+5. **Facts:** capacity, powered on, wear, temperature, mounted at, device node, bay, last scanned;
    anything the drive did not report reads `n/a`.
-3. **Disk space:** usage line, disk map, partition table, the map and the table marking each other both
+6. **Disk space:** usage line, disk map, partition table, the map and the table marking each other both
    ways. The map is the usage bar when a layout exists.
-4. **Trends:** six cards, two rows of three: health score, temperature, power-on hours, wear, storage, bad
+7. **Trends:** six cards, two rows of three: health score, temperature, power-on hours, wear, storage, bad
    sectors. Every reading draws a dot, so a gap in scanning is visible; the range picker (7d, 30d, 90d,
    All, default All) redraws only the trend host.
-5. **Attributes:** the table above, aside `N reported · M at threshold`. An NVMe drive has no ATA
+8. **Attributes:** the table above, aside `N reported · M at threshold`. An NVMe drive has no ATA
    table; its health log is a grid of labelled values.
-6. **Self-test:** short or long, progress, abort, and the drive's own log. The only place the page reads a
+9. **Self-test:** short or long, progress, abort, and the drive's own log. The only place the page reads a
    drive live, and only while a test it started is running.
-7. **Drive logs** when reported, then a footer reading `Read from /dev/sda 3d ago` or `Never scanned`.
+10. **Drive logs** when reported, then a footer reading `Read from /dev/sda 3d ago` or `Never scanned`.
 
 ### 7.3 Schedules (`/schedules`)
 

@@ -108,7 +108,7 @@ func (w MaintenanceWindow) covers(at time.Time, loc *time.Location) bool {
 	} else {
 		// Crosses midnight. The evening part belongs to today; the morning part
 		// belongs to the day the window actually started on, which is yesterday,
-		// otherwise a weekly Friday 23:00–02:00 window would never cover Saturday.
+		// otherwise a weekly Friday 23:00-02:00 window would never cover Saturday.
 		switch {
 		case minutes >= w.StartMinute:
 			// still on the starting day

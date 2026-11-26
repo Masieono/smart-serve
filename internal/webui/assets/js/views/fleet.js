@@ -584,7 +584,7 @@ async function reload(ctx) {
 }
 
 /**
- * State and score in one cell. The score is the interpreter's 0–100, and it sits beside the word
+ * State and score in one cell. The score is the interpreter's 0-100, and it sits beside the word
  * rather than in a column of its own because a verdict and the number behind it are the same fact
  * told twice, `docs/UI.md` §7.1 keeps both, and this is the compact form of that.
  */

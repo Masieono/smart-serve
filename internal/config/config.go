@@ -131,7 +131,7 @@ func normalizeBasePath(p string) string {
 // timeoutFromSeconds multiplies without wrapping.
 //
 // `time.Duration` is int64 nanoseconds, so a number of seconds above about 9.2e9 overflows the
-// multiplication — and it overflows into a *small* duration, which every caller accepts because it
+// multiplication, and it overflows into a *small* duration, which every caller accepts because it
 // is still positive. `SMARTSERVE_COMMAND_TIMEOUT=18446744074` therefore produced a 0.3-second
 // timeout rather than the default, which is the same class of bug `strconv.Atoi` closed one step
 // earlier and is worse, because a too-short timeout looks like a failing drive.

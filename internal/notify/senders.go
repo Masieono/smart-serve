@@ -166,7 +166,7 @@ func (s ntfySender) Send(ctx context.Context, cfg map[string]any, ev Event) erro
 	})
 }
 
-// ntfyPriority maps a Smart-Serve priority onto ntfy's 1–5 scale. The mapping is
+// ntfyPriority maps a Smart-Serve priority onto ntfy's 1-5 scale. The mapping is
 // fixed in the MVP (docs/NOTIFICATIONS.md).
 func ntfyPriority(p Priority) string {
 	switch p {

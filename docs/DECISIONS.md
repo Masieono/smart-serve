@@ -351,8 +351,14 @@ area for the owner's use); multi-user accounts/roles (rejected — out of scope,
 `SCOPE.md` non-goals).
 
 **Consequences.** (+) lean; no credential storage, no user database, no session
-handling. (−) exposing the port directly without a proxy is unsafe — stated loudly in
+handling. (−) exposing the port directly without a proxy is unsafe, and that is stated loudly in
 `DEPLOYMENT.md`.
+
+**Superseded in part by ADR-033 (2026).** The default is still no authentication, which is what this
+decision protects. The optional single-user login shipped, though: HTTP Basic for scripts and scrapers,
+and a session layer for a browser (`internal/auth`), off unless a credential is configured. So "ships
+no authentication" describes the default rather than the code, and this ADR should be read with
+ADR-033 beside it.
 
 ## ADR-017: Deferring acknowledgement, and storing maintenance windows as a setting
 

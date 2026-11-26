@@ -186,16 +186,19 @@ Decisions are recorded in [`docs/REQUIREMENTS.md`](docs/REQUIREMENTS.md) (D1–D
 ### Validated on real hardware
 
 Device access works against a native NVMe, a USB-attached NVMe, a USB-attached SATA SSD, a
-native SATA SSD, and a USB flash drive that reports no S.M.A.R.T. at all — which is reported as
+native SATA SSD, and a USB flash drive that reports no S.M.A.R.T. at all, which is reported as
 such rather than as a failure (`docs/DEPLOYMENT.md`). Measured idle cost on a long-running
-instance with no browser open: **0.00% CPU, 13.4 MiB RSS**.
+instance with no browser open: **0.00% CPU, 18.9 MiB RSS** by the container's cgroup
+(`docs/TESTING.md` 8.5).
 
 **ARM verification is partial.** On a Pi 5 running DietPi, native arm64 execution, startup health,
-a full container SMART read through USB SAT and app identity/attribute checks are confirmed for
-the tested disk. Two defects that host surfaced — a self-test progress bar stuck at a percentage the
-drive's own log had moved past, and an SD-card page that re-read itself in a loop — are **fixed and
-retested on both architectures**. Idle CPU is confirmed near zero; the idle memory figure is not
-measurable on that host. Overnight stability and NVMe checks remain open. See
+a full container SMART read through USB SAT, app identity and attribute checks, and twelve hours of
+overnight stability are confirmed for the tested disk (`docs/TESTING.md` 8.7). Two defects that host
+surfaced (a self-test progress bar stuck at a percentage the drive's own log had moved past, and an
+SD-card page that re-read itself in a loop) are **fixed and retested on both architectures**. Idle
+cost is 19.5 MiB as RSS and PSS, 11 file descriptors and 11 threads flat, CPU near zero; that host's
+cgroup cannot account memory, so PSS is the figure the budget is stated against. NVMe on ARM and
+restart/reboot persistence remain open. See
 [the ARM test record](docs/TESTING.md#pass-8--arm64-raspberry-pi).
 
 ## License

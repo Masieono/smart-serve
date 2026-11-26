@@ -44,7 +44,7 @@ One process, one binary, with the work in packages under `internal/`: `scan`, `s
 
 | Condition | CPU | RAM |
 |---|---|---|
-| Idle, no browser connected | ~0% | ~8-12 MB (binary plus SQLite page cache) |
+| Idle, no browser connected | ~0% | 18.9 MiB measured on amd64 by cgroup; 19.5 MiB on the Pi as RSS/PSS; the budget criterion is 20 MB |
 | Idle, browser tab open | ~0% (SSE is epoll-driven) | +~1 MB per connection |
 | Active scan (N devices) | one `smartctl` child at a time, sequential | +~5 MB per child |
 

@@ -33,7 +33,7 @@ func (c Credentials) Enabled() bool {
 
 // Match compares the two halves in constant time, so for equal-length inputs a wrong username costs
 // the same as a wrong password. A length mismatch returns before any byte is compared, so the length
-// of the configured value is not hidden — fine here, because the credential is configuration rather
+// of the configured value is not hidden, which is fine here, because the credential is configuration rather
 // than user input.
 func (c Credentials) Match(user, password string) bool {
 	userOK := subtle.ConstantTimeCompare([]byte(user), []byte(c.User)) == 1

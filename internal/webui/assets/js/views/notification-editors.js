@@ -104,7 +104,7 @@ export function describeWindow(w) {
   if (!isRecurring(w)) {
     return `${fmtDateTime(w.starts_at)} → ${fmtDateTime(w.ends_at)}`;
   }
-  const hours = `${fmtClock(w.start_minute)}–${fmtClock(w.end_minute)}`;
+  const hours = `${fmtClock(w.start_minute)} to ${fmtClock(w.end_minute)}`;
   if (w.recurrence === 'daily') return `Every day, ${hours}`;
   const days = (w.days || [])
     .slice()

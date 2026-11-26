@@ -1,6 +1,8 @@
 // Package httpapi serves the JSON API and the SSE stream described in
-// docs/API.md. It is deliberately unauthenticated: access control is delegated
-// to a reverse proxy (ADR-016).
+// docs/API.md. It is optionally authenticated: the default is no authentication,
+// with access control delegated to a reverse proxy (ADR-016), and a single-user
+// login (HTTP Basic, or the browser session layer) can be switched on instead
+// (ADR-033, which supersedes ADR-016's "no authentication" in part).
 package httpapi
 
 import (

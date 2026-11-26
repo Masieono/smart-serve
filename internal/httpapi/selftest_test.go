@@ -268,8 +268,8 @@ func TestSelfTestUsesTheResolvedTimeout(t *testing.T) {
 }
 
 // TestSelfTestReadFailureCarriesTheDrivesWords pins the status a failed *read* gets. The read
-// cannot fail at the store — `selfTestTarget` has already answered for a drive that is unknown or
-// unaddressable — so what is left is the drive, and a drive that will not answer is reported the
+// cannot fail at the store, since `selfTestTarget` has already answered for a drive that is unknown
+// or unaddressable, so what is left is the drive, and a drive that will not answer is reported the
 // same way its start and abort siblings report it: 502, in smartctl's own words (ADR-031).
 func TestSelfTestReadFailureCarriesTheDrivesWords(t *testing.T) {
 	cmds := &fakeCommands{readFn: func() (smart.Result, error) {
@@ -279,7 +279,7 @@ func TestSelfTestReadFailureCarriesTheDrivesWords(t *testing.T) {
 
 	rec := do(t, srv, http.MethodGet, "/api/devices/S1/selftest", "", nil)
 	if rec.Code != http.StatusBadGateway {
-		t.Fatalf("status = %d, want 502 — the read failed at the drive, not in the store", rec.Code)
+		t.Fatalf("status = %d, want 502, the read failed at the drive, not in the store", rec.Code)
 	}
 	var body map[string]string
 	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
