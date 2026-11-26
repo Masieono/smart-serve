@@ -397,12 +397,16 @@ func (s *Scheduler) fire(ctx context.Context, id int64) {
 	switch {
 	case sched.Action == store.ActionSelfTest:
 		s.startSelfTest(ctx, *sched)
+	// The run context derives from the caller's, which `Run` receives as the process-lifetime context
+	// (`internal/lifecycle`): a fire is detached from the tick that woke it, but not from the process.
+	// `WithoutCancel` here meant a scan mid-flight when the operator restarted kept running while the
+	// database it records into was being closed.
 	case sched.Action == store.ActionDigest:
-		runCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), s.scanTimeout)
+		runCtx, cancel := context.WithTimeout(ctx, s.scanTimeout)
 		defer cancel()
 		s.sendDigest(runCtx, *sched)
 	default:
-		runCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), s.scanTimeout)
+		runCtx, cancel := context.WithTimeout(ctx, s.scanTimeout)
 		defer cancel()
 		var rerr error
 		res, _, rerr = s.runner.Scan(runCtx, scan.Trigger{Kind: "schedule", ScheduleID: id})
@@ -413,7 +417,11 @@ func (s *Scheduler) fire(ctx context.Context, id int64) {
 
 	// Bookkeeping survives cancellation: a run that happened must be recorded,
 	// and the schedule must always move forward so the loop cannot spin on it.
-	writeCtx := context.WithoutCancel(ctx)
+	// Bookkeeping is bounded rather than unbounded: it must land, so it survives the cancellation of
+	// the run above, but the shutdown that cancelled that run is waiting for this function to return
+	// before it closes the database, and a stuck write would hold the whole stop.
+	writeCtx, cancelWrite := context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
+	defer cancelWrite()
 	lastRun := s.now()
 	next := lastRun.Add(retryInterval)
 

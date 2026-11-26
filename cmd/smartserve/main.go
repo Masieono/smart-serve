@@ -20,6 +20,7 @@ import (
 	"github.com/masieono/smart-serve/internal/events"
 	"github.com/masieono/smart-serve/internal/httpapi"
 	"github.com/masieono/smart-serve/internal/interp"
+	"github.com/masieono/smart-serve/internal/lifecycle"
 	"github.com/masieono/smart-serve/internal/notify"
 	"github.com/masieono/smart-serve/internal/scan"
 	"github.com/masieono/smart-serve/internal/sched"
@@ -112,6 +113,11 @@ func runServe() error {
 	defer st.Close()
 
 	hub := events.NewHub()
+
+	// Work detached from its requester (a scan started from the button, a scheduled scan) runs on this
+	// group. It is stopped after the HTTP server has drained and before the deferred `st.Close()`, so a
+	// scan cannot be writing when the database goes away.
+	background := lifecycle.New()
 
 	// The tunables live in the database and are read per operation, so a change made
 	// in the UI applies to the very next scan rather than at the next restart
@@ -206,7 +212,9 @@ func runServe() error {
 		SelfTester:      selfTests,
 		Logger:          logger,
 	})
-	go scheduler.Run(ctx)
+	// Tracked rather than a bare `go`: a fire in progress holds a scan that writes to the database,
+	// and the loop is the goroutine the shutdown must wait for.
+	background.Go(scheduler.Run)
 
 	// The UI theme is read from settings on each shell request, so changing it in
 	// the UI is reflected on the next load without a restart (docs/UI.md §5).
@@ -227,12 +235,13 @@ func runServe() error {
 	}
 
 	api := httpapi.New(st, manager, hub, httpapi.Options{
-		BasePath:  cfg.BasePath,
-		Version:   cfg.Version,
-		Logger:    logger,
-		UI:        ui,
-		Scheduler: scheduler,
-		Notifier:  dispatcher,
+		BasePath:   cfg.BasePath,
+		Version:    cfg.Version,
+		Logger:     logger,
+		UI:         ui,
+		Background: background,
+		Scheduler:  scheduler,
+		Notifier:   dispatcher,
 		// So the schedules page can say what a running self-test pass is doing. A pass takes hours
 		// and writes to drives, so "it fired" is not enough for a reader to know what happened.
 		SelfTests: selfTests,
@@ -286,7 +295,12 @@ func runServe() error {
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	return srv.Shutdown(shutdownCtx)
+	err = srv.Shutdown(shutdownCtx)
+
+	// Handlers have returned. Now cancel the work that outlived them and wait for it to return, so the
+	// deferred `st.Close()` runs on a database nobody is writing to.
+	background.Stop()
+	return err
 }
 
 func logLevel(name string) slog.Level {
