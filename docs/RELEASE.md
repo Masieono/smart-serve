@@ -104,7 +104,7 @@ additive migrations (`0015`-`0017`); no schema rewrite, so the v1.1.0 rollback n
   build running alone: **72 samples at ten-minute intervals over 11.85 h, none missed, zero restarts**,
   RSS and PSS **18.8-19.7 MiB** (mean 19.2), **10 file descriptors** constant, 9-10 threads, and
   **0.024% of one core**. Net movement across the run was **+0.52 MiB**, and the only bump is the
-  scheduled scan itself: **20,192 kB at 01:09:40, back to 19,310 kB ten minutes later**, a transient
+  scheduled scan itself: **20,192 kB at 01:09:40, back to 19,776 kB ten minutes later**, a transient
   working set released rather than growth. The schedule fired once inside the window and once nine
   minutes after the last sample, with the container up throughout. `TESTING.md` 8.7 carries the
   figures and `docs/testdata/arm64-overnight-2026-11-25.csv` the raw samples. The ten-minute figure this
