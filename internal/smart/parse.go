@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"math"
 	"strconv"
 	"strings"
 
@@ -112,7 +113,7 @@ func ParseSMART(data []byte) (*model.SmartData, error) {
 		// retry coerces numeric strings and tries again; if the second pass fails too, the original
 		// error is what the caller sees, because that one describes the real problem.
 		if ee, ok := err.(*json.UnmarshalTypeError); ok {
-			if repaired, rerr := coerceNumericStrings(data); rerr == nil {
+			if repaired, rerr := repairJSON(data); rerr == nil {
 				var retry rawRoot
 				if json.Unmarshal(repaired, &retry) == nil {
 					r = retry
@@ -146,7 +147,9 @@ func ParseSMART(data []byte) (*model.SmartData, error) {
 		passed := r.SmartStatus.Passed
 		sd.Passed = &passed
 	}
-	if r.Temperature != nil && r.Temperature.Current > 0 {
+	// Presence is the parent pointer's job, not the value's: a drive at exactly 0 degrees C, which
+	// is a real operating temperature for a cold rack, used to be reported as having no sensor.
+	if r.Temperature != nil && r.Temperature.Current >= 0 {
 		t := r.Temperature.Current
 		sd.TemperatureC = &t
 	}
@@ -247,17 +250,27 @@ func derefInt(p *int) int {
 
 // coerceNumericStrings rewrites a document whose numbers arrived as strings.
 //
-// It is only reached after a strict parse has already failed, so it cannot change how a healthy
-// document is read. A value that looks like an integer but is meant to be text (a serial of digits,
-// say) would be coerced too, and the retry then fails on that field and the original error stands.
-func coerceNumericStrings(data []byte) ([]byte, error) {
+// repairJSON fixes the shapes firmware produces that a strict decoder refuses, and is only reached
+// after a strict parse has already failed, so it cannot change how a healthy document is read.
+//
+// Three of them, all the same class: one leaf the decoder cannot place taking the whole document with
+// it, leaving the drive reading "no reading" with its attribute table gone.
+//
+//   - a number that arrived as text (`"current": "40"`);
+//   - an integer beyond int64, which is what firmware writes for a counter it cannot fill
+//     (`data_units_written` at the all-ones placeholder), and which overflows the field;
+//   - text that arrived as a number (a serial of `12345`), which the first two rounds would leave
+//     broken because the repair only went one way.
+//
+// The text keys are exempt from the first rule because a serial of digits is still a serial.
+func repairJSON(data []byte) ([]byte, error) {
 	var doc any
 	dec := json.NewDecoder(bytes.NewReader(data))
 	dec.UseNumber()
 	if err := dec.Decode(&doc); err != nil {
 		return nil, err
 	}
-	return json.Marshal(coerceLeaves(doc))
+	return json.Marshal(repairLeaves(doc))
 }
 
 // textKeys are the fields smartctl uses for text that can look like a number: a raw value's printed
@@ -268,13 +281,13 @@ var textKeys = map[string]bool{
 	"serial_number": true, "firmware_version": true, "device": true, "message": true,
 }
 
-func coerceLeafNamed(key string, v any) any {
+func repairLeafNamed(key string, v any) any {
 	switch t := v.(type) {
 	case map[string]any:
-		return coerceLeaves(t)
+		return repairLeaves(t)
 	case []any:
 		for i := range t {
-			t[i] = coerceLeaves(t[i])
+			t[i] = repairLeaves(t[i])
 		}
 		return t
 	case string:
@@ -288,21 +301,56 @@ func coerceLeafNamed(key string, v any) any {
 			return json.Number(strconv.FormatFloat(f, 'f', -1, 64))
 		}
 		return t
+	case json.Number:
+		// Text that arrived as a number: a serial, a model name that is all digits.
+		if textKeys[key] {
+			return string(t)
+		}
+		// An integer the field cannot hold, which is what the all-ones counter placeholder is once
+		// a field is int64. Clamp rather than drop: the counter is not the point, keeping the rest
+		// of the document is.
+		raw := string(t)
+		if n, err := strconv.ParseInt(raw, 10, 64); err == nil {
+			return json.Number(strconv.FormatInt(n, 10))
+		} else if ne, ok := err.(*strconv.NumError); ok && ne.Err == strconv.ErrRange {
+			return json.Number(clampIntText(raw))
+		}
+		if f, err := t.Float64(); err == nil && !math.IsInf(f, 0) && !math.IsNaN(f) {
+			switch {
+			case f > math.MaxInt64:
+				return json.Number(strconv.FormatInt(math.MaxInt64, 10))
+			case f < math.MinInt64:
+				return json.Number(strconv.FormatInt(math.MinInt64, 10))
+			default:
+				return json.Number(strconv.FormatFloat(f, 'f', -1, 64))
+			}
+		} else if ne, ok := err.(*strconv.NumError); ok && ne.Err == strconv.ErrRange {
+			return json.Number(clampIntText(raw))
+		}
+		return t
 	default:
 		return v
 	}
 }
 
-func coerceLeaves(v any) any {
+// clampIntText returns the largest int64 the text can hold, by sign.
+func clampIntText(raw string) string {
+	if strings.HasPrefix(strings.TrimSpace(raw), "-") {
+		return strconv.FormatInt(math.MinInt64, 10)
+	}
+	return strconv.FormatInt(math.MaxInt64, 10)
+}
+
+func repairLeaves(v any) any {
 	switch t := v.(type) {
 	case map[string]any:
 		for k, child := range t {
-			t[k] = coerceLeafNamed(k, child)
+			t[k] = repairLeafNamed(k, child)
 		}
 		return t
 	case []any:
 		for i := range t {
-			t[i] = coerceLeaves(t[i])
+			t[i] = repairLeaves(t[i])
 		}
 		return t
 	case string:

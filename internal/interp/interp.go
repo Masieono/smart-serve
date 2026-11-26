@@ -308,7 +308,10 @@ func evaluateNVMe(sd *model.SmartData, t Thresholds) Result {
 			Points: math.Min(45, float64(n.PercentageUsed-5)*0.4),
 		})
 	}
-	if n.AvailableSpare < 100 {
+	// Same guard as the verdict twelve lines up, for the same reason: a log that omits the spare
+	// pair parses as 0%, and a healthy drive must not be docked 30 points in its own breakdown for
+	// a figure it never reported. The breakdown is the evidence somebody takes to an RMA.
+	if n.SpareReported && n.AvailableSpare < 100 {
 		pen = append(pen, Penalty{
 			Reason: fmt.Sprintf("spare blocks (%d%%)", n.AvailableSpare),
 			Points: math.Min(30, float64(100-n.AvailableSpare)*0.3),
@@ -437,13 +440,14 @@ func DeriveMetrics(sd *model.SmartData) Metrics {
 			v := n.PowerCycles
 			m.PowerCycles = &v
 		}
-		// NVMe reports data volume in 1,000-sector units.
-		if n.DataUnitsRead > 0 {
-			v := uint64(n.DataUnitsRead) * model.NVMeDataUnitBytes
+		// NVMe reports data volume in 1,000-sector units. `satInt64` has already clamped the counters
+		// to int64, so an all-ones placeholder arrives here as MaxInt64 and is skipped rather than
+		// multiplied; the multiplication itself saturates, because 512,000 bytes per unit overflows
+		// on a counter that merely looks large.
+		if v, ok := dataUnitBytes(n.DataUnitsRead); ok {
 			m.DataReadBytes = &v
 		}
-		if n.DataUnitsWritten > 0 {
-			v := uint64(n.DataUnitsWritten) * model.NVMeDataUnitBytes
+		if v, ok := dataUnitBytes(n.DataUnitsWritten); ok {
 			m.DataWrittenBytes = &v
 		}
 		return m
@@ -469,12 +473,12 @@ func DeriveMetrics(sd *model.SmartData) Metrics {
 			m.PowerCycles = &c
 		}
 	}
-	if v, ok := count(242); ok && v > 0 {
-		b := v * 512
+	if v, ok := count(242); ok && isReading(v) {
+		b := mulSat(v, ataSectorBytes)
 		m.DataReadBytes = &b
 	}
-	if v, ok := count(241); ok && v > 0 {
-		b := v * 512
+	if v, ok := count(241); ok && isReading(v) {
+		b := mulSat(v, ataSectorBytes)
 		m.DataWrittenBytes = &b
 	}
 	if left, ok := ATALifeLeftPct(sd); ok {
@@ -510,6 +514,33 @@ func effectiveCount(raw uint64) uint64 {
 // lies in the same direction: the reallocated-sector threshold is never reached, the drive reads as
 // caution rather than failing, the stored sector count goes backwards, and the worsening flag can
 // never fire because no later reading is higher than a negative one.
+// ataSectorBytes is the unit an ATA 241/242 raw value counts in: 512-byte sectors.
+const ataSectorBytes = 512
+
+// isReading reports whether a raw counter holds something a drive actually reported.
+//
+// Firmware writes all-ones into a counter it cannot fill, which arrives here as MaxUint64 from the
+// attribute table and MaxInt64 from a field `satInt64` has clamped. Multiplying either by 512 gives
+// about 18 exabytes of "data written", which is a number a reader would notice as nonsense and which
+// the device page and every report would carry.
+func isReading(v uint64) bool { return v != 0 && v != math.MaxUint64 && v != math.MaxInt64 }
+
+// mulSat multiplies with saturation rather than wrapping.
+func mulSat(v, k uint64) uint64 {
+	if k != 0 && v > math.MaxUint64/k {
+		return math.MaxUint64
+	}
+	return v * k
+}
+
+// dataUnitBytes converts an NVMe data-unit counter to bytes, and reports whether there is a figure.
+func dataUnitBytes(units int64) (uint64, bool) {
+	if units <= 0 || uint64(units) == math.MaxInt64 {
+		return 0, false
+	}
+	return mulSat(uint64(units), model.NVMeDataUnitBytes), true
+}
+
 func satInt64(v uint64) int64 {
 	if v > math.MaxInt64 {
 		return math.MaxInt64
