@@ -407,7 +407,7 @@ Returning to the fleet stops it, which was the workaround.
 window is the pass, not five in a second, and reopening after the window elapses should produce one
 more. Covered by `a drive that cannot be read is not read over and over`; the hardware does not.
 
-### Retested — 8.8 and 8.9 both pass, 2026-11-11
+### Retested — 8.8 and 8.9 both pass, 2026-11-11 and 2026-11-26
 
 Both defects were retested against `v1.1.0-28-g6fee3dc` — the local development image built from the
 fixes — on this Pi **and** on the amd64 host. Same actions that failed on 2026-11-08:
@@ -419,9 +419,9 @@ fixes — on this Pi **and** on the amd64 host. Same actions that failed on 2026
 | 8.9 SD-card page left open | **Passed, and again on `1.2.0-rc1` 2026-11-26 (one re-read in 100 s).** No flicker, no `0/1 readable` toast storm. |
 | 8.10 fleet health and disconnected display | **Passed.** SD card **No reading**, WDC disk **Healthy**; the three historical records appear as **Not connected**. |
 
-The retest was against a **local build**, not the published image — the source is identical and CI
-builds the same Dockerfile, but the record should say so. Re-running the 8.8 check against the
-published tag takes about four minutes and is worth doing if the release needs that stronger claim.
+The 2026-11-11 retest was against a **local build**, not the published image — the source is identical
+and CI builds the same Dockerfile, but the record said so. The published-image retest followed on
+2026-11-26 against `1.2.0-rc1` (rows above), so the stronger claim holds as well.
 
 ### Still open on this hardware
 

@@ -202,14 +202,15 @@ three device-access gates is closed if it cannot (`DEPLOYMENT.md`).
 **Current status (2026-11-18): verified in part on Raspberry Pi 5 / DietPi.** Native `linux/arm64`
 execution, the reference device-access configuration, startup probe, HTTP health, USB SAT
 auto-detection and a full container SMART read of the attached WDC disk are confirmed, as are the app's
-model, serial, 17 attributes and selected raw values after a completed scan. This is not verification of
-the published GHCR image, nor full amd64 parity.
+model, serial, 17 attributes and selected raw values after a completed scan. That session ran a local
+build: the published image was checked later, on 2026-11-26 against `1.2.0-rc1`, by the two-defect
+retest below. Full amd64 parity is still not claimed.
 
 The 2026-11-08 session on this host (then `v1.1.0-23-g949fbd6`) turned up two defects, a short test
 whose progress never cleared and an SD-card page that re-read itself in a loop. Both were diagnosed
 from that session's own captures, fixed, and **retested on 2026-11-11 against `v1.1.0-28-g6fee3dc`, on
-this Pi and on amd64, and both pass.** The retest ran against a local build of the fixes rather than the
-published image.
+this Pi and on amd64, and both pass.** That retest ran against a local build of the fixes; the published
+`1.2.0-rc1` image was tested separately on 2026-11-26 (see the v1.2.0 section above).
 
 **Still open:** NVMe, restart/reboot persistence, and identity across a different enclosure bay.
 
