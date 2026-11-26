@@ -100,13 +100,19 @@ additive migrations (`0015`-`0017`); no schema rewrite, so the v1.1.0 rollback n
   the release.
 - **NVMe remains unverified on hardware.** No NVMe device is attached to the ARM host, so its
   temperature, health fields and amd64 parity rest on the parser and its fixtures (`TESTING.md` 8.6).
-- **arm64 idle budget: measured, 2026-11-18.** Ten minutes of samples with nothing else running give
-  about **20 MiB** both as RSS and as PSS, 11 file descriptors and 11 threads flat, and roughly **0.04%
-  CPU** on a Pi 5. The cgroup cannot account memory on that host (no memory controller; `docker stats`
-  reads `0B / 0B`), so the criterion is stated against **PSS**, which is the better figure anyway: it
-  does not double-count shared pages. The amd64 host reads 18.9 MiB by the cgroup and agrees.
-  `TESTING.md` 8.5 carries the samples.
-  The two defects this host found are fixed and **retested on 2026-11-11**, on both architectures.
+- **arm64 stability: measured, 2026-11-25/26.** Twelve hours overnight on a Pi 5 with the release
+  build running alone: **72 samples, none missed, zero restarts**, RSS and PSS **18.8-19.7 MiB** and
+  moving by **+0.52 MiB** across the whole run with the peak in the middle rather than at the end,
+  **10 file descriptors** constant, 9-10 threads, and **0.024% of one core**. The 6-hourly schedule
+  fired three times during the window and each fire dispatched its notification within five seconds,
+  so the scheduler, the scan path and the digest were exercised unattended. `TESTING.md` 8.5 carries the figures and
+  `docs/testdata/arm64-overnight-2026-11-25.csv` the raw samples. The ten-minute figure this replaces (2026-11-18: about 20 MiB, 11 fds, 11 threads) still
+  holds as the shorter sample. The cgroup cannot account memory on that host (no memory controller;
+  `docker stats` reads `0B / 0B`), so the criterion is stated against **PSS**, which is the better
+  figure anyway: it does not double-count shared pages. The amd64 host reads 18.9 MiB by the cgroup
+  and agrees.
+  The two defects this host found are fixed and **retested on 2026-11-11**, on both architectures,
+  from a local build; the retest **from the published rc1 image** is still owed below.
 - **Image size: re-measured for v1.2.0.** **14.7 MB content, 53.6 MB on disk** on amd64, and **60.7 MB
   on disk** on arm64, on 2026-11-25 from images built at `41a45b0`. That is within rounding of v1.0.0's
   14.8 / 53.5, which is what "no base change and no new runtime dependency" was supposed to mean, so the
