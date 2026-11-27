@@ -191,8 +191,15 @@ func intPtr(n sql.NullInt64) *int {
 	return &v
 }
 
+// uint64Ptr reads a non-negative counter.
+//
+// The writer side (`nullUint`) clamps above MaxInt64 before the write, so a value this package stores
+// cannot wrap. This side clamps too: a negative in the column means somebody edited the file or a
+// future writer forgot the rule, and the alternative is converting it to an 18-exabyte capacity
+// figure that every later reader takes at face value. gosec's G115 flags the conversion; clamping is
+// the honest way to answer it rather than suppressing the finding.
 func uint64Ptr(n sql.NullInt64) *uint64 {
-	if !n.Valid {
+	if !n.Valid || n.Int64 < 0 {
 		return nil
 	}
 	v := uint64(n.Int64)
