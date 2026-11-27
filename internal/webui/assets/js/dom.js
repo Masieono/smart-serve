@@ -265,7 +265,7 @@ export function fmtMinutes(value) {
   return `${fmtInt(value)} min`;
 }
 
-/** Colour band for a 0–100 score, used by gauges and sparklines. */
+/** Colour band for a 0-100 score, used by gauges and sparklines. */
 export function scoreBand(score) {
   if (score === null || score === undefined || score < 0) return 'unknown';
   if (score >= 75) return 'good';

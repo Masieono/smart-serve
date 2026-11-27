@@ -13,7 +13,7 @@ export function verdictBadge(verdict) {
 }
 
 /**
- * Circular health gauge (0–100). Colour follows the score band; the number and
+ * Circular health gauge (0-100). Colour follows the score band; the number and
  * grade are always shown alongside.
  */
 export function healthGauge(score, size = 76) {

@@ -419,7 +419,8 @@ readings are the last ones anybody saw — the same reason the fleet export incl
 
 The format is written by hand rather than with `prometheus/client_golang`: the exposition format is
 four rules and a handful of escaping, this is six metrics, and the library would multiply a dependency
-tree that currently holds exactly one module (`ADR-020`).
+tree that is deliberately small: eight Go modules, of which one is the SQLite driver
+(`THIRD-PARTY-NOTICES.md` lists them), and none is a metrics library (`ADR-020`).
 
 ## Import and export
 
@@ -570,7 +571,8 @@ from the environment can be saved with the token field left blank.
       "sent_at": "2025-10-12T03:00:04Z", "status": "sent", "detail": "" }
   ],
   "event_types": ["health_change", "temperature_high", "device_disappeared",
-                  "device_appeared", "scan_failure"],
+                  "device_appeared", "scan_failure", "self_test_result",
+                  "scan_success", "group_heat", "digest"],
   "channel_types": ["discord", "gotify", "ntfy", "smtp", "telegram", "webhook"],
   "channel_env_vars": ["SMARTSERVE_CHANNEL_CRITICAL_ALERTS_TOKEN"]
 }

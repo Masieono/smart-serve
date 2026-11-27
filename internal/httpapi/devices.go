@@ -596,7 +596,7 @@ func (s *Server) handleSetNotes(w http.ResponseWriter, r *http.Request) {
 // The value reaches smartctl as a single `-d` argument, so it cannot open a second flag. It is
 // still unvalidated text on a command line in an app that is unauthenticated by design
 // (`ADR-016`), and it is stored, so it outlives the request that sent it. A device type is a
-// word — `sat`, `sat,12`, `nvme`, `usbjmicron,0` — so the rule is a character set and a length
+// word (`sat`, `sat,12`, `nvme`, `usbjmicron,0`), so the rule is a character set and a length
 // rather than an allow-list of known types: the list of bridge chips is long, open-ended, and
 // belongs to smartmontools, not to this app.
 func validateSmartD(v string) error {

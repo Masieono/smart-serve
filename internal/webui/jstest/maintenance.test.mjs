@@ -169,10 +169,10 @@ test('buildWindow falls back to a one-off for an unknown recurrence', () => {
 
 test('describeWindow explains both kinds of window', () => {
   const daily = { recurrence: 'daily', start_minute: 120, end_minute: 240 };
-  assert.equal(describeWindow(daily), 'Every day, 02:00–04:00');
+  assert.equal(describeWindow(daily), 'Every day, 02:00 to 04:00');
 
   const weekly = { recurrence: 'weekly', start_minute: 1380, end_minute: 120, days: [1, 5] };
-  assert.equal(describeWindow(weekly), 'Mon, Fri · 23:00–02:00');
+  assert.equal(describeWindow(weekly), 'Mon, Fri · 23:00 to 02:00');
 
   const once = { starts_at: NOW, ends_at: NOW + HOUR };
   assert.ok(describeWindow(once).includes('→'), describeWindow(once));

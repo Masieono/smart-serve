@@ -471,7 +471,7 @@ func TestRunSleepsWithoutSchedulesAndStopsOnCancel(t *testing.T) {
 // A wake-up is not a trigger.
 //
 // sleepUntil returns for either a wake-up or the deadline, and the loop used to fire whichever
-// schedule was selected at the moment it woke — so creating a second schedule ran the first one
+// schedule was selected at the moment it woke, so creating a second schedule ran the first one
 // immediately, no matter when it was actually due. For a monitoring tool that means a scan nobody
 // asked for, waking parked disks; for a self-test schedule it means a multi-hour pass starting on
 // its own.

@@ -112,7 +112,7 @@ history — is one file that can be backed up with `cp` while the app is stopped
 | `event_type` | TEXT | |
 | `event_key` | TEXT | dedupe key, e.g. `health_change:<serial>:caution` |
 | `sent_at` | INTEGER (unix ms) | |
-| `status` | TEXT | `sent` / `failed` / `squelched` |
+| `status` | TEXT | `sent` / `failed` / `squelched` / `skipped` (a channel a pass never reached; `API.md` documents the fourth) |
 | `detail` | TEXT NULL | error or payload summary |
 
 ### `settings` — key/value app settings
@@ -152,7 +152,7 @@ because a setting that nothing reads is worse than no setting at all.
 | `missed_run_policy` | `"skip"` | `skip` \| `run_once` | `sched` (env-seeded) |
 | `timezone` | `""` | schedule time zone; empty = container `TZ` (C6) | `sched` |
 | `temperature_unit` | `"c"` | `c` \| `f` — display only; stored values stay Celsius | `webui`, `notify` |
-| `theme` | `"auto"` | `auto` \| `light` \| `dark` \| `catppuccin-latte` \| `catppuccin-mocha` \| `dracula` \| `nord` \| `gruvbox-light` \| `gruvbox-dark` \| `custom` (`UI.md` §5) | `webui` |
+| `theme` | `"auto"` | one of the 19 palettes listed in `UI.md` §5, plus `custom`, which is built from the three settings below; `UI.md` is the authority for the list | `webui` |
 | `theme_base` | `"dark"` | base for `custom`: `light` \| `dark` | `webui` |
 | `theme_accent` | `"#3b82f6"` | accent colour, read **only** when `theme` is `custom` | `webui` |
 | `theme_surface_tint` | `"neutral"` | `neutral` \| `slate` \| `warm` \| `cool`; remixes any theme's palette | `webui` |

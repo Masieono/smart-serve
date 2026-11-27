@@ -14,9 +14,10 @@ URL at your own copy is the way to keep your own.
 - **Rated endurance** appears on the device page beside the figures it explains: how much the drive is
   rated for, how much it has written, and what fraction of the rating that is. It is only ever a
   denominator — the app does not move a verdict because a rating says so.
-- **Advisories** appear as a card on the device page, and only when the advisory's firmware matches
-  the firmware *this* drive reports. An advisory for a revision the drive is not running is noise, and
-  noise is what makes people stop reading advisories.
+- **Advisories** appear as a card on the device page when the advisory's firmware list matches the
+  firmware *this* drive reports, or when it names no firmware at all (§ below: an empty firmware list
+  is a family-wide advisory, and it applies to every drive of the family). An advisory for a revision
+  the drive is not running is noise, and noise is what makes people stop reading advisories.
 - **Nothing else.** The knowledge base changes no verdict, no score and no alert. It is context, and
   the drive's own reported data is what the app reasons from.
 

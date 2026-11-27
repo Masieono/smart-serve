@@ -345,7 +345,7 @@ func nvmeOperationName(value int, fallback string) string {
 
 // nvmePassed reads the NVMe base spec's Device Self-test Result code.
 //
-// Only the two unambiguous ends are claimed. Codes 1–6 are **aborts**, a controller reset, a
+// Only the two unambiguous ends are claimed. Codes 1-6 are **aborts**, a controller reset, a
 // format, a host abort, and an abort is not a failure of the drive, so they are left without a
 // verdict rather than rendered as one; the drive's own words are shown either way, which is where
 // "Aborted due to a Controller Level Reset" reads as exactly what it is.

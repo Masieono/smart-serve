@@ -108,7 +108,7 @@ func (s *Store) RetentionDays(ctx context.Context) int {
 // the fleet badge is current too. Splitting it in two would be two knobs for one idea, and the person
 // who turned it down because their bridge dislikes extra commands meant both of them.
 //
-// Clamped to the same 2–30 the settings page offers. A value outside that came from a hand-edited
+// Clamped to the same 2-30 the settings page offers. A value outside that came from a hand-edited
 // database, and reading it literally would either hammer a drive or leave the badge frozen.
 func (s *Store) SelfTestPollSeconds(ctx context.Context) time.Duration {
 	const def = 15

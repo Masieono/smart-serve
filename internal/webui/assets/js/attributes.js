@@ -113,7 +113,7 @@ export const ATTRIBUTE_HELP = {
   },
   202: {
     what: "A vendor's wear figure for a solid-state drive.",
-    watch: 'Some SSDs report remaining life here instead of life used; the app reads it as the percentage left, and rejects anything outside 1–100.',
+    watch: 'Some SSDs report remaining life here instead of life used; the app reads it as the percentage left, and rejects anything outside 1 to 100.',
   },
   231: {
     what: 'Remaining life, and the closest thing to a standard SSD wear figure.',

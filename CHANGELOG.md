@@ -31,21 +31,9 @@ discarding silently is not. See `ADR-028`.
   empty cell inherits the value set above it and shows that value greyed, so the table reads as the
   effective configuration. The JSON stays behind **Advanced** for keys a column does not cover.
 
-
-- **A table view of the fleet, as a variant.** `?ui=v2` sets a cookie and the same deployment serves a
-  second fleet view: one row per drive, with the verdict and the 0–100 score in a single Health column,
-  usage, temperature and age; the row that needs a second look marks itself with a rule down its left
-  edge and, when a drive cannot report, one line of the drive's own reason. It reads the same
-  `/api/devices` payload as the cards, so the two cannot disagree. The device page is unchanged, and
-  the card view is still the default — this exists to be compared against it. See `ADR-032`.
 - **`used_pct` on the fleet payload.** How full the drive's fullest filesystem was at the last scan,
   absent when the container could not see one. It was already stored per snapshot; the fleet table is
   the first thing that wanted it for every drive at once.
-
-- **The "Replace first" shortlist can be turned off** (`A24`) — `show_replace_first`, on the Appearance
-  page. It sits above the fleet, so it is the first thing on the page whether or not you want it today,
-  and somebody who has already acted on it should not have to scroll past it every visit. The ranking is
-  still computed and sent either way: this hides a card, not a feature.
 
 - **A re-read when a drive's data has gone stale** (`FEATURES.md` A28 follow-up) — open a drive whose
   last scan is older than the window you set (`device_refresh_minutes`, default 15 minutes) and the page
@@ -117,7 +105,6 @@ discarding silently is not. See `ADR-028`.
   no `?ui=`, no cookie, no `data-ui` attribute, one stylesheet.
 - **Em dashes are gone from the app's own text**, in the interface, in Go strings that reach a
   person and in code comments. The glyph for a value that was never reported is `n/a`.
-
 
 - **CI runs the race detector.** `go test -race` was green but nobody was running it: `make ci` and the
   workflow both used `-count=1` alone. This app has a scheduler, an SSE hub, a scan manager behind a
@@ -447,7 +434,6 @@ discarding silently is not. See `ADR-028`.
   metadata hostnames. Loopback and private addresses stay allowed: a self-hosted ntfy on the same
   host is the normal case.
 
-
 - **A 500 no longer quotes the database.** Every failed request used to answer `err.Error()` verbatim,
   and most of those errors come from the store — so the sentence that reached a browser could name a
   column, a statement, or the path of the data file. The response now carries a reference and the log
@@ -484,6 +470,13 @@ discarding silently is not. See `ADR-028`.
   export nothing imported, `maintenanceCard` and `deliveryLog` in the notification editors, and
   `passNotice` in the schedule editor. Two `fleet.css` comments still described `[data-ui="v2"]`
   scoping for a variant attribute that is set nowhere.
+- **The changelog no longer lists two features this release removed.** The fleet-table variant behind
+  the `?ui=v2` cookie and the `show_replace_first` toggle each had an entry under Added, in the same
+  section as the Changed entry recording their removal. Neither exists in the code.
+- **The README's ARM paragraph matches the measurements.** It claimed 13.4 MiB of idle memory (a figure
+  from nowhere), that idle memory was not measurable on the Pi (it was, as RSS and PSS, because that
+  host has no cgroup memory controller), and that overnight stability was open (twelve hours are
+  measured). README was the stale copy of a status sentence that four documents carry.
 - **`v1.2.0-rc1` published and retested on the Pi.** The two ARM-era fixes were confirmed against the
   published image rather than a local build: the SD-card page makes one re-read in 100 seconds instead
   of looping, and a short self-test's running state clears itself when the drive finishes. The published

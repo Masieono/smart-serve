@@ -183,7 +183,7 @@ func (s *Scheduler) Run(ctx context.Context) {
 		//
 		// sleepUntil returns on either, so a create, an edit or a delete nudged the loop and it
 		// arrived here without the deadline having passed. Firing anyway runs the schedule that
-		// happened to be selected at the moment of the nudge — which is how creating a weekly
+		// happened to be selected at the moment of the nudge, which is how creating a weekly
 		// schedule could launch a scan immediately, and how a newly created schedule could sit
 		// unarmed: the loop fired the old one instead of re-reading the list.
 		//
