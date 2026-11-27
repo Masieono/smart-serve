@@ -454,3 +454,74 @@ func TestAnAllOnesCounterDoesNotWrap(t *testing.T) {
 		}
 	}
 }
+
+// A log that omits the spare pair must not be docked for it.
+//
+// The verdict side of this was guarded when the pointers were introduced; the penalty side was not,
+// so a healthy drive reporting no spare figures scored 70 with a fabricated "spare blocks (0%)" row in
+// its breakdown. The breakdown is what somebody takes to an RMA.
+func TestMissingSparePairCostsNothing(t *testing.T) {
+	sd := &model.SmartData{
+		Bus: model.BusNVMe, Passed: boolPtr(true),
+		NVMe: &model.NVMeHealth{SpareReported: false, PercentageUsed: 4},
+	}
+
+	got := Evaluate(sd, DefaultThresholds())
+	if got.Verdict != model.Good {
+		t.Errorf("verdict = %q, want good: absence is not a reading", got.Verdict)
+	}
+	if got.Score != 100 {
+		t.Errorf("score = %d, want 100: nothing was wrong with this drive", got.Score)
+	}
+	for _, p := range got.Penalties {
+		if strings.Contains(p.Reason, "spare blocks") {
+			t.Errorf("penalty %q invented a spare figure the drive never reported", p.Reason)
+		}
+	}
+}
+
+// The all-ones counter firmware writes for "not reported" must not become 18 exabytes.
+func TestSentinelCountersAreNotMultiplied(t *testing.T) {
+	ata := &model.SmartData{
+		Bus: model.BusATA, Passed: boolPtr(true),
+		Attributes: []model.Attribute{
+			attr(241, ^uint64(0)>>1), // MaxInt64, the shape satInt64 leaves
+			attr(242, ^uint64(0)),    // MaxUint64, straight from the table
+		},
+	}
+	m := DeriveMetrics(ata)
+	if m.DataWrittenBytes != nil || m.DataReadBytes != nil {
+		t.Errorf("data volume from a sentinel: written=%v read=%v", m.DataWrittenBytes, m.DataReadBytes)
+	}
+
+	// And a counter that merely looks large saturates rather than wrapping to a small figure.
+	big := &model.SmartData{
+		Bus: model.BusATA, Passed: boolPtr(true),
+		// Low 16 bits set, so `effectiveCount` passes the value through rather than unpacking it
+		// as a packed raw.
+		Attributes: []model.Attribute{attr(241, (1<<62)|5)},
+	}
+	m = DeriveMetrics(big)
+	if m.DataWrittenBytes == nil {
+		t.Fatal("no data volume for a large counter")
+	}
+	if *m.DataWrittenBytes < 1<<60 {
+		t.Errorf("data written = %d, wrapped below the counter it came from", *m.DataWrittenBytes)
+	}
+}
+
+// The NVMe path multiplies by 512,000 per unit, so a large counter overflows long before MaxInt64.
+func TestNVMeDataUnitsSaturate(t *testing.T) {
+	sd := &model.SmartData{
+		Bus: model.BusNVMe, Passed: boolPtr(true),
+		NVMe: &model.NVMeHealth{SpareReported: true, AvailableSpare: 100, AvailableSpareThresh: 10,
+			DataUnitsWritten: 1 << 62},
+	}
+	m := DeriveMetrics(sd)
+	if m.DataWrittenBytes == nil {
+		t.Fatal("no data volume for a large NVMe counter")
+	}
+	if *m.DataWrittenBytes < 1<<62 {
+		t.Errorf("data written = %d, smaller than the counter it came from", *m.DataWrittenBytes)
+	}
+}

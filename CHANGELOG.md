@@ -179,6 +179,22 @@ discarding silently is not. See `ADR-028`.
 
 ### Fixed
 
+- **A drive that reports no spare figures is no longer docked for it.** The verdict was guarded against
+  an omitted NVMe spare pair; the *penalty* was not, so a healthy drive whose log carried neither
+  `available_spare` nor its threshold scored 70 and its breakdown showed a fabricated "spare blocks
+  (0%)" row. The breakdown is the evidence somebody takes to an RMA, so a penalty for a figure the
+  drive never reported is the same defect as a false verdict.
+- **A counter beyond int64 no longer costs the whole document.** The numeric-string retry rescued text
+  typed numbers and nothing else, so an NVMe counter at the all-ones "not reported" placeholder, which
+  is a 64-bit unsigned value, failed the retry on the same leaf and the drive read as "no reading" with
+  its attribute table gone. The repair now clamps an out-of-range integer, converts a number that
+  arrived where text belongs (a serial of digits), and keeps the rest of the document.
+- **Data volume saturates instead of wrapping or inventing exabytes.** ATA attributes 241/242 were
+  multiplied by 512 unchecked, so the all-ones placeholder became about 18 exabytes of "data written";
+  the NVMe path multiplied by 512,000 and wrapped above roughly 3.6e13 units. Both saturate now, and
+  the placeholder is skipped rather than reported.
+- **Zero degrees is a temperature.** presence is decided by the parent object, not by the value, so a
+  drive reporting exactly 0 in a cold rack shows 0 rather than no sensor.
 - **Signing in works in a browser.** The page was served with `Referrer-Policy: no-referrer`, and a
   browser with that policy serialises the `Origin` of a form POST as `null` (Fetch spec), so the app's
   own login form was rejected as cross-origin: every browser sign-in failed with a 403 while curl kept

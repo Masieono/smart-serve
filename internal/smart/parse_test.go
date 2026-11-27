@@ -1,6 +1,7 @@
 package smart
 
 import (
+	"math"
 	"os"
 	"path/filepath"
 	"testing"
@@ -142,5 +143,88 @@ func TestANumericStringDoesNotDiscardTheDocument(t *testing.T) {
 func TestMalformedJSONStillFails(t *testing.T) {
 	if _, err := ParseSMART([]byte(`{"model_name": `)); err == nil {
 		t.Fatal("truncated JSON parsed as if it were fine")
+	}
+}
+
+// A counter beyond int64 must not cost the document.
+//
+// smartctl's NVMe counters are 64-bit unsigned, and firmware writes the all-ones value into a counter
+// it cannot fill. Strict decoding fails with a range error, and the numeric-string retry did nothing
+// for it because the leaf was already a number: the drive read "no reading" with its attribute table
+// gone, which is the failure the retry exists to prevent.
+func TestAnOutOfRangeCounterDoesNotDiscardTheDocument(t *testing.T) {
+	raw := []byte(`{
+	  "model_name": "Samsung SSD 970 EVO",
+	  "serial_number": "S466NX0M",
+	  "smart_status": {"passed": true},
+	  "nvme_smart_health_information_log": {
+	    "data_units_written": 18446744073709551615,
+	    "percentage_used": 7
+	  },
+	  "ata_smart_attributes": {"table": [
+	    {"id": 5, "name": "Reallocated_Sector_Ct", "value": 100, "worst": 100, "thresh": 10,
+	     "raw": {"value": 0, "string": "0"}}
+	  ]}
+	}`)
+
+	sd, err := ParseSMART(raw)
+	if err != nil {
+		t.Fatalf("ParseSMART: %v", err)
+	}
+	if sd.Serial != "S466NX0M" {
+		t.Errorf("serial = %q, the identity went with the counter", sd.Serial)
+	}
+	if len(sd.Attributes) != 1 {
+		t.Errorf("attributes = %d, want the table that parsed perfectly", len(sd.Attributes))
+	}
+	if sd.NVMe == nil || sd.NVMe.PercentageUsed != 7 {
+		t.Errorf("nvme log = %+v, want the neighbour field kept", sd.NVMe)
+	}
+	// The counter itself is clamped, not dropped: the caller sees a saturated figure rather than a
+	// missing log.
+	if sd.NVMe.DataUnitsWritten != math.MaxInt64 {
+		t.Errorf("data_units_written = %d, want the clamped maximum", sd.NVMe.DataUnitsWritten)
+	}
+}
+
+// Text that arrives as a number is the same class in the other direction: a serial of digits sent as
+// a JSON number used to keep the whole document from parsing, because the repair only went one way.
+func TestTextArrivingAsANumberDoesNotDiscardTheDocument(t *testing.T) {
+	raw := []byte(`{
+	  "model_name": "WDC WD40EFRX",
+	  "serial_number": 123456789,
+	  "smart_status": {"passed": true},
+	  "ata_smart_attributes": {"table": [
+	    {"id": 9, "name": "Power_On_Hours", "value": 90, "worst": 90, "thresh": 0,
+	     "raw": {"value": 40000, "string": "40000"}}
+	  ]}
+	}`)
+
+	sd, err := ParseSMART(raw)
+	if err != nil {
+		t.Fatalf("ParseSMART: %v", err)
+	}
+	if sd.Serial != "123456789" {
+		t.Errorf("serial = %q, want the digits as text", sd.Serial)
+	}
+	if len(sd.Attributes) != 1 {
+		t.Errorf("attributes = %d, want the table kept", len(sd.Attributes))
+	}
+}
+
+// Zero degrees is a reading, not an absence. A drive in a cold rack reports exactly 0, and the
+// presence of the parent object is what says whether there is a sensor at all.
+func TestZeroDegreesIsATemperature(t *testing.T) {
+	raw := []byte(`{"model_name": "X", "serial_number": "S1", "temperature": {"current": 0}}`)
+
+	sd, err := ParseSMART(raw)
+	if err != nil {
+		t.Fatalf("ParseSMART: %v", err)
+	}
+	if sd.TemperatureC == nil {
+		t.Fatal("temperature = nil, want 0")
+	}
+	if *sd.TemperatureC != 0 {
+		t.Errorf("temperature = %d, want 0", *sd.TemperatureC)
 	}
 }
