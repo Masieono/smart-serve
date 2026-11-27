@@ -419,7 +419,7 @@ readings are the last ones anybody saw — the same reason the fleet export incl
 
 The format is written by hand rather than with `prometheus/client_golang`: the exposition format is
 four rules and a handful of escaping, this is six metrics, and the library would multiply a dependency
-tree that is deliberately small: nine Go modules, of which one is the SQLite driver
+tree that is deliberately small: eight Go modules, of which one is the SQLite driver
 (`THIRD-PARTY-NOTICES.md` lists them), and none is a metrics library (`ADR-020`).
 
 ## Import and export
