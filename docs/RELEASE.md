@@ -41,6 +41,11 @@ each one. Written for v1.2.0; reusable afterwards.
 The last of the roadmap: scheduled self-tests, group-scoped channels, per-model thresholds, and the
 side-by-side comparison. `SCOPE.md` Phase 4 is complete and `FEATURES.md` §H has nothing left open.
 
+**Released 2026-11-27.** Tag `v1.2.0` from `c72d480`; CI green on the tag (test, image, release);
+`1.2.0` and `latest` both published for amd64 and arm64; `latest` moved off v1.1.0; the published image
+reported `1.2.0` in the sidebar when pulled and run on the Pi; and the homelab instance was rebuilt to
+the tag with sign-in still on.
+
 **Deliberately left undone, and where each is recorded:**
 
 - **`D7` localization.** Deferred, not dropped: the cost is extracting every string and keeping every
