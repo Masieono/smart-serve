@@ -6,12 +6,23 @@ Notable changes per release. Format follows
 
 ## [Unreleased]
 
-The audit round. A question about reporting partition sizes turned into an audit of what the app
-fetches and then discards, and the answer was: more than it should. The `lsblk` device tree was
-walked on every scan for two strings; the score breakdown was computed on every read and thrown away;
-`in_smartctl_database` was never parsed at all. All three are now shown, and `FEATURES.md` §A28 carries
-the list of what is deliberately *not* captured, each with its reason — discarding is allowed,
-discarding silently is not. See `ADR-028`.
+Nothing yet.
+
+## [1.2.0] — 2026-11-27
+
+The interface is one page per job now: the fleet is a sortable table with the score in it, the device
+page was rebuilt around the verdict and kept every control the old page had, and the two fleet views
+that used to be compared behind a cookie are one. Optional single-user sign-in for the browser sits
+beside HTTP Basic, which still works for scripts and Prometheus; neither switches on unless a
+credential is configured.
+
+An external audit of the whole tree raised 42 findings. Forty are fixed here and two are left with
+their reason stated, and the one worth reading is the scoring bug: a healthy drive whose log carried
+no spare figures was docked 30 points in its breakdown for a figure it never reported. The same audit
+asked what the app fetches and then discards, and the answer was more than it should: the `lsblk`
+device tree was walked on every scan for two strings, the score breakdown was computed on every read
+and thrown away, and `in_smartctl_database` was never parsed at all. All three are shown now, and
+`FEATURES.md` §A28 lists what is deliberately *not* captured, each with its reason.
 
 ### Added
 
@@ -1050,7 +1061,8 @@ First public release.
 - The idle-footprint figures are targets, not measurements, pending a run on a public
   instance.
 
-[Unreleased]: https://github.com/masieono/smart-serve/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/masieono/smart-serve/compare/v1.2.0...HEAD
+[1.2.0]: https://github.com/masieono/smart-serve/releases/tag/v1.2.0
 [1.1.0]: https://github.com/masieono/smart-serve/releases/tag/v1.1.0
 [1.0.1]: https://github.com/masieono/smart-serve/releases/tag/v1.0.1
 [1.0.0]: https://github.com/masieono/smart-serve/releases/tag/v1.0.0
