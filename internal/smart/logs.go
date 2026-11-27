@@ -328,16 +328,6 @@ func ataReportsStatus(data *rawATASmartData) bool {
 	return data != nil && data.SelfTest != nil && data.SelfTest.Status != nil
 }
 
-// anyRunning reports whether an entry is a test in progress.
-func anyRunning(entries []model.SelfTestEntry) bool {
-	for _, e := range entries {
-		if e.Remaining != nil {
-			return true
-		}
-	}
-	return false
-}
-
 // nvmeOperationName names a self-test in progress, from the NVMe base spec's Device Self-test
 // Operation values. The drive's own string is the fallback, because an unrecognised code is the
 // drive telling us about a test this app has not heard of, and its words beat a blank.

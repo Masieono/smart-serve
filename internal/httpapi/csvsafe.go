@@ -1,7 +1,5 @@
 package httpapi
 
-import "strings"
-
 // csvSafe neutralises a value a spreadsheet would treat as a formula.
 //
 // `encoding/csv` quotes commas, quotes and newlines, and does nothing about the characters that make
@@ -28,14 +26,4 @@ func csvRow(fields []string) []string {
 		out[i] = csvSafe(f)
 	}
 	return out
-}
-
-// csvText applies csvSafe to a whole document. It exists for the report's free-form lines, which are
-// assembled before they reach the writer rather than row by row.
-func csvText(s string) string {
-	lines := strings.Split(s, "\n")
-	for i := range lines {
-		lines[i] = csvSafe(lines[i])
-	}
-	return strings.Join(lines, "\n")
 }

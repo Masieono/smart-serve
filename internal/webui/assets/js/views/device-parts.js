@@ -25,17 +25,6 @@ const TREND_RANGES = [
 // Across the whole history, the line spans the plot and the shape is the shape.
 let trendRange = 'all';
 
-/** The current scroll offset, or 0 where there is no window (the unit tests). */
-function currentScrollY() {
-  return typeof window === 'undefined' ? 0 : window.scrollY || 0;
-}
-
-function restoreScrollY(y) {
-  if (typeof window !== 'undefined' && typeof window.scrollTo === 'function') {
-    window.scrollTo(0, y);
-  }
-}
-
 /** The absolute start of the selected window, or null for everything. */
 // Exported so the v2 device page asks for the same window through the same rule (`ADR-032`):
 // two implementations of "what does 30 days mean" is how the two views start disagreeing.
@@ -242,13 +231,6 @@ function attributeChanges(attrs) {
   ]);
 }
 
-/** "yes" / "no" for a tri-state flag; undefined (not reported) renders no row. */
-function yesNo(value) {
-  if (value === true) return 'yes';
-  if (value === false) return 'no';
-  return null;
-}
-
 // The `-d` values smartctl accepts for the USB bridges people actually hit.
 const TRANSPORT_OVERRIDES = [
   'sat', 'usbjmicron', 'usbcypress', 'usbsunplus', 'usb-storage', 'scsi', 'nvme', 'auto',
@@ -343,41 +325,6 @@ export function smartProblemNotice(ctx, d) {
   ]);
 }
 
-/**
- * The rated endurance line (`FEATURES.md` A21), with how much of it is used where that can be worked
- * out.
- *
- * **The percentage uses decimal terabytes**, because that is what TBW is measured in: dividing a
- * drive's written bytes by 1e12 matches the published figure, and dividing by 2^40 would quietly
- * report 10% more of the rating than the drive has used. The byte counts elsewhere on this page stay
- * binary, which is correct for them and is why this is worked out here rather than reusing one
- * formatter for both.
- *
- * Nothing is invented. No rating means no line; no written figure means no percentage; a rating that
- * came from a capacity bucket that only nearly matches says "about". The drive's own wear indicator is
- * not used as the percentage here, because it is a fraction of *its* rating, which is not necessarily
- * the published one, vendors change cells within a family without renaming it.
- */
-function enduranceText(known, metrics) {
-  if (!known) return null;
-  const parts = [];
-  if (known.rated_tbw) {
-    parts.push(`${known.rated_tbw_approx ? 'about ' : ''}${fmtInt(known.rated_tbw)} TBW`);
-  }
-  if (known.rated_workload_tb_per_year) {
-    parts.push(`${fmtInt(known.rated_workload_tb_per_year)} TB/year rated`);
-  }
-  if (!parts.length) return null;
-
-  const written = metrics ? metrics.data_written_bytes : null;
-  if (written != null && known.rated_tbw) {
-    const tb = written / 1e12;
-    parts.push(`${tb < 10 ? tb.toFixed(1) : fmtInt(tb)} TB written, ` +
-      `${Math.round((tb / known.rated_tbw) * 100)}% of rated`);
-  }
-  return parts.join(' · ');
-}
-
 // Advisory severities to the badge tones the rest of the app uses. Kept as a map rather than
 // interpolated, so a severity the server adds later shows as "unknown" instead of a class that does
 // not exist, a badge with no styling is a badge nobody notices.
@@ -428,53 +375,6 @@ function stat(label, value) {
     el('span', { class: 'stat-label', text: label }),
     el('span', { class: 'stat-value', text, title: text }),
   ]);
-}
-
-/**
- * A details grid. Rows the drive does not report are dropped rather than shown as a
- * bare em dash: a row whose only content is "n/a" tells you nothing except that the
- * field exists, and a screenful of them reads as broken rather than sparse.
- */
-function statGrid(rows, emptyNote) {
-  const shown = rows.filter(Boolean);
-  if (!shown.length) return el('p', { class: 'muted', text: emptyNote });
-  return el('div', { class: 'form-grid' }, shown);
-}
-
-/**
- * How full the drive is, for the Usage and media card (`FEATURES.md` A28).
- *
- * A figure, like every other row on this card. It was a bar, and a bar is the wrong shape here: the
- * only graphic in a column of labels and values, and the Partitions card below already shows fullness
- * properly, per filesystem, with a table to explain it and room to say which is which. This row's job
- * is the headline.
- *
- * The filesystem is named because the figure is the *fullest* one, and "47%" is not actionable on its
- * own: which filesystem is at 47% is the difference between a pool with room and a pool with a problem.
- *
- * `storage` is the server's summary of the fullest filesystem (`API.md`), so the fleet card and this
- * page cannot disagree about the same drive.
- */
-function storageText(storage) {
-  if (!storage) return null;
-  const pct = storage.used_pct;
-  // Checked explicitly, because `Number(null)` and `Number('')` are both 0, and "0% used" for a drive
-  // nobody could measure is a confident wrong answer rather than a missing one.
-  if (pct === null || pct === undefined || pct === '') return null;
-  const value = Number(pct);
-  if (!Number.isFinite(value)) return null;
-  const clamped = Math.max(0, Math.min(100, Math.round(value)));
-  return storage.mount ? `${clamped}% (${storage.mount})` : `${clamped}%`;
-}
-
-/** "96% remaining (4% used)", prefers the drive's own life figure. */
-function lifeText(lifeLeft, wearPct) {
-  if (lifeLeft != null) return `${lifeLeft}% remaining`;
-  if (wearPct != null) {
-    const used = Math.round(wearPct);
-    return `${100 - used}% remaining (${used}% used)`;
-  }
-  return null;
 }
 
 // --- trends -------------------------------------------------------------------
@@ -569,36 +469,6 @@ export function parsePenalties(raw) {
 }
 
 
-
-export function trendCard(series, onRange) {
-  const selector = el('div', { class: 'row', style: 'gap:var(--space-1)' },
-    TREND_RANGES.map(([value, label]) =>
-      el('button', {
-        class: 'health-item',
-        type: 'button',
-        'aria-pressed': trendRange === value ? 'true' : 'false',
-        onclick: () => onRange(value),
-      }, [el('span', { class: 'health-label', text: label })])));
-
-  // One window for every row in the card, and one axis under them all.
-  const window = trendWindow(series);
-  const rows = TREND_METRICS
-    .map((metric) => trendRow(metric, seriesFor(metric.key, series), { window }))
-    .filter(Boolean);
-
-  return el('div', { class: 'card stack' }, [
-    el('div', { class: 'row' }, [
-      el('h2', { text: 'Trend' }),
-      el('span', { class: 'spacer' }),
-      selector,
-    ]),
-    rows.length
-      ? el('div', {}, [rows, dateAxis(window)])
-      : el('p', { class: 'muted', text: series.length
-        ? 'Not enough readings in this window yet. A trend needs at least two scans.'
-        : 'No history yet. Trends appear once this drive has been scanned a few times.' }),
-  ]);
-}
 
 /**
  * The span every sparkline in the card is drawn against (`ADR-023`).

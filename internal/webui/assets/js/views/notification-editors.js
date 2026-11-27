@@ -168,32 +168,6 @@ export async function saveWindows(ctx, windows) {
   }
 }
 
-function maintenanceCard(ctx, windows, devices) {
-  const now = Date.now();
-  // Recurring windows sort by their time of day; one-off ones by when they start.
-  const sorted = [...windows].sort((a, b) => {
-    if (isRecurring(a) !== isRecurring(b)) return isRecurring(a) ? 1 : -1;
-    return isRecurring(a) ? a.start_minute - b.start_minute : a.starts_at - b.starts_at;
-  });
-
-  return el('div', { class: 'card stack' }, [
-    el('div', { class: 'row' }, [
-      el('h2', { text: 'Maintenance windows' }),
-      el('span', { class: 'spacer' }),
-      el('button', { class: 'btn btn-sm', type: 'button',
-        onclick: () => editWindow(ctx, windows, devices) },
-        [icon('plus'), 'Add window']),
-    ]),
-    el('p', { class: 'muted', text: 'Alerts are silenced for the drives a window covers. An array ' +
-      'rebuild, a migration, a chassis being moved. Windows expire on their own, so there is nothing ' +
-      'to remember to switch back on.' }),
-    sorted.length
-      ? el('div', { class: 'stack', style: 'gap:var(--space-2)' },
-          sorted.map((w) => windowRow(ctx, windows, devices, w, now)))
-      : el('p', { class: 'muted', text: 'No maintenance windows configured.' }),
-  ]);
-}
-
 function windowRow(ctx, windows, devices, w, now) {
   const state = windowState(w, now);
   const tone = { active: 'caution', upcoming: 'unknown', ended: 'good', recurring: 'unknown' }[state];
@@ -337,45 +311,6 @@ function drivePicker(devices) {
       .filter((row) => row.querySelector('input').checked)
       .map((row) => row.querySelector('input').dataset.serial),
   };
-}
-
-// The delivery log is the only record of an alert that fired while a channel was
-// down, so it is not optional furniture (ADR-008).
-function deliveryLog(log, channels) {
-  const entries = (log && log.notifications) || [];
-  if (!entries.length) return null;
-
-  const labelFor = (id) => {
-    const match = channels.find((c) => c.id === id);
-    return match ? (match.label || match.type) : `channel ${id}`;
-  };
-
-  // No inline margin: the page's own gap spaces this card from its neighbours, and a
-  // margin on top of that gap is what made the cards look unevenly spaced.
-  return el('div', { class: 'card stack' }, [
-    el('h2', { text: 'Recent deliveries' }),
-    el('div', { class: 'table-wrap' }, [
-      el('table', { class: 'data' }, [
-        el('thead', {}, [el('tr', {}, [
-          el('th', { text: 'When' }),
-          el('th', { text: 'Channel' }),
-          el('th', { text: 'Event' }),
-          el('th', { text: 'Status' }),
-          el('th', { text: 'Detail' }),
-        ])]),
-        el('tbody', {}, entries.map((e) => el('tr', {}, [
-          el('td', { text: fmtAgo(e.sent_at), title: fmtDateTime(e.sent_at) }),
-          el('td', { text: labelFor(e.channel_id) }),
-          el('td', { text: e.event_type }),
-          el('td', {}, [el('span', {
-            class: `badge badge-${e.status === 'sent' ? 'good' : (e.status === 'squelched' || e.status === 'skipped') ? 'unknown' : 'bad'}`,
-            text: e.status,
-          })]),
-          el('td', { class: 'muted', text: e.detail || 'n/a' }),
-        ]))),
-      ]),
-    ]),
-  ]);
 }
 
 // One entry per channel type. Each field declares how to render itself and how to

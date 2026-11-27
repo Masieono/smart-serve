@@ -9,7 +9,6 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"strconv"
 	"strings"
 	"time"
 
@@ -297,22 +296,6 @@ func (s webhookSender) Send(ctx context.Context, cfg map[string]any, ev Event) e
 func stringField(cfg map[string]any, key string) string {
 	s, _ := cfg[key].(string)
 	return strings.TrimSpace(s)
-}
-
-// intField reads an integer from a decoded channel config, accepting either a JSON
-// number or a numeric string (the UI posts strings for text inputs).
-func intField(cfg map[string]any, key string, def int) int {
-	switch v := cfg[key].(type) {
-	case float64:
-		return int(v)
-	case int:
-		return v
-	case string:
-		if n, err := strconv.Atoi(strings.TrimSpace(v)); err == nil {
-			return n
-		}
-	}
-	return def
 }
 
 // splitList reads a comma, semicolon or whitespace separated list, as used by the
