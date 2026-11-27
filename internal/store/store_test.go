@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"database/sql"
 	"path/filepath"
 	"testing"
 	"time"
@@ -225,5 +226,24 @@ func TestSaveScanAndListDevices(t *testing.T) {
 	}
 	if history[0].DevicesTotal != 3 || history[0].DevicesOK != 2 || history[0].DevicesFailed != 1 {
 		t.Errorf("counts = %+v, want total 3, ok 2, failed 1", history[0])
+	}
+}
+
+// A capacity the column should never hold is not converted into a figure.
+//
+// The writer clamps above MaxInt64 before storing, so the conversion at this line cannot wrap through
+// this package's own writes. A negative in the column means the file was edited by hand or a future
+// writer forgot the rule, and converting it would produce an 18-exabyte capacity that every reader
+// downstream takes at face value. gosec's G115 flags the conversion; this is the honest answer to it.
+func TestANegativeCapacityReadsAsAbsent(t *testing.T) {
+	if got := uint64Ptr(sql.NullInt64{Int64: -1, Valid: true}); got != nil {
+		t.Errorf("uint64Ptr(-1) = %d, want nil: a negative capacity is not a capacity", *got)
+	}
+	if got := uint64Ptr(sql.NullInt64{Valid: false}); got != nil {
+		t.Error("uint64Ptr(NULL) is not nil")
+	}
+	got := uint64Ptr(sql.NullInt64{Int64: 1 << 40, Valid: true})
+	if got == nil || *got != 1<<40 {
+		t.Errorf("uint64Ptr(1<<40) = %v, want the value unchanged", got)
 	}
 }

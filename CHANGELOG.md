@@ -166,6 +166,11 @@ discarding silently is not. See `ADR-028`.
 
 ### Fixed
 
+- **A negative capacity in the database reads as absent rather than as 18 exabytes.** The writer clamps
+  above MaxInt64 before storing, so this package's own writes cannot wrap; the read side now clamps too,
+  because a hand-edited row or a future writer that forgot the rule would otherwise become a figure
+  every later reader takes at face value. This is also the honest answer to gosec's G115 on the
+  conversion, rather than a suppression.
 - **A drive that reports no spare figures is no longer docked for it.** The verdict was guarded against
   an omitted NVMe spare pair; the *penalty* was not, so a healthy drive whose log carried neither
   `available_spare` nor its threshold scored 70 and its breakdown showed a fabricated "spare blocks
