@@ -45,6 +45,20 @@ func isTransient(err error) bool {
 // (`internal/urlguard` explains why).
 func newHTTPClient() *http.Client { return urlguard.Client(requestTimeout) }
 
+// statusHint is the short, fixed addition to a refused request. Fixed because the alternative is
+// reflecting whatever the destination chose to say.
+func statusHint(code int) string {
+	switch code {
+	case http.StatusUnauthorized, http.StatusForbidden:
+		return " (the endpoint refused the credential)"
+	case http.StatusNotFound:
+		return " (no endpoint at that URL)"
+	case http.StatusTooManyRequests:
+		return " (the endpoint asked us to slow down)"
+	}
+	return ""
+}
+
 // doRequest sends a request built fresh for each attempt (so a retry always has
 // a full body) and classifies the response.
 func doRequest(ctx context.Context, client *http.Client, build func() (*http.Request, error)) error {
@@ -62,15 +76,20 @@ func doRequest(ctx context.Context, client *http.Client, build func() (*http.Req
 		}
 		defer resp.Body.Close()
 
-		body, _ := io.ReadAll(io.LimitReader(resp.Body, maxResponse))
-		detail := strings.TrimSpace(string(body))
+		// Drain so the connection can be reused, and read nothing else.
+		//
+		// The body is not echoed into the error. The endpoint is operator-supplied, so a hostile or
+		// simply misconfigured server can put anything in it: an HTML page that renders in the
+		// notification dialog, a login form, megabytes of text that bury the one fact worth having.
+		// The status code is the fact; the body is the other server's words.
+		_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, maxResponse))
 		switch {
 		case resp.StatusCode >= 200 && resp.StatusCode < 300:
 			return nil
 		case resp.StatusCode >= 500:
-			return transientError{fmt.Errorf("%s: %s", resp.Status, detail)}
+			return transientError{fmt.Errorf("%s", resp.Status)}
 		default:
-			return fmt.Errorf("%s: %s", resp.Status, detail)
+			return fmt.Errorf("%s%s", resp.Status, statusHint(resp.StatusCode))
 		}
 	})
 }
