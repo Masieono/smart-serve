@@ -195,6 +195,23 @@ discarding silently is not. See `ADR-028`.
   the placeholder is skipped rather than reported.
 - **Zero degrees is a temperature.** presence is decided by the parent object, not by the value, so a
   drive reporting exactly 0 in a cold rack shows 0 rather than no sensor.
+- **A scan whose record could not be stored still ends.** Returning early left every live view waiting
+  for a completion that never came, skipped the post-scan hook for a reading that really happened, and
+  lost the work with no history row. It publishes `scan_complete` with `ok: false` and the storage
+  error now, and calls the hook, exactly as the branch for a scan that failed earlier does.
+- **A self-test pass gives up on a drive that stops answering.** The wait loop treated every failed
+  read as "still testing, keep asking", so a drive unplugged mid-test left `running` true forever,
+  every later pass took the already-running skip, and scheduled self-testing was dead until a restart:
+  one unplug silently disabling the only feature that writes to a drive. Five minutes of consecutive
+  read failures ends that drive's wait. Ending the wait is not a claim the test finished, so the
+  drive's recorded state is left alone.
+- **Server-sent events carry a write deadline.** A peer that stopped reading without closing (a slept
+  laptop, dropped wifi) parked the handler inside `Write`, where it never saw the shutdown context:
+  `srv.Shutdown` waited out its whole timeout and the process exited non-zero, the exact symptom the
+  clean-stop wiring exists to prevent.
+- **The scheduler retries after a store error instead of parking.** A failed schedule read was
+  indistinguishable from "nothing scheduled", so one transient error stopped every scan, digest and
+  self-test pass until somebody saved a setting.
 - **Signing in works in a browser.** The page was served with `Referrer-Policy: no-referrer`, and a
   browser with that policy serialises the `Origin` of a form POST as `null` (Fetch spec), so the app's
   own login form was rejected as cross-origin: every browser sign-in failed with a 403 while curl kept

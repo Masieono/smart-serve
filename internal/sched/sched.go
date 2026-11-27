@@ -44,6 +44,19 @@ type SelfTester interface {
 	StartQueue(ctx context.Context, kind string) (int, error)
 }
 
+// sleepFor waits for a fixed interval, or returns false if the context ends first. The bounded
+// sibling of sleepUntil, for a loop that has a reason to look again rather than one waiting for news.
+func (s *Scheduler) sleepFor(ctx context.Context, d time.Duration) bool {
+	t := time.NewTimer(d)
+	defer t.Stop()
+	select {
+	case <-ctx.Done():
+		return false
+	case <-t.C:
+		return true
+	}
+}
+
 // retryInterval is how far a schedule is advanced when its next boundary cannot
 // be computed. It keeps a malformed expression from spinning the loop.
 const retryInterval = time.Minute
@@ -145,7 +158,17 @@ func (s *Scheduler) Run(ctx context.Context) {
 	s.log.Info("scheduler started", "timezone", s.resolveLocation(ctx).String())
 	s.reconcileStartup(ctx)
 	for {
-		next, id, ok := s.nextDue(ctx)
+		next, id, ok, err := s.nextDue(ctx)
+		if err != nil {
+			// A read that failed is not the same as "nothing is scheduled". Waiting for a change
+			// here parked the scheduler until somebody saved a setting or touched a schedule, so one
+			// transient store error silently stopped every scan, digest and self-test pass. Back off
+			// briefly and re-read instead.
+			if !s.sleepFor(ctx, retryInterval) {
+				return
+			}
+			continue
+		}
 		if !ok {
 			// Nothing enabled: wait for a change. No polling, no timer.
 			if !s.sleepUntil(ctx, nil) {
@@ -272,11 +295,11 @@ func (s *Scheduler) sleepUntil(ctx context.Context, deadline *time.Time) bool {
 // nextDue returns the earliest fire time among enabled schedules, computing and
 // persisting any schedule whose next run was never set or has fallen into the
 // past.
-func (s *Scheduler) nextDue(ctx context.Context) (time.Time, int64, bool) {
+func (s *Scheduler) nextDue(ctx context.Context) (time.Time, int64, bool, error) {
 	schedules, err := s.store.ListSchedules(ctx)
 	if err != nil {
 		s.log.Error("scheduler could not list schedules", "err", err)
-		return time.Time{}, 0, false
+		return time.Time{}, 0, false, err
 	}
 
 	loc := s.resolveLocation(ctx)
@@ -297,7 +320,7 @@ func (s *Scheduler) nextDue(ctx context.Context) (time.Time, int64, bool) {
 			best, bestID = next, sched.ID
 		}
 	}
-	return best, bestID, bestID != 0
+	return best, bestID, bestID != 0, nil
 }
 
 // boundary resolves when a schedule should next fire.

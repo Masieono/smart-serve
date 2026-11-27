@@ -459,3 +459,34 @@ func itoa(v *int) string {
 	}
 	return strconv.Itoa(*v)
 }
+
+// A drive that stops answering must not disable scheduled self-testing forever.
+//
+// The wait loop treated every failed read as "the drive is busy, keep asking", which is right for one
+// bad poll and wrong for a drive that was unplugged: `running` stayed true, every later pass took the
+// already-running skip, and nothing could start again until the process restarted. One unplug
+// silently disabled the only feature that writes to a drive.
+func TestAPassGivesUpOnADriveThatStopsAnswering(t *testing.T) {
+	clock := &fakeClock{t: time.Unix(0, 0)}
+	drv := newFakeDriver(map[string][]string{"/dev/sda": {noLog}})
+	// Read 0 is the pass's pre-read, which succeeds; every poll after the test starts fails, which is
+	// what an unplug mid-test looks like.
+	drv.failFrom = map[string]int{"/dev/sda": 1}
+	drv.onRead = func() { clock.advance(time.Minute) }
+	st := &fakeStore{devices: []store.DeviceRecord{record("a", "/dev/sda")}}
+	re := &fakeRescanner{}
+	r := runner(t, st, drv, re)
+	r.now = clock.now
+
+	if _, err := r.StartQueue(context.Background(), "short"); err != nil {
+		t.Fatalf("StartQueue: %v", err)
+	}
+	// Wait for it to start before waiting for it to end, or the second condition is satisfied by the
+	// goroutine not having begun yet and the test passes on the broken code.
+	waitFor(t, "the pass to start", func() bool { return r.Progress().Running })
+	waitFor(t, "the pass to give up on the drive", func() bool { return !r.Progress().Running })
+
+	if got := re.seen(); len(got) != 0 {
+		t.Errorf("rescanned %v after giving up, want nothing: ending the wait is not a claim the test finished", got)
+	}
+}

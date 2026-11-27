@@ -193,17 +193,41 @@ func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
 			highest = n
 		}
 	}
-	send := func(ev events.Event) {
-		if ev.ID <= highest {
-			return
+	// A peer that stops reading without closing (a laptop that slept, wifi that dropped) fills the
+	// socket buffer and parks this handler inside Write, where it never reaches the select on
+	// `r.Context().Done()`. One such peer then defeats the clean-stop wiring: `hub.Close` cannot
+	// unblock a goroutine stuck in a write, `srv.Shutdown` waits out its whole timeout, and the
+	// process exits non-zero, which is the symptom that wiring exists to prevent. The deadline turns
+	// a stuck write into a return, and the browser reconnects on its own.
+	rc := http.NewResponseController(w)
+	const writeDeadline = 10 * time.Second
+	write := func(b []byte) bool {
+		_ = rc.SetWriteDeadline(time.Now().Add(writeDeadline))
+		if _, err := w.Write(b); err != nil {
+			return false
 		}
-		writeSSE(w, ev)
+		flusher.Flush()
+		return true
+	}
+	send := func(ev events.Event) bool {
+		if ev.ID <= highest {
+			return true
+		}
+		payload, err := json.Marshal(ev.Data)
+		if err != nil {
+			return true
+		}
+		if !write([]byte(fmt.Sprintf("id: %d\nevent: %s\ndata: %s\n\n", ev.ID, ev.Type, payload))) {
+			return false
+		}
 		highest = ev.ID
+		return true
 	}
 	for _, ev := range s.hub.Since(highest) {
-		send(ev)
+		if !send(ev) {
+			return
+		}
 	}
-	flusher.Flush()
 
 	ticker := time.NewTicker(25 * time.Second)
 	defer ticker.Stop()
@@ -214,24 +238,18 @@ func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
 			return
 		case <-ticker.C:
 			// A comment keeps idle proxies from closing the stream.
-			_, _ = fmt.Fprint(w, ": keep-alive\n\n")
-			flusher.Flush()
+			if !write([]byte(": keep-alive\n\n")) {
+				return
+			}
 		case ev, open := <-ch:
 			if !open {
 				// The hub closed the channel: shutdown, or this subscriber fell too far behind. The
 				// browser reconnects on its own and replays from `Last-Event-ID`.
 				return
 			}
-			send(ev)
-			flusher.Flush()
+			if !send(ev) {
+				return
+			}
 		}
 	}
-}
-
-func writeSSE(w http.ResponseWriter, ev events.Event) {
-	payload, err := json.Marshal(ev.Data)
-	if err != nil {
-		return
-	}
-	_, _ = fmt.Fprintf(w, "id: %d\nevent: %s\ndata: %s\n\n", ev.ID, ev.Type, payload)
 }

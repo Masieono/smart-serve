@@ -80,7 +80,10 @@ func TestNextDueArmsANewSchedule(t *testing.T) {
 	id := mustCreateInterval(t, st, 600, true)
 
 	s := New(st, newFakeRunner(), events.NewHub(), Options{Now: fixedClock(now)})
-	next, gotID, ok := s.nextDue(context.Background())
+	next, gotID, ok, err := s.nextDue(context.Background())
+	if err != nil {
+		t.Fatalf("nextDue: %v", err)
+	}
 	if !ok || gotID != id {
 		t.Fatalf("nextDue = (%v, %d, %v), want a due schedule %d", next, gotID, ok, id)
 	}
@@ -103,7 +106,7 @@ func TestNextDueIgnoresDisabledSchedules(t *testing.T) {
 	mustCreateInterval(t, st, 60, false)
 
 	s := New(st, newFakeRunner(), events.NewHub(), Options{Now: fixedClock(time.Now())})
-	if _, _, ok := s.nextDue(context.Background()); ok {
+	if _, _, ok, _ := s.nextDue(context.Background()); ok {
 		t.Error("a disabled schedule should not be due")
 	}
 }
@@ -120,7 +123,7 @@ func TestNextDueKeepsAFutureBoundary(t *testing.T) {
 	}
 
 	s := New(st, newFakeRunner(), events.NewHub(), Options{Now: fixedClock(now)})
-	next, _, ok := s.nextDue(context.Background())
+	next, _, ok, _ := s.nextDue(context.Background())
 	if !ok || !next.Equal(boundary) {
 		t.Errorf("next = %v, want the existing boundary %v", next, boundary)
 	}
@@ -141,7 +144,7 @@ func TestCronUsesTheConfiguredTimezone(t *testing.T) {
 
 	now := time.Date(2026, 10, 12, 1, 0, 0, 0, loc)
 	s := New(st, newFakeRunner(), events.NewHub(), Options{Location: loc, Now: fixedClock(now)})
-	next, _, ok := s.nextDue(ctx)
+	next, _, ok, _ := s.nextDue(ctx)
 	if !ok {
 		t.Fatal("expected a due schedule")
 	}
@@ -169,7 +172,7 @@ func TestStartupSkipsAMissedRun(t *testing.T) {
 	})
 	s.reconcileStartup(context.Background())
 
-	next, _, ok := s.nextDue(context.Background())
+	next, _, ok, _ := s.nextDue(context.Background())
 	if !ok {
 		t.Fatal("expected a due schedule")
 	}
@@ -205,7 +208,7 @@ func TestStartupRunOnceKeepsTheOverdueBoundary(t *testing.T) {
 	})
 	s.reconcileStartup(context.Background())
 
-	next, _, ok := s.nextDue(context.Background())
+	next, _, ok, _ := s.nextDue(context.Background())
 	if !ok || !next.Equal(overdue) {
 		t.Errorf("next = %v, want the overdue time %v so it fires once", next, overdue)
 	}
@@ -232,7 +235,7 @@ func TestSchedulerUsesTheConfiguredTimezone(t *testing.T) {
 		Location: time.UTC, Now: fixedClock(now), Logger: discardLogger(),
 	})
 
-	next, _, ok := s.nextDue(ctx)
+	next, _, ok, _ := s.nextDue(ctx)
 	if !ok {
 		t.Fatal("expected a due schedule")
 	}
@@ -257,7 +260,7 @@ func TestSchedulerIgnoresAnUnknownTimezone(t *testing.T) {
 		Location: time.UTC, Now: fixedClock(now), Logger: discardLogger(),
 	})
 
-	next, gotID, ok := s.nextDue(ctx)
+	next, gotID, ok, _ := s.nextDue(ctx)
 	if !ok || gotID != id {
 		t.Fatalf("nextDue = (%v, %d, %v), want the schedule %d", next, gotID, ok, id)
 	}
@@ -287,7 +290,7 @@ func TestSchedulerUsesTheConfiguredMissedRunPolicy(t *testing.T) {
 	})
 	s.reconcileStartup(ctx)
 
-	next, _, ok := s.nextDue(ctx)
+	next, _, ok, _ := s.nextDue(ctx)
 	if !ok || !next.Equal(overdue) {
 		t.Errorf("next = %v, want the overdue time %v so it fires once", next, overdue)
 	}
@@ -306,7 +309,7 @@ func TestBoundaryDueNowFiresRatherThanReschedules(t *testing.T) {
 	s := New(st, newFakeRunner(), events.NewHub(), Options{
 		Now: fixedClock(now), Logger: discardLogger(),
 	})
-	next, _, ok := s.nextDue(context.Background())
+	next, _, ok, _ := s.nextDue(context.Background())
 	if !ok {
 		t.Fatal("expected a due schedule")
 	}
@@ -515,3 +518,24 @@ func TestAWakeUpDoesNotFireAScheduleEarly(t *testing.T) {
 }
 
 func ptrInt64(v int64) *int64 { return &v }
+
+// A store read that fails is reported, so the loop can back off and look again.
+//
+// It used to be indistinguishable from "nothing is scheduled": the loop waited for a wake, and the
+// only wake sources are a settings or schedule change in the UI, so one transient error stopped every
+// scheduled scan, digest and self-test pass until somebody clicked something.
+func TestNextDueReportsAStoreError(t *testing.T) {
+	st := newTestStore(t)
+	s := New(st, newFakeRunner(), events.NewHub(), Options{Now: fixedClock(time.Now())})
+	if err := st.Close(); err != nil {
+		t.Fatalf("close: %v", err)
+	}
+
+	_, _, ok, err := s.nextDue(context.Background())
+	if err == nil {
+		t.Fatal("a closed store produced no error, so the loop would park")
+	}
+	if ok {
+		t.Error("ok = true for a read that failed")
+	}
+}
