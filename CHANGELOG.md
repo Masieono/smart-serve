@@ -205,6 +205,17 @@ discarding silently is not. See `ADR-028`.
   one unplug silently disabling the only feature that writes to a drive. Five minutes of consecutive
   read failures ends that drive's wait. Ending the wait is not a claim the test finished, so the
   drive's recorded state is left alone.
+- **A restart no longer leaves work running against a closed database.** Two kinds of work are
+  detached from whatever asked for them, which is the point: a scan started from the Scan button
+  returns its 202 and reads drives for minutes, and a scheduled scan runs while the operator restarts
+  the container. Both were detached from the request *and* from the process. The button's scan used a
+  bare `context.Background()` and a scheduled scan used `context.WithoutCancel`, so neither was
+  cancelled at shutdown, and `main` closed the database under a write that was still coming. They now
+  run on one process-lifetime group (`internal/lifecycle`), `main` stops it after the HTTP server has
+  drained and waits for it to return, and only then closes the database.
+- **A scheduled scan is cancelled by the shutdown rather than outliving it.** Its bookkeeping still
+  lands, bounded at thirty seconds, because the shutdown is waiting and the schedule must not fire
+  again the moment the process comes back.
 - **Server-sent events carry a write deadline.** A peer that stopped reading without closing (a slept
   laptop, dropped wifi) parked the handler inside `Write`, where it never saw the shutdown context:
   `srv.Shutdown` waited out its whole timeout and the process exited non-zero, the exact symptom the

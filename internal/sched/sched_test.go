@@ -11,6 +11,7 @@ import (
 	_ "time/tzdata" // embed the tz database so timezone tests never depend on the host
 
 	"github.com/masieono/smart-serve/internal/events"
+	"github.com/masieono/smart-serve/internal/lifecycle"
 	"github.com/masieono/smart-serve/internal/scan"
 	"github.com/masieono/smart-serve/internal/store"
 )
@@ -537,5 +538,86 @@ func TestNextDueReportsAStoreError(t *testing.T) {
 	}
 	if ok {
 		t.Error("ok = true for a read that failed")
+	}
+}
+
+// gatedRunner blocks a scan until its context is cancelled, so a shutdown can be observed mid-fire.
+type gatedRunner struct {
+	started   chan struct{}
+	cancelled chan struct{}
+	once      sync.Once
+	once2     sync.Once
+}
+
+func newGatedRunner() *gatedRunner {
+	return &gatedRunner{started: make(chan struct{}), cancelled: make(chan struct{})}
+}
+
+func (g *gatedRunner) Scan(ctx context.Context, _ scan.Trigger) (scan.Result, bool, error) {
+	g.once.Do(func() { close(g.started) })
+	<-ctx.Done()
+	g.once2.Do(func() { close(g.cancelled) })
+	return scan.Result{}, false, ctx.Err()
+}
+
+// A shutdown bounds a fire in progress and still lets it record itself.
+//
+// The run context used to be `context.WithoutCancel`, so a scan mid-flight when the operator
+// restarted kept running with a context nothing would ever cancel, while main closed the database it
+// records into. Now the run is cancelled by the shutdown, the fire's bookkeeping is bounded, and the
+// shutdown waits for it: the schedule advances on an open database.
+func TestAShutdownEndsAFireAndLetsItRecordItself(t *testing.T) {
+	st := newTestStore(t)
+	now := time.Date(2026, 10, 12, 12, 0, 0, 0, time.UTC)
+	id := mustCreateInterval(t, st, 600, true)
+
+	runner := newGatedRunner()
+	group := lifecycle.New()
+	s := New(st, runner, events.NewHub(), Options{Now: fixedClock(now), ScanTimeout: 10 * time.Minute,
+		Location: time.UTC, Logger: discardLogger()})
+	group.Go(s.Run)
+
+	// "Run now" is the honest way in with a fixed clock: the startup reconciliation rearms a schedule
+	// that has already passed into the next interval, so a boundary in the past is never reached. It
+	// is retried because the loop may not have armed itself yet when the first nudge lands.
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		if err := s.RunNow(context.Background(), id); err != nil {
+			t.Fatalf("RunNow: %v", err)
+		}
+		select {
+		case <-runner.started:
+		case <-time.After(25 * time.Millisecond):
+			if time.Now().Before(deadline) {
+				continue
+			}
+			t.Fatal("the schedule never fired")
+		}
+		break
+	}
+
+	stopped := make(chan struct{})
+	go func() { group.Stop(); close(stopped) }()
+
+	select {
+	case <-runner.cancelled:
+	case <-time.After(2 * time.Second):
+		t.Fatal("the shutdown did not cancel the scan in progress")
+	}
+	select {
+	case <-stopped:
+	case <-time.After(5 * time.Second):
+		t.Fatal("Stop did not return, so the shutdown would hang")
+	}
+
+	sched, err := st.GetSchedule(context.Background(), id)
+	if err != nil {
+		t.Fatalf("GetSchedule: %v", err)
+	}
+	if sched.LastRun.IsZero() {
+		t.Error("the fire recorded nothing: the run happened but the schedule never advanced")
+	}
+	if !sched.NextRun.After(now) {
+		t.Errorf("next run = %v, want it moved past the clock", sched.NextRun)
 	}
 }

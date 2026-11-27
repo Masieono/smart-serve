@@ -16,6 +16,7 @@ import (
 
 	"github.com/masieono/smart-serve/internal/auth"
 	"github.com/masieono/smart-serve/internal/events"
+	"github.com/masieono/smart-serve/internal/lifecycle"
 	"github.com/masieono/smart-serve/internal/notify"
 	"github.com/masieono/smart-serve/internal/scan"
 	"github.com/masieono/smart-serve/internal/selftest"
@@ -53,6 +54,10 @@ type Options struct {
 	// (`SMARTSERVE_TRUST_PROXY`). Off unless the operator says the proxy is there.
 	TrustProxy bool
 	Logger     *slog.Logger
+	// Background, when set, is the process-lifetime group that owns scans started from the UI. The
+	// server needs the *same* group main stops before closing the database, so it is passed in
+	// rather than created here.
+	Background *lifecycle.Group
 	// UI, when set, serves the web interface at every path the API does not
 	// claim (including SPA deep links).
 	UI http.Handler
@@ -136,6 +141,10 @@ type Server struct {
 	// selfTestCmd runs the smartctl self-test commands; never nil after New.
 	selfTestCmd SelfTestCommands
 
+	// background runs work that outlives the request that asked for it, and is stopped at shutdown
+	// before the database is closed (internal/lifecycle). Never nil after New.
+	background *lifecycle.Group
+
 	// commandTimeoutFn resolves the per-command timeout for the smartctl calls this package
 	// makes directly, so they honour the same setting the scans do.
 	commandTimeoutFn func(ctx context.Context) time.Duration
@@ -169,10 +178,17 @@ func New(st *store.Store, sc *scan.Manager, hub *events.Hub, opts Options) *Serv
 	if selfTestCmd == nil {
 		selfTestCmd = smartCommands{}
 	}
+	background := opts.Background
+	if background == nil {
+		// A server built without one (tests) still needs somewhere to put a scan; an owned group is
+		// never stopped, which is harmless there and wrong in production, where main passes its own.
+		background = lifecycle.New()
+	}
 	s := &Server{
 		store: st, scanner: sc, hub: hub, log: logger, version: opts.Version,
 		scheduler: opts.Scheduler, notifier: opts.Notifier, selfTests: opts.SelfTests,
 		commandTimeoutFn: opts.CommandTimeout, selfTestCmd: selfTestCmd,
+		background: background,
 	}
 
 	s.basePath = strings.TrimRight(opts.BasePath, "/")

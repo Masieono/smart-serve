@@ -53,11 +53,18 @@ func (s *Server) handleScan(w http.ResponseWriter, r *http.Request) {
 	if running {
 		status = "joined"
 	}
-	go func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+	// The scan outlives this request, which is the point of the 202, but it must not outlive the
+	// process: it used a bare `context.Background()` with a ten minute timeout, so a restart during a
+	// scan left it running while the database it writes to was being closed. The group's context is
+	// cancelled at shutdown, and the shutdown waits for it before closing anything.
+	if !s.background.Go(func(bg context.Context) {
+		ctx, cancel := context.WithTimeout(bg, 10*time.Minute)
 		defer cancel()
 		_, _, _ = s.scanner.Scan(ctx, trigger)
-	}()
+	}) {
+		writeError(w, http.StatusServiceUnavailable, "the server is shutting down")
+		return
+	}
 	writeJSON(w, http.StatusAccepted, map[string]any{"status": status})
 }
 
